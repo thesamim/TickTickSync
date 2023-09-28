@@ -1,11 +1,11 @@
 {
-	"id": "ultimate-todoist-sync",
-	"name": "Ultimate Todoist Sync",
-	"version": "1.0.43",
+	"id": "ultimate-TickTick-sync",
+	"name": "Ultimate TickTick Sync",
+	"version": "1.0.1",
 	"minAppVersion": "1.0.0",
-	"description": "This is the best Todoist task synchronization plugin for Obsidian so far.",
-	"author": "HeroBlackInk",
-	"authorUrl": "https://github.com/HeroBlackInk/",
+	"description": "This is the best TickTick task synchronization plugin for Obsidian so far.",
+	"author": "thesamim",
+	"authorUrl": "https://github.com/thesamim/ultimate-ticktick-sync-for-obsidian.git",
 	"fundingUrl": "",
 	"isDesktopOnly": false
 }

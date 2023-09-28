@@ -1,6 +1,10 @@
-# Ultimate Todoist Sync for Obsidian
+# Ultimate TickTick Sync for Obsidian
 
-The Ultimate Todoist Sync plugin automatically creates tasks in Todoist and synchronizes task state between Obsidian and Todoist.
+> [!important]
+> This plugin is based on [Ultimate Todoist Sync for Obsidian](https://github.com/HeroBlackInk/ultimate-todoist-sync-for-obsidian)
+> as of 2023-09-28 this is a work in progress, guarantied to fail. Just saving progress at this point.
+
+The Ultimate TickTick Sync plugin automatically creates tasks in TickTick and synchronizes task state between Obsidian and TickTick.
 
 
 ## Demo
@@ -15,7 +19,7 @@ The Ultimate Todoist Sync plugin automatically creates tasks in Todoist and sync
 ## Features 
 
 ### 
-| Feature                 | Sync from Obsidian to Todoist | Sync from Todoist to Obsidian | Description |
+| Feature                 | Sync from Obsidian to TickTick | Sync from TickTick to Obsidian | Description |
 |-------------------------|-------------------------------|-------------------------------|-------------|
 | Add task                | ✅                            | 🔜                           |             |
 | Delete task             | ✅                            | 🔜                           |             |
@@ -27,12 +31,12 @@ The Ultimate Todoist Sync plugin automatically creates tasks in Todoist and sync
 | Mark task as uncompleted| ✅                            | ✅                           |             |
 | Modify project          | 🔜                            | 🔜                           |             |
 | Modify section          | 🔜                            | 🔜                           |             |
-| Modify priority         | ✅                            | 🔜                           |  Currently, task priority only support one-way synchronization from Todoist to Obsidian.           |
+| Modify priority         | ✅                            | 🔜                           |  Currently, task priority only support one-way synchronization from TickTick to Obsidian.           |
 | Add reminder            | 🔜                            | 🔜                           |             |
 | Move tasks between files| 🔜                            | 🔜                           |             |
 | Added-at date           | 🔜                            | 🔜                           |             |
 | Completed-at date       | 🔜                            | 🔜                           |             |
-| Task notes              | 🔜                            | ✅                           |   Currently, task notes/comments only support one-way synchronization from Todoist to Obsidian.          |
+| Task notes              | 🔜                            | ✅                           |   Currently, task notes/comments only support one-way synchronization from TickTick to Obsidian.          |
 
 
 ## Installation
@@ -45,10 +49,10 @@ From Obsidian v1.3.5+, you can activate this plugin within Obsidian by doing the
 2. Select the `Community plugins` tab on the left
 3. Make sure `Restricted mode` is **off**
 4. Click `Browse` next to `Community Plugins`
-5. Search for and click on `Ultimate Todoist Sync`
+5. Search for and click on `Ultimate TickTick Sync`
 6. Click `Install`
 7. Once installed, close the `Community Plugins` window
-8. Under `Installed Plugins`, activate the `Ultimate Todoist Sync` plugin
+8. Under `Installed Plugins`, activate the `Ultimate TickTick Sync` plugin
 
 You can update the plugin following the same procedure, clicking `Update` instead of `Install`
 
@@ -56,7 +60,7 @@ You can update the plugin following the same procedure, clicking `Update` instea
 
 If you would rather install the plugin manually, you can do the following:
 
-1. Download the latest release of the plugin from the [Releases](https://github.com/HeroBlackInk/ultimate-todoist-sync-for-obsidian/releases) page.
+1. Download the latest release of the plugin from the [Releases](https://github.com/HeroBlackInk/ultimate-TickTick-sync-for-obsidian/releases) page.
 2. Extract the downloaded zip file and copy the entire folder to your Obsidian plugins directory.
 3. Enable the plugin in the Obsidian settings.
 
@@ -65,8 +69,8 @@ If you would rather install the plugin manually, you can do the following:
 
 1. Open Obsidian's `Settings` window
 2. Select the `Community plugins` tab on the left
-3. Under `Installed plugins`, click the gear icon next to the `Ultimate Todoist Sync` plugin
-4. Enter your Todoist API token
+3. Under `Installed plugins`, click the gear icon next to the `Ultimate TickTick Sync` plugin
+4. Enter your TickTick API token
 
 
 ## Settings
@@ -75,7 +79,7 @@ The time interval for automatic synchronization is set to 300 seconds by default
 2. Default project
 New tasks will be added to the default project, and you can change the default project in the settings. 
 3. Full vault sync
-By enabling this option, the plugin will automatically add `#todoist` to all tasks, which will modify all files in the vault.
+By enabling this option, the plugin will automatically add `#TickTick` to all tasks, which will modify all files in the vault.
 
 
 ## Usage
@@ -84,11 +88,11 @@ By enabling this option, the plugin will automatically add `#todoist` to all tas
 
 | Syntax | Description | Example |
 | --- | --- | --- |
-|#todoist|Tasks marked with `#todoist` will be added to Todoist, while tasks without the `#todoist` tag will not be processed.If you have enabled Full vault sync in the settings, `#todoist` will be added automatically.| `- [ ] task #todoist`|
-| 📅YYYY-MM-DD | The date format is 📅YYYY-MM-DD, indicating the due date of a task. | `- [ ] task content 📅2025-02-05 #todoist`   <br>Supports the following calendar emojis.📅📆🗓🗓️|
-| #projectTag | New tasks will be added to the default project(For example,  inbox .), and you can change the default project in the settings or use a tag with the same name to specify a particular project. | `- [ ] taskA #todoist` will be added to inbox.<br>`- [ ] taskB #tag #testProject #todoist` will be added to testProject.|
-| #tag | Note that all tags without a project of the same name are treated as normal tags | `- [ ] task #tagA #tagB #tagC #todoist` |
-|   `!!<number>` | The priority of the task (a number between 1 and 4, 4 for very urgent and 1 for natural).<br>**Note**: Keep in mind that very urgent is the priority 1 on clients. So, the priority 1 in the client corresponds to the number 4 here (Because that's how the official API of Todoist is designed.). | `- [ ] task !!4 #todoist` |
+|#TickTick|Tasks marked with `#TickTick` will be added to TickTick, while tasks without the `#TickTick` tag will not be processed.If you have enabled Full vault sync in the settings, `#TickTick` will be added automatically.| `- [ ] task #TickTick`|
+| 📅YYYY-MM-DD | The date format is 📅YYYY-MM-DD, indicating the due date of a task. | `- [ ] task content 📅2025-02-05 #TickTick`   <br>Supports the following calendar emojis.📅📆🗓🗓️|
+| #projectTag | New tasks will be added to the default project(For example,  inbox .), and you can change the default project in the settings or use a tag with the same name to specify a particular project. | `- [ ] taskA #TickTick` will be added to inbox.<br>`- [ ] taskB #tag #testProject #TickTick` will be added to testProject.|
+| #tag | Note that all tags without a project of the same name are treated as normal tags | `- [ ] task #tagA #tagB #tagC #TickTick` |
+|   `!!<number>` | The priority of the task (a number between 1 and 4, 4 for very urgent and 1 for natural).<br>**Note**: Keep in mind that very urgent is the priority 1 on clients. So, the priority 1 in the client corresponds to the number 4 here (Because that's how the official API of TickTick is designed.). | `- [ ] task !!4 #TickTick` |
 
 ###  Set a default project for each file separately
 

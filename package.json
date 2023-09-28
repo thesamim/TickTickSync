@@ -1,12 +1,12 @@
 {
-	"name": "ultimate-todoist-sync",
+	"name": "ultimate-ticktick-sync",
 	"version": "1.0.0",
-	"description": "This is a sample plugin for Obsidian (https://obsidian.md)",
+	"description": "ticktick sync attempt",
 	"main": "main.js",
 	"scripts": {
 		"dev": "node esbuild.config.mjs",
-		"build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production", 
-		"build-without-tsc": "node esbuild.config.mjs production", 
+		"build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
+		"build-without-tsc": "node esbuild.config.mjs production",
 		"version": "node version-bump.mjs && git add manifest.json versions.json"
 	},
 	"keywords": [],
@@ -23,6 +23,8 @@
 		"typescript": "4.7.4"
 	},
 	"dependencies": {
-		"@doist/todoist-api-typescript": "^2.1.2"
+		"@doist/TickTick-api-typescript": "^2.1.2",
+		"esbuild-plugin-copy": "^2.0.1",
+		"ticktick-api-lvt": "file:../ticktick-api-lvt"
 	}
 }
