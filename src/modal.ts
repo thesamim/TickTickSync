@@ -28,8 +28,8 @@ export class SetDefalutProjectInTheFilepathModal extends Modal {
         
         this.defaultProjectId = await this.plugin.cacheOperation.getDefaultProjectIdForFilepath(this.filepath)
         this.defaultProjectName = await this.plugin.cacheOperation.getProjectNameByIdFromCache(this.defaultProjectId)
-        console.log(this.defaultProjectId)
-        console.log(this.defaultProjectName)
+        // console.log(this.defaultProjectId)
+        // console.log(this.defaultProjectName)
         const myProjectsOptions: MyProject | undefined = this.plugin.settings.TickTickTasksData?.projects?.reduce((obj, item) => {
             obj[(item.id).toString()] = item.name;
             return obj;
@@ -46,7 +46,7 @@ export class SetDefalutProjectInTheFilepathModal extends Modal {
             .addOption(this.defaultProjectId,this.defaultProjectName)
             .addOptions(myProjectsOptions)
             .onChange((value)=>{
-                console.log(`project id is ${value}`)
+                // console.log(`project id is ${value}`)
                 //this.plugin.settings.defaultProjectId = this.result
                 //this.plugin.settings.defaultProjectName = this.plugin.cacheOperation.getProjectNameByIdFromCache(this.result)
                 //this.plugin.saveSettings()

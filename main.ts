@@ -14,7 +14,7 @@ import { CacheOperation } from './src/cacheOperation';
 import { FileOperation } from './src/fileOperation';
 
 //sync module
-import { TickTickSync } from './src/syncModule';
+import { TickTickSync } from './src/syncModule'; 
 
 
 //import modal
@@ -22,8 +22,8 @@ import { SetDefalutProjectInTheFilepathModal } from 'src/modal';
 
 export default class UltimateTickTickSyncForObsidian extends Plugin {
     settings: UltimateTickTickSyncSettings;
-    tickTickRestAPI: TicktickRestAPI | undefined;
-    tickTickSyncAPI: TicktickSyncAPI | undefined;
+    tickTickRestAPI: TickTickRestAPI | undefined;
+    tickTickSyncAPI: TickTickSyncAPI | undefined;
     taskParser: TaskParser | undefined;
     cacheOperation: CacheOperation | undefined;
     fileOperation: FileOperation | undefined;
@@ -68,7 +68,7 @@ export default class UltimateTickTickSyncForObsidian extends Plugin {
             
             //Determine the area where the click event occurs. If it is not in the editor, return
             if (!(this.app.workspace.activeEditor?.editor?.hasFocus())) {
-                (console.log(`editor is not focused`))
+                // (console.log(`editor is not focused`))
                 return
             }
             const view = this.app.workspace.getActiveViewOfType(MarkdownView);
@@ -131,7 +131,7 @@ export default class UltimateTickTickSyncForObsidian extends Plugin {
         
         
         
-        //hook editor-change event, if the current line contains #TickTick, it means there is a new task
+        //hook editor-change event, if the current line contains #ticktick, it means there is a new task
         this.registerEvent(this.app.workspace.on('editor-change',async (editor,view:MarkdownView)=>{
             try{
                 if(!this.settings.apiInitialized){
@@ -146,7 +146,6 @@ export default class UltimateTickTickSyncForObsidian extends Plugin {
                     return
                 }
                 if (!await this.checkAndHandleSyncLock()) return;
-                console.log(`new task check ${this.tickTickSync}`)
                 await this.tickTickSync.lineContentNewTaskCheck(editor,view)
                 this.syncLock = false
                 this.saveSettings()
@@ -161,7 +160,7 @@ export default class UltimateTickTickSyncForObsidian extends Plugin {
         
         
         /* Using other file managers to move, obsidian triggered the delete event and deleted all tasks
-        //Listen to the deletion event. When the file is deleted, read the tasklist in frontMatter and delete it in batches.
+        //Listen to the deletion event. When the file is deleted, read the tasklist in fileMetadata and delete it in batches.
         this.registerEvent(this.app.metadataCache.on('deleted', async(file,prevCache) => {
             try{
                 if(!this.settings.apiInitialized){
@@ -169,19 +168,19 @@ export default class UltimateTickTickSyncForObsidian extends Plugin {
                 }
                 //console.log('a new file has modified')
                 console.log(`file deleted`)
-                //Read frontMatter
-                const frontMatter = await this.cacheOperation.getFileMetadata(file.path)
-                if(frontMatter === null || frontMatter.TickTickTasks === undefined){
+                //Read fileMetadata
+                const fileMetadata = await this.cacheOperation.getFileMetadata(file.path)
+                if(fileMetadata === null || fileMetadata.TickTickTasks === undefined){
                     console.log('There is no task in the deleted files.')
                     return
                 }
                 //Determine whether TickTickTasks is null
-                console.log(frontMatter.TickTickTasks)
+                console.log(fileMetadata.TickTickTasks)
                 if(!( this.checkModuleClass())){
                     return
                 }
                 if (!await this.checkAndHandleSyncLock()) return;
-                await this.TickTickSync.deleteTasksByIds(frontMatter.TickTickTasks)
+                await this.TickTickSync.deleteTasksByIds(fileMetadata.TickTickTasks)
                 this.syncLock = false
                 this.saveSettings()
             }catch(error){
@@ -200,12 +199,12 @@ export default class UltimateTickTickSyncForObsidian extends Plugin {
             if(!this.settings.apiInitialized){
                 return
             }
-            console.log(`${oldpath} is renamed`)
-            //Read frontMatter
-            //const frontMatter = await this.fileOperation.getFrontMatter(file)
-            const frontMatter = await this.cacheOperation.getFileMetadata(oldpath)
-            console.log(frontMatter)
-            if(frontMatter === null || frontMatter.TickTickTasks === undefined){
+            // console.log(`${oldpath} is renamed`)
+            //Read fileMetadata
+            //const fileMetadata = await this.fileOperation.getFileMetadata(file)
+            const fileMetadata = await this.cacheOperation.getFileMetadata(oldpath)
+            // console.log(fileMetadata)
+            if(fileMetadata === null || fileMetadata.TickTickTasks === undefined){
                 //console.log('There is no task in the deleted file')
                 return
             }
@@ -234,7 +233,7 @@ export default class UltimateTickTickSyncForObsidian extends Plugin {
                     return
                 }
                 const filepath = file.path
-                console.log(`${filepath} is modified`)
+                // console.log(`${filepath} is modified`)
                 
                 //get current view
                 
@@ -284,11 +283,12 @@ export default class UltimateTickTickSyncForObsidian extends Plugin {
         //display default project for the current file on status bar
         // This adds a status bar item to the bottom of the app. Does not work on mobile apps.
         this.statusBar = this.addStatusBarItem();
+        console.log(`Ultimate TickTick Sync for Obsidian loaded!`)
         
         
     }
     
-    
+
     async onunload() {
         console.log(`Ultimate TickTick Sync for Obsidian unloaded!`)
         await this.saveSettings()
@@ -321,25 +321,25 @@ export default class UltimateTickTickSyncForObsidian extends Plugin {
     }
     
     async modifyTickTickAPI(){
-        console.log("modify")
+        // console.log("modify")
         await this.initializePlugin()
     }
     
     // return true of false
     async initializePlugin(){
         
-        console.log("new api")
+        // console.log("new api")
         //initialize TickTick restapi
         this.tickTickRestAPI = await new TickTickRestAPI(this.app, this)
-
+        
         
         
         //initialize data read and write object
         this.cacheOperation = new CacheOperation(this.app, this)
         const isProjectsSaved = await this.cacheOperation.saveProjectsToCache()
-        console.log(isProjectsSaved)
+        // console.log(isProjectsSaved)
         
-         
+        
         if(!isProjectsSaved){
             this.tickTickRestAPI = undefined
             this.tickTickSyncAPI = undefined
@@ -362,12 +362,12 @@ export default class UltimateTickTickSyncForObsidian extends Plugin {
                 //initialize file operation
                 this.fileOperation = new FileOperation(this.app,this)
                 
-                // //initialize todoisy sync api
-                // this.TickTickSyncAPI = new TickTickSyncAPI(this.app,this)
+                //initialize ticktick sync api
+                this.tickTickSyncAPI = new TickTickSyncAPI(this.app,this)
                 
                 //initialize TickTick sync module
                 this.tickTickSync = new TickTickSync(this.app,this)
-                console.log(`ticktick sync : ${this.tickTickSync}`) 
+                // console.log('ticktick sync : ', this.tickTickSync) ;
                 
                 //Back up all data before each startup
                 this.tickTickSync.backupTickTickAllResources()
@@ -402,9 +402,12 @@ export default class UltimateTickTickSyncForObsidian extends Plugin {
     }
     
     async initializeModuleClass(){
-        
+        // console.log("initializeModuleClass")
         //initialize TickTick restapi
-        this.tickTickRestAPI = new TickTickRestAPI(this.app, this);
+        if (!this.tickTickRestAPI) {
+            // console.log("API wasn't inited?")
+            this.tickTickRestAPI = new TickTickRestAPI(this.app, this);
+        }
         
         //initialize data read and write object
         this.cacheOperation = new CacheOperation(this.app,this)
@@ -443,25 +446,25 @@ export default class UltimateTickTickSyncForObsidian extends Plugin {
             if(this.lastLines.has(fileName as string) && line !== this.lastLines.get(fileName as string)){
                 const lastLine = this.lastLines.get(fileName as string)
                 if(this.settings.debugMode){
-                    console.log('Line changed!', `current line is ${line}`, `last line is ${lastLine}`);
+                    // console.log('Line changed!', `current line is ${line}`, `last line is ${lastLine}`);
                 }
                 
                 
                 //Perform the operation you want
                 const lastLineText = view.editor.getLine(lastLine as number)
-                //console.log(lastLineText)
+                // console.log(lastLineText)
                 if(!( this.checkModuleClass())){
                     return
                 }
                 this.lastLines.set(fileName as string, line as number);
-                try{
+                // try{
                     if (!await this.checkAndHandleSyncLock()) return;
                     await this.tickTickSync.lineModifiedTaskCheck(filepath as string,lastLineText,lastLine as number,fileContent)
                     this.syncLock = false;
-                }catch(error){
-                    console.error(`An error occurred while check modified task in line text: ${error}`);
-                    this.syncLock = false
-                }
+                // }catch(error){
+                //     console.error(`An error occurred while check modified task in line text: ${error}`);
+                //     this.syncLock = false
+                // }
                 
                 
                 
@@ -486,7 +489,7 @@ export default class UltimateTickTickSyncForObsidian extends Plugin {
         const taskElement = target.closest("div"); //Use the evt.target.closest() method to find a specific parent element instead of directly accessing a specific index in the event path
         //console.log(taskElement)
         if (!taskElement) return;
-        const regex = /\[TickTick_id:: (\d+)\]/; // Matches a string in the format [TickTick_id:: number]
+        const regex = /\[ticktick_id:: (\d+)\]/; // Matches a string in the format [ticktick_id:: number]
         const match = taskElement.textContent?.match(regex) || false;
         if (match) {
             const taskId = match[1];
@@ -515,7 +518,7 @@ export default class UltimateTickTickSyncForObsidian extends Plugin {
     //return true
     checkModuleClass(){
         if(this.settings.apiInitialized === true){
-            if(this.TickTickRestAPI === undefined || this.TickTickSyncAPI === undefined ||this.cacheOperation === undefined || this.fileOperation === undefined ||this.tickTickSync === undefined ||this.taskParser === undefined){
+            if(this.tickTickRestAPI === undefined || this.tickTickSyncAPI === undefined ||this.cacheOperation === undefined || this.fileOperation === undefined ||this.tickTickSync === undefined ||this.taskParser === undefined){
                 this.initializeModuleClass()
             }
             return true
@@ -539,12 +542,12 @@ export default class UltimateTickTickSyncForObsidian extends Plugin {
         else{
             const filepath = this.app.workspace.getActiveViewOfType(MarkdownView)?.file.path
             if(filepath === undefined){
-                console.log(`file path undefined`)
+                // console.log(`file path undefined`)
                 return
             }
             const defaultProjectName = await this.cacheOperation.getDefaultProjectNameForFilepath(filepath as string)
             if(defaultProjectName === undefined){
-                console.log(`projectName undefined`)
+                // console.log(`projectName undefined`)
                 return
             }
             this.statusBar.setText(defaultProjectName)
@@ -631,12 +634,12 @@ export default class UltimateTickTickSyncForObsidian extends Plugin {
     
     async checkAndHandleSyncLock() {
         if (this.syncLock) {
-            console.log('sync locked.');
+            // console.log('sync locked.');
             const isSyncLockChecked = await this.checkSyncLock();
             if (!isSyncLockChecked) {
                 return false;
             }
-            console.log('sync unlocked.')
+            // console.log('sync unlocked.')
         }
         this.syncLock = true;
         return true;

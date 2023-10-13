@@ -23,8 +23,7 @@
 		"typescript": "4.7.4"
 	},
 	"dependencies": {
-		"@doist/TickTick-api-typescript": "^2.1.2",
-		"esbuild-plugin-copy": "^2.0.1",
+		"esbuild-plugin-copy": "^2.0.1", 
 		"ticktick-api-lvt": "file:../ticktick-api-lvt"
 	}
 }

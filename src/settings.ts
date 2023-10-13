@@ -264,7 +264,7 @@ export class UltimateTickTickSyncSettingTab extends PluginSettingTab {
 									
 									
 									//check file metadata
-									console.log('checking file metadata')
+									// console.log('checking file metadata')
 									await this.plugin.cacheOperation.checkFileMetadata()
 									this.plugin.saveSettings()
 									const metadatas = await this.plugin.cacheOperation.getFileMetadatas()
@@ -273,7 +273,8 @@ export class UltimateTickTickSyncSettingTab extends PluginSettingTab {
 										const projectId = this.plugin.settings.defaultProjectId
 										let options = {}
 										options.projectId = projectId
-										const tasks = await this.plugin.TickTickRestAPI.GetActiveTasks(options)
+										// const tasks = await this.plugin.TickTickRestAPI.GetActiveTasks(options)
+										const tasks = await this.plugin.tickTickRestAPI.GetActiveTasks()
 										let length = tasks.length
 										if(length >= 300){
 											new Notice(`The number of tasks in the default project exceeds 300, reaching the upper limit. It is not possible to add more tasks. Please modify the default project.`)
@@ -299,24 +300,22 @@ export class UltimateTickTickSyncSettingTab extends PluginSettingTab {
 											let taskObject
 											
 											try{
-												taskObject = await this.plugin.cacheOperation.loadTaskFromCacheyID(taskId)
+												taskObject = await this.plugin.cacheOperation.loadTaskFromCacheID(taskId)
 											}catch(error){
 												console.error(`An error occurred while loading task cache: ${error.message}`);
 											}
 											
 											if(!taskObject){
-												console.log(`The task data of the ${taskId} is empty.`)
+												// console.log(`The task data of the ${taskId} is empty.`)
 												//get from TickTick 
 												try {
 													taskObject = await this.plugin.TickTickRestAPI.getTaskById(taskId);
 												} catch (error) {
 													if (error.message.includes('404')) {
-														// 处理404错误
-														console.log(`Task ${taskId} seems to not exist.`);
+														// console.log(`Task ${taskId} seems to not exist.`);
 														await this.plugin.cacheOperation.deleteTaskIdFromMetadata(key,taskId)
 														continue
 													} else {
-														// 处理其他错误
 														console.error(error);
 														continue
 													}
@@ -329,7 +328,7 @@ export class UltimateTickTickSyncSettingTab extends PluginSettingTab {
 									this.plugin.saveSettings()
 									
 									
-									console.log('checking renamed files')
+									// console.log('checking renamed files')
 									try{
 										//check renamed files
 										for (const key in metadatas) {
@@ -341,7 +340,7 @@ export class UltimateTickTickSyncSettingTab extends PluginSettingTab {
 												//console.log(`${taskId}`)
 												let taskObject
 												try{
-													taskObject = await this.plugin.cacheOperation.loadTaskFromCacheyID(taskId)
+													taskObject = await this.plugin.cacheOperation.loadTaskFromCacheID(taskId)
 												}catch(error){
 													console.error(`An error occurred while loading task ${taskId} from cache: ${error.message}`);
 													console.log(taskObject)
@@ -355,9 +354,9 @@ export class UltimateTickTickSyncSettingTab extends PluginSettingTab {
 												}							
 												const oldDescription = taskObject?.description ?? '';
 												if(newDescription != oldDescription){
-													console.log('Preparing to update description.')
-													console.log(oldDescription)
-													console.log(newDescription)
+													// console.log('Preparing to update description.')
+													// console.log(oldDescription)
+													// console.log(newDescription)
 													try{
 														//await this.plugin.TickTickSync.updateTaskDescription(key)
 													}catch(error){
@@ -430,7 +429,7 @@ export class UltimateTickTickSyncSettingTab extends PluginSettingTab {
 												new Notice(`Please set the TickTick api first`)
 												return
 											}
-											this.plugin.TickTickSync.backupTickTickAllResources()
+											this.plugin.tickTickSync.backupTickTickAllResources()
 										})
 										);
 									}

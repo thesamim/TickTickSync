@@ -61,9 +61,9 @@ export class CacheOperation {
     }
     
     async deleteTaskIdFromMetadata(filepath:string,taskId:string){
-        console.log(filepath)
+        // console.log(filepath)
         const metadata = await this.getFileMetadata(filepath)
-        console.log(metadata)
+        // console.log(metadata)
         const newTickTickTasks = metadata.TickTickTasks.filter(function(element){
             return element !== taskId
         })
@@ -71,7 +71,7 @@ export class CacheOperation {
         let newMetadata = {}
         newMetadata.TickTickTasks = newTickTickTasks
         newMetadata.TickTickCount = newTickTickCount
-        console.log(`new metadata ${newMetadata}`)
+        // console.log(`new metadata ${newMetadata}`)
         
         
     }
@@ -80,7 +80,7 @@ export class CacheOperation {
     async deleteFilepathFromMetadata(filepath:string){
         Reflect.deleteProperty(this.plugin.settings.fileMetadata, filepath);
         this.plugin.saveSettings()
-        console.log(`${filepath} is deleted from file metadatas.`)
+        // console.log(`${filepath} is deleted from file metadatas.`)
     }
     
     
@@ -92,7 +92,7 @@ export class CacheOperation {
             const value = metadatas[key];
             let file = this.app.vault.getAbstractFileByPath(key)
             if(!file && (value.TickTickTasks?.length === 0 || !value.TickTickTasks)){
-                console.log(`${key} is not existed and metadata is empty.`)
+                // console.log(`${key} is not existed and metadata is empty.`)
                 await this.deleteFilepathFromMetadata(key)
                 continue
             }
@@ -105,12 +105,12 @@ export class CacheOperation {
             
             if(!file){
                 //search new filepath
-                console.log(`file ${filepath} is not exist`)
+                // console.log(`file ${filepath} is not exist`)
                 const TickTickId1 = value.TickTickTasks[0]
-                console.log(TickTickId1)
+                // console.log(TickTickId1)
                 const searchResult = await this.plugin.fileOperation.searchFilepathsByTaskidInVault(TickTickId1)
-                console.log(`new file path is`)
-                console.log(searchResult)
+                // console.log(`new file path is`)
+                // console.log(searchResult)
                 
                 //update metadata
                 await this.updateRenamedFilePath(filepath,searchResult)
@@ -250,13 +250,14 @@ export class CacheOperation {
     
     
     //Read the task with the specified id
-    loadTaskFromCacheyID(taskId) {
+    loadTaskFromCacheID(taskId) {
+        // console.log("loadTaskFromCacheID")
         try {
             
             const savedTasks = this.plugin.settings.TickTickTasksData.tasks
-            //console.log(savedTasks)
+            // console.log("saved Tasks", savedTasks)
             const savedTask = savedTasks.find((t) => t.id === taskId);
-            //console.log(savedTask)
+            // console.log("saved Task: ", savedTask)
             return(savedTask)
         } catch (error) {
             console.error(`Error finding task from Cache: ${error}`);
@@ -422,8 +423,7 @@ export class CacheOperation {
     async saveProjectsToCache() {
         try{
             //get projects
-            console.log("here")
-            console.log(`Save Projects to cachetry with ${this.plugin.tickTickRestAPI}`)
+            // console.log(`Save Projects to cache with ${this.plugin.tickTickRestAPI}`)
             const projectGroups = await this.plugin.tickTickRestAPI?.GetProjectGroups();
             const projects = await this.plugin.tickTickRestAPI?.GetAllProjects();
             
@@ -476,8 +476,8 @@ export class CacheOperation {
     
     async updateRenamedFilePath(oldpath:string,newpath:string){
         try{
-            console.log(`oldpath is ${oldpath}`)
-            console.log(`newpath is ${newpath}`)
+            // console.log(`oldpath is ${oldpath}`)
+            // console.log(`newpath is ${newpath}`)
             const savedTask = await this.loadTasksFromCache()
             //console.log(savedTask)
             const newTasks = savedTask.map(obj => {

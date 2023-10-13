@@ -39,21 +39,20 @@ interface TickTickTaskObject {
     priority?: number | null;
     due_string?: string;
     due_date?: string;
-    due_datetime?: string;
     due_lang?: string;
     assignee_id?: string;
 }
 
 
 const keywords = {
-    TickTick_TAG: "#TickTick",
+    TickTick_TAG: "#ticktick",
     DUE_DATE: "🗓️|📅|📆|🗓",
 };
 
 const REGEX = {
-    TickTick_TAG: new RegExp(`^[\\s]*[-] \\[[x ]\\] [\\s\\S]*${keywords.TickTick_TAG}[\\s\\S]*$ `, "i"),
-    TickTick_ID: /\[TickTick_id::\s*\d+\]/,
-    TickTick_ID_NUM:/\[TickTick_id::\s*(.*?)\]/,
+    TickTick_TAG: new RegExp(`^[\\s]*[-] \\[[x ]\\] [\\s\\S]*${keywords.TickTick_TAG}[\\s\\S]*$`, "i"),
+    TickTick_ID: /\[ticktick_id::\s*[\d\S]+\]/,
+    TickTick_ID_NUM:/\[ticktick_id::\s*(.*?)\]/,
     TickTick_LINK:/\[link\]\(.*?\)/,
     DUE_DATE_WITH_EMOJ: new RegExp(`(${keywords.DUE_DATE})\\s?\\d{4}-\\d{2}-\\d{2}`),
     DUE_DATE : new RegExp(`(?:${keywords.DUE_DATE})\\s?(\\d{4}-\\d{2}-\\d{2})`),
@@ -128,7 +127,7 @@ export class TaskParser {
                         parentId = this.getTickTickIdFromLineText(line)
                         hasParent = true
                         //console.log(`parent id is ${parentId}`)
-                        parentTaskObject = this.plugin.cacheOperation.loadTaskFromCacheyID(parentId)
+                        parentTaskObject = this.plugin.cacheOperation.loadTaskFromCacheID(parentId)
                         break
                     }
                     else{
@@ -158,19 +157,22 @@ export class TaskParser {
         }
         if(!hasParent){
             //Match tag and person
-            for (const label of labels){
-                
-                //console.log(label)
-                let labelName = label.replace(/#/g, "");
-                //console.log(labelName)
-                let hasProjectId = this.plugin.cacheOperation.getProjectIdByNameFromCache(labelName)
-                if(!hasProjectId){
-                    continue
+            console.log("labels: ", labels)
+            if (labels) {
+                for (const label of labels){
+                    
+                    //console.log(label)
+                    let labelName = label.replace(/#/g, "");
+                    //console.log(labelName)
+                    let hasProjectId = this.plugin.cacheOperation.getProjectIdByNameFromCache(labelName)
+                    if(!hasProjectId){
+                        continue
+                    }
+                    projectName = labelName
+                    //console.log(`project is ${projectName} ${label}`)
+                    projectId = hasProjectId
+                    break
                 }
-                projectName = labelName
-                //console.log(`project is ${projectName} ${label}`)
-                projectId = hasProjectId
-                break
             }
         }
         
@@ -184,22 +186,23 @@ export class TaskParser {
             let url = encodeURI(`obsidian://open?vault=${this.app.vault.getName()}&file=${filepath}`)
             description =`[${filepath}](${url})`;
         }
-        
-        const TickTickTask = {
+        const task: ITask = {
+            id:TickTick_id || null,
             projectId: projectId,
-            content: content || '',
+            title: content,
+            //todo: look for actual content! For now, using description
+            //content: ??
+            content: description,
             parentId: parentId || null,
+            //TODO: is this date right?
             dueDate: dueDate || '',
             labels: labels || [],
-            description: description,
             isCompleted:isCompleted,
-            TickTick_id:TickTick_id || null,
-            hasParent:hasParent,
-            priority:priority
-        };
-        //console.log(`converted task `)
-        //console.log(TickTickTask)
-        return TickTickTask;
+            priority:priority,
+            status: isCompleted? 2: 0, //Status: 0 is no completed. Anything else is completed. 
+        } 
+        // console.log("new task: ", task)
+        return task;
     }
     
     
@@ -208,6 +211,7 @@ export class TaskParser {
     hasTickTickTag(text:string){
         //console.log("Check whether TickTick tag is included")
         //console.log(text)
+        // console.log("Regex is: ", REGEX.TickTick_TAG)
         return(REGEX.TickTick_TAG.test(text))
     }
     
@@ -215,8 +219,8 @@ export class TaskParser {
     
     hasTickTickId(text:string){
         const result = REGEX.TickTick_ID.test(text)
-        //console.log("Check whether TickTick id is included")
-        //console.log(text)
+        // console.log("Check whether TickTick id is included")
+        // console.log(text, result)
         return(result)
     }
     
@@ -323,13 +327,22 @@ export class TaskParser {
     
     
     //tag compare
-    taskTagCompare(lineTask:Object,TickTickTask:Object) {
-        
-        
-        const lineTaskTags = lineTask.labels
+    taskTagCompare(lineTask:ITask,TickTickTask:ITask) {
+
+        const lineTaskTags = lineTask.tags? lineTask.tags : []
+        if (!lineTaskTags) { 
+            return false; //no lables.
+        } else {
+            // console.log("line tags: ", lineTaskTags);
+        }
         //console.log(dataviewTaskTags)
         
-        const TickTickTaskTags = TickTickTask.labels
+        const TickTickTaskTags = TickTickTask.tags? TickTickTask.tags: []
+        if (!TickTickTaskTags) {
+            return false; // no lables.
+        } else {
+            // console.log("ticktick tags: ", TickTickTaskTags)
+        }
         //console.log(TickTickTaskTags)
         
         //Whether content is modified?

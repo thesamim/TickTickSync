@@ -12,10 +12,10 @@ export class FileOperation {
         
     }
     /*
-    async getFrontMatter(file:TFile): Promise<FrontMatter | null> {
+    async getFileMetadata(file:TFile): Promise<FileMetadata | null> {
         return new Promise((resolve) => {
-            this.app.fileManager.processFrontMatter(file, (frontMatter) => {
-                resolve(frontMatter);
+            this.app.fileManager.processFileMetadata(file, (fileMetadata) => {
+                resolve(fileMetadata);
             });
         });
     }
@@ -25,19 +25,19 @@ export class FileOperation {
     
     
     /*
-    async updateFrontMatter(
+    async updateFileMetadata(
         file:TFile,
-        updater: (frontMatter: FrontMatter) => void
+        updater: (fileMetadata: FileMetadata) => void
         ): Promise<void> {
             //console.log(`prepare to update front matter`)
-            this.app.fileManager.processFrontMatter(file, (frontMatter) => {
-                if (frontMatter !== null) {
-                    const updatedFrontMatter = { ...frontMatter } as FrontMatter;
-                    updater(updatedFrontMatter);
-                    this.app.fileManager.processFrontMatter(file, (newFrontMatter) => {
-                        if (newFrontMatter !== null) {
-                            newFrontMatter.TickTickTasks = updatedFrontMatter.TickTickTasks;
-                            newFrontMatter.TickTickCount = updatedFrontMatter.TickTickCount;
+            this.app.fileManager.processFileMetadata(file, (fileMetadata) => {
+                if (fileMetadata !== null) {
+                    const updatedFileMetadata = { ...fileMetadata } as FileMetadata;
+                    updater(updatedFileMetadata);
+                    this.app.fileManager.processFileMetadata(file, (newFileMetadata) => {
+                        if (newFileMetadata !== null) {
+                            newFileMetadata.TickTickTasks = updatedFileMetadata.TickTickTasks;
+                            newFileMetadata.TickTickCount = updatedFileMetadata.TickTickCount;
                         }
                     });
                 }
@@ -52,7 +52,7 @@ export class FileOperation {
         //Complete a task and mark it as completed
         async completeTaskInTheFile(taskId: string) {
             // Get the task file path
-            const currentTask = await this.plugin.cacheOperation.loadTaskFromCacheyID(taskId)
+            const currentTask = await this.plugin.cacheOperation.loadTaskFromCacheID(taskId)
             const filepath = currentTask.path
             
             // Get the file object and update the content
@@ -80,7 +80,7 @@ export class FileOperation {
         // uncheck completed tasks,
         async uncompleteTaskInTheFile(taskId: string) {
             // Get the task file path
-            const currentTask = await this.plugin.cacheOperation.loadTaskFromCacheyID(taskId)
+            const currentTask = await this.plugin.cacheOperation.loadTaskFromCacheID(taskId)
             const filepath = currentTask.path
             
             // Get the file object and update the content
@@ -107,6 +107,7 @@ export class FileOperation {
         
         //add #TickTick at the end of task line, if full vault sync enabled
         async addTickTickTagToFile(filepath: string) {
+            // console.log("addTickTickTagToFile")
             // Get the file object and update the content
             const file = this.app.vault.getAbstractFileByPath(filepath)
             const content = await this.app.vault.read(file)
@@ -137,7 +138,7 @@ export class FileOperation {
             }
             
             if (modified) {
-                console.log(`New task found in files ${filepath}`)
+                // console.log(`New task found in files ${filepath}`)
                 const newContent = lines.join('\n')
                 //console.log(newContent)
                 await this.app.vault.modify(file, newContent)
@@ -168,14 +169,14 @@ export class FileOperation {
                     if(this.plugin.taskParser.hasTickTickLink(line)){
                         return
                     }
-                    console.log(line)
+                    // console.log("addTickTickLinkToFile", line)
                     //console.log('prepare to add TickTick link')
                     const taskID = this.plugin.taskParser.getTickTickIdFromLineText(line)
-                    const taskObject = this.plugin.cacheOperation.loadTaskFromCacheyID(taskID)
+                    const taskObject = this.plugin.cacheOperation.loadTaskFromCacheID(taskID)
                     const TickTickLink = taskObject.url
                     const link = `[link](${TickTickLink})`
                     const newLine = this.plugin.taskParser.addTickTickLink(line,link)
-                    console.log(newLine)
+                    // console.log(newLine)
                     lines[i] = newLine
                     modified = true
                 }else{
@@ -196,6 +197,7 @@ export class FileOperation {
         
         //add #TickTick at the end of task line, if full vault sync enabled
         async addTickTickTagToLine(filepath:string,lineText:string,lineNumber:number,fileContent:string) {
+            // console.log("addTickTickTagToLine")
             // Get the file object and update the content
             const file = this.app.vault.getAbstractFileByPath(filepath)
             const content = fileContent
@@ -226,9 +228,9 @@ export class FileOperation {
             
             
             if (modified) {
-                console.log(`New task found in files ${filepath}`)
+                // console.log(`New task found in files ${filepath}`)
                 const newContent = lines.join('\n')
-                console.log(newContent)
+                // console.log(newContent)
                 await this.app.vault.modify(file, newContent)
                 
                 //update filemetadate
@@ -244,7 +246,7 @@ export class FileOperation {
         async syncUpdatedTaskContentToTheFile(evt:Object) {
             const taskId = evt.object_id
             // Get the task file path
-            const currentTask = await this.plugin.cacheOperation.loadTaskFromCacheyID(taskId)
+            const currentTask = await this.plugin.cacheOperation.loadTaskFromCacheID(taskId)
             const filepath = currentTask.path
             
             // Get the file object and update the content
@@ -278,7 +280,7 @@ export class FileOperation {
         async syncUpdatedTaskDueDateToTheFile(evt:Object) {
             const taskId = evt.object_id
             // Get the task file path
-            const currentTask = await this.plugin.cacheOperation.loadTaskFromCacheyID(taskId)
+            const currentTask = await this.plugin.cacheOperation.loadTaskFromCacheID(taskId)
             const filepath = currentTask.path
             
             // Get the file object and update the content
@@ -295,8 +297,8 @@ export class FileOperation {
                     const newTaskDueDate = this.plugin.taskParser.ISOStringToLocalDateString(evt.extra_data.due_date) || ""
                     
                     //console.log(`${taskId} duedate is updated`)
-                    console.log(oldTaskDueDate)
-                    console.log(newTaskDueDate)
+                    // console.log(oldTaskDueDate)
+                    // console.log(newTaskDueDate)
                     if(oldTaskDueDate === ""){
                         //console.log(this.plugin.taskParser.insertDueDateBeforeTickTick(line,newTaskDueDate))
                         lines[i] = this.plugin.taskParser.insertDueDateBeforeTickTick(line,newTaskDueDate)
@@ -335,7 +337,7 @@ export class FileOperation {
             const note = evt.extra_data.content
             const datetime = this.plugin.taskParser.ISOStringToLocalDatetimeString(evt.event_date)
             // Get the task file path
-            const currentTask = await this.plugin.cacheOperation.loadTaskFromCacheyID(taskId)
+            const currentTask = await this.plugin.cacheOperation.loadTaskFromCacheID(taskId)
             const filepath = currentTask.path
             
             // Get the file object and update the content
@@ -399,7 +401,7 @@ export class FileOperation {
                 const line = fileLines[i];
                 
                 if (line.includes(searchTerm)) {
-                    const regexResult = /\[TickTick_id::\s*(\w+)\]/.exec(line);
+                    const regexResult = /\[ticktick_id::\s*(\w+)\]/.exec(line);
                     
                     if (regexResult) {
                         TickTickId = regexResult[1];
@@ -420,7 +422,7 @@ export class FileOperation {
         
         //search filepath by taskid in vault
         async searchFilepathsByTaskidInVault(taskId:string){
-            console.log(`preprare to search task ${taskId}`)
+            // console.log(`preprare to search task ${taskId}`)
             const files = await this.getAllFilesInTheVault()
             //console.log(files)
             const tasks = files.map(async (file) => {

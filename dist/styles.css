@@ -1,0 +1,22 @@
+
+.cm-line:not(:hover):not(.cm-active) span.cm-comment {
+    display: none;
+}
+
+
+
+
+
+
+
+/*
+.cm-line span.cm-comment {
+    display: none;
+}
+
+.cm-line.cm-active span.cm-comment,
+.cm-line:hover span.cm-comment {
+    display: inline-block;
+}
+
+*/
