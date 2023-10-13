@@ -18,6 +18,9 @@ main.js
 # obsidian
 data.json
 userData
+.hotreload
+*.csv
+*.bat
 
 # Exclude macOS Finder (System Explorer) View States
 .DS_Store
