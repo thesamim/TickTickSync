@@ -1,7 +1,8 @@
 import { Tick } from 'ticktick-api-lvt'
 import ITask from "ticktick-api-lvt/src/types/Task"
-import { App} from 'obsidian';
+import { App, Notice} from 'obsidian';
 import UltimateTickTickSyncForObsidian from "../main";
+
 //convert date from obsidian event
 // Usage example
 //const str = "2023-03-27";
@@ -9,6 +10,7 @@ import UltimateTickTickSyncForObsidian from "../main";
 //console.log(dateStr); // Output 2023-03-27T00:00:00.000Z
 function localDateStringToUTCDatetimeString(localDateString:string) {
     try {
+        console.log(`data string: ${localDateString}`)
         if(localDateString === null){
             return null
         }
@@ -39,12 +41,23 @@ export class TickTickRestAPI {
         //Because we can't have async constructors, make sure the first call initializes the API
         if (this.api === null || this.api === undefined) {
             // console.log("intializing")
-            const api = await new Tick({username: this.plugin.settings.username, password: this.plugin.settings.password});
-            let apiInitialized = await api.login();
-            if (apiInitialized) {
-                this.api = api;
-                // console.log(`Logged In: ${apiInitialized}`);   
-                this.plugin.settings.apiInitialized  = apiInitialized;        
+            let apiInitialized;
+            try {
+                const api = await new Tick({username: this.plugin.settings.username, password: this.plugin.settings.password});
+                apiInitialized = await api.login();
+                this.plugin.settings.apiInitialized  = apiInitialized;  
+                console.log(`Logged In: ${apiInitialized}`); 
+                if (apiInitialized) {
+                    this.api = api;
+                    // console.log(`Logged In: ${apiInitialized}`);   
+                } else {
+                    new Notice("Login failed, please check userID and password")
+                }
+            } catch(error) {
+                console.error(`Login failed ${error}`);
+                apiInitialized = false;
+            } finally {
+                this.plugin.saveSettings();
             }
         }
     }
@@ -53,17 +66,25 @@ export class TickTickRestAPI {
         await this.initializeAPI();
         try {
             if(taskToAdd.dueDate){
-                taskToAdd.dueDate = fixDueDate(taskToAdd.dueDate);
+                console.log("Due Date on Add Task: ", taskToAdd.dueDate);
+                // taskToAdd.dueDate = fixDueDate(taskToAdd.dueDate);
             }
             const newTask = await this.api.addTask(taskToAdd);
-            //Todo clean this up.
-            newTask.url = `https://ticktick.com/webapp/#q/all/tasks/${newTask.id}`
-            return newTask;
+            return newTask; 
         } catch (error) {
             throw new Error(`Error adding task: ${error.message}`);
         }
     }
     
+    async deleteTask(deleteTaskId: string) {
+        await this.initializeAPI();
+        try {
+            const response = await this.api.deleteTask(deleteTaskId);
+            return response;
+        } catch (error) {
+            throw new Error(`Error deleting task: ${error.message}`);
+        }
+    }
     
     //options:{ projectId?: string, section_id?: string, label?: string , filter?: string,lang?: string, ids?: Array<string>}
     // async GetActiveTasks(options:{ projectId?: string, section_id?: string, label?: string , filter?: string,lang?: string, ids?: Array<string>}) {
@@ -82,7 +103,7 @@ export class TickTickRestAPI {
     
     //Also note that to remove the due date of a task completely, you should set the due_string parameter to no date or no due date.
     //api does not have a function to update task project id
-    //TODO: Project ID????
+    
     async UpdateTask(taskToUpdate: ITask) {
         await this.initializeAPI(); 
         // if (!taskId) {
@@ -93,6 +114,7 @@ export class TickTickRestAPI {
         // }
         try {
             if(taskToUpdate.dueDate){
+                console.log("Due Date on update Task: ", taskToUpdate.dueDate);
                 taskToUpdate.dueDate = fixDueDate(taskToUpdate.dueDate);
             }
             const updatedTask = await this.api.updateTask(taskToUpdate);
@@ -109,6 +131,7 @@ export class TickTickRestAPI {
             let thisTask = await this.api.getTask(taskId, projectId);
             // console.log("Got task: ", thisTask)
             thisTask.status = taskStatus;
+            console.log("Due Date on Modify Task: ", thisTask.dueDate);
             thisTask.dueDate = fixDueDate(thisTask.dueDate);
             
             const isSuccess = await this.api.updateTask(thisTask);
@@ -153,6 +176,7 @@ export class TickTickRestAPI {
         if (!taskId) {
             throw new Error('taskId is required');
         }
+
         try {
             const task = await this.api.getTask(taskId, projectId);
             return task;
@@ -204,7 +228,7 @@ export class TickTickRestAPI {
             return(result)
             
         } catch (error) {
-            console.error('Error get all projects', error);
+            console.error('Error get project groups', error);
             return false
         }
     }
@@ -217,7 +241,7 @@ export class TickTickRestAPI {
             return(result)
             
         } catch (error) {
-            console.error('Error get all projects', error);
+            console.error('Error get user resources', error);
             return []
         }
     }
@@ -231,7 +255,7 @@ export class TickTickRestAPI {
             return(result)
             
         } catch (error) {
-            console.error('Error get all projects', error);
+            console.error('Error get all completed items', error);
             return []
         }
     }
@@ -245,7 +269,7 @@ export class TickTickRestAPI {
             return(result)
             
         } catch (error) {
-            console.error('Error get all projects', error);
+            console.error('Error get all resources', error);
             return []
         }
     }

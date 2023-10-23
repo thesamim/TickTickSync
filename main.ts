@@ -52,13 +52,6 @@ export default class UltimateTickTickSyncForObsidian extends Plugin {
         //lastLine object {path:line} is saved in lastLines map
         this.lastLines = new Map();
         
-        
-        
-        
-        
-        
-        
-        
         //Key event monitoring, judging line breaks and deletions
         this.registerDomEvent(document, 'keyup', async (evt: KeyboardEvent) =>{
             if(!this.settings.apiInitialized){
@@ -197,6 +190,7 @@ export default class UltimateTickTickSyncForObsidian extends Plugin {
         //Listen to the rename event and update the path in task data
         this.registerEvent(this.app.vault.on('rename', async (file,oldpath) => {
             if(!this.settings.apiInitialized){
+                console.error("API Not intialized!")
                 return
             }
             // console.log(`${oldpath} is renamed`)
@@ -217,7 +211,7 @@ export default class UltimateTickTickSyncForObsidian extends Plugin {
             //update task description
             if (!await this.checkAndHandleSyncLock()) return;
             try {
-                await this.tickTickSync.updateTaskDescription(file.path)
+                await this.tickTickSync.updateTaskContent(file.path)
             } catch(error) {
                 console.error('An error occurred in updateTaskDescription:', error);
             }
@@ -239,7 +233,7 @@ export default class UltimateTickTickSyncForObsidian extends Plugin {
                 
                 const activateFile = this.app.workspace.getActiveFile()
                 
-                console.log(activateFile?.path)
+                // console.log(activateFile?.path, filepath)
                 
                 //To avoid conflicts, Do not check files being edited
                 if(activateFile?.path == filepath){
@@ -247,7 +241,7 @@ export default class UltimateTickTickSyncForObsidian extends Plugin {
                 }
                 
                 if (!await this.checkAndHandleSyncLock()) return;
-                
+                // console.log("go check.")
                 await this.tickTickSync.fullTextNewTaskCheck(filepath)
                 this.syncLock = false;
             } catch(error) {
@@ -288,7 +282,7 @@ export default class UltimateTickTickSyncForObsidian extends Plugin {
         
     }
     
-
+    
     async onunload() {
         console.log(`Ultimate TickTick Sync for Obsidian unloaded!`)
         await this.saveSettings()
@@ -320,10 +314,6 @@ export default class UltimateTickTickSyncForObsidian extends Plugin {
         }
     }
     
-    async modifyTickTickAPI(){
-        // console.log("modify")
-        await this.initializePlugin()
-    }
     
     // return true of false
     async initializePlugin(){
@@ -331,12 +321,18 @@ export default class UltimateTickTickSyncForObsidian extends Plugin {
         // console.log("new api")
         //initialize TickTick restapi
         this.tickTickRestAPI = await new TickTickRestAPI(this.app, this)
+        this.tickTickRestAPI.initializeAPI();
         
         
         
         //initialize data read and write object
         this.cacheOperation = new CacheOperation(this.app, this)
-        const isProjectsSaved = await this.cacheOperation.saveProjectsToCache()
+        console.log("intited: ", this.settings.apiInitialized)
+        let isProjectsSaved = false;
+        if (this.settings.apiInitialized)
+        {
+            isProjectsSaved = await this.cacheOperation.saveProjectsToCache()
+        }
         // console.log(isProjectsSaved)
         
         
@@ -348,9 +344,9 @@ export default class UltimateTickTickSyncForObsidian extends Plugin {
             this.cacheOperation = undefined
             this.fileOperation = undefined
             this.tickTickSync = undefined
-            new Notice(`Ultimate TickTick Sync plugin initialization failed, please check the TickTick api`)
+            new Notice(`Ultimate TickTick Sync plugin initialization failed, please check userID and password in settings.`)
             return;
-        } 
+        }  
         
         if(!this.settings.initialized){
             
@@ -446,7 +442,7 @@ export default class UltimateTickTickSyncForObsidian extends Plugin {
             if(this.lastLines.has(fileName as string) && line !== this.lastLines.get(fileName as string)){
                 const lastLine = this.lastLines.get(fileName as string)
                 if(this.settings.debugMode){
-                    // console.log('Line changed!', `current line is ${line}`, `last line is ${lastLine}`);
+                    console.log('Line changed!', `current line is ${line}`, `last line is ${lastLine}`);
                 }
                 
                 
@@ -458,9 +454,9 @@ export default class UltimateTickTickSyncForObsidian extends Plugin {
                 }
                 this.lastLines.set(fileName as string, line as number);
                 // try{
-                    if (!await this.checkAndHandleSyncLock()) return;
-                    await this.tickTickSync.lineModifiedTaskCheck(filepath as string,lastLineText,lastLine as number,fileContent)
-                    this.syncLock = false;
+                if (!await this.checkAndHandleSyncLock()) return;
+                await this.tickTickSync.lineModifiedTaskCheck(filepath as string,lastLineText,lastLine as number,fileContent)
+                this.syncLock = false;
                 // }catch(error){
                 //     console.error(`An error occurred while check modified task in line text: ${error}`);
                 //     this.syncLock = false

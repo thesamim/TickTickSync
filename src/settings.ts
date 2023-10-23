@@ -1,5 +1,6 @@
 import { App, Notice, Plugin, PluginSettingTab, Setting } from 'obsidian';
 import UltimateTickTickSyncForObsidian from "../main";
+import { TickTickSyncAPI } from './TicktickSyncAPI';
 
 interface MyProject {
 	id: string;
@@ -31,7 +32,7 @@ export const DEFAULT_SETTINGS: UltimateTickTickSyncSettings = {
 	apiInitialized:false,
 	defaultProjectName:"Inbox",
 	automaticSynchronizationInterval: 300, //default aync interval 300s
-	TickTickTasksData:{"projects":[],"tasks":[],"events":[]},
+	TickTickTasksData:{"projects":[],"tasks":[]},
 	fileMetadata:{},
 	enableFullVaultSync:false,
 	statistics:{},
@@ -89,43 +90,18 @@ export class UltimateTickTickSyncSettingTab extends PluginSettingTab {
 				})
 				
 				)
-				.addExtraButton((button) => {
-					button.setIcon('send')
+				.addExtraButton((button) => { button
+					.setIcon('send')
+					.setTooltip('Log In')
 					.onClick(async () => {
-						await this.plugin.modifyTickTickAPI(this.plugin.settings.TickTickAPIToken)
+						await this.plugin.initializePlugin()
 						this.display()
 						
 					})
-					
-					
 				});
-				
-				// new Setting(containerEl)
-				// .setName('TickTick API')
-				// .setDesc('Please enter TickTick api token and click the paper airplane button to submit.')
-				// .addText((text) =>
-				// text
-				// .setPlaceholder('Enter your API')
-				// .setValue(this.plugin.settings.TickTickAPIToken)
-				// .onChange(async (value) => {
-				// 	this.plugin.settings.TickTickAPIToken = value;
-				// 	this.plugin.settings.apiInitialized = false;
-				// 	//
-				// })
-				
-				// )
-				// .addExtraButton((button) => {
-				// 	button.setIcon('send')
-				// 	.onClick(async () => {
-				// 		await this.plugin.modifyTickTickAPI(this.plugin.settings.TickTickAPIToken)
-				// 		this.display()
-				
-				// 	})
-				
-				
-				// })
-				
-				
+
+				new Setting(containerEl)
+				.setDesc("Click on Log In above after any changes, or to re-login");
 				
 				
 				new Setting(containerEl)
@@ -158,34 +134,7 @@ export class UltimateTickTickSyncSettingTab extends PluginSettingTab {
 				)
 				
 				
-				/*
-				new Setting(containerEl)
-				.setName('The default project for new tasks')
-				.setDesc('New tasks are automatically synced to the Inbox. You can modify the project here.')
-				.addText((text) =>
-				text
-				.setPlaceholder('Enter default project name:')
-				.setValue(this.plugin.settings.defaultProjectName)
-				.onChange(async (value) => {
-					try{
-						//this.plugin.cacheOperation.saveProjectsToCache()
-						const newProjectId = this.plugin.cacheOperation.getProjectIdByNameFromCache(value)
-						if(!newProjectId){
-							new Notice(`This project seems to not exist.`)
-							return
-						}
-					}catch(error){
-						new Notice(`Invalid project name `)
-						return
-					}
-					this.plugin.settings.defaultProjectName = value;
-					this.plugin.saveSettings()
-					new Notice(`The default project has been modified successfully.`)
-					
-				})
-				
-				);
-				*/
+
 				
 				new Setting(containerEl)
 				.setName('Default Project')
@@ -265,7 +214,17 @@ export class UltimateTickTickSyncSettingTab extends PluginSettingTab {
 									
 									//check file metadata
 									// console.log('checking file metadata')
-									await this.plugin.cacheOperation.checkFileMetadata()
+									let fileNum = await this.plugin.cacheOperation.checkFileMetadata()
+									// console.log("Number of files: ", fileNum)
+									//TODO: This is superfluous and should be deleted.
+									if (fileNum < 1) //nothing? really?
+									{
+										const allMDFiles = this.app.vault.getMarkdownFiles();
+										allMDFiles.forEach(file => {
+											// console.log("File: ", file);
+											this.plugin.tickTickSync?.fullTextModifiedTaskCheck(file.name)											
+										});
+									}
 									this.plugin.saveSettings()
 									const metadatas = await this.plugin.cacheOperation.getFileMetadatas()
 									// check default project task amounts
@@ -292,6 +251,7 @@ export class UltimateTickTickSyncSettingTab extends PluginSettingTab {
 									console.log('checking deleted tasks')
 									//check empty task				
 									for (const key in metadatas) {
+										// console.log("Key: ", key)
 										const value = metadatas[key];
 										//console.log(value)
 										for(const taskId of value.TickTickTasks) {
@@ -334,7 +294,7 @@ export class UltimateTickTickSyncSettingTab extends PluginSettingTab {
 										for (const key in metadatas) {
 											const value = metadatas[key];
 											//console.log(value)
-											const newDescription = this.plugin.taskParser.getObsidianUrlFromFilepath(key)
+											const newContent = this.plugin.taskParser.getObsidianUrlFromFilepath(key)
 											for(const taskId of value.TickTickTasks) {
 												
 												//console.log(`${taskId}`)
@@ -349,16 +309,16 @@ export class UltimateTickTickSyncSettingTab extends PluginSettingTab {
 													console.log(`Task ${taskId} seems to not exist.`)
 													continue
 												}
-												if(!taskObject?.description){
-													console.log(`The description of the task ${taskId} is empty.`)
+												if(!taskObject?.content){
+													console.log(`The content of the task ${taskId} is empty.`)
 												}							
-												const oldDescription = taskObject?.description ?? '';
-												if(newDescription != oldDescription){
-													// console.log('Preparing to update description.')
-													// console.log(oldDescription)
-													// console.log(newDescription)
+												const oldContent = taskObject?.content ?? '';
+												if(!oldContent.includes(newContent)){
+													console.log('Preparing to update description.')
+													console.log(oldDescription)
+													console.log(newDescription)
 													try{
-														//await this.plugin.TickTickSync.updateTaskDescription(key)
+														await this.plugin.tickTickSync.updateTaskContent(key)
 													}catch(error){
 														console.error(`An error occurred while updating task discription: ${error.message}`);
 													}

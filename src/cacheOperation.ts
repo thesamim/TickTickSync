@@ -1,5 +1,6 @@
 import { App} from 'obsidian';
 import UltimateTickTickSyncForObsidian from "../main";
+import { ITask } from 'ticktick-api-lvt/dist/types/Task';
 
 interface Due {
     date?: string;
@@ -28,18 +29,19 @@ export class CacheOperation {
         return this.plugin.settings.fileMetadata ?? null
     }
     
-    async newEmptyFileMetadata(filepath:string){
+    async newEmptyFileMetadata(filepath:string) : Promise<any>{
         const metadatas = this.plugin.settings.fileMetadata
         if(metadatas[filepath]) {
-            return
+            return metadatas; //Why?
         }
         else{
             metadatas[filepath] = {}
         }
         metadatas[filepath].TickTickTasks = [];
-        metadatas[filepath].TickTickCount = 0;
+        metadatas[filepath].TickTickCount = 0; 
         // Save the updated metadatas object back to the settings object
         this.plugin.settings.fileMetadata = metadatas
+        return metadatas;
         
     }
     
@@ -85,15 +87,18 @@ export class CacheOperation {
     
     
     //Check errors in filemata where the filepath is incorrect.
-    async checkFileMetadata(){
+    async checkFileMetadata(): Promise<number> {
         const metadatas = await this.getFileMetadatas()
+        // console.log("md: ", metadatas)
+        
         for (const key in metadatas) {
             let filepath = key
             const value = metadatas[key];
+            // console.log("File: ", value)
             let file = this.app.vault.getAbstractFileByPath(key)
             if(!file && (value.TickTickTasks?.length === 0 || !value.TickTickTasks)){
-                // console.log(`${key} is not existed and metadata is empty.`)
-                await this.deleteFilepathFromMetadata(key)
+                console.log(`${key} does not exist and metadata is empty.`)
+                await this.deleteFilepathFromMetadata(key) 
                 continue
             }
             if(value.TickTickTasks?.length === 0 || !value.TickTickTasks){
@@ -118,7 +123,6 @@ export class CacheOperation {
                 
             }
             
-            
             //const fileContent = await this.app.vault.read(file)
             //check if file include all tasks
             
@@ -130,8 +134,9 @@ export class CacheOperation {
                 
             });
             */
+            
         }
-        
+        return Object.keys(metadatas).length;        
     }
     
     getDefaultProjectNameForFilepath(filepath:string){
@@ -158,6 +163,26 @@ export class CacheOperation {
         }
     }
     
+    getFilepathForProjectId(projectId:string){
+        const metadatas = this.plugin.settings.fileMetadata
+        
+
+        //If this project is set as a default for a file, return that file.
+        for (const key in metadatas) {
+            const value = metadatas[key];
+            if (metadatas[key].defaultProjectId === projectId) {
+                return key; 
+            }
+        };
+        //otherwise, return the project name as a md file and hope for the best.
+        
+        let filePath = this.getProjectNameByIdFromCache(projectId) + ".md"
+        if (!filePath) {
+            filePath = this.plugin.settings.defaultProjectName + ".md"
+        }
+        return filePath;
+    }
+
     setDefaultProjectIdForFilepath(filepath:string,defaultProjectId:string){
         const metadatas = this.plugin.settings.fileMetadata
         if (!metadatas[filepath]) {
@@ -195,42 +220,8 @@ export class CacheOperation {
     }
     
     
-    
-    
-    //append event to Cache
-    appendEventToCache(event:Object[]) {
-        try {
-            this.plugin.settings.TickTickTasksData.events.push(event)
-        } catch (error) {
-            console.error(`Error append event to Cache: ${error}`);
-        }
-    }
-    
-    //append events to Cache
-    appendEventsToCache(events:Object[]) {
-        try {
-            this.plugin.settings.TickTickTasksData.events.push(...events)
-        } catch (error) {
-            console.error(`Error append events to Cache: ${error}`);
-        }
-    }
-    
-    
-    //Read all events from the Cache file
-    loadEventsFromCache() {
-        try {
-            
-            const savedEvents = this.plugin.settings.TickTickTasksData.events
-            return savedEvents;
-        } catch (error) {
-            console.error(`Error loading events from Cache: ${error}`);
-        }
-    }
-    
-    
-    
     //Append to Cache file
-    appendTaskToCache(task) {
+    appendTaskToCache(task: ITask) {
         try {
             if(task === null){
                 return
@@ -247,7 +238,12 @@ export class CacheOperation {
     }
     
     
-    
+    appendTasksToCache(tasks: ITask[]) {
+        tasks.forEach(task => {
+            this.appendTaskToCache(task);
+            
+        });
+    }
     
     //Read the task with the specified id
     loadTaskFromCacheID(taskId) {
@@ -327,7 +323,7 @@ export class CacheOperation {
             for (let i = 0; i < savedTasks.length; i++) {
                 if (savedTasks[i].id === taskId) {
                     //Modify the properties of the object
-                    savedTasks[i].isCompleted = false;
+                    savedTasks[i].status = 0;
                     break; // Found and modified the item, break out of the loop
                 }
             }
@@ -350,7 +346,7 @@ export class CacheOperation {
             for (let i = 0; i < savedTasks.length; i++) {
                 if (savedTasks[i].id === taskId) {
                     //Modify the properties of the object
-                    savedTasks[i].isCompleted = true;
+                    savedTasks[i].status = 0;
                     break; // Found and modified the item, break out of the loop
                 }
             }
@@ -426,8 +422,14 @@ export class CacheOperation {
             // console.log(`Save Projects to cache with ${this.plugin.tickTickRestAPI}`)
             const projectGroups = await this.plugin.tickTickRestAPI?.GetProjectGroups();
             const projects = await this.plugin.tickTickRestAPI?.GetAllProjects();
-            
-            
+            //todo: consider doing it all from here. For now, just want the inbox ID
+            const allResources = await this.plugin.tickTickRestAPI?.getAllResources();
+            const inboxId = allResources["inboxId"];
+            //todo: consider naming this the default project name. 
+            let inboxProject = {id: inboxId, name: "Inbox"};
+
+            projects.push(inboxProject);
+
             if(this.plugin.settings.debugMode){
                 if (projectGroups !== undefined && projectGroups !== null) {
                     console.log("==== projectGroups")
@@ -467,7 +469,7 @@ export class CacheOperation {
             return true
             
         }catch(error){
-            console.log(`error downloading projects: ${error}`)
+            console.error(`error downloading projects: ${error}`)
             return false
         }
         
@@ -497,7 +499,7 @@ export class CacheOperation {
             this.plugin.settings.fileMetadata = fileMetadatas
             
         }catch(error){
-            console.log(`Error updating renamed file path to cache: ${error}`)
+            console.error(`Error updating renamed file path to cache: ${error}`)
         }
         
         
