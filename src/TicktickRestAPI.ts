@@ -2,6 +2,7 @@ import { Tick } from 'ticktick-api-lvt'
 import ITask from "ticktick-api-lvt/src/types/Task"
 import { App, Notice} from 'obsidian';
 import UltimateTickTickSyncForObsidian from "../main";
+import { IProject } from 'ticktick-api-lvt/dist/types/Project';
 
 //convert date from obsidian event
 // Usage example
@@ -40,22 +41,24 @@ export class TickTickRestAPI {
     async initializeAPI(){
         //Because we can't have async constructors, make sure the first call initializes the API
         if (this.api === null || this.api === undefined) {
-            // console.log("intializing")
             let apiInitialized;
             try {
-                const api = await new Tick({username: this.plugin.settings.username, password: this.plugin.settings.password});
+                const api = new Tick({username: this.plugin.settings.username, password: this.plugin.settings.password});
                 apiInitialized = await api.login();
+                console.log(`Login Result: ${apiInitialized}`); 
                 this.plugin.settings.apiInitialized  = apiInitialized;  
-                console.log(`Logged In: ${apiInitialized}`); 
+                
                 if (apiInitialized) {
                     this.api = api;
-                    // console.log(`Logged In: ${apiInitialized}`);   
+                    console.log(`Logged In: ${apiInitialized}`);   
                 } else {
                     new Notice("Login failed, please check userID and password")
                 }
             } catch(error) {
-                console.error(`Login failed ${error}`);
+                console.error("Login failed! ", error);
+                this.plugin.settings.apiInitialized  = false;
                 apiInitialized = false;
+                new Notice(`Login failed: ${error}\nPlease login again`)
             } finally {
                 this.plugin.saveSettings();
             }
@@ -76,13 +79,23 @@ export class TickTickRestAPI {
         }
     }
     
-    async deleteTask(deleteTaskId: string) {
+    async deleteTask(deletedTaskId: string, deletedTaskProjectId: string) {
         await this.initializeAPI();
         try {
-            const response = await this.api.deleteTask(deleteTaskId);
+            const response = await this.api.deleteTask(deletedTaskId, deletedTaskProjectId);
             return response;
         } catch (error) {
             throw new Error(`Error deleting task: ${error.message}`);
+        }
+    }
+
+    async getProjectSections(projectId: string ) {
+        await this.initializeAPI();
+        try {
+            const response = await this.api.getProjectSections(projectId);
+            return response;
+        } catch (error) {
+            throw new Error(`Error getting Sections: ${error.message}`);
         }
     }
     
@@ -113,6 +126,7 @@ export class TickTickRestAPI {
         //     throw new Error('At least one update is required');
         // }
         try {
+            //TODO Move due date handling up. It doesn't belong here.
             if(taskToUpdate.dueDate){
                 console.log("Due Date on update Task: ", taskToUpdate.dueDate);
                 taskToUpdate.dueDate = fixDueDate(taskToUpdate.dueDate);
@@ -207,7 +221,7 @@ export class TickTickRestAPI {
     
     
     //get all projects
-    async GetAllProjects() {
+    async GetAllProjects() : Promise<IProject[]> {
         await this.initializeAPI(); 
         try {
             const result = await this.api.getProjects();
@@ -215,7 +229,7 @@ export class TickTickRestAPI {
             
         } catch (error) {
             console.error('Error get all projects', error);
-            return false
+            return []
         }
     }
     
@@ -273,7 +287,27 @@ export class TickTickRestAPI {
             return []
         }
     }
+
+    //TODO: Will need interpretation
+    async getAllTasks() : Promise<any[]> {
+        await this.initializeAPI();
+        try {
+            const result = await this.api.getAllTasks();
+            
+            return(result)
+            
+        } catch (error) {
+            console.error('Error get all Tasks', error);
+            return []
+        }
+    }
+
+
+
 }
+
+
+
 
 function fixDueDate(dueDate: string) : string{
     if (dueDate) {

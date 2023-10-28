@@ -42,7 +42,7 @@ export class TickTickSync {
             //const editor = this.app.workspace.activeEditor?.editor
             file = this.app.workspace.getActiveFile()
             filepath = file?.path
-            //Use view.data instead of valut.read. vault.read is delayed
+            //Use view.data instead of vault.read. vault.read is delayed
             currentFileValue = view?.data
         }
         
@@ -52,9 +52,9 @@ export class TickTickSync {
         
         //const fileMetadata = await this.plugin.fileOperation.getFileMetadata(file);
         const fileMetadata = await this.plugin.cacheOperation.getFileMetadata(filepath)
-        // console.log("frontmatter: ", fileMetadata)
+        // console.log("fileMetaData: ", fileMetadata)
         if (!fileMetadata || !fileMetadata.TickTickTasks) {
-            // console.log('frontmatter has no task')
+            // console.log('fileMetaData has no task')
             return;
         }
         
@@ -70,14 +70,10 @@ export class TickTickSync {
         .filter((taskId) => !currentFileValueWithOutFileMetadata.includes(taskId))
         .map(async (taskId) => {
             try {                
-                const response = await this.plugin.tickTickRestAPI.deleteTask(taskId);
-                //console.log(`response is ${response}`);
-                
-                if (response) {
-                    console.log(`task ${taskId} deleted successfully`);
-                    new Notice(`task ${taskId} is deleted`)
-                    return taskId; // Return the deleted task ID
-                }
+                var taskIds = [];
+                taskIds.push(taskId)
+                console.log(taskIds)
+                await this.deleteTasksByIds(taskIds);
             } catch (error) {
                 console.error(`Failed to delete task ${taskId}: ${error}`);
             }
@@ -85,11 +81,11 @@ export class TickTickSync {
         
         const deletedTaskIds = await Promise.all(deleteTasksPromises);
         const deletedTaskAmount = deletedTaskIds.length
-        if (!deletedTaskIds.length) {
+        if (deletedTaskAmount) {
             //console.log("No task deleted");
             return;
         }
-        this.plugin.cacheOperation.deleteTaskFromCacheByIDs(deletedTaskIds)
+        await this.plugin.cacheOperation.deleteTaskFromCacheByIDs(deletedTaskIds)
         //console.log(`Deleted ${deletedTaskAmount} tasks`)
         this.plugin.saveSettings()
         // Update newFileMetadata_TickTickTasks array
@@ -121,35 +117,38 @@ export class TickTickSync {
             const line = cursor.line
             const linetxt = editor.getLine(line)
             
-            
-            
-            
-            
             //Add task
-            // console.log("lineContentNewTaskCheck", linetxt, this.plugin.taskParser.hasTickTickId(linetxt), this.plugin.taskParser.hasTickTickTag(linetxt) )
+            console.log("lineContentNewTaskCheck", linetxt, this.plugin.taskParser.hasTickTickId(linetxt), this.plugin.taskParser.hasTickTickTag(linetxt) )
             if ((!this.plugin.taskParser.hasTickTickId(linetxt) && this.plugin.taskParser.hasTickTickTag(linetxt))) { //Whether #ticktick is included
-                
+                console.log("!!!!!Adding on line Content check")
                 
                 try {
-const currentTask =await this.plugin.taskParser.convertTextToTickTickTaskObject(linetxt,filepath,line,fileContent)
+                    const currentTask =await this.plugin.taskParser.convertTextToTickTickTaskObject(linetxt,filepath,line,fileContent)
                     // console.log("Adding because line content new check.")
                     const newTask = await this.plugin.tickTickRestAPI.AddTask(currentTask)
+                    if (currentTask.parentId) {
+                        let parentTask = await this.plugin.cacheOperation?.loadTaskFromCacheID(currentTask.parentId);
+                        parentTask = this.plugin.taskParser.addChildToParent(parentTask, currentTask.parentId);
+                        await this.plugin.cacheOperation?.updateTaskToCacheByID(parentTask);
+                        await this.plugin.tickTickRestAPI?.UpdateTask(parentTask);
+                    }
                     const { id: ticktick_id, projectId: ticktick_projectId, url: ticktick_url } = newTask;
                     newTask.path = filepath;
                     //console.log(newTask);
                     new Notice(`new task ${newTask.content} id is ${newTask.id}`)
                     //newTask writes to cache
-                    this.plugin.cacheOperation.appendTaskToCache(newTask)
+                    await this.plugin.cacheOperation.appendTaskToCache(newTask)
                     
                     //If the task is completed
                     if(currentTask.status != 0){
                         await this.plugin.tickTickRestAPI.CloseTask(newTask.id)
-                        this.plugin.cacheOperation.closeTaskToCacheByID(ticktick_id)
+                        await this.plugin.cacheOperation.closeTaskToCacheByID(ticktick_id)
                         
                     }
                     this.plugin.saveSettings()
                     
                     //ticktick id is saved to the end of the task
+                    //TODO: This is bugging me.
                     const text_with_out_link = `${linetxt} %%[ticktick_id:: ${ticktick_id}]%%`;
                     const text = this.plugin.taskParser.addTickTickLink(text_with_out_link,newTask.url)
                     const from = { line: cursor.line, ch: 0 };
@@ -158,12 +157,12 @@ const currentTask =await this.plugin.taskParser.convertTextToTickTickTaskObject(
                     
                     //Process fileMetadata
                     try {
-                        // handle front matter
+                        // handle file meta data
                         const fileMetadata = await this.plugin.cacheOperation.getFileMetadata(filepath)
                         //console.log(fileMetadata);
                         
                         if (!fileMetadata) {
-                            //console.log('frontmatter is empty');
+                            //console.log('fileMetaData is empty');
                             //return;
                         }
                         
@@ -174,13 +173,7 @@ const currentTask =await this.plugin.taskParser.convertTextToTickTickTaskObject(
                         //Record taskID
                         newFileMetadata.TickTickTasks = [...(newFileMetadata.TickTickTasks || []), ticktick_id];
                         
-                        // update front matter
-                        /*
-                        this.plugin.fileOperation.updateFileMetadata(view.file, (fileMetadata) => {
-                            fileMetadata.TickTickTasks = newFileMetadata.TickTickTasks;
-                            fileMetadata.TickTickCount = newFileMetadata.TickTickCount;
-                        });
-                        */
+                        
                         //console.log(newFileMetadata)
                         await this.plugin.cacheOperation.updateFileMetadata(filepath,newFileMetadata)
                         
@@ -209,15 +202,21 @@ const currentTask =await this.plugin.taskParser.convertTextToTickTickTaskObject(
             
             if(file_path){
                 file = this.app.vault.getAbstractFileByPath(file_path)
-                filepath = file_path
-                currentFileValue = await this.app.vault.read(file)
+                if (file) {
+                    filepath = file_path
+                    currentFileValue = await this.app.vault.read(file)
+                } else {
+                    console.log(`File: ${file_path} not found. Removing from Meta Data`)
+                    await this.plugin.cacheOperation?.deleteFilepathFromMetadata(file_path);
+                    return;
+                }
             }
             else{
                 view = this.app.workspace.getActiveViewOfType(MarkdownView);
                 //const editor = this.app.workspace.activeEditor?.editor
                 file = this.app.workspace.getActiveFile()
                 filepath = file?.path
-                //Use view.data instead of valut.read. vault.read is delayed
+                //Use view.data instead of vault.read. vault.read is delayed
                 currentFileValue = view?.data
             }
             
@@ -248,8 +247,9 @@ const currentTask =await this.plugin.taskParser.convertTextToTickTickTaskObject(
             
             for (let i = 0; i < lines.length; i++) {
                 const line = lines[i]
+                console.log("fullTextNewTaskCheck", line, this.plugin.taskParser.hasTickTickId(line), this.plugin.taskParser.hasTickTickTag(line) )
                 if (!this.plugin.taskParser.hasTickTickId(line) && this.plugin.taskParser.hasTickTickTag(line)) {
-                    //console.log('this is a new task')
+                    console.log('!!!!!Adding on  fullTextNewTaskCheck')
                     //console.log(`current line is ${i}`)
                     //console.log(`line text: ${line}`)
                     // console.log(filepath)
@@ -261,18 +261,20 @@ const currentTask =await this.plugin.taskParser.convertTextToTickTickTaskObject(
                     try {
                         // console.log("adding because full task new check")
                         const newTask = await this.plugin.tickTickRestAPI.AddTask(currentTask)
+                        //dear future me: this takes the corresponding variables from the object on the right hand side and stuffs
+                        //                them in the left hand side variables. Maybe should have done a bit more JS learning before
+                        //                taking this on.
                         const { id: ticktick_id, projectId: ticktick_projectId, url: ticktick_url } = newTask;
-                        console.log("what doe this do: ", { id: ticktick_id, projectId: ticktick_projectId, url: ticktick_url } )
                         newTask.path = filepath;
                         // console.log(newTask);
                         new Notice(`new task ${newTask.content} id is ${newTask.id}`)
                         //newTask writes to json file
-                        this.plugin.cacheOperation.appendTaskToCache(newTask)
+                        await this.plugin.cacheOperation.appendTaskToCache(newTask)
                         
                         //If the task is completed
                         if(currentTask.status != 0){
                             await this.plugin.tickTickRestAPI.CloseTask(newTask.id)
-                            this.plugin.cacheOperation.closeTaskToCacheByID(ticktick_id)
+                            await this.plugin.cacheOperation.closeTaskToCacheByID(ticktick_id)
                         }
                         this.plugin.saveSettings()
                         
@@ -302,16 +304,6 @@ const currentTask =await this.plugin.taskParser.convertTextToTickTickTaskObject(
                     // save file
                     const newContent = lines.join('\n')
                     await this.app.vault.modify(file, newContent)
-                    
-                    
-                    // update front matter
-                    /*
-                    this.plugin.fileOperation.updateFileMetadata(file, (fileMetadata) => {
-                        fileMetadata.TickTickTasks = newFileMetadata.TickTickTasks;
-                        fileMetadata.TickTickCount = newFileMetadata.TickTickCount;
-                    });
-                    */
-                    
                     await this.plugin.cacheOperation.updateFileMetadata(filepath,newFileMetadata)
                     
                 } catch (error) {
@@ -346,19 +338,20 @@ const currentTask =await this.plugin.taskParser.convertTextToTickTickTaskObject(
                 const lineTask_ticktick_id = lineTask.id
                 //console.log(lineTask_ticktick_id) 
                 //console.log(`lastline task id is ${lastLineTask_ticktick_id}`)
-                const savedTask = await this.plugin.cacheOperation.loadTaskFromCacheID(lineTask_ticktick_id) //The id in dataview is a number, and the id in ticktick is a string, which needs to be converted
-                console.log("Right After Fetch: ", savedTask);
+                const savedTask = await this.plugin.cacheOperation.loadTaskFromCacheID(lineTask_ticktick_id) 
+                console.log("Task from Cache: ", savedTask);
                 if(!savedTask){ 
-                    //TODO: Verify correct construction of task to cache. eg: Tags, due date, etc.
-                    // console.error(`There is no task ${lineTask.ticktick_id} in the local cache`)
+                    console.error(`There is no task ${lineTask.ticktick_id} in the local cache`)
                     //let's assume that we need to add it. It'll be fun.
+                    //TODO: Add out of Sync, verify we need it, and Verify correct construction of task to cache. eg: Tags, due date, etc.
+                    /* Strongly suspect that this is a problem. Let's wait for Sync operation to get us back in Sync
                     const task = await this.plugin.tickTickRestAPI?.getTaskById(lineTask_ticktick_id)
                     // console.log("task: ", task)
                     const obsidianURL = this.plugin.taskParser.getObsidianUrlFromFilepath(filepath)
                     if (task) {
                         task.content = obsidianURL;
                         task.url = this.plugin.taskParser?.createURL(task.id)
-                        this.plugin.cacheOperation?.appendTaskToCache(task);
+                        await this.plugin.cacheOperation?.appendTaskToCache(task);
                         let fileMetadata: FileMetadata;
                         fileMetadata = await this.plugin.cacheOperation?.getFileMetadata(filepath)
                         
@@ -373,6 +366,7 @@ const currentTask =await this.plugin.taskParser.convertTextToTickTickTaskObject(
                     }
                     
                     // console.log(url)
+                    */
                     return
                 }
                 //console.log(savedTask)
@@ -382,19 +376,23 @@ const currentTask =await this.plugin.taskParser.convertTextToTickTickTaskObject(
                 
                 
                 //Whether content is modified?
-                const contentModified = !this.plugin.taskParser.taskTitleCompare(lineTask,savedTask)
+                const contentModified = this.plugin.taskParser.isTitleChanged(lineTask,savedTask)
                 //tag or labels whether to modify
-                const tagsModified = !this.plugin.taskParser.taskTagCompare(lineTask,savedTask)
+                const tagsModified = this.plugin.taskParser.isTagsChanged(lineTask,savedTask)
                 //project whether to modify
-                const projectModified = !(await this.plugin.taskParser.taskProjectCompare(lineTask,savedTask))
+                const projectModified = this.plugin.taskParser.isProjectIdChanged(lineTask,savedTask)
                 //Whether status is modified?
-                const statusModified = !this.plugin.taskParser.taskStatusCompare(lineTask,savedTask)
+                const statusModified = this.plugin.taskParser.isStatusChanged(lineTask,savedTask)
                 //due date whether to modify
-                const dueDateModified = !(await this.plugin.taskParser.taskDueDateCompare(lineTask,savedTask))
-                // parent id whether to modify
-                const parentIdModified = !(lineTask.parentId === savedTask.parentId)
-                //check priority
-                const priorityModified = !(lineTask.priority === savedTask.priority)
+                const dueDateModified = (await this.plugin.taskParser.isDueDateChanged(lineTask,savedTask))
+                //TODO Fix This!
+                console.error("IGnoring priority and parentage. Re-Instate ASAP")
+                const parentIdModified = false;
+                const priorityModified = false;
+                // // parent id whether to modify
+                // const parentIdModified = !(lineTask.parentId === savedTask.parentId)
+                // //check priority
+                // const priorityModified = !(lineTask.priority === savedTask.priority)
                 
                 try {
                     let contentChanged= false;
@@ -465,13 +463,11 @@ const currentTask =await this.plugin.taskParser.convertTextToTickTickTaskObject(
                     
                     
                     if (contentChanged || tagsChanged ||dueDateChanged ||projectChanged || parentIdChanged || priorityChanged) {
-                        //console.log("task content was modified");
+                        console.log("task content was modified");
                         //console.log(updatedContent)
-                        // const updatedTask = await this.plugin.tickTickRestAPI.UpdateTask(lineTask.ticktick_id.toString(),updatedContent)
-                        //TODO: Just shoving the whole task in. Should we do updated content?
                         const updatedTask = await this.plugin.tickTickRestAPI?.UpdateTask(lineTask)
-                        updatedTask.path = filepath
-                        this.plugin.cacheOperation.updateTaskToCacheByID(updatedTask);
+                        lineTask.path = filepath
+                        await this.plugin.cacheOperation?.updateTaskToCacheByID(lineTask);
                     }
                     
                     if (statusModified) {
@@ -483,13 +479,13 @@ const currentTask =await this.plugin.taskParser.convertTextToTickTickTaskObject(
                                 console.log(`task completed`)
                             }
                             this.plugin.tickTickRestAPI.CloseTask(lineTask.id, lineTask.projectId);
-                            this.plugin.cacheOperation.closeTaskToCacheByID( lineTask.id);
+                            await this.plugin.cacheOperation.closeTaskToCacheByID( lineTask.id);
                         } else {
                             if(this.plugin.settings.debugMode){
                                 console.log(`task not completed`)
                             }
                             this.plugin.tickTickRestAPI.OpenTask(lineTask.id, lineTask.projectId);
-                            this.plugin.cacheOperation.reopenTaskToCacheByID( lineTask.id);
+                            await this.plugin.cacheOperation.reopenTaskToCacheByID( lineTask.id);
                         }
                         
                         statusChanged = true;
@@ -524,6 +520,7 @@ const currentTask =await this.plugin.taskParser.convertTextToTickTickTaskObject(
                         }
                         
                         new Notice(message);
+                        console.log("Task Changed: ", lineTask.id)
                         
                     } else {
                         //console.log(`Task ${lineTask_ticktick_id} did not change`);
@@ -577,7 +574,7 @@ const currentTask =await this.plugin.taskParser.convertTextToTickTickTaskObject(
                 
                 if (hasModifiedTask) {
                     try {
-                        // Perform necessary actions on the modified content and front matter
+                        // Perform necessary actions on the modified content and file meta data
                     } catch (error) {
                         console.error('Error processing modified content:', error);
                     }
@@ -624,12 +621,13 @@ const currentTask =await this.plugin.taskParser.convertTextToTickTickTaskObject(
         */
         async deleteTasksByIds(taskIds: string[]): Promise<string[]> {
             const deletedTaskIds = [];
-            
+            console.log("to Delete: ", taskIds)
+            const api = await this.plugin.tickTickRestAPI.initializeAPI()            
             for (const taskId of taskIds) {
-                const api = await this.plugin.tickTickRestAPI.initializeAPI()
                 try {
-                    //TODO: Implement deletetask in API
-                    const response = await this.plugin.tickTickRestAPI.deleteTask(taskId);
+                    let projectId = await this.plugin.cacheOperation?.getProjectIdForTask(taskId);
+                    console.log("got pid: ", projectId);
+                    const response = await this.plugin.tickTickRestAPI.deleteTask(taskId, projectId);
                     // console.log(`response is ${response}`);
                     
                     if (response) {
@@ -766,7 +764,7 @@ const currentTask =await this.plugin.taskParser.convertTextToTickTickTaskObject(
         async syncUpdatedTaskContentToObsidian(e){
             this.plugin.fileOperation.syncUpdatedTaskContentToTheFile(e)
             const content = e.extra_data.content
-            this.plugin.cacheOperation.modifyTaskToCacheByID(e.object_id,{content})
+            await this.plugin.cacheOperation.modifyTaskToCacheByID(e.object_id,{content})
             new Notice(`The content of Task ${e.parent_item_id} has been modified.`)
             
         }
@@ -775,7 +773,7 @@ const currentTask =await this.plugin.taskParser.convertTextToTickTickTaskObject(
             this.plugin.fileOperation.syncUpdatedTaskDueDateToTheFile(e)
             //To modify the cache date, use ticktick format
             const due = await this.plugin.tickTickRestAPI.getTaskDueById(e.object_id)
-            this.plugin.cacheOperation.modifyTaskToCacheByID(e.object_id,{due})
+            await this.plugin.cacheOperation.modifyTaskToCacheByID(e.object_id,{due})
             new Notice(`The due date of Task ${e.parent_item_id} has been modified.`)
             
         }
@@ -812,34 +810,57 @@ const currentTask =await this.plugin.taskParser.convertTextToTickTickTaskObject(
             //Tasks in TickTick, not in Obsidian: Download
             //Tasks in both: check for updates. 
             try{
-                const all_ticktick_resources = await this.plugin.tickTickSyncAPI.getAllResources();
-                let all_ticktick_tasks = all_ticktick_resources.syncTaskBean.update;
-                all_ticktick_tasks = all_ticktick_tasks.sort((a,b) => (a.id > b.id) ? 1 : ((b.id > a.id) ? -1 : 0))
-                console.log("remote tasks: ", all_ticktick_tasks.length)
+                let bModifiedFileSystem = false;
+                let tasksFromTickTic = await this.plugin.tickTickSyncAPI?.getAllTasks();
+                if (!tasksFromTickTic || tasksFromTickTic.length === 0) {
+                    console.error("Failed to fetch resources from TickTick");
+                    new Notice("Failed to fetch resources from TickTick, please try again later", 5000)
+                    throw new Error("Failed to fetch resources from TickTick");
+                }
+                //todo verify if we ever get anything in syncTaskBean.add
                 
-                let savedTasks = await this.plugin.cacheOperation.loadTasksFromCache()
-                savedTasks = savedTasks.sort((a,b) => (a.id > b.id) ? 1 : ((b.id > a.id) ? -1 : 0))
-                console.log("local tasks: ", savedTasks.length);
+                tasksFromTickTic = tasksFromTickTic.sort((a,b) => (a.id > b.id) ? 1 : ((b.id > a.id) ? -1 : 0))
+                console.log("num remote tasks: ", tasksFromTickTic.length)
+                
+                let tasksInCache = await this.plugin.cacheOperation.loadTasksFromCache()
+                if (tasksInCache) {
+                    tasksInCache = tasksInCache.sort((a,b) => (a.id > b.id) ? 1 : ((b.id > a.id) ? -1 : 0))
+                    console.log("local tasks: ", tasksInCache.length);
+                } else {
+                    tasksInCache = [];
+                }
                 
                 
-                console.log("Remote Tasks: ", all_ticktick_tasks)
-                console.log("local tasks", savedTasks)
-                // Find the task activity whose task id exists in Obsidian
-                const localOnlyTasks = all_ticktick_tasks.filter((objA) => savedTasks.some((objB) => objB.id === objA.object_id))
-                console.log("Found localOnlyTasks: ", localOnlyTasks.length)
-                const remoteOnlyTasks = all_ticktick_tasks.filter(taskA => !savedTasks.some(taskB => taskA.id === taskB.id));
-                console.log("Found remote: ", remoteOnlyTasks.length)
-                const localSyncedTasks = all_ticktick_tasks.filter(taskA => savedTasks.some(taskB => taskA.id === taskB.id));
-                console.log("Found localSyncedTasks: ", localSyncedTasks.length);
+                
+                console.log("---- num local tasks", tasksInCache.length)
+                
+                const syncToObsidian = tasksFromTickTic.filter(cloudObj => !tasksInCache.some(localObj => localObj.id === cloudObj.id));
+                console.log("syncToObsidian: ", syncToObsidian.length)
+                const syncToTickTick = tasksInCache.filter(localObj => !tasksFromTickTic.some(cloudObj => cloudObj.id === localObj.id));
+                console.log("syncToTickTick: ", syncToTickTick.length)
+                const tasksInBoth = tasksFromTickTic.filter(cloudObj => tasksInCache.some(localObj => localObj.id === cloudObj.id));
+                console.log("tasksInBoth: ", tasksInBoth.length)
+                
+                
+                
                 
                 //upload local only tasks to TickTick
-                localOnlyTasks.forEach(task => {
+                syncToTickTick.forEach(task => {
                     this.plugin.tickTickRestAPI?.AddTask(task);                    
                 });
                 
                 //download remote only tasks to Obsidian
-                await this.plugin.fileOperation?.addTasksToFile(remoteOnlyTasks)
-                this.plugin.cacheOperation?.appendTasksToCache(remoteOnlyTasks);          
+                if (syncToObsidian.length > 0) {
+                    await this.plugin.fileOperation?.addTasksToFile(syncToObsidian)
+                    await this.plugin.cacheOperation?.appendTasksToCache(syncToObsidian);   
+                    bModifiedFileSystem = true;
+                }
+                //Todo check localSyncedTasks for TickTick modifications. Like: They got modified in ticktick, but not here.       
+                //tasksInBoth
+                
+                await this.plugin.saveSettings();
+                //If we just farckled the file system, stop Syncing to avoid race conditions.
+                return bModifiedFileSystem;
             }catch (err){
                 console.error('An error occurred while synchronizing:', err);
             }
@@ -883,7 +904,7 @@ const currentTask =await this.plugin.taskParser.convertTextToTickTickTaskObject(
                     //TODO: Just shoving the whole task in. Should we do updated content?
                     const task = await this.plugin.cacheOperation?.loadTaskFromCacheID(taskId);
                     task.content = content;
-                    this.plugin.cacheOperation?.updateTaskToCacheByID(task);
+                    await this.plugin.cacheOperation?.updateTaskToCacheByID(task);
                     const updatedTask = await this.plugin.tickTickRestAPI.UpdateTask(task)
                 });
             } catch(error) {

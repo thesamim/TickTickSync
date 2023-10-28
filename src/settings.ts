@@ -143,9 +143,9 @@ export class UltimateTickTickSyncSettingTab extends PluginSettingTab {
 					component
 					.addOption(this.plugin.settings.defaultProjectId,this.plugin.settings.defaultProjectName)
 					.addOptions(myProjectsOptions)
-					.onChange((value)=>{
+					.onChange(async (value)=>{
 						this.plugin.settings.defaultProjectId = value
-						this.plugin.settings.defaultProjectName = this.plugin.cacheOperation.getProjectNameByIdFromCache(value)
+						this.plugin.settings.defaultProjectName = await this.plugin.cacheOperation.getProjectNameByIdFromCache(value)
 						this.plugin.saveSettings()
 						
 						

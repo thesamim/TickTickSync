@@ -19,6 +19,7 @@ type FilterOptions = {
     object_type?: string;
 };
 
+//TODO: This is just mostly pass through. Do we reall need it?
 export class TickTickSyncAPI {
     app:App;
     plugin: UltimateTickTickSyncForObsidian;
@@ -42,9 +43,17 @@ export class TickTickSyncAPI {
     }
     
     //backup TickTick
+    async getAllTasks() {
+        try {
+            let data = this.plugin.tickTickRestAPI.getAllTasks()
+            return data;
+        } catch (error) {
+            console.error(error);
+            throw new Error('Failed to fetch user resources due to network error');
+        }
+    }
+    
     async getUserResource() {
-        
-        
         try {
             let data = this.plugin.tickTickRestAPI.getUserResources()
             return data;
@@ -53,7 +62,6 @@ export class TickTickSyncAPI {
             throw new Error('Failed to fetch user resources due to network error');
         }
     }
-    
     
     
     
@@ -97,7 +105,8 @@ export class TickTickSyncAPI {
             throw new Error('Failed to fetch completed items due to network error');
         }
         
-        
+
+        //todo: this is getting all tasks
         //get uncompleted items activity
         //result {count:number,events:[]}
         async getUncompletedItemsActivity() : any[] {
@@ -108,9 +117,9 @@ export class TickTickSyncAPI {
         }
         
         
-        //get non-obsidian completed event
+        //get non-obsidian completed event 
+        //todo: this is getting all tasks
         async getNonObsidianCompletedItemsActivity() {
-            const accessToken = this.plugin.settings.TickTickAPIToken
             const completedItemsActivity = await this.getCompletedItemsActivity()
             const completedItemsActivityEvents = completedItemsActivity.events
             //client does not contain obsidian's activity

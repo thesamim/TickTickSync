@@ -1,4 +1,4 @@
-import { App, TFile} from 'obsidian';
+import { App, Notice, TFile} from 'obsidian';
 import UltimateTickTickSyncForObsidian from "../main";
 import { ITask } from 'ticktick-api-lvt/dist/types/Task';
 export class FileOperation {
@@ -30,7 +30,7 @@ export class FileOperation {
         file:TFile,
         updater: (fileMetadata: FileMetadata) => void
         ): Promise<void> {
-            //console.log(`prepare to update front matter`)
+            //console.log(`prepare to update file meta data`)
             this.app.fileManager.processFileMetadata(file, (fileMetadata) => {
                 if (fileMetadata !== null) {
                     const updatedFileMetadata = { ...fileMetadata } as FileMetadata;
@@ -173,7 +173,7 @@ export class FileOperation {
                     // console.log("addTickTickLinkToFile", line)
                     //console.log('prepare to add TickTick link')
                     const taskID = this.plugin.taskParser.getTickTickIdFromLineText(line)
-                    const taskObject = this.plugin.cacheOperation.loadTaskFromCacheID(taskID)
+                    const taskObject = await this.plugin.cacheOperation.loadTaskFromCacheID(taskID)
                     const newLine = this.plugin.taskParser.addTickTickLink(line,taskObject.url)
                     // console.log(newLine)
                     lines[i] = newLine
@@ -242,65 +242,95 @@ export class FileOperation {
         }
         // sync updated task content to file
         async addTasksToFile(tasks: ITask[]) : Promise<Boolean>  {
-            console.log("add tasks to file")
-            tasks.forEach( async (task: ITask) => {
-                console.log(task.id)
-                let taskFile = this.plugin.cacheOperation?.getFilepathForProjectId(task.projectId);
+            //sort by project id and task id
+            tasks.sort((taskA,taskB) => (taskA.projectId.localeCompare(taskB.projectId) || 
+            taskA.id.localeCompare(taskB.id)));
+            //try not overwrite files while downloading a whole bunch of tasks. Create them first, then do the addtask mambo
+            const projectIds = [...new Set(tasks.map(task => task.projectId))];
+            projectIds.forEach( async (projectId) => {
+                let taskFile = await this.plugin.cacheOperation?.getFilepathForProjectId(projectId);
+                let metaData;
                 if (taskFile ) {
-                    await this.addTaskToFile(taskFile, task); 
-                    console.log("We should be in sync")
-                }
+                    metaData = await this.plugin.cacheOperation?.getFileMetadata(taskFile);
+                    if (!metaData){
+                        metaData = await this.plugin.cacheOperation?.newEmptyFileMetadata(taskFile, projectId);
+                    }
+
+                    var file = this.app.vault.getAbstractFileByPath(taskFile);
+                    if (!(file instanceof TFile)) {
+                        //the file doesn't exist. Create it.
+                        //TODO: Deal with Folders and sections in the fullness of time.
+                        new Notice(`Creating new file: ${taskFile}`);
+                        file = await this.app.vault.create(taskFile, "== Added by Obsidian-TickTick == ")
+                        metaData = await this.plugin.cacheOperation?.newEmptyFileMetadata(taskFile, projectId);
+                    }
+                } 
+                let projectTasks = tasks.filter(task => task.projectId === projectId);
+                await this.addTaskToFile(file, projectTasks, metaData); 
             });
             return true;
         }        
-        private async addTaskToFile(filePath: string, task: ITask) : Promise<Boolean> {
+
+
+        private async addTaskToFile(file: TFile, tasks: ITask[], metaData: any) : Promise<boolean> {
+
             try {
-                console.log("in filepath: ", filePath);
-                var file = this.app.vault.getAbstractFileByPath(filePath);
-                if (!(file instanceof TFile)) {
-                    //the file doesn't exist. Create it.
-                    //TODO: Deal with Folders and sections in the fullness of time.
-                    file = await this.app.vault.create(filePath, "== Added by Obsidian-TickTick == ");
+            const content = await this.app.vault.read(file);
+            
+            const lines = content.split('\n');
+
+            let modified = false;
+            
+            //TODO: is this working?
+            let lastTaskLine = 0;
+            //TODO: Should we be using linenumbercheck.
+            let lastLineInFile = lines.length;
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i];
+                
+                if (this.plugin.taskParser?.hasTickTickTag(line)) {
+                    lastTaskLine = i;
                 }
-                const content = await this.app.vault.read(file);
-                                
-                const lines = content.split('\n');
-                let modified = false;
-                
-                //TODO: is this working?
-                let lastTaskLine = 0;
-                //TODO: Should we be using linenumbercheck.
-                let lastLineInFile = lines.length;
-                for (let i = 0; i < lines.length; i++) {
-                    const line = lines[i];
-                    
-                    if (this.plugin.taskParser?.hasTickTickTag(line)) {
-                        lastTaskLine = i;
-                    }
-                }
-                let lineToInsert;
-                let lineText = await this.plugin.taskParser?.convertTaskObjectToTaskLine(task);
-                
-                if (lastTaskLine > 0) {
-                    lineToInsert = lastTaskLine + 1;
-                } else {
-                    lineToInsert = lastLineInFile - 1 
-                }
-                
-                console.log("Insert at: ", lineToInsert, lineText);
-                
-                lines.splice(lineToInsert, 0, lineText);
-                const newContent = lines.join('\n');
-                
-                
-                await this.app.vault.modify(file, newContent);
-                return true;
+            }
+            let lineToInsert: number;
+            
+            
+            if (lastTaskLine > 0) {
+                lineToInsert = lastTaskLine + 1;
+            } else {
+                lineToInsert = lastLineInFile; 
+            }
+            lineToInsert = await this.writeLines(tasks, lineToInsert, lines, file, metaData);
+
+            const newContent = lines.join('\n');
+            await this.app.vault.modify(file, newContent);
+            await this.plugin.cacheOperation?.updateFileMetadata(file.name, metaData);
+            this.plugin.lastLines.set(file.name, lines.length);
+            
+            // let newcontent = await this.app.vault.read(file);
+            
+            return true;
             } catch(error) {
                 console.error(`Could not add Task ${task.id} to file ${filePath} \n Error: ${error}`);
-                
+            
             }
         }
         
+    private async writeLines(tasks: ITask[], lineToInsert: number, lines: string[], file: TFile, metaData: any) {
+        tasks.forEach(async (task) => {
+            let lineText = await this.plugin.taskParser?.convertTaskObjectToTaskLine(task);
+            lines.splice(lineToInsert, 0, lineText);
+            if (!metaData.TickTickTasks || metaData.TickTickTasks.length == 0) {
+                metaData.TickTickTasks = [task.id];
+            } else {
+                metaData.TickTickTasks.push(task.id);
+            }
+            metaData.TickTickCount = metaData.TickTickCount + 1;
+            lineToInsert++;
+        });
+        return lineToInsert;
+    }
+
         // sync updated task content to file
         async syncUpdatedTaskContentToTheFile(evt:Object) {
             const taskId = evt.object_id

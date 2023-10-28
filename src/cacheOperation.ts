@@ -1,7 +1,9 @@
 import { App} from 'obsidian';
 import UltimateTickTickSyncForObsidian from "../main";
 import { ITask } from 'ticktick-api-lvt/dist/types/Task';
+import { IProject } from 'ticktick-api-lvt/dist/types/Project';
 
+//todo: do we need this?
 interface Due {
     date?: string;
     [key: string]: any; // allow for additional properties
@@ -29,20 +31,23 @@ export class CacheOperation {
         return this.plugin.settings.fileMetadata ?? null
     }
     
-    async newEmptyFileMetadata(filepath:string) : Promise<any>{
+   
+    async newEmptyFileMetadata(filepath:string, projectId: string){
         const metadatas = this.plugin.settings.fileMetadata
         if(metadatas[filepath]) {
-            return metadatas; //Why?
+            return
         }
         else{
             metadatas[filepath] = {}
         }
         metadatas[filepath].TickTickTasks = [];
-        metadatas[filepath].TickTickCount = 0; 
+        metadatas[filepath].TickTickCount = 0;
+        if (projectId) {
+            metadatas[filepath].defaultProjectId = projectId;
+        }
         // Save the updated metadatas object back to the settings object
         this.plugin.settings.fileMetadata = metadatas
-        return metadatas;
-        
+        return this.plugin.settings.fileMetadata[filepath]
     }
     
     async updateFileMetadata(filepath:string,newMetadata) {
@@ -63,6 +68,7 @@ export class CacheOperation {
     }
     
     async deleteTaskIdFromMetadata(filepath:string,taskId:string){
+        console.log("Deleting from metadata")
         // console.log(filepath)
         const metadata = await this.getFileMetadata(filepath)
         // console.log(metadata)
@@ -74,14 +80,28 @@ export class CacheOperation {
         newMetadata.TickTickTasks = newTickTickTasks
         newMetadata.TickTickCount = newTickTickCount
         // console.log(`new metadata ${newMetadata}`)
-        
-        
     }
     
+    async deleteTaskIdFromMetadataByTaskId(taskId: string) {
+        const metadatas = await this.getFileMetadatas()
+        for (var file in metadatas) {
+          var tasks = metadatas[file].TickTickTasks;
+          var count = metadatas[file].TickTickCount;
+          
+          if (tasks && tasks.includes(taskId)) {
+            tasks.splice(tasks.indexOf(taskId), 1);
+            metadatas[file].TickTickCount = count - 1;
+            if (tasks.length === 0) {
+              delete metadatas[file];
+            }
+            break;
+          }
+        }
+      }
     //delete filepath from filemetadata
     async deleteFilepathFromMetadata(filepath:string){
         Reflect.deleteProperty(this.plugin.settings.fileMetadata, filepath);
-        this.plugin.saveSettings()
+        await this.plugin.saveSettings()
         // console.log(`${filepath} is deleted from file metadatas.`)
     }
     
@@ -119,7 +139,7 @@ export class CacheOperation {
                 
                 //update metadata
                 await this.updateRenamedFilePath(filepath,searchResult)
-                this.plugin.saveSettings()
+                await this.plugin.saveSettings()
                 
             }
             
@@ -139,7 +159,7 @@ export class CacheOperation {
         return Object.keys(metadatas).length;        
     }
     
-    getDefaultProjectNameForFilepath(filepath:string){
+    async getDefaultProjectNameForFilepath(filepath:string){
         const metadatas = this.plugin.settings.fileMetadata
         if (!metadatas[filepath] || metadatas[filepath].defaultProjectId === undefined) {
             return this.plugin.settings.defaultProjectName
@@ -152,7 +172,7 @@ export class CacheOperation {
     }
     
     
-    getDefaultProjectIdForFilepath(filepath:string){
+    async getDefaultProjectIdForFilepath(filepath:string){
         const metadatas = this.plugin.settings.fileMetadata
         if (!metadatas[filepath] || metadatas[filepath].defaultProjectId === undefined) {
             return this.plugin.settings.defaultProjectId
@@ -163,7 +183,7 @@ export class CacheOperation {
         }
     }
     
-    getFilepathForProjectId(projectId:string){
+    async getFilepathForProjectId(projectId:string){
         const metadatas = this.plugin.settings.fileMetadata
         
 
@@ -174,16 +194,19 @@ export class CacheOperation {
                 return key; 
             }
         };
+        console.log("Not found")
         //otherwise, return the project name as a md file and hope for the best.
-        
-        let filePath = this.getProjectNameByIdFromCache(projectId) + ".md"
+        //TODO: Does thi do what I think it does?
+        let filePath = await this.getProjectNameByIdFromCache(projectId) + ".md"
+
         if (!filePath) {
             filePath = this.plugin.settings.defaultProjectName + ".md"
         }
+        console.log("getFilepathForProjectId filepath: ", filePath)
         return filePath;
     }
 
-    setDefaultProjectIdForFilepath(filepath:string,defaultProjectId:string){
+    async setDefaultProjectIdForFilepath(filepath:string,defaultProjectId:string){
         const metadatas = this.plugin.settings.fileMetadata
         if (!metadatas[filepath]) {
             metadatas[filepath] = {}
@@ -197,7 +220,7 @@ export class CacheOperation {
     
     
     //Read all tasks from Cache
-    loadTasksFromCache() {
+    async loadTasksFromCache() {
         try {
             const savedTasks = this.plugin.settings.TickTickTasksData.tasks
             return savedTasks;
@@ -209,7 +232,7 @@ export class CacheOperation {
     
     
     // Overwrite and save all tasks to cache
-    saveTasksToCache(newTasks) {
+    async saveTasksToCache(newTasks) {
         try {
             this.plugin.settings.TickTickTasksData.tasks = newTasks
             
@@ -221,16 +244,16 @@ export class CacheOperation {
     
     
     //Append to Cache file
-    appendTaskToCache(task: ITask) {
+    async appendTaskToCache(task: ITask) {
         try {
             if(task === null){
                 return
             }
             const savedTasks = this.plugin.settings.TickTickTasksData.tasks
-            //const taskAlreadyExists = savedTasks.some((t) => t.id === task.id);
-            //if (!taskAlreadyExists) {
-            //, when using the push method to insert a string into a Cache object, it will be treated as a simple key-value pair, where the key is the numeric index of the array and the value is the string itself. But if you use the push method to insert another Cache object (or array) into the Cache object, the object will become a nested sub-object of the original Cache object. In this case, the key is the numeric index and the value is the nested Cache object itself.
-            //}
+            if (!savedTasks) {
+                this.plugin.settings.TickTickTasksData.tasks = [];
+                await this.plugin.saveSettings();
+            }
             this.plugin.settings.TickTickTasksData.tasks.push(task);
         } catch (error) {
             console.error(`Error appending task to Cache: ${error}`);
@@ -238,15 +261,15 @@ export class CacheOperation {
     }
     
     
-    appendTasksToCache(tasks: ITask[]) {
-        tasks.forEach(task => {
-            this.appendTaskToCache(task);
+    async appendTasksToCache(tasks: ITask[]) {
+        tasks.forEach(async task => {
+            await this.appendTaskToCache(task);
             
         });
     }
     
     //Read the task with the specified id
-    loadTaskFromCacheID(taskId) {
+    async loadTaskFromCacheID(taskId) {
         // console.log("loadTaskFromCacheID")
         try {
             
@@ -262,14 +285,12 @@ export class CacheOperation {
     }
     
     //Overwrite the task with the specified id in update
-    updateTaskToCacheByID(task) {
+    async updateTaskToCacheByID(task) {
         try {
-            
-            
             //Delete the existing task
             this.deleteTaskFromCache(task.id)
             //Add new task
-            this.appendTaskToCache(task)
+            await this.appendTaskToCache(task)
             
         } catch (error) {
             console.error(`Error updating task to Cache: ${error}`);
@@ -277,10 +298,19 @@ export class CacheOperation {
         }
     }
     
+    async getProjectIdForTask(taskId: string) {
+        const savedTasks = this.plugin.settings.TickTickTasksData.tasks;
+            const taskIndex = savedTasks.findIndex((task) => task.id === taskId);
+            
+            if (taskIndex !== -1) {
+                console.log(savedTasks[taskIndex].id, savedTasks[taskIndex].projectId);
+                return savedTasks[taskIndex].projectId;
+            }
+    }
     //The structure of due {date: "2025-02-25",isRecurring: false,lang: "en",string: "2025-02-25"}
     
     
-    
+    //Todo: This is probably broke ass.
     modifyTaskToCacheByID(taskId: string, { content, due }: { content?: string, due?: Due }): void {
         try {
             const savedTasks = this.plugin.settings.TickTickTasksData.tasks;
@@ -360,8 +390,9 @@ export class CacheOperation {
     
     
     //Delete task by ID
-    deleteTaskFromCache(taskId) {
+    deleteTaskFromCache(taskId: string) {
         try {
+            console.log("Single Task delete")
             const savedTasks = this.plugin.settings.TickTickTasksData.tasks
             const newSavedTasks = savedTasks.filter((t) => t.id !== taskId);
             this.plugin.settings.TickTickTasksData.tasks = newSavedTasks
@@ -375,11 +406,22 @@ export class CacheOperation {
     
     
     //Delete task through ID array
-    deleteTaskFromCacheByIDs(deletedTaskIds) {
+    async deleteTaskFromCacheByIDs(deletedTaskIds: string[]) {
         try {
+            console.log("Deleting Tasks from Cache")
             const savedTasks = this.plugin.settings.TickTickTasksData.tasks
+            console.log("We start with: ", savedTasks.length)
+            console.log("we're going to delete: ", deletedTaskIds.length)
             const newSavedTasks = savedTasks.filter((t) => !deletedTaskIds.includes(t.id))
+            console.log("We end up with ", newSavedTasks.length)
+            console.log("Hope the math works.")
             this.plugin.settings.TickTickTasksData.tasks = newSavedTasks
+            //clean up file meta data
+            deletedTaskIds.forEach(async taskId => {
+                await this.deleteTaskIdFromMetadataByTaskId(taskId)    
+            });
+
+            
         } catch (error) {
             console.error(`Error deleting task from Cache : ${error}`);
         }
@@ -387,7 +429,7 @@ export class CacheOperation {
     
     
     //Find project id by name
-    getProjectIdByNameFromCache(projectName:string) {
+    async getProjectIdByNameFromCache(projectName:string) {
         try {
             const savedProjects = this.plugin.settings.TickTickTasksData.projects
             const targetProject = savedProjects.find(obj => obj.name === projectName);
@@ -401,7 +443,7 @@ export class CacheOperation {
     
     
     
-    getProjectNameByIdFromCache(projectId:string) {
+    async getProjectNameByIdFromCache(projectId:string) {
         try {
             const savedProjects = this.plugin.settings.TickTickTasksData.projects
             const targetProject = savedProjects.find(obj => obj.id === projectId);
@@ -421,11 +463,14 @@ export class CacheOperation {
             //get projects
             // console.log(`Save Projects to cache with ${this.plugin.tickTickRestAPI}`)
             const projectGroups = await this.plugin.tickTickRestAPI?.GetProjectGroups();
-            const projects = await this.plugin.tickTickRestAPI?.GetAllProjects();
+            const projects: IProject[] = await this.plugin.tickTickRestAPI?.GetAllProjects();
             //todo: consider doing it all from here. For now, just want the inbox ID
             const allResources = await this.plugin.tickTickRestAPI?.getAllResources();
             const inboxId = allResources["inboxId"];
-            //todo: consider naming this the default project name. 
+            this.plugin.settings.defaultProjectId = inboxId;
+            this.plugin.settings.defaultProjectName = "Inbox";
+
+            
             let inboxProject = {id: inboxId, name: "Inbox"};
 
             projects.push(inboxProject);
@@ -439,18 +484,18 @@ export class CacheOperation {
                 }
                 // ===============
                 if (projects !== undefined && projects !== null) {
-                    console.log("==== projects -->") 
-                    // console.log(projects.map((item) => item.name));
+                    console.log("==== projects -->", projects.length) 
                     projects.forEach(async project => {
-                        const singleProject = await this.plugin.TickTickRestAPI?.getProjects(project.id);
-                        const sections = await this.plugin.TickTickRestAPI?.getProjectSections(project.id);
-                        console.log(`Project: ${project.name} -- ${sections}`);
+                        
+                        const sections = await this.plugin.tickTickRestAPI?.getProjectSections(project.id);
                         if (sections !== undefined && sections !== null && sections.length > 0) {
+                            console.log(`Project: ${project.name}`);
                             sections.forEach(section => {
-                                console.log(project.name + '--' + section.name);
+                                console.log('\t' + section.name); 
                             })
                         } else {
-                            console.log(project.name + '--' + 'no sections')
+                            console.log(`Project: ${project.name}`);
+                            console.log('\t' + 'no sections')
                         }
                     })
                 } else {
@@ -459,13 +504,15 @@ export class CacheOperation {
                 
                 // ================
             }
+           
             if(!projects){
                 return false
             }
             
             //save to json
+            //TODO: Do we want to deal with sections.
             this.plugin.settings.TickTickTasksData.projects = projects
-            
+            await this.plugin.saveSettings(); 
             return true
             
         }catch(error){
