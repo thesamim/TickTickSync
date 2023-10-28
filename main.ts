@@ -46,6 +46,7 @@ export default class UltimateTickTickSyncForObsidian extends Plugin {
             new Notice('Please enter your TickTick username and password.');
             //return
         }else{
+            this.settings.apiInitialized = false;
             await this.initializePlugin();
         }
         
@@ -320,20 +321,20 @@ export default class UltimateTickTickSyncForObsidian extends Plugin {
         
         // console.log("new api")
         //initialize TickTick restapi
-        this.tickTickRestAPI = await new TickTickRestAPI(this.app, this)
-        this.tickTickRestAPI.initializeAPI();
-        
+        this.tickTickRestAPI = new TickTickRestAPI(this.app, this)
+        await this.tickTickRestAPI.initializeAPI();
+        console.log("intited: ", this.settings.apiInitialized)
         
         
         //initialize data read and write object
         this.cacheOperation = new CacheOperation(this.app, this)
-        console.log("intited: ", this.settings.apiInitialized)
+        
         let isProjectsSaved = false;
         if (this.settings.apiInitialized)
         {
             isProjectsSaved = await this.cacheOperation.saveProjectsToCache()
         }
-        // console.log(isProjectsSaved)
+        console.log("Projects Saved: ", isProjectsSaved)
         
         
         if(!isProjectsSaved){
@@ -346,7 +347,7 @@ export default class UltimateTickTickSyncForObsidian extends Plugin {
             this.tickTickSync = undefined
             new Notice(`Ultimate TickTick Sync plugin initialization failed, please check userID and password in settings.`)
             return;
-        }  
+        }   
         
         if(!this.settings.initialized){
             
@@ -520,7 +521,7 @@ export default class UltimateTickTickSyncForObsidian extends Plugin {
             return true
         }
         else{
-            new Notice(`Please enter the correct TickTick API token"`)
+            new Notice(`Please login from settings.`);
             return(false)
         }
         
@@ -559,9 +560,16 @@ export default class UltimateTickTickSyncForObsidian extends Plugin {
         try {
             if (!await this.checkAndHandleSyncLock()) return;
             try {
-                await this.tickTickSync.syncTickTickToObsidian();
+                let bChanged=await this.tickTickSync.syncTickTickToObsidian();
+                if (bChanged) {
+                    //the file system is farckled. Wait until next sync to avoid race conditions.
+                    return;
+                }
             } catch(error) {
                 console.error('An error occurred in syncTickTickToObsidian:', error);
+                console.error("TickTick terminated synchronization task at", new Date().toLocaleString());
+                this.syncLock = false;
+                return;                
             }
             this.syncLock = false;
             try {
@@ -569,7 +577,7 @@ export default class UltimateTickTickSyncForObsidian extends Plugin {
             } catch(error) {
                 console.error('An error occurred in saveSettings:', error);
             }
-            
+
             // Sleep for 5 seconds
             await new Promise(resolve => setTimeout(resolve, 5000));
             
