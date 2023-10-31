@@ -45,12 +45,46 @@ interface dataviewTaskObject {
 // }
 
 
+
+const priorityEmojis = ['⏬','🔽','🔼','⏫','🔺',]
+const prioritySymbols = {
+    Highest: '🔺',
+    High: '⏫',
+    Medium: '🔼',
+    Low: '🔽',
+    Lowest: '⏬',
+    None: '',
+}
+enum Priority {
+    Highest = '5',
+    High = '5',
+    Medium = '3',
+    None = '0',
+    Low = '1',
+    Lowest = '0',
+}
+
 const keywords = {
     TickTick_TAG: "#ticktick",
     DUE_DATE: "🗓️|📅|📆|🗓",
-    priority: "⏬|🔽|🔼|⏫|🔺"
+    // priorityIcons: "⏬|🔽|🔼|⏫|🔺",
+    // priority: `\s([${priorityEmojis.toString()}])\s`
+    priority: `\\s([\u{23EC}\u{1F53D}\u{1F53C}\u{23EB}\u{1F53A}])\\s`
 };
 
+
+
+//For now, we're going to do task view emojies only
+const priorityMapping = [
+    { ticktick: 0, obsidian: null },
+    { ticktick: 0, obsidian: '⏬' },
+    { ticktick: 1, obsidian: '🔽' },
+    { ticktick: 3, obsidian: '🔼' },
+    { ticktick: 5, obsidian: '⏫' },
+    { ticktick: 5, obsidian: '🔺' }
+  ];
+
+  
 const REGEX = {
     TickTick_TAG: new RegExp(`^[\\s]*[-] \\[[x ]\\] [\\s\\S]*${keywords.TickTick_TAG}[\\s\\S]*$`, "i"),
     TickTick_ID: /\[ticktick_id::\s*[\d\S]+\]/,
@@ -60,7 +94,7 @@ const REGEX = {
     DUE_DATE : new RegExp(`(?:${keywords.DUE_DATE})\\s?(\\d{4}-\\d{2}-\\d{2})`),
     PROJECT_NAME: /\[project::\s*(.*?)\]/,
     TASK_CONTENT: {
-        REMOVE_PRIORITY: /\s!!([1-4])\s/,
+        REMOVE_PRIORITY: /[🔺⏫🔼🔽⏬]/ug,
         REMOVE_TAGS: /(^|\s)( *#[a-zA-Z\d\u4e00-\u9fa5-]+)/g, //Allow 1 or more spaces before hashtag
         REMOVE_SPACE: /^\s+|\s+$/g,
         REMOVE_DATE: new RegExp(`(${keywords.DUE_DATE})\\s?\\d{4}-\\d{2}-\\d{2}`),
@@ -74,7 +108,9 @@ const REGEX = {
     TASK_CHECKBOX_CHECKED: /- \[(x|X)\] /,
     TASK_INDENTATION: /^(\s{2,}|\t)(-|\*)\s+\[(x|X| )\]/,
     TAB_INDENTATION: /^(\t+)/,
-    TASK_PRIORITY: /\s!!([1-4])\s/,
+    // TASK_PRIORITY: /\s!!([1-4])\s/,
+    TASK_PRIORITY: new RegExp(keywords.priority),
+    priorityRegex: /^.*([🔺⏫🔼🔽⏬]).*$/u,
     BLANK_LINE: /^\s*$/,  
     TickTick_EVENT_DATE: /(\d{4})-(\d{2})-(\d{2})/
 };
@@ -119,12 +155,21 @@ export class TaskParser {
         
     }
     private addPriorityToLine(resultLine: string, task: ITask) {
-        resultLine = `${resultLine} [${task.priority}]`;
+        let priority = this.translateTickTickToObsidian(task.priority);
+        if (priority != null ) {
+            // console.log("task pri: ", task.priority, " emoji num: ", priority, priorityEmojis[priority])
+            console.log("task pri: ", task.priority, " emoji num: ", priority)
+            resultLine = `${resultLine} ${priority}`;
+        }
+        else 
+        {
+            console.log("task pri: ", task.priority, " undefined: ", priority)
+        }
         return resultLine;
     }
     
     private addDueDateToLine(resultLine: string, task: ITask) {
-        resultLine = resultLine + '🗓️' + task.dueDate;
+        resultLine = resultLine + ' 🗓️' + task.dueDate;
         return resultLine;
     }
     
@@ -250,7 +295,7 @@ export class TaskParser {
             priority:priority,
             status: isCompleted? 2: 0, //Status: 0 is no completed. Anything else is completed. 
         } 
-        console.log("new task: ", "Parent: ", task.parentId, "Tags: ", task.tags)
+        console.log("new task: ", "Parent: ", task.parentId, "Tags: ", task.tags, "Priority: ", task.priority)
         return task;
     }
     
@@ -470,13 +515,43 @@ export class TaskParser {
     }
     
     
-    // Task priority from 1 (normal) to 4 (urgent).
+    // Task priority from 0 (none) to 4 (urgent).
     getTaskPriority(lineText:string): number{
-        const match = REGEX.TASK_PRIORITY.exec(lineText)
-        return match ? Number(match[1]) : 1;
+        console.log("####  line: ", lineText)
+        console.log("#### Regex: ", REGEX.priorityRegex )
+        let priority = "0";
+        const priorityMatch = lineText.match(REGEX.priorityRegex);
+ 
+        
+        if (priorityMatch !== null) {
+            let x = 0;
+            priorityMatch.forEach(priority => {
+                console.log("####  match: ", x, "--", priority);    
+                x++;
+            });
+            console.log("####  priority: ", priority, " type: ", (typeof priority));
+        }
+
+        return priority;
     }
     
-    
+    protected parsePriority(p: string): Priority {
+        // const { prioritySymbols } = prioritySymbols;
+        switch (p) {
+            case prioritySymbols.Lowest:
+                return Priority.Lowest;
+            case prioritySymbols.Low:
+                return Priority.Low;
+            case prioritySymbols.Medium:
+                return Priority.Medium;
+            case prioritySymbols.High:
+                return Priority.High;
+            case prioritySymbols.Highest:
+                return Priority.Highest;
+            default:
+                return Priority.None;
+        }
+    }
     
     //remove task indentation
     removeTaskIndentation(text) {
@@ -617,4 +692,14 @@ export class TaskParser {
     createURL(newTaskId: string): string {
         return `https://ticktick.com/webapp/#q/all/tasks/${newTaskId}`;
     }
+
+    translateTickTickToObsidian(ticktickPriority: number) {
+        const mapping = priorityMapping.find((item) => item.ticktick === ticktickPriority);
+        return mapping ? mapping.obsidian : null;
+      }
+      
+    translateObsidianToTickTick(obsidianPriority: number) {
+        const mapping = priorityMapping.find((item) => item.obsidian === obsidianPriority);
+        return mapping ? mapping.ticktick : null;
+      }
 }

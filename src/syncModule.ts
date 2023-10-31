@@ -124,7 +124,7 @@ export class TickTickSync {
                 
                 try {
                     const currentTask =await this.plugin.taskParser.convertTextToTickTickTaskObject(linetxt,filepath,line,fileContent)
-                    // console.log("Adding because line content new check.")
+                    console.log("Adding because line content new check. ",  currentTask.priority)
                     const newTask = await this.plugin.tickTickRestAPI.AddTask(currentTask)
                     if (currentTask.parentId) {
                         let parentTask = await this.plugin.cacheOperation?.loadTaskFromCacheID(currentTask.parentId);
@@ -253,6 +253,7 @@ export class TickTickSync {
                     //console.log(`current line is ${i}`)
                     //console.log(`line text: ${line}`)
                     // console.log(filepath)
+                    console.log("Adding because fullTextNewTaskCheck. ",  currentTask.priority)
                     const currentTask =await this.plugin.taskParser.convertTextToTickTickTaskObject(line,filepath,i,content)
                     if(typeof currentTask === "undefined"){
                         continue
@@ -386,13 +387,12 @@ export class TickTickSync {
                 //due date whether to modify
                 const dueDateModified = (await this.plugin.taskParser.isDueDateChanged(lineTask,savedTask))
                 //TODO Fix This!
-                console.error("IGnoring priority and parentage. Re-Instate ASAP")
+                console.error("IGnoring parentage. Re-Instate ASAP")
                 const parentIdModified = false;
-                const priorityModified = false;
-                // // parent id whether to modify
+                // parent id whether to modify
                 // const parentIdModified = !(lineTask.parentId === savedTask.parentId)
                 // //check priority
-                // const priorityModified = !(lineTask.priority === savedTask.priority)
+                const priorityModified = !(lineTask.priority === savedTask.priority)
                 
                 try {
                     let contentChanged= false;
@@ -465,6 +465,7 @@ export class TickTickSync {
                     if (contentChanged || tagsChanged ||dueDateChanged ||projectChanged || parentIdChanged || priorityChanged) {
                         console.log("task content was modified");
                         //console.log(updatedContent)
+                        console.log("Adding because updating actually ",  lineTask.priority)
                         const updatedTask = await this.plugin.tickTickRestAPI?.UpdateTask(lineTask)
                         lineTask.path = filepath
                         await this.plugin.cacheOperation?.updateTaskToCacheByID(lineTask);
