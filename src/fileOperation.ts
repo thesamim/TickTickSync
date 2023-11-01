@@ -281,9 +281,9 @@ export class FileOperation {
 
             let modified = false;
             
-            //TODO: is this working?
+           
             let lastTaskLine = 0;
-            //TODO: Should we be using linenumbercheck.
+           
             let lastLineInFile = lines.length;
             for (let i = 0; i < lines.length; i++) {
                 const line = lines[i];
@@ -365,122 +365,9 @@ export class FileOperation {
             
         }
         
-        // sync updated task due date to the file
-        async syncUpdatedTaskDueDateToTheFile(evt:Object) {
-            const taskId = evt.object_id
-            // Get the task file path
-            const currentTask = await this.plugin.cacheOperation.loadTaskFromCacheID(taskId)
-            const filepath = currentTask.path
-            
-            // Get the file object and update the content
-            const file = this.app.vault.getAbstractFileByPath(filepath)
-            const content = await this.app.vault.read(file)
-            
-            const lines = content.split('\n')
-            let modified = false
-            
-            for (let i = 0; i < lines.length; i++) {
-                const line = lines[i]
-                if (line.includes(taskId) && this.plugin.taskParser.hasTickTickTag(line)) {
-                    const oldTaskDueDate = this.plugin.taskParser.getDueDateFromLineText(line) || ""
-                    const newTaskDueDate = this.plugin.taskParser.ISOStringToLocalDateString(evt.extra_data.due_date) || ""
-                    
-                    //console.log(`${taskId} duedate is updated`)
-                    // console.log(oldTaskDueDate)
-                    // console.log(newTaskDueDate)
-                    if(oldTaskDueDate === ""){
-                        //console.log(this.plugin.taskParser.insertDueDateBeforeTickTick(line,newTaskDueDate))
-                        lines[i] = this.plugin.taskParser.insertDueDateBeforeTickTick(line,newTaskDueDate)
-                        modified = true
-                        
-                    }
-                    else if(newTaskDueDate === ""){
-                        //remove date from text
-                        const regexRemoveDate = /(🗓️|📅|📆|🗓)\s?\d{4}-\d{2}-\d{2}/; //Matching date 🗓️2023-03-07"
-                        lines[i] = line.replace(regexRemoveDate,"")
-                        modified = true
-                    }
-                    else{
-                        
-                        lines[i] = line.replace(oldTaskDueDate, newTaskDueDate)
-                        modified = true
-                    }
-                    break
-                }
-            }
-            
-            if (modified) {
-                const newContent = lines.join('\n')
-                //console.log(newContent)
-                await this.app.vault.modify(file, newContent)
-            }
-            
-        }
-        
-        
-        // sync new task note to file
-        async syncAddedTaskNoteToTheFile(evt:Object) {
-            
-            
-            const taskId = evt.parent_item_id
-            const note = evt.extra_data.content
-            const datetime = this.plugin.taskParser.ISOStringToLocalDatetimeString(evt.event_date)
-            // Get the task file path
-            const currentTask = await this.plugin.cacheOperation.loadTaskFromCacheID(taskId)
-            const filepath = currentTask.path
-            
-            // Get the file object and update the content
-            const file = this.app.vault.getAbstractFileByPath(filepath)
-            const content = await this.app.vault.read(file)
-            
-            const lines = content.split('\n')
-            let modified = false
-            
-            for (let i = 0; i < lines.length; i++) {
-                const line = lines[i]
-                if (line.includes(taskId) && this.plugin.taskParser.hasTickTickTag(line)) {
-                    const indent = '\t'.repeat(line.length - line.trimStart().length + 1);
-                    const noteLine = `${indent}- ${datetime} ${note}`;
-                    lines.splice(i + 1, 0, noteLine);
-                    modified = true
-                    break
-                }
-            }
-            
-            if (modified) {
-                const newContent = lines.join('\n')
-                //console.log(newContent)
-                await this.app.vault.modify(file, newContent)
-            }
-            
-        }
-        
-        
-        //Avoid using this method, you can get real-time updated value through view
-        async readContentFromFilePath(filepath:string){
-            try {
-                const file = this.app.vault.getAbstractFileByPath(filepath);
-                const content = await this.app.vault.read(file);
-                return content
-            } catch (error) {
-                console.error(`Error loading content from ${filepath}: ${error}`);
-                return false;
-            }
-        }
-        
-        //get line text from file path
-        //Please use view.editor.getLine, the read method has a delay
-        async getLineTextFromFilePath(filepath:string,lineNumber:string) {
-            
-            const file = this.app.vault.getAbstractFileByPath(filepath)
-            const content = await this.app.vault.read(file)
-            
-            const lines = content.split('\n')
-            return(lines[lineNumber])
-        }
         
         //search TickTick_id by content
-        async searchTickTickIdFromFilePath(filepath: string, searchTerm: string): string | null {
+        async searchTickTickIdFromFilePath(filepath: string, searchTerm: string): Promise<string | null> {
             const file = this.app.vault.getAbstractFileByPath(filepath)
             const fileContent = await this.app.vault.read(file)
             const fileLines = fileContent.split('\n');

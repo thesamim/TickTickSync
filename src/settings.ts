@@ -216,7 +216,7 @@ export class UltimateTickTickSyncSettingTab extends PluginSettingTab {
 									// console.log('checking file metadata')
 									let fileNum = await this.plugin.cacheOperation.checkFileMetadata()
 									// console.log("Number of files: ", fileNum)
-									//TODO: This is superfluous and should be deleted.
+
 									if (fileNum < 1) //nothing? really?
 									{
 										const allMDFiles = this.app.vault.getMarkdownFiles();

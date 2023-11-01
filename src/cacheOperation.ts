@@ -3,11 +3,6 @@ import UltimateTickTickSyncForObsidian from "../main";
 import { ITask } from 'ticktick-api-lvt/dist/types/Task';
 import { IProject } from 'ticktick-api-lvt/dist/types/Project';
 
-//todo: do we need this?
-interface Due {
-    date?: string;
-    [key: string]: any; // allow for additional properties
-}
 
 export class CacheOperation {
     app:App;
@@ -196,7 +191,6 @@ export class CacheOperation {
         };
         console.log("Not found")
         //otherwise, return the project name as a md file and hope for the best.
-        //TODO: Does thi do what I think it does?
         let filePath = await this.getProjectNameByIdFromCache(projectId) + ".md"
 
         if (!filePath) {
@@ -310,37 +304,37 @@ export class CacheOperation {
     //The structure of due {date: "2025-02-25",isRecurring: false,lang: "en",string: "2025-02-25"}
     
     
-    //Todo: This is probably broke ass.
-    modifyTaskToCacheByID(taskId: string, { content, due }: { content?: string, due?: Due }): void {
-        try {
-            const savedTasks = this.plugin.settings.TickTickTasksData.tasks;
-            const taskIndex = savedTasks.findIndex((task) => task.id === taskId);
+
+    // modifyTaskToCacheByID(taskId: string, { content, due }: { content?: string, due?: Due }): void {
+        // try {
+            // const savedTasks = this.plugin.settings.TickTickTasksData.tasks;
+            // const taskIndex = savedTasks.findIndex((task) => task.id === taskId);
             
-            if (taskIndex !== -1) {
-                const updatedTask = { ...savedTasks[taskIndex] };
+            // if (taskIndex !== -1) {
+                // const updatedTask = { ...savedTasks[taskIndex] };
                 
-                if (content !== undefined) {
-                    updatedTask.content = content;
-                }
+                // if (content !== undefined) {
+                    // updatedTask.content = content;
+                // }
                 
-                if (due !== undefined) {
-                    if (due === null) {
-                        updatedTask.due = null;
-                    } else {
-                        updatedTask.due = due;
-                    }
-                }
+                // if (due !== undefined) {
+                    // if (due === null) {
+                        // updatedTask.due = null;
+                    // } else {
+                        // updatedTask.due = due;
+                    // }
+                // }
                 
-                savedTasks[taskIndex] = updatedTask;
+                // savedTasks[taskIndex] = updatedTask;
                 
-                this.plugin.settings.TickTickTasksData.tasks = savedTasks;
-            } else {
-                throw new Error(`Task with ID ${taskId} not found in cache.`);
-            }
-        } catch (error) {
-            // Handle the error appropriately, eg by logging it or re-throwing it.
-        }
-    }
+                // this.plugin.settings.TickTickTasksData.tasks = savedTasks;
+            // } else {
+                // throw new Error(`Task with ID ${taskId} not found in cache.`);
+            // }
+        // } catch (error) {
+            // // Handle the error appropriately, eg by logging it or re-throwing it.
+        // }
+    // }
     
     
     //open a task status

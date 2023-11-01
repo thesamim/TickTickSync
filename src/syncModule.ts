@@ -9,6 +9,11 @@ type FileMetadata = {
     TickTickCount: number;
 };
 
+type deletedTask = {
+    taskId: string,
+    projectId: string
+}
+
 export class TickTickSync {
     app:App;
     plugin: UltimateTickTickSyncForObsidian;
@@ -80,9 +85,8 @@ export class TickTickSync {
         });
         
         const deletedTaskIds = await Promise.all(deleteTasksPromises);
-        const deletedTaskAmount = deletedTaskIds.length
-        if (deletedTaskAmount) {
-            //console.log("No task deleted");
+        const numDeletedTasks = deletedTaskIds.length
+        if (numDeletedTasks === 0) {
             return;
         }
         await this.plugin.cacheOperation.deleteTaskFromCacheByIDs(deletedTaskIds)
@@ -103,7 +107,7 @@ export class TickTickSync {
                 fileMetadata.TickTickCount = fileMetadata_TickTickCount - deletedTaskAmount;
             });
             */
-            const newFileMetadata = {TickTickTasks:newFileMetadata_TickTickTasks,TickTickCount:(fileMetadata_TickTickCount - deletedTaskAmount)}
+            const newFileMetadata = {TickTickTasks:newFileMetadata_TickTickTasks,TickTickCount:(fileMetadata_TickTickCount - numDeletedTasks)}
             await this.plugin.cacheOperation.updateFileMetadata(filepath,newFileMetadata)
         }
         
@@ -118,7 +122,6 @@ export class TickTickSync {
             const linetxt = editor.getLine(line)
             
             //Add task
-            console.log("lineContentNewTaskCheck", linetxt, this.plugin.taskParser.hasTickTickId(linetxt), this.plugin.taskParser.hasTickTickTag(linetxt) )
             if ((!this.plugin.taskParser.hasTickTickId(linetxt) && this.plugin.taskParser.hasTickTickTag(linetxt))) { //Whether #ticktick is included
                 console.log("!!!!!Adding on line Content check")
                 
@@ -247,7 +250,6 @@ export class TickTickSync {
             
             for (let i = 0; i < lines.length; i++) {
                 const line = lines[i]
-                console.log("fullTextNewTaskCheck", line, this.plugin.taskParser.hasTickTickId(line), this.plugin.taskParser.hasTickTickTag(line) )
                 if (!this.plugin.taskParser.hasTickTickId(line) && this.plugin.taskParser.hasTickTickTag(line)) {
                     console.log('!!!!!Adding on  fullTextNewTaskCheck')
                     //console.log(`current line is ${i}`)
@@ -321,6 +323,7 @@ export class TickTickSync {
             //const lineText = await this.plugin.fileOperation.getLineTextFromFilePath(filepath,lineNumber)
             
             if(this.plugin.settings.enableFullVaultSync){
+                //TODO is this commented out on purpose?
                 //await this.plugin.fileOperation.addticktickTagToLine(filepath,lineText,lineNumber,fileContent)
                 
                 //new empty metadata
@@ -340,34 +343,8 @@ export class TickTickSync {
                 //console.log(lineTask_ticktick_id) 
                 //console.log(`lastline task id is ${lastLineTask_ticktick_id}`)
                 const savedTask = await this.plugin.cacheOperation.loadTaskFromCacheID(lineTask_ticktick_id) 
-                console.log("Task from Cache: ", savedTask);
                 if(!savedTask){ 
-                    console.error(`There is no task ${lineTask.ticktick_id} in the local cache`)
-                    //let's assume that we need to add it. It'll be fun.
-                    //TODO: Add out of Sync, verify we need it, and Verify correct construction of task to cache. eg: Tags, due date, etc.
-                    /* Strongly suspect that this is a problem. Let's wait for Sync operation to get us back in Sync
-                    const task = await this.plugin.tickTickRestAPI?.getTaskById(lineTask_ticktick_id)
-                    // console.log("task: ", task)
-                    const obsidianURL = this.plugin.taskParser.getObsidianUrlFromFilepath(filepath)
-                    if (task) {
-                        task.content = obsidianURL;
-                        task.url = this.plugin.taskParser?.createURL(task.id)
-                        await this.plugin.cacheOperation?.appendTaskToCache(task);
-                        let fileMetadata: FileMetadata;
-                        fileMetadata = await this.plugin.cacheOperation?.getFileMetadata(filepath)
-                        
-                        if (!fileMetadata) {
-                            fileMetadata = {TickTickTasks: [], TickTickCount: 0};
-                        }
-                        let TickTickCount = fileMetadata.TickTickCount;
-                        fileMetadata.TickTickCount = TickTickCount + 1;
-                        fileMetadata.TickTickTasks.push(task.id);
-                        await this.plugin.cacheOperation?.updateFileMetadata(filepath, fileMetadata)
-                        this.plugin.saveSettings()
-                    }
-                    
-                    // console.log(url)
-                    */
+                    console.error(`There is no task ${lineTask.ticktick_id} in the local cache. It will be added on next Sync`)
                     return
                 }
                 //console.log(savedTask)
@@ -385,13 +362,11 @@ export class TickTickSync {
                 //Whether status is modified?
                 const statusModified = this.plugin.taskParser.isStatusChanged(lineTask,savedTask)
                 //due date whether to modify
-                const dueDateModified = (await this.plugin.taskParser.isDueDateChanged(lineTask,savedTask))
+                const dueDateModified = (this.plugin.taskParser.isDueDateChanged(lineTask,savedTask))
                 //TODO Fix This!
-                console.error("IGnoring parentage. Re-Instate ASAP")
-                const parentIdModified = false;
                 // parent id whether to modify
-                // const parentIdModified = !(lineTask.parentId === savedTask.parentId)
-                // //check priority
+                const parentIdModified = !(lineTask.parentId === savedTask.parentId)
+                //check priority
                 const priorityModified = !(lineTask.priority === savedTask.priority)
                 
                 try {
@@ -722,89 +697,89 @@ export class TickTickSync {
             }
         }
         
-        // Synchronize updated item status to Obsidian
-        async syncUpdatedTaskToObsidian(unSynchronizedEvents) {
-            //console.log(unSynchronizedEvents)
-            try {
-                
-                // Handle unsynchronized events and wait for all processing to complete
-                const processedEvents = []
-                for (const e of unSynchronizedEvents) { //If you want to modify the code so that completeTaskInTheFile(e.object_id) is executed in order, you can change the Promise.allSettled() method to use a for...of loop to handle unsynchronized events . Specific steps are as follows:
-                    //console.log(`Syncing ${e.object_id} changes to local`)
-                    console.log(e)
-                    console.log(typeof e.extra_data.last_due_date === 'undefined')
-                    if(!(typeof e.extra_data.last_due_date === 'undefined')){
-                        //console.log(`prepare update dueDate`)
-                        await this.syncUpdatedTaskDueDateToObsidian(e)
-                        
-                    }
-                    
-                    if(!(typeof e.extra_data.last_content === 'undefined')){
-                        //console.log(`prepare update content`)
-                        await this.syncUpdatedTaskContentToObsidian(e)
-                    }
-                    
-                    //await this.plugin.fileOperation.syncUpdatedTaskToTheFile(e)
-                    //Also modify the data in the cache
-                    //new Notice(`Task ${e.object_id} is updated.`)
-                    processedEvents.push(e)
-                }
-                
-                
-                
-                // Merge new events into existing events and save to JSON
-                //const allEvents = [...savedEvents, ...unSynchronizedEvents]
-                await this.plugin.cacheOperation.appendEventsToCache(processedEvents)
-                this.plugin.saveSettings()
-            } catch (error) {
-                console.error('Error syncing updated item', error)
-            }
-            
-        }
+        // // Synchronize updated item status to Obsidian
+        // async syncUpdatedTaskToObsidian(unSynchronizedEvents) {
+        //     //console.log(unSynchronizedEvents)
+        //     try {
         
-        async syncUpdatedTaskContentToObsidian(e){
-            this.plugin.fileOperation.syncUpdatedTaskContentToTheFile(e)
-            const content = e.extra_data.content
-            await this.plugin.cacheOperation.modifyTaskToCacheByID(e.object_id,{content})
-            new Notice(`The content of Task ${e.parent_item_id} has been modified.`)
-            
-        }
+        //         // Handle unsynchronized events and wait for all processing to complete
+        //         const processedEvents = []
+        //         for (const e of unSynchronizedEvents) { //If you want to modify the code so that completeTaskInTheFile(e.object_id) is executed in order, you can change the Promise.allSettled() method to use a for...of loop to handle unsynchronized events . Specific steps are as follows:
+        //             //console.log(`Syncing ${e.object_id} changes to local`)
+        //             console.log(e)
+        //             console.log(typeof e.extra_data.last_due_date === 'undefined')
+        //             if(!(typeof e.extra_data.last_due_date === 'undefined')){
+        //                 //console.log(`prepare update dueDate`)
+        //                 await this.syncUpdatedTaskDueDateToObsidian(e)
         
-        async syncUpdatedTaskDueDateToObsidian(e){
-            this.plugin.fileOperation.syncUpdatedTaskDueDateToTheFile(e)
-            //To modify the cache date, use ticktick format
-            const due = await this.plugin.tickTickRestAPI.getTaskDueById(e.object_id)
-            await this.plugin.cacheOperation.modifyTaskToCacheByID(e.object_id,{due})
-            new Notice(`The due date of Task ${e.parent_item_id} has been modified.`)
-            
-        }
+        //             }
         
-        // sync added task note to obsidian
-        async syncAddedTaskNoteToObsidian(unSynchronizedEvents) {
-            // Get unsynchronized events
-            //console.log(unSynchronizedEvents)
-            try {
-                
-                // Handle unsynchronized events and wait for all processing to complete
-                const processedEvents = []
-                for (const e of unSynchronizedEvents) { //If you want to modify the code so that completeTaskInTheFile(e.object_id) is executed in order, you can change the Promise.allSettled() method to use a for...of loop to handle unsynchronized events . Specific steps are as follows:
-                    console.log(e)
-                    //const taskid = e.parent_item_id
-                    //const note = e.extra_data.content
-                    await this.plugin.fileOperation.syncAddedTaskNoteToTheFile(e)
-                    //await this.plugin.cacheOperation.closeTaskToCacheByID(e.object_id)
-                    new Notice(`Task ${e.parent_item_id} note is added.`)
-                    processedEvents.push(e)
-                }
-                
-                // Merge new events into existing events and save to JSON
-                
-                await this.plugin.cacheOperation.appendEventsToCache(processedEvents)
-                this.plugin.saveSettings()
-            } catch (error) {
-                console.error('Error synchronizing task status:', error)
-            }
-        }
+        //             if(!(typeof e.extra_data.last_content === 'undefined')){
+        //                 //console.log(`prepare update content`)
+        //                 await this.syncUpdatedTaskContentToObsidian(e)
+        //             }
+        
+        //             //await this.plugin.fileOperation.syncUpdatedTaskToTheFile(e)
+        //             //Also modify the data in the cache
+        //             //new Notice(`Task ${e.object_id} is updated.`)
+        //             processedEvents.push(e)
+        //         }
+        
+        
+        
+        //         // Merge new events into existing events and save to JSON
+        //         //const allEvents = [...savedEvents, ...unSynchronizedEvents]
+        //         await this.plugin.cacheOperation.appendEventsToCache(processedEvents)
+        //         this.plugin.saveSettings()
+        //     } catch (error) {
+        //         console.error('Error syncing updated item', error)
+        //     }
+        
+        // }
+        
+        // async syncUpdatedTaskContentToObsidian(e){
+        //     this.plugin.fileOperation.syncUpdatedTaskContentToTheFile(e)
+        //     const content = e.extra_data.content
+        //     await this.plugin.cacheOperation.modifyTaskToCacheByID(e.object_id,{content})
+        //     new Notice(`The content of Task ${e.parent_item_id} has been modified.`)
+        
+        // }
+        
+        // async syncUpdatedTaskDueDateToObsidian(e){
+        //     this.plugin.fileOperation.syncUpdatedTaskDueDateToTheFile(e)
+        //     //To modify the cache date, use ticktick format
+        //     const due = await this.plugin.tickTickRestAPI.getTaskDueById(e.object_id)
+        //     await this.plugin.cacheOperation.modifyTaskToCacheByID(e.object_id,{due})
+        //     new Notice(`The due date of Task ${e.parent_item_id} has been modified.`)
+        
+        // }
+        
+        // // sync added task note to obsidian
+        // async syncAddedTaskNoteToObsidian(unSynchronizedEvents) {
+        //     // Get unsynchronized events
+        //     //console.log(unSynchronizedEvents)
+        //     try {
+        
+        //         // Handle unsynchronized events and wait for all processing to complete
+        //         const processedEvents = []
+        //         for (const e of unSynchronizedEvents) { //If you want to modify the code so that completeTaskInTheFile(e.object_id) is executed in order, you can change the Promise.allSettled() method to use a for...of loop to handle unsynchronized events . Specific steps are as follows:
+        //             console.log(e)
+        //             //const taskid = e.parent_item_id
+        //             //const note = e.extra_data.content
+        //             await this.plugin.fileOperation.syncAddedTaskNoteToTheFile(e)
+        //             //await this.plugin.cacheOperation.closeTaskToCacheByID(e.object_id)
+        //             new Notice(`Task ${e.parent_item_id} note is added.`)
+        //             processedEvents.push(e)
+        //         }
+        
+        //         // Merge new events into existing events and save to JSON
+        
+        //         await this.plugin.cacheOperation.appendEventsToCache(processedEvents)
+        //         this.plugin.saveSettings()
+        //     } catch (error) {
+        //         console.error('Error synchronizing task status:', error)
+        //     }
+        // }
         
         async syncTickTickToObsidian(){
             //Tasks in Obsidian, not in TickTick: upload
@@ -812,7 +787,10 @@ export class TickTickSync {
             //Tasks in both: check for updates. 
             try{
                 let bModifiedFileSystem = false;
-                let tasksFromTickTic = await this.plugin.tickTickSyncAPI?.getAllTasks();
+                let allTaskDetails = await this.plugin.tickTickSyncAPI?.getAllTasks();
+                let tasksFromTickTic = allTaskDetails.update;
+                let deletedTasks = allTaskDetails.delete;
+
                 if (!tasksFromTickTic || tasksFromTickTic.length === 0) {
                     console.error("Failed to fetch resources from TickTick");
                     new Notice("Failed to fetch resources from TickTick, please try again later", 5000)
@@ -831,7 +809,7 @@ export class TickTickSync {
                     tasksInCache = [];
                 }
                 
-                
+                this.syncTasks(tasksFromTickTic, tasksInCache, deletedTasks);
                 
                 console.log("---- num local tasks", tasksInCache.length)
                 
@@ -858,6 +836,7 @@ export class TickTickSync {
                 }
                 //Todo check localSyncedTasks for TickTick modifications. Like: They got modified in ticktick, but not here.       
                 //tasksInBoth
+                console.error("Tasks modified in TickTick are not being downloaded;")
                 
                 await this.plugin.saveSettings();
                 //If we just farckled the file system, stop Syncing to avoid race conditions.
@@ -866,7 +845,63 @@ export class TickTickSync {
                 console.error('An error occurred while synchronizing:', err);
             }
         }
-        
+        ///TEST Different Way of doing the above
+        syncTasks(tickTickTasks: ITask[], obsidianTasks: ITask[], deletedTasks: deletedTask[] ) {
+            // Check for new tasks in TickTick
+            const newTickTickTasks = tickTickTasks.filter(task => !obsidianTasks.some(t => t.id === task.id));
+            this.dumpArray('Add to Obsidian:', newTickTickTasks);
+            
+            // Check for updated tasks in TickTick
+            const updatedTickTickTasks = tickTickTasks.filter(task => {
+                const obsidianTask = obsidianTasks.find(t => t.id === task.id);
+                return obsidianTask && obsidianTask.title !== task.title;
+            });
+            // this.dumpArray('Updated tasks in TickTick:', updatedTickTickTasks);
+            
+            // Check for deleted tasks in TickTick
+            const deletedTickTickTasks = obsidianTasks.filter(task => !tickTickTasks.some(t => t.id === task.id));
+            // this.dumpArray('Deleted tasks in TickTick:', deletedTickTickTasks);
+
+            const reallyDeletedTickTickTasks = obsidianTasks.filter(task => deletedTasks.some(t => t.taskId === task.id));
+            this.dumpArray('delete from TickTick:', reallyDeletedTickTickTasks);
+            
+            // Check for new tasks in Obsidian
+            const newObsidianTasks = obsidianTasks.filter(task => !tickTickTasks.some(t => t.id === task.id));
+            const reallyNewObsidianTasks = newObsidianTasks.filter(task => reallyDeletedTickTickTasks.some(t => t.taskId === task.id));
+            this.dumpArray('Add to TickTick:', reallyNewObsidianTasks);
+            
+            
+            // Check for updated tasks in Obsidian
+            const updatedObsidianTasks = obsidianTasks.filter(task => {
+                const tickTickTask = tickTickTasks.find(t => t.id === task.id);
+                return tickTickTask && tickTickTask.title !== task.title;
+            });
+            // this.dumpArray('Update in Obsidian:', updatedObsidianTasks);
+            
+            //If they are updated in ticktick more recently, update from ticktick to obsidian
+            const recentUpdates = updatedTickTickTasks.filter(tickTask => {
+                const obsTask = updatedObsidianTasks.find(obsTask => obsTask.id === tickTask.id);
+                console.log("obs: ", obsTask?.modifiedTime, " tick:", tickTask.modifiedTime)
+                if (obsTask && (obsTask.modifiedTime === undefined)) {
+                    //No mod time on obs side: ticktick got modified.
+                    return true;
+                } else {
+                    return obsTask && new Date(tickTask.modifiedTime) > new Date(obsTask.modifiedTime);
+                }
+              });
+
+            this.dumpArray('Update in  Obsidian:', recentUpdates);
+
+            // Check for deleted tasks in Obsidian
+            const deletedObsidianTasks = tickTickTasks.filter(task => !obsidianTasks.some(t => t.id === task.id));
+
+            this.dumpArray('Delete From Obsidian:', deletedObsidianTasks);
+        }
+        dumpArray(which: string, arrayIn: ITask[]) {
+            console.log(which)
+            arrayIn.forEach(item => console.log(" ", item.id, "--", item.title, "modification time: ", item.modifiedTime))
+        }
+        ///End of Test        
         
         
         async backupTickTickAllResources() {
@@ -902,7 +937,6 @@ export class TickTickSync {
             const content = this.plugin.taskParser.getObsidianUrlFromFilepath(filepath)
             try {
                 metadata.TickTickTasks.forEach(async(taskId) => {
-                    //TODO: Just shoving the whole task in. Should we do updated content?
                     const task = await this.plugin.cacheOperation?.loadTaskFromCacheID(taskId);
                     task.content = content;
                     await this.plugin.cacheOperation?.updateTaskToCacheByID(task);

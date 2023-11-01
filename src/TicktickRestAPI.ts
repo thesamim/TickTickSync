@@ -68,10 +68,6 @@ export class TickTickRestAPI {
     async AddTask(taskToAdd: ITask) {
         await this.initializeAPI();
         try {
-            if(taskToAdd.dueDate){
-                console.log("Due Date on Add Task: ", taskToAdd.dueDate);
-                // taskToAdd.dueDate = fixDueDate(taskToAdd.dueDate);
-            }
             const newTask = await this.api.addTask(taskToAdd);
             return newTask; 
         } catch (error) {
@@ -126,11 +122,6 @@ export class TickTickRestAPI {
         //     throw new Error('At least one update is required');
         // }
         try {
-            //TODO Move due date handling up. It doesn't belong here.
-            if(taskToUpdate.dueDate){
-                console.log("Due Date on update Task: ", taskToUpdate.dueDate);
-                taskToUpdate.dueDate = fixDueDate(taskToUpdate.dueDate);
-            }
             const updatedTask = await this.api.updateTask(taskToUpdate);
             return updatedTask;
         } catch (error) {
@@ -292,7 +283,8 @@ export class TickTickRestAPI {
     async getAllTasks() : Promise<any[]> {
         await this.initializeAPI();
         try {
-            const result = await this.api.getAllTasks();
+            //This returns the SyncBean object, which has ALL the task details
+            const result = await this.api.getTasksStatus(); 
             
             return(result)
             

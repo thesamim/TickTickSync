@@ -158,24 +158,23 @@ export class TaskParser {
         let priority = this.translateTickTickToObsidian(task.priority);
         if (priority != null ) {
             // console.log("task pri: ", task.priority, " emoji num: ", priority, priorityEmojis[priority])
-            console.log("task pri: ", task.priority, " emoji num: ", priority)
+            // console.log("task pri: ", task.priority, " emoji num: ", priority)
             resultLine = `${resultLine} ${priority}`;
         }
-        else 
-        {
-            console.log("task pri: ", task.priority, " undefined: ", priority)
-        }
+        // else 
+        // {
+        //     console.log("task pri: ", task.priority, " undefined: ", priority)
+        // }
         return resultLine;
     }
     
     private addDueDateToLine(resultLine: string, task: ITask) {
-        resultLine = resultLine + ' 🗓️' + task.dueDate;
+        resultLine = resultLine + ' 🗓️' + this.utcToLocal(task.dueDate);
         return resultLine;
     }
     
     addTagsToLine(resultLine: string, tags: ITask.tags) {
         tags.forEach((tag: string) => {
-            console.log("tag looks like this: ", tag)
             //TickTick tag, if present, will be added at the end.
             if (! this.hasTickTickTag(tag)) {
                 resultLine = resultLine + " #" + tag;
@@ -187,7 +186,6 @@ export class TaskParser {
     
     //convert line text to a task object
     async convertTextToTickTickTaskObject(lineText:string,filepath:string,lineNumber?:number,fileContent?:string) {
-        console.log(`linetext is:${lineText}`)
         //TODO: Does this handle the situation where there are multiple sub children?
         let hasParent = false
         let parentId = null
@@ -237,7 +235,6 @@ export class TaskParser {
         
         const dueDate = this.getDueDateFromLineText(textWithoutIndentation)
         const tags = this.getAllTagsFromLineText(textWithoutIndentation)
-        console.log(`Tags is ${tags}`)
         
         //dataview format metadata
         //const projectName = this.getProjectNameFromLineText(textWithoutIndentation) ?? this.plugin.settings.defaultProjectName
@@ -246,32 +243,24 @@ export class TaskParser {
         
         let projectId = await this.plugin.cacheOperation.getDefaultProjectIdForFilepath(filepath as string)
         let projectName = await this.plugin.cacheOperation.getProjectNameByIdFromCache(projectId)
-        console.log("In: ", filepath, "Project ID: ", projectId, "Project Name: ", projectName)
         if(hasParent){
             projectId = parentTaskObject.projectId
             projectName = await this.plugin.cacheOperation.getProjectNameByIdFromCache(projectId)
         } else {
-            //Match tag and person
-            console.log("tags: ", tags)
             if (tags) {
                 for (const tag of tags){
-                    
-                    //console.log(label)
                     let labelName = tag.replace(/#/g, "");
-                    //console.log(labelName)
                     let hasProjectId = await this.plugin.cacheOperation.getProjectIdByNameFromCache(labelName)
                     if(!hasProjectId){
                         continue
                     }
                     projectName = labelName
-                    //console.log(`project is ${projectName} ${label}`)
                     projectId = hasProjectId
                     break
                 }
             }
         }
-        
-        
+       
         const title = this.getTaskContentFromLineText(textWithoutIndentation)
         const isCompleted = this.isTaskCheckboxChecked(textWithoutIndentation)
         let description = ""
@@ -281,6 +270,7 @@ export class TaskParser {
             let url = encodeURI(`obsidian://open?vault=${this.app.vault.getName()}&file=${filepath}`)
             description =`[${filepath}](${url})`;
         }
+        //TODO: Should ought to save full task, not partial....
         const task: ITask = {
             id:TickTick_id || "",
             projectId: projectId,
@@ -289,13 +279,11 @@ export class TaskParser {
             //content: ??
             content: description,
             parentId: parentId || "",
-            //TODO: is this date right?
             dueDate: dueDate || '',
             tags: tags || [],
             priority:priority,
             status: isCompleted? 2: 0, //Status: 0 is no completed. Anything else is completed. 
         } 
-        console.log("new task: ", "Parent: ", task.parentId, "Tags: ", task.tags, "Priority: ", task.priority)
         return task;
     }
     
@@ -347,22 +335,20 @@ export class TaskParser {
     
     
     getTickTickIdFromLineText(text:string){
-        //console.log(text)
         const result = REGEX.TickTick_ID_NUM.exec(text);
-        //console.log(result)
         return result ? result[1] : null;
     }
     
-    getDueDateFromDataview(dataviewTask:object){
-        if(!dataviewTask.due){
-            return ""
-        }
-        else{
-            const dataviewTaskDue = dataviewTask.due.toString().slice(0, 10)
-            return(dataviewTaskDue)
-        }
+    // getDueDateFromDataview(dataviewTask:object){
+    //     if(!dataviewTask.due){
+    //         return ""
+    //     }
+    //     else{
+    //         const dataviewTaskDue = dataviewTask.due.toString().slice(0, 10)
+    //         return(dataviewTaskDue)
+    //     }
         
-    }
+    // }
     
     
     
@@ -416,13 +402,9 @@ export class TaskParser {
     
     
     //task content compare
-    isTitleChanged(lineTask:Object,TickTickTask:Object) {
-        const lineTaskTitle = lineTask.Title
-        //console.log(dataviewTaskContent)
-        
-        const TickTickTaskTitle = TickTickTask.Title
-        //console.log(TickTickTask.content)
-        
+    isTitleChanged(lineTask:ITask,TickTickTask:ITask) {
+        const lineTaskTitle = lineTask.title
+        const TickTickTaskTitle = TickTickTask.title
         //Whether content is modified?
         const contentModified = (lineTaskTitle === TickTickTaskTitle)
         return(!contentModified)
@@ -431,19 +413,14 @@ export class TaskParser {
     
     //tag compare
     isTagsChanged(lineTask:ITask,TickTickTask:ITask) {
-        // console.log("isTagsChanged: ", lineTask.tags, TickTickTask.tags)
         const lineTaskTags = lineTask.tags? lineTask.tags : []
         const TickTickTaskTags = TickTickTask.tags? TickTickTask.tags: []
         if (!lineTaskTags && !TickTickTaskTags) { 
-            // console.log("Nothing in either.")
             return false; //no tags.
         } else if ((lineTaskTags && !TickTickTaskTags) || (!lineTaskTags && TickTickTaskTags)) {
-            // console.log("One or the other is in..")
             return true; //tasks added or deleted. 
         }
-        
         //Whether content is modified?
-        // console.log(`"WTF?" ${lineTaskTags.length} ${TickTickTaskTags.length}`, lineTaskTags, TickTickTaskTags)
         let areTagsSame = lineTaskTags.length === TickTickTaskTags.length && lineTaskTags.sort().every((val, index) => val === TickTickTaskTags.sort()[index]);
         return!(areTagsSame)
     }
@@ -459,33 +436,29 @@ export class TaskParser {
     
     
     //task due date compare
-    async isDueDateChanged(lineTask: ITask, TickTickTask: ITask): boolean {
+    isDueDateChanged(lineTask: ITask, TickTickTask: ITask): boolean {
         const lineTaskDue = lineTask.dueDate
         const TickTickTaskDue = TickTickTask.dueDate ?? "";
-        //console.log(dataviewTaskDue)
-        //console.log(TickTickTaskDue)
         if (lineTaskDue === "" && TickTickTaskDue === "") {
             //console.log('No due date')
             return false;
         }
         
         if ((lineTaskDue || TickTickTaskDue) === "") {
-            console.log(lineTaskDue);
-            console.log(TickTickTaskDue)
             //console.log('due date has changed')
             return true;
         }
         
-        const oldDueDateUTCString = this.localDateStringToUTCDateString(lineTaskDue)
-        if (oldDueDateUTCString === TickTickTaskDue) {
+        const oldDueDateUTCString = this.utcToLocal(TickTickTaskDue)
+
+
+        if (lineTaskDue === oldDueDateUTCString ) {
             //console.log('due date consistent')
             return false;
         } else if (lineTaskDue.toString() === "Invalid Date" || TickTickTaskDue.toString() === "Invalid Date") {
             console.log('invalid date')
             return false;
         } else {
-            console.log(lineTaskDue);
-            console.log(TickTickTaskDue)
             return true;
         }
     }
@@ -494,8 +467,6 @@ export class TaskParser {
     //task project id compare
     isProjectIdChanged(lineTask:ITask,TickTickTask:ITask) {
         //project whether to modify
-        console.log(lineTask.projectId)
-        console.log(TickTickTask.projectId)
         return!(lineTask.projectId === TickTickTask.projectId)
     }
     
@@ -516,20 +487,11 @@ export class TaskParser {
     
     
     // Task priority from 0 (none) to 4 (urgent).
-    getTaskPriority(lineText:string): number{
-        console.log("####  line: ", lineText)
-        console.log("#### Regex: ", REGEX.priorityRegex )
+    getTaskPriority(lineText:string){
         let priority = "0";
         const priorityMatch = lineText.match(REGEX.priorityRegex);
- 
-        
         if (priorityMatch !== null) {
-            let x = 0;
-            priorityMatch.forEach(priority => {
-                console.log("####  match: ", x, "--", priority);    
-                x++;
-            });
-            console.log("####  priority: ", priority, " type: ", (typeof priority));
+            priority = this.parsePriority(priorityMatch[1]);
         }
 
         return priority;
@@ -572,93 +534,24 @@ export class TaskParser {
         return text.replace(regex, `📅 ${dueDate} $1`);
     }
     
-    //extra date from obsidian event
-    // Usage example
-    //const str = "2023-03-27T15:59:59.000000Z";
-    //const dateStr = ISOStringToLocalDateString(str);
-    //console.log(dateStr); // Output 2023-03-27
-    ISOStringToLocalDateString(utcTimeString:string) {
-        try {
-            if(utcTimeString === null){
-                return null
-            }
-            let utcDateString = utcTimeString;
-            let dateObj = new Date(utcDateString); // Convert UTC format string to Date object
-            let year = dateObj.getFullYear();
-            let month = (dateObj.getMonth() + 1).toString().padStart(2, '0');
-            let date = dateObj.getDate().toString().padStart(2, '0');
-            let localDateString = `${year}-${month}-${date}`;
-            return localDateString;
-            return(localDateString);
-        } catch (error) {
-            console.error(`Error extracting date from string '${utcTimeString}': ${error}`);
-            return null;
-        }
-    }
     
-    
-    //extra date from obsidian event
-    // Usage example
-    //const str = "2023-03-27T15:59:59.000000Z";
-    //const dateStr = ISOStringToLocalDatetimeString(str);
-    //console.log(dateStr); // Output Mon Mar 27 2023 23:59:59 GMT+0800 (China Standard Time)
-    ISOStringToLocalDatetimeString(utcTimeString:string) {
-        try {
-            if(utcTimeString === null){
-                return null
-            }
-            let utcDateString = utcTimeString;
-            let dateObj = new Date(utcDateString); // Convert UTC format string to Date object
-            let result = dateObj.toString();
-            return(result);
-        } catch (error) {
-            console.error(`Error extracting date from string '${utcTimeString}': ${error}`);
-            return null;
-        }
-    }
-    
-    
-    
-    //convert date from obsidian event
-    // Usage example
-    //const str = "2023-03-27";
-    //const utcStr = localDateStringToUTCDatetimeString(str);
-    //console.log(dateStr); // Output 2023-03-27T00:00:00.000Z
-    localDateStringToUTCDatetimeString(localDateString:string) {
-        try {
-            if(localDateString === null){
-                return null
-            }
-            localDateString = localDateString + "T08:00";
-            let localDateObj = new Date(localDateString);
-            let ISOString = localDateObj.toISOString()
-            return(ISOString);
-        } catch (error) {
-            console.error(`Error extracting date from string '${localDateString}': ${error}`);
-            return null;
-        }
-    }
-    
-    //convert date from obsidian event
-    // Usage example
-    //const str = "2023-03-27";
-    //const utcStr = localDateStringToUTCDateString(str);
-    //console.log(dateStr); // Output 2023-03-27
-    localDateStringToUTCDateString(localDateString:string) {
-        try {
-            if(localDateString === null){
-                return null
-            }
-            localDateString = localDateString + "T08:00";
-            let localDateObj = new Date(localDateString);
-            let ISOString = localDateObj.toISOString()
-            let utcDateString = ISOString.slice(0,10)
-            return(utcDateString);
-        } catch (error) {
-            console.error(`Error extracting date from string '${localDateString}': ${error}`);
-            return null;
-        }
-    }
+    utcToLocal(utcDateString: string ) {
+        const date = new Date(utcDateString);
+        const year = date.getUTCFullYear();
+        const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+        const day = String(date.getUTCDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      }
+      
+    localToUTC(localDateString: string) {
+        const dateParts = localDateString.split('-');
+        const year = parseInt(dateParts[0]);
+        const month = parseInt(dateParts[1]) - 1;
+        const day = parseInt(dateParts[2]);
+        const date = new Date(Date.UTC(year, month, day));
+      
+        return date.toISOString();
+      }
     
     isMarkdownTask(str: string): boolean {
         const taskRegex = /^\s*-\s+\[([x ])\]/;

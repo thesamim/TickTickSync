@@ -413,7 +413,8 @@ export default class UltimateTickTickSyncForObsidian extends Plugin {
         //initialize file operation
         this.fileOperation = new FileOperation(this.app,this)
         
-        //initialize todoisy sync api
+        //initialize TickTick sync api
+        //Todo: Do we really need it?
         this.tickTickSyncAPI = new TickTickSyncAPI(this.app,this)
         
         //initialize TickTick sync module
