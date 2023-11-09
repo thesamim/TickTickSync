@@ -1,2 +1,6 @@
 ## CHANGELOG
-### prelease [1.0.38] - 2023-06-09
+### prelease [1.0.3] - 2023-11-09
+Initial Beta. 
+
+TickTick API implemented. 
+See Readme file for known issues. 
