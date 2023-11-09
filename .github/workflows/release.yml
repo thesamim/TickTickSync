@@ -35,7 +35,6 @@ jobs:
         uses: softprops/action-gh-release@v1
         if: startsWith(github.ref, 'refs/tags/')
         with:
-          token: ${{ secrets.GH_PAT }}
           tag_name: ${{ steps.build.outputs.tag_name }}
           name: ${{ steps.build.outputs.tag_name }}
           draft: false
