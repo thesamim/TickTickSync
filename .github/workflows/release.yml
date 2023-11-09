@@ -6,7 +6,7 @@ on:
       - "*"
 
 env:
-  PLUGIN_NAME: ultimate-TickTick-sync # Change this to match the id of your plugin.
+  PLUGIN_NAME: TickTickSync # Change this to match the id of your plugin.
 
 jobs:
   build:

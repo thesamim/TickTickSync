@@ -1,11 +1,11 @@
 {
-	"id": "ultimate-TickTick-sync",
-	"name": "Ultimate TickTick Sync",
-	"version": "1.0.1",
+	"id": "TickTickSync",
+	"name": "TickTickSync",
+	"version": "1.0.3",
 	"minAppVersion": "1.0.0",
-	"description": "This is the best TickTick task synchronization plugin for Obsidian so far.",
+	"description": "A bidirectional sync plugin for TickTick",
 	"author": "thesamim",
-	"authorUrl": "https://github.com/thesamim/ultimate-ticktick-sync-for-obsidian.git",
+	"authorUrl": "https://github.com/thesamim/TickTickSync-for-obsidian.git",
 	"fundingUrl": "",
 	"isDesktopOnly": false
 }

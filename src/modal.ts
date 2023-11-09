@@ -1,5 +1,5 @@
 import { App, Modal ,Setting } from "obsidian";
-import UltimateTickTickSyncForObsidian from "../main"
+import TickTickSync from "../main"
 
 
 interface MyProject {
@@ -11,10 +11,10 @@ export class SetDefalutProjectInTheFilepathModal extends Modal {
     defaultProjectId: string
     defaultProjectName: string
     filepath:string
-    plugin:UltimateTickTickSyncForObsidian
+    plugin:TickTickSync
     
     
-    constructor(app: App,plugin:UltimateTickTickSyncForObsidian, filepath:string) {
+    constructor(app: App,plugin:TickTickSync, filepath:string) {
         super(app);
         this.filepath = filepath
         this.plugin = plugin
@@ -26,8 +26,8 @@ export class SetDefalutProjectInTheFilepathModal extends Modal {
         contentEl.empty();
         contentEl.createEl('h5', { text: 'Set default project for TickTick tasks in the current file' });
         
-        this.defaultProjectId = await this.plugin.cacheOperation.getDefaultProjectIdForFilepath(this.filepath)
-        this.defaultProjectName = await this.plugin.cacheOperation.getProjectNameByIdFromCache(this.defaultProjectId)
+        this.defaultProjectId = await this.plugin.cacheOperation?.getDefaultProjectIdForFilepath(this.filepath)
+        this.defaultProjectName = await this.plugin.cacheOperation?.getProjectNameByIdFromCache(this.defaultProjectId)
         // console.log(this.defaultProjectId)
         // console.log(this.defaultProjectName)
         const myProjectsOptions: MyProject | undefined = this.plugin.settings.TickTickTasksData?.projects?.reduce((obj, item) => {
@@ -48,9 +48,9 @@ export class SetDefalutProjectInTheFilepathModal extends Modal {
             .onChange(async (value)=>{
                 // console.log(`project id is ${value}`)
                 //this.plugin.settings.defaultProjectId = this.result
-                //this.plugin.settings.defaultProjectName = this.plugin.cacheOperation.getProjectNameByIdFromCache(this.result)
+                //this.plugin.settings.defaultProjectName = this.plugin.cacheOperation?.getProjectNameByIdFromCache(this.result)
                 //this.plugin.saveSettings()
-                await this.plugin.cacheOperation.setDefaultProjectIdForFilepath(this.filepath,value)
+                await this.plugin.cacheOperation?.setDefaultProjectIdForFilepath(this.filepath,value)
                 this.plugin.setStatusBarText()
                 this.close();
                 

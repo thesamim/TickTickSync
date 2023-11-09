@@ -1,5 +1,5 @@
 import { App, Notice, Plugin, PluginSettingTab, Setting } from 'obsidian';
-import UltimateTickTickSyncForObsidian from "../main";
+import TickTickSync from "../main";
 import { TickTickSyncAPI } from './TicktickSyncAPI';
 
 interface MyProject {
@@ -8,7 +8,7 @@ interface MyProject {
 }
 
 
-export interface UltimateTickTickSyncSettings {
+export interface TickTickSyncSettings {
 	initialized:boolean;
 	//mySetting: string;
 	//TickTickTasksFilePath: string;
@@ -27,7 +27,7 @@ export interface UltimateTickTickSyncSettings {
 }
 
 
-export const DEFAULT_SETTINGS: UltimateTickTickSyncSettings = {
+export const DEFAULT_SETTINGS: TickTickSyncSettings = {
 	initialized: false,
 	apiInitialized:false,
 	defaultProjectName:"Inbox",
@@ -46,10 +46,10 @@ export const DEFAULT_SETTINGS: UltimateTickTickSyncSettings = {
 
 
 
-export class UltimateTickTickSyncSettingTab extends PluginSettingTab {
-	plugin: UltimateTickTickSyncForObsidian;
+export class TickTickSyncSettingTab extends PluginSettingTab {
+	plugin: TickTickSync;
 	
-	constructor(app: App, plugin: UltimateTickTickSyncForObsidian) {
+	constructor(app: App, plugin: TickTickSync) {
 		super(app, plugin);
 		this.plugin = plugin;
 	}
@@ -59,7 +59,7 @@ export class UltimateTickTickSyncSettingTab extends PluginSettingTab {
 		
 		containerEl.empty();
 		
-		containerEl.createEl('h2', { text: 'Settings for Ultimate TickTick Sync for Obsidian.' });
+		containerEl.createEl('h2', { text: 'Settings for TickTick Sync for Obsidian.' });
 		
 		const myProjectsOptions: MyProject | undefined = this.plugin.settings.TickTickTasksData?.projects?.reduce((obj, item) => {
 			obj[(item.id).toString()] = item.name;
@@ -145,7 +145,7 @@ export class UltimateTickTickSyncSettingTab extends PluginSettingTab {
 					.addOptions(myProjectsOptions)
 					.onChange(async (value)=>{
 						this.plugin.settings.defaultProjectId = value
-						this.plugin.settings.defaultProjectName = await this.plugin.cacheOperation.getProjectNameByIdFromCache(value)
+						this.plugin.settings.defaultProjectName = await this.plugin.cacheOperation?.getProjectNameByIdFromCache(value)
 						this.plugin.saveSettings()
 						
 						
@@ -204,7 +204,7 @@ export class UltimateTickTickSyncSettingTab extends PluginSettingTab {
 								.onClick(async () => {
 									// Add code here to handle exporting TickTick data
 									if(!this.plugin.settings.apiInitialized){
-										new Notice(`Please set the TickTick api first`)
+										new Notice(`Please set the TickTick credentials first`)
 										return
 									}
 									
@@ -214,7 +214,7 @@ export class UltimateTickTickSyncSettingTab extends PluginSettingTab {
 									
 									//check file metadata
 									// console.log('checking file metadata')
-									let fileNum = await this.plugin.cacheOperation.checkFileMetadata()
+									let fileNum = await this.plugin.cacheOperation?.checkFileMetadata()
 									// console.log("Number of files: ", fileNum)
 
 									if (fileNum < 1) //nothing? really?
@@ -226,23 +226,23 @@ export class UltimateTickTickSyncSettingTab extends PluginSettingTab {
 										});
 									}
 									this.plugin.saveSettings()
-									const metadatas = await this.plugin.cacheOperation.getFileMetadatas()
-									// check default project task amounts
-									try{
-										const projectId = this.plugin.settings.defaultProjectId
-										let options = {}
-										options.projectId = projectId
-										// const tasks = await this.plugin.TickTickRestAPI.GetActiveTasks(options)
-										const tasks = await this.plugin.tickTickRestAPI.GetActiveTasks()
-										let length = tasks.length
-										if(length >= 300){
-											new Notice(`The number of tasks in the default project exceeds 300, reaching the upper limit. It is not possible to add more tasks. Please modify the default project.`)
-										}
-										//console.log(tasks)
+									const metadatas = await this.plugin.cacheOperation?.getFileMetadatas()
+									// // check default project task amounts
+									// try{
+									// 	const projectId = this.plugin.settings.defaultProjectId
+									// 	let options = {}
+									// 	options.projectId = projectId
+									// 	// const tasks = await this.plugin.tickTickRestAPI?.GetActiveTasks(options)
+									// 	const tasks = await this.plugin.tickTickRestAPI?.GetActiveTasks()
+									// 	let length = tasks.length
+									// 	// if(length >= 300){
+									// 	// 	new Notice(`The number of tasks in the default project exceeds 300, reaching the upper limit. It is not possible to add more tasks. Please modify the default project.`)
+									// 	// }
+									// 	//console.log(tasks)
 										
-									}catch(error){
-										console.error(`An error occurred while get tasks from TickTick: ${error.message}`);
-									}
+									// }catch(error){
+									// 	console.error(`An error occurred while get tasks from TickTick: ${error.message}`);
+									// }
 									
 									if (!await this.plugin.checkAndHandleSyncLock()) return;
 									
@@ -260,7 +260,7 @@ export class UltimateTickTickSyncSettingTab extends PluginSettingTab {
 											let taskObject
 											
 											try{
-												taskObject = await this.plugin.cacheOperation.loadTaskFromCacheID(taskId)
+												taskObject = await this.plugin.cacheOperation?.loadTaskFromCacheID(taskId)
 											}catch(error){
 												console.error(`An error occurred while loading task cache: ${error.message}`);
 											}
@@ -269,11 +269,14 @@ export class UltimateTickTickSyncSettingTab extends PluginSettingTab {
 												// console.log(`The task data of the ${taskId} is empty.`)
 												//get from TickTick 
 												try {
-													taskObject = await this.plugin.TickTickRestAPI.getTaskById(taskId);
+													taskObject = await this.plugin.tickTickRestAPI?.getTaskById(taskId);
+													if (taskObject.deleted === 1) {
+														await this.plugin.cacheOperation?.deleteTaskIdFromMetadata(key,taskId)
+													}
 												} catch (error) {
 													if (error.message.includes('404')) {
 														// console.log(`Task ${taskId} seems to not exist.`);
-														await this.plugin.cacheOperation.deleteTaskIdFromMetadata(key,taskId)
+														await this.plugin.cacheOperation?.deleteTaskIdFromMetadata(key,taskId)
 														continue
 													} else {
 														console.error(error);
@@ -294,13 +297,13 @@ export class UltimateTickTickSyncSettingTab extends PluginSettingTab {
 										for (const key in metadatas) {
 											const value = metadatas[key];
 											//console.log(value)
-											const newContent = this.plugin.taskParser.getObsidianUrlFromFilepath(key)
+											const newContent = this.plugin.taskParser?.getObsidianUrlFromFilepath(key)
 											for(const taskId of value.TickTickTasks) {
 												
 												//console.log(`${taskId}`)
 												let taskObject
 												try{
-													taskObject = await this.plugin.cacheOperation.loadTaskFromCacheID(taskId)
+													taskObject = await this.plugin.cacheOperation?.loadTaskFromCacheID(taskId)
 												}catch(error){
 													console.error(`An error occurred while loading task ${taskId} from cache: ${error.message}`);
 													console.log(taskObject)
@@ -314,9 +317,9 @@ export class UltimateTickTickSyncSettingTab extends PluginSettingTab {
 												}							
 												const oldContent = taskObject?.content ?? '';
 												if(!oldContent.includes(newContent)){
-													console.log('Preparing to update description.')
-													console.log(oldDescription)
-													console.log(newDescription)
+													// console.log('Preparing to update description.')
+													// console.log(oldContent)
+													// console.log(newContent)
 													try{
 														await this.plugin.tickTickSync.updateTaskContent(key)
 													}catch(error){

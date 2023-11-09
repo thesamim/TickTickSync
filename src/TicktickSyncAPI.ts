@@ -1,5 +1,5 @@
 import { App} from 'obsidian';
-import UltimateTickTickSyncForObsidian from "../main";
+import TickTickSync from "../main";
 
 
 type Event = {
@@ -22,9 +22,9 @@ type FilterOptions = {
 //TODO: This is just mostly pass through. Do we reall need it?
 export class TickTickSyncAPI {
     app:App;
-    plugin: UltimateTickTickSyncForObsidian;
+    plugin: TickTickSync;
     
-    constructor(app:App, plugin:UltimateTickTickSyncForObsidian) {
+    constructor(app:App, plugin:TickTickSync) {
         //super(app,settings);
         this.app = app;
         this.plugin = plugin;
@@ -33,7 +33,7 @@ export class TickTickSyncAPI {
     //backup TickTick
     async getAllResources() {
         try {
-            let data = this.plugin.tickTickRestAPI.getAllResources();
+            let data = this.plugin.tickTickRestAPI?.getAllResources();
             return data;
             
         } catch (error) {
@@ -45,7 +45,7 @@ export class TickTickSyncAPI {
     //backup TickTick
     async getAllTasks() {
         try {
-            let data = this.plugin.tickTickRestAPI.getAllTasks()
+            let data = this.plugin.tickTickRestAPI?.getAllTasks()
             return data;
         } catch (error) {
             console.error(error);
@@ -55,7 +55,7 @@ export class TickTickSyncAPI {
     
     async getUserResource() {
         try {
-            let data = this.plugin.tickTickRestAPI.getUserResources()
+            let data = this.plugin.tickTickRestAPI?.getUserResources()
             return data;
         } catch (error) {
             console.error(error);
@@ -98,7 +98,7 @@ export class TickTickSyncAPI {
         //get completed items activity
         //result {count:number,events:[]}
         async getCompletedItemsActivity() {
-            const data = this.plugin.tickTickRestAPI.getAllCompletedItems();
+            const data = this.plugin.tickTickRestAPI?.getAllCompletedItems();
             return data;
         } catch (error) {
             console.error(error);
@@ -111,7 +111,7 @@ export class TickTickSyncAPI {
         //result {count:number,events:[]}
         async getUncompletedItemsActivity() : any[] {
             
-            const data = this.plugin.tickTickRestAPI.getTasks();
+            const data = this.plugin.tickTickRestAPI?.getTasks();
             
             return data;
         }
