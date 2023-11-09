@@ -82,7 +82,7 @@ export default class TickTickSync extends Plugin {
                         return
                     }
                     if (!await this.checkAndHandleSyncLock()) return;
-                    await this.tickTickSync?.deletedTaskCheck();
+                    await this.tickTickSync?.deletedTaskCheck(null);
                     this.syncLock = false;
                     this.saveSettings()
                 } catch (error) {
@@ -164,9 +164,9 @@ export default class TickTickSync extends Plugin {
             // console.log(`${oldpath} is renamed`)
             //Read fileMetadata
             //const fileMetadata = await this.fileOperation.getFileMetadata(file)
-            const fileMetadata = await this.cacheOperation?.getFileMetadata(oldpath)
+            const fileMetadata = await this.cacheOperation?.getFileMetadata(oldpath, null)
             // console.log(fileMetadata)
-            if (fileMetadata === null || fileMetadata.TickTickTasks === undefined) {
+            if (!fileMetadata || !fileMetadata.TickTickTasks) {
                 //console.log('There is no task in the deleted file')
                 return
             }

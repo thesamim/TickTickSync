@@ -1,10 +1,10 @@
 {
-	"name": "TickTickSync",
+	"name": "tickticksync",
 	"version": "1.0.3",
 	"description": "A bidirectional sync plugin for TickTick",
 	"main": "main.js",
 	"scripts": {
-		"prepare": "npm run build",
+		"prepare": "npm run build-without-tsc",
 		"dev": "node esbuild.config.mjs",
 		"build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
 		"build-without-tsc": "node esbuild.config.mjs production",
