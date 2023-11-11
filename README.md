@@ -36,31 +36,41 @@ The plugin works best when the [Tasks](https://github.com/obsidian-tasks-group/o
 
 ## Installation
 
-**During Beta, only manual installation is supported.**
+**During Beta, only manual and BRAT installations are supported.**
 
-%%### From within Obsidian
 
-From Obsidian v1.3.5+, you can activate this plugin within Obsidian by doing the following:
 
-1. Open Obsidian's `Settings` window
-2. Select the `Community plugins` tab on the left
-3. Make sure `Restricted mode` is **off**
-4. Click `Browse` next to `Community Plugins`
-5. Search for and click on `TickTickSync`
-6. Click `Install`
-7. Once installed, close the `Community Plugins` window
-8. Under `Installed Plugins`, activate the `TickTickSync` plugin
-
-You can update the plugin following the same procedure, clicking `Update` instead of `Install`%%
+                                                                                                      
+<!--%%                                                                                                 -->
+<!--### From within Obsidian                                                                           -->
+<!--                                                                                                   -->
+<!--From Obsidian v1.3.5+, you can activate this plugin within Obsidian by doing the following:        -->
+<!--                                                                                                   -->
+<!--1. Open Obsidian's `Settings` window                                                               -->
+<!--2. Select the `Community plugins` tab on the left                                                  -->
+<!--3. Make sure `Restricted mode` is **off**                                                          -->
+<!--4. Click `Browse` next to `Community Plugins`                                                      -->
+<!--5. Search for and click on `TickTickSync`                                                          -->
+<!--6. Click `Install`                                                                                 -->
+<!--7. Once installed, close the `Community Plugins` window                                            -->
+<!--8. Under `Installed Plugins`, activate the `TickTickSync` plugin                                   -->
+<!--                                                                                                   -->
+<!--You can update the plugin following the same procedure, clicking `Update` instead of `Install`     -->
+<!--%%                                                                                                 -->
+<!--                                                                                                   -->
 
 ### Manually
 
 If you would rather install the plugin manually, you can do the following:
 
-1. Download the latest release of the plugin from the [Releases](https://github.com/thesamim/TickTickSync-for-obsidian/releases) page.
+1. Download the latest release of the plugin from the [Releases](https://github.com/thesamim/TickTickSync/releases) page.
 2. Extract the downloaded zip file and copy the entire folder to your Obsidian plugins directory.
 3. Enable the plugin in the Obsidian settings.
 
+### BRAT
+1. Install from Community Plugins [Obsidian42 - BRAT](https://obsidian.md/plugins?id=obsidian42-brat) (latest)
+    - See [their readme](https://github.com/TfTHacker/obsidian42-brat#readme).
+2. Follow the instructions to add the plugin from: https://github.com/thesamim/TickTickSync
 
 ## Configuration
 
@@ -91,7 +101,6 @@ By enabling this option, the plugin will automatically add `#ticktick` to all ta
 | #tag | Note that all tags without a project of the same name are treated as normal tags | `- [ ] task #tagA #tagB #tagC #ticktick` |
 | Priority  |    <p>TickTick only has three priority levels. They are mapped as follows.</p><table><thead><tr><th>TickTick</th><th>Obsidian</th></tr></thead><tbody><tr><td>0</td><td>null</td></tr><tr><td>0</td><td>&#39;⏬&#39;</td></tr><tr><td>1</td><td>&#39;🔽&#39;</td></tr><tr><td>3</td><td>&#39;🔼&#39;</td></tr><tr><td>5</td><td>&#39;⏫&#39;</td></tr><tr><td>5</td><td>&#39;🔺&#39;</td></tr></tbody></table>    | `- [ ] task ⏫ #ticktick` |
 
-^f1f17d
 
 ###  Set a default project for each file separately
 
