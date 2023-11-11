@@ -27,7 +27,7 @@ export class SyncMan {
 
 
 
-    async deletedTaskCheck(file_path: string|null): Promise<void> {
+    async deletedTaskCheck(file_path: string | null): Promise<void> {
 
         let file
         let currentFileValue
@@ -66,31 +66,36 @@ export class SyncMan {
 
 
         //console.log(currentFileValue)
-        const currentFileValueWithOutFileMetadata = currentFileValue.replace(/^---[\s\S]*?---\n/, '');
-        const fileMetadata_TickTickTasks = fileMetadata.TickTickTasks;
-        const fileMetadata_TickTickCount = fileMetadata.TickTickCount;
+        if (currentFileValue) {
+            const currentFileValueWithOutFileMetadata = currentFileValue.replace(/^---[\s\S]*?---\n/, '');
+            const fileMetadata_TickTickTasks = fileMetadata.TickTickTasks;
+            const fileMetadata_TickTickCount = fileMetadata.TickTickCount;
 
-        const deleteTasksPromises = fileMetadata_TickTickTasks
-            .filter((taskId) => !currentFileValueWithOutFileMetadata.includes(taskId))
-            .map(async (taskId) => {
-                try {
-                    var taskIds = [];
-                    taskIds.push(taskId)
-                    console.log(taskIds)
-                    await this.deleteTasksByIds(taskIds);
-                } catch (error) {
-                    console.error(`Failed to delete task ${taskId}: ${error}`);
-                }
-            });
+            const deleteTasksPromises = fileMetadata_TickTickTasks
+                .filter((taskId) => !currentFileValueWithOutFileMetadata.includes(taskId))
+                .map(async (taskId) => {
+                    try {
+                        var taskIds = [];
+                        taskIds.push(taskId)
+                        console.log(taskIds)
+                        await this.deleteTasksByIds(taskIds);
+                    } catch (error) {
+                        console.error(`Failed to delete task ${taskId}: ${error}`);
+                    }
+                });
 
-        const deletedTaskIds = await Promise.all(deleteTasksPromises);
-        const numDeletedTasks = deletedTaskIds.length
-        if (numDeletedTasks === 0) {
-            return;
+            const deletedTaskIds = await Promise.all(deleteTasksPromises);
+            const numDeletedTasks = deletedTaskIds.length
+            if (numDeletedTasks === 0) {
+                return;
+            }
+            //Let cacheOperation deal with metatadata management.
+            await this.plugin.cacheOperation?.deleteTaskFromCacheByIDs(deletedTaskIds)
+            //console.log(`Deleted ${deletedTaskAmount} tasks`)
+        } else {
+            //We had a file. The file is gone. Bad things will happen. Delete the metadata
+            this.plugin.cacheOperation?.deleteFilepathFromMetadata(filepath);
         }
-        //Let cacheOperation deal with metatadata management.
-        await this.plugin.cacheOperation?.deleteTaskFromCacheByIDs(deletedTaskIds)
-        //console.log(`Deleted ${deletedTaskAmount} tasks`)
 
     }
 
@@ -128,12 +133,12 @@ export class SyncMan {
                     await this.plugin.cacheOperation?.closeTaskToCacheByID(ticktick_id)
 
                 }
-                this.plugin.saveSettings() 
+                this.plugin.saveSettings()
 
                 //ticktick id is saved to the end of the task
                 //TODO: Breaking SOC for now
                 const text_with_out_link = `${linetxt} %%[ticktick_id:: ${ticktick_id}]%%`;
-            
+
                 const text = this.plugin.taskParser?.addTickTickLink(text_with_out_link, newTask.id)
                 const from = { line: cursor.line, ch: 0 };
                 const to = { line: cursor.line, ch: linetxt.length };
@@ -205,12 +210,10 @@ export class SyncMan {
         for (let i = 0; i < lines.length; i++) {
             const line = lines[i]
             if (!this.plugin.taskParser?.hasTickTickId(line) && this.plugin.taskParser?.hasTickTickTag(line)) {
-                console.log('!!!!!Adding on  fullTextNewTaskCheck')
                 //console.log(`current line is ${i}`)
                 //console.log(`line text: ${line}`)
                 // console.log(filepath)
                 const currentTask = await this.plugin.taskParser?.convertTextToTickTickTaskObject(line, filepath, i, content)
-                console.log("Adding because fullTextNewTaskCheck. ", currentTask.priority)
                 if (typeof currentTask === "undefined") {
                     continue
                 }
@@ -665,7 +668,7 @@ export class SyncMan {
                 new Notice("Failed to fetch resources from TickTick, please try again later", 5000)
                 throw new Error("Failed to fetch resources from TickTick");
             }
-           
+
             tasksFromTickTic = tasksFromTickTic.sort((a, b) => (a.id > b.id) ? 1 : ((b.id > a.id) ? -1 : 0))
             // console.log("num remote tasks: ", tasksFromTickTic.length)
 

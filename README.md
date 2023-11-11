@@ -6,7 +6,7 @@
 
 The TickTickSync plugin automatically creates tasks in ticktick and synchronizes task state between Obsidian and ticktick.
 
-The plugin works best when the [Tasks](https://github.com/obsidian-tasks-group/obsidian-tasks) is installed. 
+The plugin works best when the [Tasks](https://github.com/obsidian-tasks-group/obsidian-tasks) plugin is installed. 
 
 ## Features 
 - Any task created in Obsidian and taged with #ticktick will be synchronized with TickTick
