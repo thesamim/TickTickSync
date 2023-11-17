@@ -321,6 +321,9 @@ export class TaskParser {
     }
 
     addChildToParent(parentTask: ITask, childId: string) {
+        if (!parentTask.childIds) {
+            parentTask.childIds = []; 
+        }
         parentTask.childIds.push(childId);
         return parentTask;
     }

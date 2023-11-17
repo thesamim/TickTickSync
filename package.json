@@ -1,6 +1,6 @@
 {
 	"name": "tickticksync",
-	"version": "1.0.4",
+	"version": "1.0.5",
 	"description": "A bidirectional sync plugin for TickTick",
 	"main": "main.js",
 	"scripts": {
@@ -15,7 +15,8 @@
 		"obsidian-plugin",
 		"obsidian-tasks",
 		"task-manager",
-		"task-management"
+		"task-management", 
+		"TickTick"
 	],
 	"author": "thesamim",
 	"license": "GNU GPLv3",

@@ -108,7 +108,7 @@ export class TickTickRestAPI {
         } catch (error) {
             throw new Error(`Error updating task: ${error.message}`);
         }
-    }
+    } 
 
 
     async modifyTaskStatus(taskId: string, projectId: string, taskStatus: number) {
@@ -116,7 +116,7 @@ export class TickTickRestAPI {
         try {
             let thisTask = await this.api.getTask(taskId, projectId);
             // console.log("Got task: ", thisTask)
-            thisTask[0].status = taskStatus;
+            thisTask.status = taskStatus;
 
 
             const isSuccess = await this.api.updateTask(thisTask);

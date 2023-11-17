@@ -58,6 +58,7 @@ export class CacheOperation {
         }
         // Save the updated metadatas object back to the settings object
         this.plugin.settings.fileMetadata = metadatas
+        this.plugin.saveSettings();
         return this.plugin.settings.fileMetadata[filepath]
     }
 
@@ -359,7 +360,8 @@ export class CacheOperation {
 
 
     //open a task status
-    reopenTaskToCacheByID(taskId: string) {
+    async reopenTaskToCacheByID(taskId: string): Promise<string>{
+        let projectId = null;
         try {
             const savedTasks = this.plugin.settings.TickTickTasksData.tasks
 
@@ -369,21 +371,24 @@ export class CacheOperation {
                 if (savedTasks[i].id === taskId) {
                     //Modify the properties of the object
                     savedTasks[i].status = 0;
+                    projectId = savedTasks[i].projectId;
                     break; // Found and modified the item, break out of the loop
                 }
             }
             this.plugin.settings.TickTickTasksData.tasks = savedTasks
+            return projectId;
 
         } catch (error) {
             console.error(`Error open task to Cache file: ${error}`);
-            return [];
+            throw error; // Throw an error so that the caller can catch and handle it
         }
     }
 
 
 
     //close a task status
-    closeTaskToCacheByID(taskId: string): Promise<void> {
+    async closeTaskToCacheByID(taskId: string): Promise<string> {
+        let projectId = null;
         try {
             const savedTasks = this.plugin.settings.TickTickTasksData.tasks
 
@@ -391,11 +396,13 @@ export class CacheOperation {
             for (let i = 0; i < savedTasks.length; i++) {
                 if (savedTasks[i].id === taskId) {
                     //Modify the properties of the object
-                    savedTasks[i].status = 0;
+                    savedTasks[i].status = 2;
+                    projectId = savedTasks[i].projectId;
                     break; // Found and modified the item, break out of the loop
                 }
             }
             this.plugin.settings.TickTickTasksData.tasks = savedTasks
+            return projectId;
 
         } catch (error) {
             console.error(`Error close task to Cache file: ${error}`);
@@ -486,35 +493,35 @@ export class CacheOperation {
 
             projects.push(inboxProject);
 
-            if (this.plugin.settings.debugMode) {
-                if (projectGroups !== undefined && projectGroups !== null) {
-                    console.log("==== projectGroups")
-                    console.log(projectGroups.map((item) => item.name));
-                } else {
-                    console.log("==== No projectGroups")
-                }
-                // ===============
-                if (projects !== undefined && projects !== null) {
-                    console.log("==== projects -->", projects.length)
-                    projects.forEach(async project => {
+            // if (this.plugin.settings.debugMode) {
+            //     if (projectGroups !== undefined && projectGroups !== null) {
+            //         console.log("==== projectGroups")
+            //         console.log(projectGroups.map((item) => item.name));
+            //     } else {
+            //         console.log("==== No projectGroups")
+            //     }
+            //     // ===============
+            //     if (projects !== undefined && projects !== null) {
+            //         console.log("==== projects -->", projects.length)
+            //         projects.forEach(async project => {
 
-                        const sections = await this.plugin.tickTickRestAPI?.getProjectSections(project.id);
-                        if (sections !== undefined && sections !== null && sections.length > 0) {
-                            console.log(`Project: ${project.name}`);
-                            sections.forEach(section => {
-                                console.log('\t' + section.name);
-                            })
-                        } else {
-                            console.log(`Project: ${project.name}`);
-                            console.log('\t' + 'no sections')
-                        }
-                    })
-                } else {
-                    console.log("==== No projects")
-                }
+            //             const sections = await this.plugin.tickTickRestAPI?.getProjectSections(project.id);
+            //             if (sections !== undefined && sections !== null && sections.length > 0) {
+            //                 console.log(`Project: ${project.name}`);
+            //                 sections.forEach(section => {
+            //                     console.log('\t' + section.name);
+            //                 })
+            //             } else {
+            //                 console.log(`Project: ${project.name}`);
+            //                 console.log('\t' + 'no sections')
+            //             }
+            //         })
+            //     } else {
+            //         console.log("==== No projects")
+            //     }
 
-                // ================
-            }
+            //     // ================
+            // }
 
             if (!projects) {
                 return false

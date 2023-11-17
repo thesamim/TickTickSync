@@ -111,7 +111,7 @@ export class FileOperation {
             //update filemetadate
             const metadata = await this.plugin.cacheOperation?.getFileMetadata(filepath)
             if (!metadata) {
-                await this.plugin.cacheOperation?.newEmptyFileMetadata(filepath)
+                throw new Error(`File Metadata creation failed for file ${filepath}`);
             }
 
         }
@@ -158,52 +158,55 @@ export class FileOperation {
     }
 
 
-    //add #TickTick at the end of task line, if full vault sync enabled
-    async addTickTickTagToLine(filepath: string, lineText: string, lineNumber: number, fileContent: string) {
-        // console.log("addTickTickTagToLine")
-        // Get the file object and update the content
-        const file = this.app.vault.getAbstractFileByPath(filepath)
-        const content = fileContent
+    //TODO: Verify that this really not used anywhere.
+    // //add #TickTick at the end of task line, if full vault sync enabled
+    // async addTickTickTagToLine(filepath: string, lineText: string, lineNumber: number, fileContent: string) {
+    //     // console.log("addTickTickTagToLine")
+    //     // Get the file object and update the content
+    //     const file = this.app.vault.getAbstractFileByPath(filepath)
+    //     const content = fileContent
 
-        const lines = content.split('\n')
-        let modified = false
-
-
-        const line = lineText
-        if (!this.plugin.taskParser?.isMarkdownTask(line)) {
-            //console.log(line)
-            //console.log("It is not a markdown task.")
-            return;
-        }
-        //if content is empty
-        if (this.plugin.taskParser?.getTaskContentFromLineText(line) == "") {
-            //console.log("Line content is empty")
-            return;
-        }
-        if (!this.plugin.taskParser?.hasTickTickId(line) && !this.plugin.taskParser?.hasTickTickTag(line)) {
-            //console.log(line)
-            //console.log('prepare to add TickTick tag')
-            const newLine = this.plugin.taskParser?.addTickTickTag(line);
-            //console.log(newLine)
-            lines[lineNumber] = newLine
-            modified = true
-        }
+    //     const lines = content.split('\n')
+    //     let modified = false
 
 
-        if (modified) {
-            // console.log(`New task found in files ${filepath}`)
-            const newContent = lines.join('\n')
-            // console.log(newContent)
-            await this.app.vault.modify(file, newContent)
+    //     const line = lineText
+    //     if (!this.plugin.taskParser?.isMarkdownTask(line)) {
+    //         //console.log(line)
+    //         //console.log("It is not a markdown task.")
+    //         return;
+    //     }
+    //     //if content is empty
+    //     if (this.plugin.taskParser?.getTaskContentFromLineText(line) == "") {
+    //         //console.log("Line content is empty")
+    //         return;
+    //     }
+    //     if (!this.plugin.taskParser?.hasTickTickId(line) && !this.plugin.taskParser?.hasTickTickTag(line)) {
+    //         //console.log(line)
+    //         //console.log('prepare to add TickTick tag')
+    //         const newLine = this.plugin.taskParser?.addTickTickTag(line);
+    //         //console.log(newLine)
+    //         lines[lineNumber] = newLine
+    //         modified = true
+    //     }
 
-            //update filemetadate
-            const metadata = await this.plugin.cacheOperation?.getFileMetadata(filepath)
-            if (!metadata) {
-                await this.plugin.cacheOperation?.newEmptyFileMetadata(filepath)
-            }
 
-        }
-    }
+    //     if (modified) {
+    //         // console.log(`New task found in files ${filepath}`)
+    //         const newContent = lines.join('\n')
+    //         // console.log(newContent)
+    //         await this.app.vault.modify(file, newContent)
+
+    //         //update filemetadate
+    //         const metadata = await this.plugin.cacheOperation?.getFileMetadata(filepath)
+    //         if (!metadata) {
+    //             await this.plugin.cacheOperation?.newEmptyFileMetadata(filepath)
+    //         }
+
+    //     }
+    // }
+
+
     // sync updated task content to file
     async addTasksToFile(tasks: ITask[]): Promise<Boolean> {
         //sort by project id and task id
@@ -215,9 +218,9 @@ export class FileOperation {
             let taskFile = await this.plugin.cacheOperation?.getFilepathForProjectId(projectId);
             let metaData;
             if (taskFile) {
-                metaData = await this.plugin.cacheOperation?.getFileMetadata(taskFile);
+                metaData = await this.plugin.cacheOperation?.getFileMetadata(taskFile, projectId);
                 if (!metaData) {
-                    metaData = await this.plugin.cacheOperation?.newEmptyFileMetadata(taskFile, projectId);
+                    throw new Error(`File Metadata creation failed for project Id: ${projectId} and file ${taskFile}`);
                 }
 
                 var file = this.app.vault.getAbstractFileByPath(taskFile);
@@ -226,7 +229,6 @@ export class FileOperation {
                     //TODO: Deal with Folders and sections in the fullness of time.
                     new Notice(`Creating new file: ${taskFile}`);
                     file = await this.app.vault.create(taskFile, "== Added by Obsidian-TickTick == ")
-                    metaData = await this.plugin.cacheOperation?.newEmptyFileMetadata(taskFile, projectId);
                 }
             }
             let projectTasks = tasks.filter(task => task.projectId === projectId);

@@ -77,7 +77,6 @@ export class SyncMan {
                     try {
                         var taskIds = [];
                         taskIds.push(taskId)
-                        console.log(taskIds)
                         await this.deleteTasksByIds(taskIds);
                     } catch (error) {
                         console.error(`Failed to delete task ${taskId}: ${error}`);
@@ -330,7 +329,7 @@ export class SyncMan {
                 let updatedContent = {}
                 if (contentModified) {
                     if (this.plugin.settings.debugMode) {
-                        // console.log(`Content modified for task ${lineTask_ticktick_id}`)
+                        console.log(`Content modified for task ${lineTask_ticktick_id}, ${lineTask.title}, ${savedTask.title}`)
                     }
                     updatedContent.content = lineTaskContent
                     contentChanged = true;
@@ -338,7 +337,7 @@ export class SyncMan {
 
                 if (tagsModified) {
                     if (this.plugin.settings.debugMode) {
-                        // console.log(`Tags modified for task ${lineTask_ticktick_id}`)
+                        console.log(`Tags modified for task ${lineTask_ticktick_id}, , ${lineTask.tags}, ${savedTask.tags}`)
                     }
                     updatedContent.tags = lineTask.tags
                     tagsChanged = true;
@@ -347,8 +346,8 @@ export class SyncMan {
 
                 if (dueDateModified) {
                     if (this.plugin.settings.debugMode) {
-                        // console.log(`Due date modified for task ${lineTask_ticktick_id}`)
-                        // console.log(lineTask.dueDate)
+                        console.log(`Due date modified for task ${lineTask_ticktick_id}`)
+                        console.log("new: ", lineTask.dueDate,  "old: ", savedTask.dueDate)
                     }
                     //console.log(savedTask.due.date)
                     if (lineTask.dueDate === "") {
@@ -363,7 +362,7 @@ export class SyncMan {
                 //ticktick Rest api does not have the function of move task to new project
                 if (projectModified) {
                     if (this.plugin.settings.debugMode) {
-                        console.log(`Project id modified for task ${lineTask_ticktick_id}`)
+                        console.log(`Project id modified for task ${lineTask_ticktick_id}, ${lineTask.projectId}, ${savedTask.projectId}`)
                         console.log("Not handled yet.");
                     }
                     //updatedContent.projectId = lineTask.projectId
@@ -373,7 +372,7 @@ export class SyncMan {
                 //ticktick Rest api has no way to modify parent id
                 if (parentIdModified) {
                     if (this.plugin.settings.debugMode) {
-                        console.log(`Parent id modified for task ${lineTask_ticktick_id}`)
+                        console.log(`Parent id modified for task ${lineTask_ticktick_id}, ${lineTask.parentId}, ${savedTask.parentId}`)
                         console.log("Not handled yet.");
 
                     }
@@ -464,7 +463,7 @@ export class SyncMan {
     }
 
 
-    async fullTextModifiedTaskCheck(file_path: string): Promise<void> {
+    async fullTextModifiedTaskCheck(file_path: string| null): Promise<void> {
 
         let file;
         let currentFileValue;
@@ -517,9 +516,10 @@ export class SyncMan {
     // Close a task by calling API and updating JSON file
     async closeTask(taskId: string): Promise<void> {
         try {
-            await this.plugin.tickTickRestAPI?.CloseTask(taskId);
-            await this.plugin.fileOperation.completeTaskInTheFile(taskId)
-            await this.plugin.cacheOperation?.closeTaskToCacheByID(taskId);
+            let projectId = await this.plugin.cacheOperation?.closeTaskToCacheByID(taskId);
+            await this.plugin.tickTickRestAPI?.CloseTask(taskId, projectId);
+            await this.plugin.fileOperation?.completeTaskInTheFile(taskId)
+            
             this.plugin.saveSettings()
             new Notice(`Task ${taskId} is closed.`)
         } catch (error) {
@@ -531,9 +531,10 @@ export class SyncMan {
     //open task
     async reopenTask(taskId: string): Promise<void> {
         try {
-            await this.plugin.tickTickRestAPI?.OpenTask(taskId)
+            let projectId = await this.plugin.cacheOperation?.reopenTaskToCacheByID(taskId)
+            await this.plugin.tickTickRestAPI?.OpenTask(taskId, projectId)
             await this.plugin.fileOperation.uncompleteTaskInTheFile(taskId)
-            await this.plugin.cacheOperation?.reopenTaskToCacheByID(taskId)
+            
             this.plugin.saveSettings()
             new Notice(`Task ${taskId} is reopened.`)
         } catch (error) {
@@ -657,6 +658,7 @@ export class SyncMan {
         //Tasks in TickTick, not in Obsidian: Download
         //Tasks in both: check for updates. 
         try {
+            this.plugin.cacheOperation?.saveProjectsToCache();
             let bModifiedFileSystem = false;
             let allTaskDetails = await this.plugin.tickTickSyncAPI?.getAllTasks();
             let tasksFromTickTic = allTaskDetails.update;

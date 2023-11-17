@@ -1,9 +1,5 @@
 # TickTickSync
 
-> [!important]
-> This plugin is based on [Ultimate Todoist Sync for Obsidian](https://github.com/HeroBlackInk/ultimate-todoist-sync-for-obsidian).
-> There have been significant changes due to the difference between TickTick and ToDoist task handling. I am grateful for the work that [HeroBlackInk](https://github.com/HeroBlackInk/ultimate-todoist-sync-for-obsidian/commits?author=HeroBlackInk "View all commits by HeroBlackInk") put it in to the original plugin.
-
 The TickTickSync plugin automatically creates tasks in ticktick and synchronizes task state between Obsidian and ticktick.
 
 The plugin works best when the [Tasks](https://github.com/obsidian-tasks-group/obsidian-tasks) plugin is installed. 
@@ -18,6 +14,7 @@ The plugin works best when the [Tasks](https://github.com/obsidian-tasks-group/o
 ## Notes
 1. TickTick lists are referred to as Projects in the plugin, and throughout documentation.
 2. TickTick only has four priorities (High, Medium, Low, None). Please see Priority in [Task Format](#Task-format) for Task mapping of priority
+
 
 ## Known Issues
 1. Currently, ALL TickTick tasks are synched. Depending on feedback, may add a tag on the TickTick side. ie: If tagged with #obisidian a task will be synched. If not, it will be ignored. 
@@ -35,42 +32,36 @@ The plugin works best when the [Tasks](https://github.com/obsidian-tasks-group/o
 
 
 ## Installation
-
-**During Beta, only manual and BRAT installations are supported.**
-
-
-
                                                                                                       
-<!--%%                                                                                                 -->
-<!--### From within Obsidian                                                                           -->
-<!--                                                                                                   -->
-<!--From Obsidian v1.3.5+, you can activate this plugin within Obsidian by doing the following:        -->
-<!--                                                                                                   -->
-<!--1. Open Obsidian's `Settings` window                                                               -->
-<!--2. Select the `Community plugins` tab on the left                                                  -->
-<!--3. Make sure `Restricted mode` is **off**                                                          -->
-<!--4. Click `Browse` next to `Community Plugins`                                                      -->
-<!--5. Search for and click on `TickTickSync`                                                          -->
-<!--6. Click `Install`                                                                                 -->
-<!--7. Once installed, close the `Community Plugins` window                                            -->
-<!--8. Under `Installed Plugins`, activate the `TickTickSync` plugin                                   -->
-<!--                                                                                                   -->
-<!--You can update the plugin following the same procedure, clicking `Update` instead of `Install`     -->
-<!--%%                                                                                                 -->
-<!--                                                                                                   -->
+### From within Obsidian                                                                           
+                                                                                                   
+From Obsidian v1.3.5+, you can activate this plugin within Obsidian by doing the following:        
+                                                                                                   
+1. Open Obsidian's `Settings` window                                                               
+2. Select the `Community plugins` tab on the left                                                  
+3. Make sure `Restricted mode` is **off**                                                          
+4. Click `Browse` next to `Community Plugins`                                                      
+5. Search for and click on `TickTickSync`                                                          
+6. Click `Install`                                                                                 
+7. Once installed, close the `Community Plugins` window                                            
+8. Under `Installed Plugins`, activate the `TickTickSync` plugin                                   
+                                                                                                   
+You can update the plugin following the same procedure, clicking `Update` instead of `Install`     
+                                                                                             
+                                                                                                   
+### BRAT
+1. Install from Community Plugins [Obsidian42 - BRAT](https://obsidian.md/plugins?id=obsidian42-brat) (latest)
+    - See [their readme](https://github.com/TfTHacker/obsidian42-brat#readme).
+2. Follow the instructions to add the plugin from: https://github.com/thesamim/TickTickSync
 
 ### Manually
-
 If you would rather install the plugin manually, you can do the following:
 
 1. Download the latest release of the plugin from the [Releases](https://github.com/thesamim/TickTickSync/releases) page.
 2. Extract the downloaded zip file and copy the entire folder to your Obsidian plugins directory.
 3. Enable the plugin in the Obsidian settings.
 
-### BRAT
-1. Install from Community Plugins [Obsidian42 - BRAT](https://obsidian.md/plugins?id=obsidian42-brat) (latest)
-    - See [their readme](https://github.com/TfTHacker/obsidian42-brat#readme).
-2. Follow the instructions to add the plugin from: https://github.com/thesamim/TickTickSync
+
 
 ## Configuration
 
@@ -112,6 +103,12 @@ The default project in the setting applies to all files. You can set a separate 
 You can see the current file's default project in the status bar at the bottom right corner.
 <img src="/attachment/statusBar.png" width="500">
 
+## Acknowledgements
+
+This plugin is based on [Ultimate Todoist Sync for Obsidian](https://github.com/HeroBlackInk/ultimate-todoist-sync-for-obsidian).
+There have been significant changes due to the difference between TickTick and ToDoist task handling. I am grateful for the work that [HeroBlackInk](https://github.com/HeroBlackInk/ultimate-todoist-sync-for-obsidian/commits?author=HeroBlackInk "View all commits by HeroBlackInk") put it in to the original plugin.
+
+The [TickTick api wrapper](https://github.com/thesamim/ticktick-api-lvt) used here is forked from https://github.com/lucasvtiradentes/ticktick-api-lvt. Thanks to [Lucas](https://github.com/lucasvtiradentes) for his support.
 
 ## Disclaimer
 

@@ -1,11 +1,11 @@
 {
 	"id": "TickTickSync",
 	"name": "TickTickSync",
-	"version": "1.0.4",
+	"version": "1.0.5",
 	"minAppVersion": "1.0.0",
 	"description": "A bidirectional sync plugin for TickTick",
 	"author": "thesamim",
 	"authorUrl": "https://github.com/thesamim/TickTickSync",
 	"fundingUrl": "",
-	"isDesktopOnly": false
+	"isDesktopOnly": true
 }

@@ -451,10 +451,9 @@ export default class TickTickSync extends Plugin {
         const taskElement = target.closest("div"); //Use the evt.target.closest() method to find a specific parent element instead of directly accessing a specific index in the event path
         //console.log(taskElement)
         if (!taskElement) return;
-        const regex = /\[ticktick_id:: (\d+)\]/; // Matches a string in the format [ticktick_id:: number]
-        const match = taskElement.textContent?.match(regex) || false;
+        const match = this.taskParser?.hasTickTickId(taskElement.textContent);
         if (match) {
-            const taskId = match[1];
+            const taskId = this.taskParser?.getTickTickIdFromLineText(taskElement.textContent);
             //console.log(taskId)
             //const view = this.app.workspace.getActiveViewOfType(MarkdownView);
             if (target.checked) {
@@ -467,7 +466,7 @@ export default class TickTickSync extends Plugin {
             //Start full-text search and check status updates
             try {
                 if (!await this.checkAndHandleSyncLock()) return;
-                await this.tickTickSync?.fullTextModifiedTaskCheck()
+                await this.tickTickSync?.fullTextModifiedTaskCheck(null)
                 this.syncLock = false;
             } catch (error) {
                 console.error(`An error occurred while check modified tasks in the file: ${error}`);
