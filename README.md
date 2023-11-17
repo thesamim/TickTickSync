@@ -14,6 +14,7 @@ The plugin works best when the [Tasks](https://github.com/obsidian-tasks-group/o
 ## Notes
 1. TickTick lists are referred to as Projects in the plugin, and throughout documentation.
 2. TickTick only has four priorities (High, Medium, Low, None). Please see Priority in [Task Format](#Task-format) for Task mapping of priority
+3. Please see known issue 3. below. __Strongly__ recommend using subtasks rather than items to avoid loss of data.
 
 
 ## Known Issues
