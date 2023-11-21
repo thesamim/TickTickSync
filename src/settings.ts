@@ -59,7 +59,7 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 		
 		containerEl.empty();
 		
-		containerEl.createEl('h2', { text: 'Settings for TickTick Sync for Obsidian.' });
+		containerEl.createEl('h2', { text: 'Settings' });
 		
 		const myProjectsOptions: MyProject | undefined = this.plugin.settings.TickTickTasksData?.projects?.reduce((obj, item) => {
 			obj[(item.id).toString()] = item.name;
@@ -90,6 +90,9 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 				})
 				
 				)
+
+
+				new Setting(containerEl)
 				.addExtraButton((button) => { button
 					.setIcon('send')
 					.setTooltip('Log In')
@@ -98,14 +101,12 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 						this.display()
 						
 					})
-				});
-
-				new Setting(containerEl)
-				.setDesc("Click on Log In above after any changes, or to re-login");
+				})
+				.setDesc("Click to Log in after any changes, or to re-login");
 				
 				
 				new Setting(containerEl)
-				.setName('Automatic Sync Interval Time')
+				.setName('Automatic sync interval time')
 				.setDesc('Please specify the desired interval time, with seconds as the default unit. The default setting is 300 seconds, which corresponds to syncing once every 5 minutes. You can customize it, but it cannot be lower than 20 seconds.')
 				.addText((text) =>
 				text
@@ -137,7 +138,7 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 
 				
 				new Setting(containerEl)
-				.setName('Default Project')
+				.setName('Default project')
 				.setDesc('New tasks are automatically synced to the default project. You can modify the project here.')
 				.addDropdown(component => 
 					component
@@ -156,7 +157,7 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 					
 					
 					new Setting(containerEl)
-					.setName('Full Vault Sync')
+					.setName('Full vault sync')
 					.setDesc('By default, only tasks marked with #TickTick are synchronized. If this option is turned on, all tasks in the vault will be synchronized.')
 					.addToggle(component => 
 						component
@@ -172,7 +173,7 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 						
 						
 						new Setting(containerEl)
-						.setName('Manual Sync')
+						.setName('Manual sync')
 						.setDesc('Manually perform a synchronization task.')
 						.addButton(button => button
 							.setButtonText('Sync')
@@ -197,7 +198,7 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 							
 							
 							new Setting(containerEl)
-							.setName('Check Database')
+							.setName('Check database')
 							.setDesc('Check for possible issues: sync error, file renaming not updated, or missed tasks not synchronized.')
 							.addButton(button => button
 								.setButtonText('Check Database')
@@ -369,7 +370,7 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 								);
 								
 								new Setting(containerEl)
-								.setName('Debug Mode')
+								.setName('Debug mode')
 								.setDesc('After enabling this option, all log information will be output to the console, which can help check for errors.')
 								.addToggle(component => 
 									component
@@ -382,7 +383,7 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 									)
 									
 									new Setting(containerEl)
-									.setName('Backup TickTick Data')
+									.setName('Backup TickTick data')
 									.setDesc('Click to backup TickTick data, The backed-up files will be stored in the root directory of the Obsidian vault.')
 									.addButton(button => button
 										.setButtonText('Backup')

@@ -222,9 +222,9 @@ export default class TickTickSync extends Plugin {
 
         this.registerInterval(window.setInterval(async () => await this.scheduledSynchronization(), this.settings.automaticSynchronizationInterval * 1000));
 
-        this.app.workspace.on('active-leaf-change', (leaf) => {
+        this.registerEvent(this.app.workspace.on('active-leaf-change', (leaf) => {
             this.setStatusBarText()
-        })
+        }));
 
 
         // set default project for TickTick task in the current file

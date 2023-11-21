@@ -3,9 +3,8 @@
 	"name": "TickTickSync",
 	"version": "1.0.5",
 	"minAppVersion": "1.0.0",
-	"description": "A bidirectional sync plugin for TickTick",
+	"description": "Sync TickTick tasks to Obsidian, and Obsidian tasks to TickTick",
 	"author": "thesamim",
-	"authorUrl": "https://github.com/thesamim/TickTickSync",
-	"fundingUrl": "",
+	"authorUrl": "https://github.com/thesamim",
 	"isDesktopOnly": true
 }
