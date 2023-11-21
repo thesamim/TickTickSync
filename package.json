@@ -1,6 +1,6 @@
 {
 	"name": "tickticksync",
-	"version": "1.0.5",
+	"version": "1.0.6",
 	"description": "A bidirectional sync plugin for TickTick",
 	"main": "main.js",
 	"scripts": {
