@@ -121,7 +121,7 @@ export class SyncMan {
                 }
                 const { id: ticktick_id, projectId: ticktick_projectId, url: ticktick_url } = newTask;
                 //console.log(newTask);
-                new Notice(`new task ${newTask.content} id is ${newTask.id}`)
+                new Notice(`new task ${newTask.title} id is ${newTask.id}`)
                 //newTask writes to cache
                 //Will handle meta data there.
                 await this.plugin.cacheOperation?.appendTaskToCache(newTask, filepath)
@@ -225,7 +225,7 @@ export class SyncMan {
                     //                taking this on.
                     const { id: ticktick_id, projectId: ticktick_projectId, url: ticktick_url } = newTask;
                     // console.log(newTask);
-                    new Notice(`new task ${newTask.content} id is ${newTask.id}`)
+                    new Notice(`new task ${newTask.title} id is ${newTask.id}`)
                     //newTask writes to json file
                     await this.plugin.cacheOperation?.appendTaskToCache(newTask, filepath)
 
@@ -296,11 +296,11 @@ export class SyncMan {
             //console.log(savedTask)
 
             //Check whether the content has been modified
-            const lineTaskContent = lineTask.content;
+            const lineTaskTitle = lineTask.title;
 
 
             //Whether content is modified?
-            const contentModified = this.plugin.taskParser?.isTitleChanged(lineTask, savedTask)
+            const titleModified = this.plugin.taskParser?.isTitleChanged(lineTask, savedTask)
             //tag or labels whether to modify
             const tagsModified = this.plugin.taskParser?.isTagsChanged(lineTask, savedTask)
             //project whether to modify
@@ -326,12 +326,12 @@ export class SyncMan {
                 let parentIdChanged = false;
                 let priorityChanged = false;
 
-                let updatedContent = {}
-                if (contentModified) {
+                
+                if (titleModified) {
                     if (this.plugin.settings.debugMode) {
-                        console.log(`Content modified for task ${lineTask_ticktick_id}, ${lineTask.title}, ${savedTask.title}`)
+                        console.log(`Title modified for task ${lineTask_ticktick_id}, ${lineTask.title}, ${savedTask.title}`)
                     }
-                    updatedContent.content = lineTaskContent
+                    savedTask.title = lineTaskTitle
                     contentChanged = true;
                 }
 
@@ -339,7 +339,7 @@ export class SyncMan {
                     if (this.plugin.settings.debugMode) {
                         console.log(`Tags modified for task ${lineTask_ticktick_id}, , ${lineTask.tags}, ${savedTask.tags}`)
                     }
-                    updatedContent.tags = lineTask.tags
+                    savedTask.tags = lineTask.tags
                     tagsChanged = true;
                 }
 
@@ -350,12 +350,7 @@ export class SyncMan {
                         console.log("new: ", lineTask.dueDate,  "old: ", savedTask.dueDate)
                     }
                     //console.log(savedTask.due.date)
-                    if (lineTask.dueDate === "") {
-                        updatedContent.dueString = "no date"
-                    } else {
-                        updatedContent.dueDate = lineTask.dueDate
-                    }
-
+                        savedTask.dueDate = lineTask.dueDate
                     dueDateChanged = true;
                 }
 
@@ -363,26 +358,26 @@ export class SyncMan {
                 if (projectModified) {
                     if (this.plugin.settings.debugMode) {
                         console.log(`Project id modified for task ${lineTask_ticktick_id}, ${lineTask.projectId}, ${savedTask.projectId}`)
-                        console.log("Not handled yet.");
+                        console.log("We'll give it a shot");
                     }
-                    //updatedContent.projectId = lineTask.projectId
-                    //projectChanged = false;
+                    savedTask.projectId = lineTask.projectId
+                    projectChanged = true;
                 }
 
                 //ticktick Rest api has no way to modify parent id
                 if (parentIdModified) {
                     if (this.plugin.settings.debugMode) {
                         console.log(`Parent id modified for task ${lineTask_ticktick_id}, ${lineTask.parentId}, ${savedTask.parentId}`)
-                        console.log("Not handled yet.");
+                        console.log("We'll give it a shot.");
 
                     }
-                    //updatedContent.parentId = lineTask.parentId
-                    //parentIdChanged = false;
+                    savedTask.parentId = lineTask.parentId
+                    parentIdChanged = true;
                 }
 
                 if (priorityModified) {
 
-                    updatedContent.priority = lineTask.priority
+                    savedTask.priority = lineTask.priority
                     priorityChanged = true;
                 }
 
@@ -390,11 +385,12 @@ export class SyncMan {
                 if (contentChanged || tagsChanged || dueDateChanged || projectChanged || parentIdChanged || priorityChanged) {
                     //console.log(updatedContent)
                     //TODO: Breaking SOC here. 
-                    lineTask.modifiedTime = this.plugin.taskParser?.formatDateToISO(new Date());
-                    const updatedTask = await this.plugin.tickTickRestAPI?.UpdateTask(lineTask)
-                    lineTask.path = filepath
-                    await this.plugin.cacheOperation?.updateTaskToCacheByID(lineTask);
+                    savedTask.modifiedTime = this.plugin.taskParser?.formatDateToISO(new Date());
+                    const result = await this.plugin.tickTickRestAPI?.UpdateTask(savedTask)
+                    savedTask.path = filepath
+                    await this.plugin.cacheOperation?.updateTaskToCacheByID(savedTask);
                 }
+                // console.log(result)
 
                 if (statusModified) {
                     if (this.plugin.settings.debugMode) {
@@ -658,7 +654,11 @@ export class SyncMan {
         //Tasks in TickTick, not in Obsidian: Download
         //Tasks in both: check for updates. 
         try {
-            this.plugin.cacheOperation?.saveProjectsToCache();
+            const res = await this.plugin.cacheOperation?.saveProjectsToCache();
+            if (!res) {
+                console.error("probable network connection error.")
+                return;
+            }
             let bModifiedFileSystem = false;
             let allTaskDetails = await this.plugin.tickTickSyncAPI?.getAllTasks();
             let tasksFromTickTic = allTaskDetails.update;
@@ -727,7 +727,7 @@ export class SyncMan {
             // Check for updated tasks in TickTick
             const tasksUpdatedInTickTick = tasksFromTickTic.filter(task => {
                 const modifiedTask = tasksInCache.find(t => t.id === task.id);
-                return modifiedTask && ((modifiedTask.title !== task.title) || new Date(modifiedTask.modifiedTime) > new Date(task.modifiedTime));
+                return modifiedTask && (new Date(modifiedTask.modifiedTime) > new Date(task.modifiedTime));
             });
             //this.dumpArray('Tasks Updated in TickTick:', tasksUpdatedInTickTick);
 
@@ -735,7 +735,7 @@ export class SyncMan {
             // Check for updated tasks in Obsidian
             const tasksUpdatedInObsidian = tasksInCache.filter(task => {
                 const modifiedTask = tasksFromTickTic.find(t => t.id === task.id);
-                return modifiedTask && ((modifiedTask.title !== task.title) || new Date(modifiedTask.modifiedTime) > new Date(task.modifiedTime));
+                return modifiedTask && (new Date(modifiedTask.modifiedTime) > new Date(task.modifiedTime));
             });
             //this.dumpArray('Tasks updated in Obsidian:', tasksUpdatedInObsidian);
 
@@ -816,11 +816,11 @@ export class SyncMan {
         if (!metadata || !metadata.TickTickTasks) {
             return
         }
-        const content = this.plugin.taskParser?.getObsidianUrlFromFilepath(filepath)
+        const taskURL = this.plugin.taskParser?.getObsidianUrlFromFilepath(filepath)
         try {
             metadata.TickTickTasks.forEach(async (taskId) => {
                 const task = await this.plugin.cacheOperation?.loadTaskFromCacheID(taskId);
-                task.content = content;
+                task.title = task.title + " " + taskURL;
                 await this.plugin.cacheOperation?.updateTaskToCacheByID(task);
                 const updatedTask = await this.plugin.tickTickRestAPI?.UpdateTask(task)
             });

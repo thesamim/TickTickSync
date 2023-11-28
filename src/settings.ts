@@ -62,8 +62,14 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 		containerEl.createEl('h2', { text: 'Settings' });
 		
 		const myProjectsOptions: MyProject | undefined = this.plugin.settings.TickTickTasksData?.projects?.reduce((obj, item) => {
+			try { 
 			obj[(item.id).toString()] = item.name;
 			return obj;
+			}
+			catch {
+				obj[0] = "load fail"
+				return obj;
+			}
 		}, {});	  
 		
 		new Setting(containerEl)

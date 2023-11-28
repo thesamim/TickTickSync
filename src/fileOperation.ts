@@ -283,7 +283,7 @@ export class FileOperation {
                 lineToInsert = lastLineInFile;
             }
             let oldLineCount = lines.length;
-            lines = await this.writeLines(tasks, lineToInsert, lines, file, metaData);
+            lines = await this.writeLines(tasks, lineToInsert, lines, file);
             let newLineCount = lines.length
             if (oldLineCount < newLineCount) {
                 const newContent = lines.join('\n');
@@ -299,6 +299,7 @@ export class FileOperation {
 
     private async writeLines(tasks: ITask[], lineToInsert: number, lines: string[], file: TFile): Promise<string[]> {
         tasks.forEach(async (task) => {
+            let itemCount = 0;
 
             let lineText = await this.plugin.taskParser?.convertTaskObjectToTaskLine(task);
             if (task.parentId) {
@@ -317,27 +318,43 @@ export class FileOperation {
                         parentTabs = "\t"
                     }
                     lineText = parentTabs + lineText
+                    if (lineText.includes("\n")) { // are there items?
+                        console.log("child task")
+                        lineText = lineText.replace(/\n/g, "\n" + parentTabs + "\t");
+                        itemCount = (lineText.match(/\n/g) || []).length;
+                    }
                     lines.splice(parentIndex + 1, 0, lineText);
                 } else {
                     console.error("Parent not found, inserting at: ", lineToInsert)
                     lineText = "\t" + lineText
+                    if (lineText.includes("\n")) { // are there items?
+                        console.log("Orphaned child")
+                        lineText = lineText.replace(/\n/g, "\n" + "\t\t");
+                        itemCount = (lineText.match(/\n/g) || []).length;
+                    }
                     lines.splice(lineToInsert, 0, lineText);
                 }
             } else {
+                if (lineText.includes("\n")) { // are there items?
+                    console.log("stand alone task")
+                    lineText = lineText.replace(/\n/g, "\n" + "\t");
+                    itemCount = (lineText.match(/\n/g) || []).length;
+                }
                 lines.splice(lineToInsert, 0, lineText);
             }
+            console.log("inserted: ", lineText)
             await this.plugin.cacheOperation?.appendTaskToCache(task, file.name);
             //We just add the ticktick tag, update it on ticktick now.
             let tags = this.plugin.taskParser?.getAllTagsFromLineText(lineText);
             if (tags) {
                 task.tags = tags;
             }
-            let content = this.plugin.taskParser?.getObsidianUrlFromFilepath(file.name)
-            if (content) {
-                task.content = content;
+            let taskURL = this.plugin.taskParser?.getObsidianUrlFromFilepath(file.name)
+            if (taskURL) {
+                task.title = task.title + " " + taskURL;
             }
             let updatedTask = await this.plugin.tickTickRestAPI?.UpdateTask(task)
-            lineToInsert++;
+            lineToInsert = lineToInsert + 1 + itemCount;
         });
         return lines;
     }

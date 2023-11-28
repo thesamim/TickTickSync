@@ -535,6 +535,7 @@ export class CacheOperation {
 
         } catch (error) {
             console.error(`error downloading projects: ${error}`)
+            this.plugin.syncLock = false;
             return false
         }
 

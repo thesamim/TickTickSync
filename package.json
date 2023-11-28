@@ -1,7 +1,7 @@
 {
 	"name": "tickticksync",
 	"version": "1.0.6",
-	"description": "A bidirectional sync plugin for TickTick",
+	"description": "Sync TickTick tasks to Obsidian, and Obsidian tasks to TickTick",
 	"main": "main.js",
 	"scripts": {
 		"prepare": "npm run build-without-tsc",
@@ -30,6 +30,7 @@
 		"obsidian": "latest",
 		"ticktick-api-lvt": "github:thesamim/ticktick-api-lvt",
 		"tslib": "2.4.0",
-		"typescript": "4.7.4"
+		"typescript": "4.7.4", 
+		"obsidian-task": "github:obsidian-tasks-group/obsidian-tasks"
 	}
 }

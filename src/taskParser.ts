@@ -130,6 +130,8 @@ export class TaskParser {
     async convertTaskObjectToTaskLine(task: ITask): Promise<string> {
         let resultLine = "";
 
+        task.title = this.stripOBSUrl(task.title);
+
         resultLine = `- [${task.status > 0 ? 'X' : ' '}] ${task.title}`;
 
         //add Tags
@@ -150,11 +152,32 @@ export class TaskParser {
         resultLine = this.addTickTickLink(resultLine, url);
         resultLine = this.addTickTickId(resultLine, task.id);
 
+        if (task.items && task.items.length > 0) {
+            resultLine = this.addItems(resultLine, task.items)
+        }
 
 
         return resultLine;
 
     }
+    private stripOBSUrl(title: string): string {
+        console.log(title)
+        title = title.replace(/\[.*?\]\(obsidian:\/\/open\?vault=.*?&file=.*?\)/g, "");
+        console.log(title)
+        return title;
+    }
+
+    private addItems(resultLine: string, items: any[]): string {
+        //TODO count indentations?
+        items.forEach(item => {
+            let completion = item.status > 0? "- [X]" : "- [ ]"; 
+            resultLine = `${resultLine} \n${completion} ${item.title}`;
+        });
+        return resultLine;
+    }
+
+
+
     private addPriorityToLine(resultLine: string, task: ITask) {
         let priority = this.translateTickTickToObsidian(task.priority);
         if (priority != null) {
@@ -278,10 +301,10 @@ export class TaskParser {
         const task: ITask = {
             id: TickTick_id || "",
             projectId: projectId,
-            title: title,
-            //todo: look for actual content! For now, using description
+            title: title + " " + description,
+            //todo: Not cloberring the content field, what should we do?
             //content: ??
-            content: description,
+            // content: description,
             parentId: parentId || "",
             dueDate: dueDate || '',
             //TickTick, for some reason, will derive a start date from due date, and eff up the date displayed. 
@@ -322,7 +345,7 @@ export class TaskParser {
 
     addChildToParent(parentTask: ITask, childId: string) {
         if (!parentTask.childIds) {
-            parentTask.childIds = []; 
+            parentTask.childIds = [];
         }
         parentTask.childIds.push(childId);
         return parentTask;
@@ -574,7 +597,7 @@ export class TaskParser {
         return formattedDate;
     }
 
-
+    //TODO fix this.
     isMarkdownTask(str: string): boolean {
         const taskRegex = /^\s*-\s+\[([x ])\]/;
         return taskRegex.test(str);
