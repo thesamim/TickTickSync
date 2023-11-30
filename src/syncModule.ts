@@ -727,7 +727,7 @@ export class SyncMan {
             // Check for updated tasks in TickTick
             const tasksUpdatedInTickTick = tasksFromTickTic.filter(task => {
                 const modifiedTask = tasksInCache.find(t => t.id === task.id);
-                return modifiedTask && (new Date(modifiedTask.modifiedTime) > new Date(task.modifiedTime));
+                return modifiedTask && (new Date(modifiedTask.modifiedTime) < new Date(task.modifiedTime));
             });
             //this.dumpArray('Tasks Updated in TickTick:', tasksUpdatedInTickTick);
 
@@ -810,7 +810,7 @@ export class SyncMan {
 
 
     //After renaming the file, check all tasks in the file and update all links.
-    //TODO: probable bug: we're just clobering task content here. Should ought to do a comparison.
+    //TODO: Consider removing this. We're not going to track obsURL in cache. (Are we?)
     async updateTaskContent(filepath: string) {
         const metadata = await this.plugin.cacheOperation?.getFileMetadata(filepath)
         if (!metadata || !metadata.TickTickTasks) {
@@ -820,8 +820,9 @@ export class SyncMan {
         try {
             metadata.TickTickTasks.forEach(async (taskId) => {
                 const task = await this.plugin.cacheOperation?.loadTaskFromCacheID(taskId);
-                task.title = task.title + " " + taskURL;
+                //Cache the title without the URL because that's what we're going to do content compares on.
                 await this.plugin.cacheOperation?.updateTaskToCacheByID(task);
+                task.title = task.title + " " + taskURL;
                 const updatedTask = await this.plugin.tickTickRestAPI?.UpdateTask(task)
             });
         } catch (error) {

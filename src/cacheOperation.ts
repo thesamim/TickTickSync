@@ -261,6 +261,7 @@ export class CacheOperation {
                 await this.plugin.saveSettings();
             }
             task.path = filePath;
+            task.title = this.plugin.taskParser?.stripOBSUrl(task.title);
             this.plugin.settings.TickTickTasksData.tasks.push(task);
             await this.addTaskToMetadata(filePath, task.id, task.projectId)
 

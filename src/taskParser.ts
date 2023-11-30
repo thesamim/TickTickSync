@@ -3,6 +3,9 @@ import TickTickSync from "../main";
 import { Tick } from 'ticktick-api-lvt'
 import { ITask } from "ticktick-api-lvt/dist/types/Task"
 import { ITag } from 'ticktick-api-lvt/dist/types/Tag';
+import {Task, TaskRegularExpressions} from "obsidian-task/src/Task"
+
+
 
 
 
@@ -86,7 +89,7 @@ const priorityMapping = [
 
 
 const REGEX = {
-    TickTick_TAG: new RegExp(`^[\\s]*[-] \\[[x ]\\] [\\s\\S]*${keywords.TickTick_TAG}[\\s\\S]*$`, "i"),
+    TickTick_TAG: new RegExp(`^[\\s]*[\\s\\S]*${keywords.TickTick_TAG}[\\s\\S]*$`, "i"),
     TickTick_ID: /\[ticktick_id::\s*[\d\S]+\]/,
     TickTick_ID_NUM: /\[ticktick_id::\s*(.*?)\]/,
     TickTick_LINK: /\[link\]\(.*?\)/,
@@ -131,6 +134,7 @@ export class TaskParser {
         let resultLine = "";
 
         task.title = this.stripOBSUrl(task.title);
+        console.log("added Task title", task.title)
 
         resultLine = `- [${task.status > 0 ? 'X' : ' '}] ${task.title}`;
 
@@ -160,10 +164,8 @@ export class TaskParser {
         return resultLine;
 
     }
-    private stripOBSUrl(title: string): string {
-        console.log(title)
+    stripOBSUrl(title: string): string {
         title = title.replace(/\[.*?\]\(obsidian:\/\/open\?vault=.*?&file=.*?\)/g, "");
-        console.log(title)
         return title;
     }
 
@@ -325,8 +327,11 @@ export class TaskParser {
     hasTickTickTag(text: string) {
         //console.log("Check whether TickTick tag is included")
         //console.log(text)
-        // console.log("Regex is: ", REGEX.TickTick_TAG)
-        return (REGEX.TickTick_TAG.test(text))
+        if (this.isMarkdownTask(text)) {
+            return REGEX.TickTick_TAG.test(text);
+        } else {
+            return false;
+        }
     }
 
 
@@ -417,8 +422,11 @@ export class TaskParser {
 
     //task content compare
     isTitleChanged(lineTask: ITask, TickTickTask: ITask) {
-        const lineTaskTitle = lineTask.title
-        const TickTickTaskTitle = TickTickTask.title
+        //TODO: This is ugly, but I'm tired of chasing it. There's still a place where 
+        //      we're adding the OBSUrl to the tile when we don't need to. Everything else
+        //      works, so just kludge it for now.
+        const lineTaskTitle = this.stripOBSUrl(lineTask.title)
+        const TickTickTaskTitle = this.stripOBSUrl(TickTickTask.title)
         //Whether content is modified?
         const contentModified = (lineTaskTitle === TickTickTaskTitle)
         return (!contentModified)
@@ -598,9 +606,14 @@ export class TaskParser {
     }
 
     //TODO fix this.
-    isMarkdownTask(str: string): boolean {
+    oldMarkdownTask(str: string): boolean {
         const taskRegex = /^\s*-\s+\[([x ])\]/;
         return taskRegex.test(str);
+    }
+
+    isMarkdownTask(str: string): boolean { 
+        const forRealRegex = TaskRegularExpressions.taskRegex;
+        return forRealRegex.test(str);
     }
 
     addTickTickTag(str: string): string {

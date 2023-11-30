@@ -304,7 +304,7 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 										for (const key in metadatas) {
 											const value = metadatas[key];
 											//console.log(value)
-											const newContent = this.plugin.taskParser?.getObsidianUrlFromFilepath(key)
+											const obsidianURL = this.plugin.taskParser?.getObsidianUrlFromFilepath(key)
 											for(const taskId of value.TickTickTasks) {
 												
 												//console.log(`${taskId}`)
@@ -323,7 +323,7 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 													console.log(`The content of the task ${taskId} is empty.`)
 												}							
 												const oldContent = taskObject?.content ?? '';
-												if(!oldContent.includes(newContent)){
+												if(!oldContent.includes(obsidianURL)){
 													// console.log('Preparing to update description.')
 													// console.log(oldContent)
 													// console.log(newContent)
