@@ -100,7 +100,6 @@ export class SyncMan {
 
     async lineContentNewTaskCheck(editor: Editor, view: MarkdownView): Promise<void> {
         //const editor = this.app.workspace.activeEditor?.editor
-        //const view =this.app.workspace.getActiveViewOfType(MarkdownView)
 
         const filepath = view.file?.path
         const fileContent = view?.data
@@ -174,7 +173,6 @@ export class SyncMan {
         }
         else {
             view = this.app.workspace.getActiveViewOfType(MarkdownView);
-            //const editor = this.app.workspace.activeEditor?.editor
             file = this.app.workspace.getActiveFile()
             filepath = file?.path
             //Use view.data instead of vault.read. vault.read is delayed
