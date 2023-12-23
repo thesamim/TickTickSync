@@ -29,7 +29,7 @@ Beta two \[1.0.7\]
 
 Further Review Change requests implemented. No funtionality change.
 
-### Beta two \[1.0.8\]
+### Beta three \[1.0.8\]
 
 1.  TickTick Task description will no longer be over-written
 2.  Obsidian URL added to Task Title instead of over-writing description
