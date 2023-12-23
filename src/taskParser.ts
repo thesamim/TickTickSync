@@ -4,6 +4,7 @@ import { Tick } from 'ticktick-api-lvt'
 import { ITask } from "ticktick-api-lvt/dist/types/Task"
 import { ITag } from 'ticktick-api-lvt/dist/types/Tag';
 import {Task, TaskRegularExpressions} from "obsidian-task/src/Task"
+import { TaskLocation } from 'obsidian-task/src/TaskLocation';
 
 
 
@@ -108,7 +109,8 @@ const REGEX = {
         REMOVE_TickTick_LINK: /\[link\]\(.*?\)/,
     },
     // ALL_TAGS: /#[\w\u4e00-\u9fa5-]+/g,
-    ALL_TAGS: /#[\w\u4e00-\u9fa5-]+(?<!\b(\/#q))/g, //tickitck has a #q in the middle of the URL. bypass it.   
+    // ALL_TAGS: /#[\w\u4e00-\u9fa5-]+(?<!\b(\/#q))/g, //tickitck has a #q in the middle of the URL. bypass it.   
+    ALL_TAGS: /(?<!#)#[^pq\s]+\b/g, //Forget Qs and Ps. No pun intented.
     TASK_CHECKBOX_CHECKED: /- \[(x|X)\] /,
     TASK_INDENTATION: /^(\s{2,}|\t)(-|\*)\s+\[(x|X| )\]/,
     TAB_INDENTATION: /^(\t+)/,
@@ -134,7 +136,6 @@ export class TaskParser {
         let resultLine = "";
 
         task.title = this.stripOBSUrl(task.title);
-        console.log("added Task title", task.title)
 
         resultLine = `- [${task.status > 0 ? 'X' : ' '}] ${task.title}`;
 
@@ -151,9 +152,8 @@ export class TaskParser {
         }
         //add priority
         resultLine = this.addPriorityToLine(resultLine, task);
-        let url = this.createURL(task.id);
-
-        resultLine = this.addTickTickLink(resultLine, url);
+        
+        resultLine = this.addTickTickLink(resultLine, task.id, task.projectId);
         resultLine = this.addTickTickId(resultLine, task.id);
 
         if (task.items && task.items.length > 0) {
@@ -173,7 +173,7 @@ export class TaskParser {
         //TODO count indentations?
         items.forEach(item => {
             let completion = item.status > 0? "- [X]" : "- [ ]"; 
-            resultLine = `${resultLine} \n${completion} ${item.title}`;
+            resultLine = `${resultLine} \n${completion} ${item.title} %%${item.id}%%`;
         });
         return resultLine;
     }
@@ -297,13 +297,16 @@ export class TaskParser {
         const TickTick_id = this.getTickTickIdFromLineText(textWithoutIndentation)
         const priority = this.getTaskPriority(textWithoutIndentation)
         if (filepath) {
-            let url = encodeURI(`obsidian://open?vault=${this.app.vault.getName()}&file=${filepath}`)
-            description = `[${filepath}](${url})`;
+            let taskURL = this.plugin.taskParser?.getObsidianUrlFromFilepath(filepath)
+            if (taskURL) {
+                description = taskURL;
+            }
+            
         }
         const task: ITask = {
             id: TickTick_id || "",
             projectId: projectId,
-            title: title + " " + description,
+            title: title.trim() + " " + description,
             //todo: Not cloberring the content field, what should we do?
             //content: ??
             // content: description,
@@ -404,14 +407,17 @@ export class TaskParser {
 
     //get all tags from task text
     getAllTagsFromLineText(lineText: string) {
-        let tags = lineText.match(REGEX.ALL_TAGS);
+        // let tags = lineText.matchAll(REGEX.ALL_TAGS);
 
-        if (tags) {
-            // Remove '#' from each tag
-            tags = tags.map(tag => tag.replace('#', ''));
-        }
+        // if (tags) {
+        //     // Remove '#' from each tag
+        //     tags = tags.map(tag => tag.replace('#', ''));
+        // }
+        const tags = [...lineText.matchAll(REGEX.ALL_TAGS)];
+        const tagArray = tags.map(tag => tag[0].replace('#', ''));
+        // tagArray.forEach(tag => console.log(typeof tag, tag)) 
 
-        return tags;
+        return tagArray;
     }
 
     //get checkbox status
@@ -428,7 +434,7 @@ export class TaskParser {
         const lineTaskTitle = this.stripOBSUrl(lineTask.title)
         const TickTickTaskTitle = this.stripOBSUrl(TickTickTask.title)
         //Whether content is modified?
-        const contentModified = (lineTaskTitle === TickTickTaskTitle)
+        const contentModified = (lineTaskTitle.trim() === TickTickTaskTitle.trim())
         return (!contentModified)
     }
 
@@ -627,8 +633,8 @@ export class TaskParser {
     }
 
 
-    addTickTickLink(linetext: string, taskId: string): string {
-        let url = this.createURL(taskId)
+    addTickTickLink(linetext: string, taskId: string, projecId: string): string {
+        let url = this.createURL(taskId, projecId)
         const regex = new RegExp(`${keywords.TickTick_TAG}`, "g");
         const link = `[link](${url})`
         return linetext.replace(regex, link + ' ' + '$&');
@@ -641,8 +647,14 @@ export class TaskParser {
     }
 
     //ticktick specific url
-    createURL(newTaskId: string): string {
-        return `https://ticktick.com/webapp/#q/all/tasks/${newTaskId}`;
+    createURL(newTaskId: string, projectId: string): string {
+        let url = "";
+        if (projectId) {
+            url = `https://ticktick.com/webapp/#p/${projectId}/tasks/${newTaskId}`;
+        } else {
+            url = `https://ticktick.com/webapp/#q/all/tasks/${newTaskId}`;
+        }
+        return url;
     }
 
     translateTickTickToObsidian(ticktickPriority: number) {
@@ -653,5 +665,15 @@ export class TaskParser {
     translateObsidianToTickTick(obsidianPriority: number) {
         const mapping = priorityMapping.find((item) => item.obsidian === obsidianPriority);
         return mapping ? mapping.ticktick : null;
+    }
+
+    async taskFromLine(line: string, path: string): Promise<Task> {
+        let taskLocation: TaskLocation = TaskLocation.fromUnknownPosition(path);
+        let task = Task.fromLine({
+            line,
+            taskLocation: TaskLocation.fromUnknownPosition(path),
+            fallbackDate: null,
+        });
+        return task;
     }
 }

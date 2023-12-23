@@ -20,6 +20,10 @@
 	],
 	"author": "thesamim",
 	"license": "GNU GPLv3",
+	"dependencies": {
+		"bson-objectid": "^2.0.4",
+		"obsidian-task": "github:obsidian-tasks-group/obsidian-tasks"
+	},
 	"devDependencies": {
 		"@types/node": "^16.11.6",
 		"@typescript-eslint/eslint-plugin": "5.29.0",
@@ -30,7 +34,6 @@
 		"obsidian": "latest",
 		"ticktick-api-lvt": "github:thesamim/ticktick-api-lvt",
 		"tslib": "2.4.0",
-		"typescript": "4.7.4", 
-		"obsidian-task": "github:obsidian-tasks-group/obsidian-tasks"
+		"typescript": "4.7.4"
 	}
 }

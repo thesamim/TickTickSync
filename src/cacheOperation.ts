@@ -3,8 +3,12 @@ import TickTickSync from "../main";
 import { ITask } from 'ticktick-api-lvt/dist/types/Task';
 import { IProject } from 'ticktick-api-lvt/dist/types/Project';
 
+type TaskDetail = {
+    taskId: string,
+    taskItems: string[]
+}
 type FileMetadata = {
-    TickTickTasks: string[];
+    TickTickTasks: TaskDetail[];
     TickTickCount: number;
     defaultProjectId: string;
 };
@@ -20,14 +24,53 @@ export class CacheOperation {
     }
 
 
-    async addTaskToMetadata(filepath: string, taskId: string, projectId: string) {
-        let metaData: FileMetadata = await this.getFileMetadata(filepath, projectId)
-        metaData.TickTickTasks.push(taskId);
+    async addTaskToMetadata(filepath: string, task: ITask) {
+        let metaData: FileMetadata = await this.getFileMetadata(filepath, task.projectId)
+        let taskMeta: TaskDetail;
+        taskMeta = { taskId: task.id, taskItems: [] };
+        if (task.items && task.items.length > 0) {
+            task.items.forEach((item) => { 
+                taskMeta.taskItems.push(item.id)
+            });
+        }
+        metaData.TickTickTasks.push(taskMeta);
         metaData.TickTickCount = metaData.TickTickTasks.length;
     }
 
+    async addTaskItemToMetadata(filepath: string, taskId: string, itemid: string, projectId: string) {
+        let metaData: FileMetadata = await this.getFileMetadata(filepath, projectId)
+        const task = metaData.TickTickTasks.find(task => task.taskId === taskId)
+        task?.taskItems.push(itemid)
+        metaData.TickTickCount = metaData.TickTickTasks.length;
+    }
 
-    async getFileMetadata(filepath: string, projectId: string| null): Promise<FileMetadata> {
+    //This removes an Item from the metadata, and from the task
+    //assumes file metadata has been looked up.
+    async removeTaskItem(fileMetaData: FileMetadata, taskId: string, taskItemIds: string[]) {
+        if (fileMetaData) {
+            const taskIndex = fileMetaData.TickTickTasks.findIndex(task => task.taskId === taskId);
+            if (taskIndex !== -1) {
+                const updatedMetaDataTask = fileMetaData.TickTickTasks[taskIndex];
+                let task = await this.loadTaskFromCacheID(taskId)
+                let taskItems = task.items;
+                taskItemIds.forEach(taskItemId => {
+                    //delete from Task
+                    taskItems = taskItems.filter(item => item.id !== taskItemId);
+                });
+                //update will take care of metadata update.
+                task.items = taskItems;
+                task = await this.updateTaskToCacheByID(task);
+                return task;
+            } else {
+                console.warn(`Task '${taskId}' not found in metadata`);
+            }
+
+        };
+        return null;
+    }
+
+
+    async getFileMetadata(filepath: string, projectId: string | null): Promise<FileMetadata> {
         let metaData = this.plugin.settings.fileMetadata[filepath];
         if (!metaData) {
             //TODO is this valid?
@@ -42,7 +85,7 @@ export class CacheOperation {
     }
 
 
-    async newEmptyFileMetadata(filepath: string, projectId: string|null): Promise<FileMetadata>{
+    async newEmptyFileMetadata(filepath: string, projectId: string | null): Promise<FileMetadata> {
         const metadatas = this.plugin.settings.fileMetadata
         if (metadatas[filepath]) {
             //todo: verify did doesn't break anything.
@@ -82,13 +125,13 @@ export class CacheOperation {
 
     async deleteTaskIdFromMetadata(filepath: string, taskId: string) {
         // console.log(filepath)
-        const metadata = await this.getFileMetadata(filepath)
+        const metadata: FileMetadata = await this.getFileMetadata(filepath, null)
         // console.log(metadata)
         const newTickTickTasks = metadata.TickTickTasks.filter(function (element) {
-            return element !== taskId
+            return element.taskId !== taskId
         })
         const newTickTickCount = newTickTickTasks.length;
-        let newMetadata = {}
+        let newMetadata: FileMetadata = {}
         newMetadata.TickTickTasks = newTickTickTasks
         newMetadata.TickTickCount = newTickTickCount
         await this.updateFileMetadata(filepath, newMetadata);
@@ -101,7 +144,7 @@ export class CacheOperation {
             var tasks = metadatas[file].TickTickTasks;
             var count = metadatas[file].TickTickCount;
 
-            if (tasks && tasks.includes(taskId)) {
+            if (tasks && tasks.find((task: TaskDetail) => task.taskId === taskId)) {
                 this.deleteTaskIdFromMetadata(file, taskId)
                 break;
             }
@@ -150,6 +193,7 @@ export class CacheOperation {
 
             }
 
+            //TODO: Finish this!!
             //const fileContent = await this.app.vault.read(file)
             //check if file include all tasks
 
@@ -221,7 +265,7 @@ export class CacheOperation {
             metadata.TickTickCount = 0;
         }
 
-        this.updateFileMetadata(filepath, metadata);
+        await this.updateFileMetadata(filepath, metadata);
     }
 
 
@@ -263,7 +307,7 @@ export class CacheOperation {
             task.path = filePath;
             task.title = this.plugin.taskParser?.stripOBSUrl(task.title);
             this.plugin.settings.TickTickTasksData.tasks.push(task);
-            await this.addTaskToMetadata(filePath, task.id, task.projectId)
+            await this.addTaskToMetadata(filePath, task)
 
 
         } catch (error) {
@@ -272,7 +316,7 @@ export class CacheOperation {
     }
 
     //Read the task with the specified id
-    async loadTaskFromCacheID(taskId:string) {
+    async loadTaskFromCacheID(taskId: string) {
         // console.log("loadTaskFromCacheID")
         try {
 
@@ -298,7 +342,7 @@ export class CacheOperation {
                 filePath = await this.getFilepathForProjectId(task.projectId);
             }
             await this.appendTaskToCache(task, filePath);
-
+            return task;
         } catch (error) {
             console.error(`Error updating task to Cache: ${error}`);
             return [];
@@ -309,7 +353,7 @@ export class CacheOperation {
         for (const key in metaDatas) {
             let filepath = key
             const value = metaDatas[key];
-            if (value.TickTickTasks.includes(taskId)) {
+            if (value.TickTickTasks.find((task: TaskDetail) => task.taskId === taskId)) {
                 return key;
             }
         }
@@ -361,21 +405,18 @@ export class CacheOperation {
 
 
     //open a task status
-    async reopenTaskToCacheByID(taskId: string): Promise<string>{
+    async reopenTaskToCacheByID(taskId: string): Promise<string> {
         let projectId = null;
         try {
             const savedTasks = this.plugin.settings.TickTickTasksData.tasks
 
 
-            // Loop through the array to find the item with the specified ID
-            for (let i = 0; i < savedTasks.length; i++) {
-                if (savedTasks[i].id === taskId) {
-                    //Modify the properties of the object
-                    savedTasks[i].status = 0;
-                    projectId = savedTasks[i].projectId;
-                    break; // Found and modified the item, break out of the loop
-                }
+            const taskIndex = savedTasks.findIndex((task) => task.id === taskId);
+            if (taskIndex > 0) {
+                savedTasks[taskIndex].status = 0;
+                projectId = savedTasks[taskIndex].projectId;
             }
+
             this.plugin.settings.TickTickTasksData.tasks = savedTasks
             return projectId;
 
@@ -393,15 +434,12 @@ export class CacheOperation {
         try {
             const savedTasks = this.plugin.settings.TickTickTasksData.tasks
 
-            // Loop through the array to find the item with the specified ID
-            for (let i = 0; i < savedTasks.length; i++) {
-                if (savedTasks[i].id === taskId) {
-                    //Modify the properties of the object
-                    savedTasks[i].status = 2;
-                    projectId = savedTasks[i].projectId;
-                    break; // Found and modified the item, break out of the loop
-                }
+            const taskIndex = savedTasks.findIndex((task) => task.id === taskId);
+            if (taskIndex > 0) {
+                savedTasks[taskIndex].status = 2;
+                projectId = savedTasks[taskIndex].projectId;
             }
+
             this.plugin.settings.TickTickTasksData.tasks = savedTasks
             return projectId;
 
@@ -451,7 +489,7 @@ export class CacheOperation {
     async getProjectIdByNameFromCache(projectName: string) {
         try {
             const savedProjects = this.plugin.settings.TickTickTasksData.projects
-            const targetProject = savedProjects.find((obj: IProject ) => obj.name.toLowerCase() === projectName.toLowerCase());
+            const targetProject = savedProjects.find((obj: IProject) => obj.name.toLowerCase() === projectName.toLowerCase());
             const projectId = targetProject ? targetProject.id : null;
             return (projectId)
         } catch (error) {

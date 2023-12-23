@@ -16,9 +16,11 @@ import { FileOperation } from './src/fileOperation';
 //sync module
 import { SyncMan } from './src/syncModule';
 
+import ObjectID from 'bson-objectid';
 
 //import modal
 import { SetDefalutProjectInTheFilepathModal as SetDefaultProjectInTheFilepathModal } from 'src/modal';
+
 
 export default class TickTickSync extends Plugin {
     settings: TickTickSyncSettings;
@@ -55,10 +57,59 @@ export default class TickTickSync extends Plugin {
 
         if (this.settings.debugMode) {
             // This creates an icon in the left ribbon.
-		    const ribbonIconEl = this.addRibbonIcon('dice', 'TickTickSync', (evt: MouseEvent) => {
-			// Called when the user clicks the icon.
-			this.scheduledSynchronization();
-		});
+            const ribbonIconEl = this.addRibbonIcon('sync', 'TickTickSync', (evt: MouseEvent) => {
+                // Called when the user clicks the icon.
+                this.scheduledSynchronization();
+                this.syncLock = false
+                new Notice(`Sync completed..`)
+            });
+            //Used for quick and dirty experiments.
+            const ribbonIconEl1 = this.addRibbonIcon('check', 'TickTickSync', async (evt: MouseEvent) => {
+                const markdownLeaves = this.app.workspace.getLeavesOfType("markdown");
+                markdownLeaves.forEach((leaf) => {
+                    console.log(leaf)
+                    const filesToSync = this.settings.fileMetadata;
+                    if (this.settings.debugMode) {
+                        console.log(filesToSync)
+                    }
+        
+                    for (let fileKey in filesToSync) {
+                        if (this.settings.debugMode) {
+                            console.log(fileKey)
+                            let file = this.app.vault.getAbstractFileByPath(fileKey)
+                            leaf.openFile(file)
+                        }
+                    }
+                    
+                });
+            // Called when the user clicks the icon.
+
+            // const Oid = ObjectID();
+            // console.log("ojbect id: ", Oid.id, Oid.str, Oid.toHexString());
+            // const line = "   - [ ] Item 1 #foo #bar #ticktick #p [link](https://ticktick.com/webapp/#p/64f95c988f089e05b13c3f60/tasks/65665593815a004483066165) #ticktick %%[ticktick_id:: 6566559";
+
+
+            // const pattern = /(?<!#)#[^pq\s]+\b/g;
+
+            // let tags = [...line.matchAll(pattern)];
+            // tags = tags.map(tag => tag[0].replace('#', ''));
+            // tags.forEach(tag => console.log(typeof tag, tag)) 
+
+
+
+            // const cursor = this.app.workspace.getActiveViewOfType(MarkdownView)?.editor.getCursor()
+            // const line = cursor?.line
+            // const lineText = this.app.workspace.getActiveViewOfType(MarkdownView)?.editor.getLine(line)
+
+            // const file = this.app.workspace.getActiveFile()
+            // const filepath = file?.path
+            // const parsedTask = await this.taskParser?.taskFromLine(lineText, filepath)
+            // const indents = parsedTask?.indentation;
+            // console.log(line)
+            // console.log(lineText)
+            // console.log(indents?.length)
+            // console.log(`[${indents}]`)
+            });
         }
         //Key event monitoring, judging line breaks and deletions
         this.registerDomEvent(document, 'keyup', async (evt: KeyboardEvent) => {
@@ -66,14 +117,15 @@ export default class TickTickSync extends Plugin {
                 return
             }
             //console.log(`key pressed`)
-
+            const markDownView = this.app.workspace.getActiveViewOfType(MarkdownView);
+            const editor = markDownView?.app.workspace.activeEditor?.editor;
             //Determine the area where the click event occurs. If it is not in the editor, return
-            if (!(this.app.workspace.activeEditor?.editor?.hasFocus())) {
+
+            if ((editor) && !(editor.hasFocus())) {
                 // (console.log(`editor is not focused`))
                 return
             }
-            const view = this.app.workspace.getActiveViewOfType(MarkdownView);
-            const editor = view?.app.workspace.activeEditor?.editor
+
 
             if (evt.key === 'ArrowUp' || evt.key === 'ArrowDown' || evt.key === 'ArrowLeft' || evt.key === 'ArrowRight' || evt.key === 'PageUp' || evt.key === 'PageDown') {
                 //console.log(`${evt.key} arrow key is released`);
@@ -106,11 +158,13 @@ export default class TickTickSync extends Plugin {
             if (!this.settings.apiInitialized) {
                 return
             }
+            if (!(this.checkModuleClass())) {
+                return
+            }
+
             //console.log('click', evt);
             if (this.app.workspace.activeEditor?.editor?.hasFocus()) {
                 //console.log('Click event: editor is focused');
-                const view = this.app.workspace.getActiveViewOfType(MarkdownView)
-                const editor = this.app.workspace.activeEditor?.editor
                 this.lineNumberCheck()
             }
             else {
@@ -119,10 +173,7 @@ export default class TickTickSync extends Plugin {
 
             const target = evt.target as HTMLInputElement;
 
-            if (target.type === "checkbox") {
-                if (!(this.checkModuleClass())) {
-                    return
-                }
+            if (target && target.type === "checkbox") {
                 this.checkboxEventhandle(evt)
                 //this.tickTickSync?.fullTextModifiedTaskCheck()
 
@@ -260,8 +311,6 @@ export default class TickTickSync extends Plugin {
 
     async onunload() {
         console.log(`TickTickSync unloaded!`)
-        await this.saveSettings()
-
     }
 
     async loadSettings() {
@@ -395,17 +444,18 @@ export default class TickTickSync extends Plugin {
     }
 
     async lineNumberCheck() {
-        const view = this.app.workspace.getActiveViewOfType(MarkdownView)
-        if (view) {
-            const cursor = view.app.workspace.getActiveViewOfType(MarkdownView)?.editor.getCursor()
+        const markDownView = this.app.workspace.getActiveViewOfType(MarkdownView);
+        if (markDownView) {
+            const cursor = markDownView?.editor.getCursor()
             const line = cursor?.line
             //const lineText = view.editor.getLine(line)
-            const fileContent = view.data
+            const fileContent = markDownView.data
 
             //console.log(line)
             //const fileName = view.file?.name
-            const fileName = view.app.workspace.getActiveViewOfType(MarkdownView)?.app.workspace.activeEditor?.file?.name
-            const filepath = view.app.workspace.getActiveViewOfType(MarkdownView)?.app.workspace.activeEditor?.file?.path
+            const file = markDownView?.app.workspace.activeEditor?.file;
+            const fileName = file?.name
+            const filepath = file?.path
             if (typeof this.lastLines === 'undefined' || typeof this.lastLines.get(fileName as string) === 'undefined') {
                 this.lastLines.set(fileName as string, line as number);
                 return
@@ -415,12 +465,12 @@ export default class TickTickSync extends Plugin {
             if (this.lastLines.has(fileName as string) && line !== this.lastLines.get(fileName as string)) {
                 const lastLine = this.lastLines.get(fileName as string)
                 if (this.settings.debugMode) {
-                    console.log('Line changed!', `current line is ${line}`, `last line is ${lastLine}`);
+                    // console.log('Line changed!', `current line is ${line}`, `last line is ${lastLine}`);
                 }
 
 
                 //Perform the operation you want
-                const lastLineText = view.editor.getLine(lastLine as number)
+                const lastLineText = markDownView.editor.getLine(lastLine as number)
                 // console.log(lastLineText)
                 if (!(this.checkModuleClass())) {
                     return
@@ -462,7 +512,6 @@ export default class TickTickSync extends Plugin {
         if (match) {
             const taskId = this.taskParser?.getTickTickIdFromLineText(taskElement.textContent);
             //console.log(taskId)
-            //const view = this.app.workspace.getActiveViewOfType(MarkdownView);
             if (target.checked) {
                 this.tickTickSync?.closeTask(taskId);
             } else {
@@ -503,12 +552,12 @@ export default class TickTickSync extends Plugin {
         if (!(this.checkModuleClass())) {
             return
         }
-        const view = this.app.workspace.getActiveViewOfType(MarkdownView)
-        if (!view) {
+        const markDownView = this.app.workspace.getActiveViewOfType(MarkdownView)
+        if (!markDownView) {
             this.statusBar.setText('');
         }
         else {
-            const filepath = this.app.workspace.getActiveViewOfType(MarkdownView)?.file.path
+            const filepath = markDownView?.file?.path
             if (filepath === undefined) {
                 // console.log(`file path undefined`)
                 return

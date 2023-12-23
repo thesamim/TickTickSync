@@ -156,7 +156,7 @@ export class TickTickRestAPI {
 
 
     // get a task by Id
-    async getTaskById(taskId: string, projectId: string) {
+    async getTaskById(taskId: string, projectId: string) : Promise<ITask>  {
         await this.initializeAPI();
         if (!taskId) {
             throw new Error('taskId is required');

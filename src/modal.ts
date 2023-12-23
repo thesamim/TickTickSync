@@ -1,4 +1,4 @@
-import { App, Modal ,Setting } from "obsidian";
+import { App, Modal, Setting } from "obsidian";
 import TickTickSync from "../main"
 
 
@@ -10,62 +10,66 @@ interface MyProject {
 export class SetDefalutProjectInTheFilepathModal extends Modal {
     defaultProjectId: string
     defaultProjectName: string
-    filepath:string
-    plugin:TickTickSync
-    
-    
-    constructor(app: App,plugin:TickTickSync, filepath:string) {
+    filepath: string
+    plugin: TickTickSync
+
+
+    constructor(app: App, plugin: TickTickSync, filepath: string) {
         super(app);
         this.filepath = filepath
         this.plugin = plugin
         this.open()
     }
-    
+
     async onOpen() {
         const { contentEl } = this;
         contentEl.empty();
         contentEl.createEl('h5', { text: 'Set default project for TickTick tasks in the current file' });
-        
+
         this.defaultProjectId = await this.plugin.cacheOperation?.getDefaultProjectIdForFilepath(this.filepath)
         this.defaultProjectName = await this.plugin.cacheOperation?.getProjectNameByIdFromCache(this.defaultProjectId)
         // console.log(this.defaultProjectId)
         // console.log(this.defaultProjectName)
-        const myProjectsOptions: MyProject | undefined = this.plugin.settings.TickTickTasksData?.projects?.reduce((obj, item) => {
-            obj[(item.id).toString()] = item.name;
-            return obj;
+        const fileMetadata = this.plugin.settings.fileMetadata;
+        const defaultProjectIds = Object.values(fileMetadata).map(meta => meta.defaultProjectId);
+        const allowableProjects = this.plugin.settings.TickTickTasksData?.projects?.filter(project => !defaultProjectIds.includes(project.id));
+        const myProjectsOptions: MyProject | undefined = allowableProjects.reduce((obj, item) => {
+                console.log(obj, item.id, item.name)
+                obj[item.id] = item.name;
+                return obj;
         }, {}
+
         );
-        
-        
-        
+
+
+
         new Setting(contentEl)
-        .setName('Default project')
-        //.setDesc('Set default project for TickTick tasks in the current file')
-        .addDropdown(component =>
-            component
-            .addOption(this.defaultProjectId,this.defaultProjectName)
-            .addOptions(myProjectsOptions)
-            .onChange(async (value)=>{
-                // console.log(`project id is ${value}`)
-                //this.plugin.settings.defaultProjectId = this.result
-                //this.plugin.settings.defaultProjectName = this.plugin.cacheOperation?.getProjectNameByIdFromCache(this.result)
-                //this.plugin.saveSettings()
-                await this.plugin.cacheOperation?.setDefaultProjectIdForFilepath(this.filepath,value)
-                this.plugin.setStatusBarText()
-                this.close();
-                
-            })
-            
+            .setName('Default project')
+            //.setDesc('Set default project for TickTick tasks in the current file')
+            .addDropdown(component =>
+                component
+                    .addOption(this.defaultProjectId, this.defaultProjectName)
+                    .addOptions(myProjectsOptions)
+                    .onChange(async (value) => {
+                        // console.log(`project id is ${value}`)
+                        //this.plugin.settings.defaultProjectId = this.result
+                        //this.plugin.settings.defaultProjectName = this.plugin.cacheOperation?.getProjectNameByIdFromCache(this.result)
+                        //this.plugin.saveSettings()
+                        await this.plugin.cacheOperation?.setDefaultProjectIdForFilepath(this.filepath, value)
+                        this.plugin.setStatusBarText()
+                        this.close();
+
+                    })
+
             )
-            
-            
-            
-            
-        }
-        
-        onClose() {
-            let { contentEl } = this;
-            contentEl.empty();
-        }
+
+
+
+
     }
-    
+
+    onClose() {
+        let { contentEl } = this;
+        contentEl.empty();
+    }
+}
