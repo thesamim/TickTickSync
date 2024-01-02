@@ -255,13 +255,13 @@ export class FileOperation {
             }
             return true;
         } catch (error) {
-            console.error(`Could not add Task ${task.id} to file ${filePath} \n Error: ${error}`);
+            console.error(`Could not add Tasks to file ${filePath} \n Error: ${error}`);
             return false;
         }
     }
 
     private async writeLines(tasks: ITask[], lineToInsert: number, lines: string[], file: TFile): Promise<string[]> {
-        tasks.forEach(async (task) => {
+        for (const task of tasks) {
             let itemCount = 0;
 
             let lineText = await this.plugin.taskParser?.convertTaskObjectToTaskLine(task);
@@ -282,7 +282,7 @@ export class FileOperation {
                     }
                     lineText = parentTabs + lineText
                     if (lineText.includes("\n")) { // are there items?
-                        console.log("child task")
+                        // console.log("child task")
                         lineText = lineText.replace(/\n/g, "\n" + parentTabs + "\t");
                         itemCount = (lineText.match(/\n/g) || []).length;
                     }
@@ -291,7 +291,7 @@ export class FileOperation {
                     console.error("Parent not found, inserting at: ", lineToInsert)
                     lineText = "\t" + lineText
                     if (lineText.includes("\n")) { // are there items?
-                        console.log("Orphaned child")
+                        // console.log("Orphaned child")
                         lineText = lineText.replace(/\n/g, "\n" + "\t\t");
                         itemCount = (lineText.match(/\n/g) || []).length;
                     }
@@ -316,8 +316,8 @@ export class FileOperation {
             }
             let updatedTask = await this.plugin.tickTickRestAPI?.UpdateTask(task)
             lineToInsert = lineToInsert + 1 + itemCount;
-        });
-        return lines;
+        }
+		return lines;
     }
 
     // update task content to file
@@ -365,6 +365,7 @@ export class FileOperation {
     // delete task from file
     async deleteTaskFromSpecificFile(filePath: string, taskId: string) {
         // Get the file object and update the content
+		console.error("Task being deleted from file: ", taskId, filePath)
         const file = this.app.vault.getAbstractFileByPath(filePath)
         const content = await this.app.vault.read(file)
 
@@ -389,6 +390,7 @@ export class FileOperation {
 
     }
     async deleteTaskFromFile(task: ITask) {
+		console.error("Task being deleted from file : ", task.id)
         const taskId = task.id
         // Get the task file path
         const currentTask = await this.plugin.cacheOperation?.loadTaskFromCacheID(taskId)

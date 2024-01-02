@@ -7,7 +7,7 @@ interface MyProject {
     name: string;
 }
 
-export class SetDefalutProjectInTheFilepathModal extends Modal {
+export class SetDefaultProjectForFileModal extends Modal {
     defaultProjectId: string
     defaultProjectName: string
     filepath: string
@@ -34,7 +34,7 @@ export class SetDefalutProjectInTheFilepathModal extends Modal {
         const defaultProjectIds = Object.values(fileMetadata).map(meta => meta.defaultProjectId);
         const allowableProjects = this.plugin.settings.TickTickTasksData?.projects?.filter(project => !defaultProjectIds.includes(project.id));
         const myProjectsOptions: MyProject | undefined = allowableProjects.reduce((obj, item) => {
-                console.log(obj, item.id, item.name)
+                // console.log(obj, item.id, item.name)
                 obj[item.id] = item.name;
                 return obj;
         }, {}

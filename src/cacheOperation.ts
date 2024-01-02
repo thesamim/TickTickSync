@@ -3,15 +3,27 @@ import TickTickSync from "../main";
 import { ITask } from 'ticktick-api-lvt/dist/types/Task';
 import { IProject } from 'ticktick-api-lvt/dist/types/Project';
 
-type TaskDetail = {
-    taskId: string,
-    taskItems: string[]
+// type TaskDetail = {
+//     taskId: string,
+//     taskItems: string[]
+// }
+// type FileMetadata = {
+//     TickTickTasks: TaskDetail[];
+//     TickTickCount: number;
+//     defaultProjectId: string;
+// };
+
+export interface FileMetadata {
+	[fileName: string]: {
+		TickTickTasks: TaskDetail[];
+		TickTickCount: number;
+	};
 }
-type FileMetadata = {
-    TickTickTasks: TaskDetail[];
-    TickTickCount: number;
-    defaultProjectId: string;
-};
+
+export interface TaskDetail {
+	taskId: string;
+	taskItems: string[];
+}
 
 export class CacheOperation {
     app: App;
@@ -151,9 +163,20 @@ export class CacheOperation {
         }
     }
     //delete filepath from filemetadata
-    async deleteFilepathFromMetadata(filepath: string) {
-        Reflect.deleteProperty(this.plugin.settings.fileMetadata, filepath);
-        await this.plugin.saveSettings()
+    async deleteFilepathFromMetadata(filepath: string): Promise<FileMetadata> {
+		const fileMetaData: FileMetadata = this.plugin.settings.fileMetadata;
+		const newFileMetadata: FileMetadata = {};
+
+		for (const filename in fileMetaData) {
+			if (filename !== filepath) {
+				newFileMetadata[filename] = fileMetaData[filename];
+			}
+		}
+
+		this.plugin.settings.fileMetadata = newFileMetadata;
+		await this.plugin.saveSettings()
+		return this.plugin.settings.fileMetadata;
+
         // console.log(`${filepath} is deleted from file metadatas.`)
     }
 
@@ -169,7 +192,7 @@ export class CacheOperation {
             // console.log("File: ", value)
             let file = this.app.vault.getAbstractFileByPath(key)
             if (!file && (value.TickTickTasks?.length === 0 || !value.TickTickTasks)) {
-                console.log(`${key} does not exist and metadata is empty.`)
+                console.error(`${key} does not exist and metadata is empty.`)
                 await this.deleteFilepathFromMetadata(key)
                 continue
             }
@@ -321,13 +344,26 @@ export class CacheOperation {
         try {
 
             const savedTasks = this.plugin.settings.TickTickTasksData.tasks
-            const savedTask = savedTasks.find((t) => t.id === taskId);
+            const savedTask = savedTasks.find((task: ITask) => task.id === taskId);
             return (savedTask)
         } catch (error) {
             console.error(`Error finding task from Cache: ${error}`);
             return [];
         }
     }
+
+	//get Task titles
+	async getTaskTitles(taskIds: string []): Promise<string []> {
+
+		const savedTasks = this.plugin.settings.TickTickTasksData.tasks;
+		let titles = savedTasks.filter(task => taskIds.includes(task.id)).map(task => task.title);
+		titles = titles.map((task: string ) => {
+			return this.plugin.taskParser?.stripOBSUrl(task);
+		});
+
+		return titles;
+
+	}
 
     //Overwrite the task with the specified id in update
     async updateTaskToCacheByID(task) {
@@ -341,7 +377,7 @@ export class CacheOperation {
             } else {
                 filePath = await this.getFilepathForProjectId(task.projectId);
             }
-            await this.appendTaskToCache(task, filePath);
+			await this.appendTaskToCache(task, filePath);
             return task;
         } catch (error) {
             console.error(`Error updating task to Cache: ${error}`);
@@ -464,10 +500,7 @@ export class CacheOperation {
     }
 
 
-
-
-
-    //Delete task through ID array
+	//Delete task through ID array
     async deleteTaskFromCacheByIDs(deletedTaskIds: string[]) {
         try {
             const savedTasks = this.plugin.settings.TickTickTasksData.tasks

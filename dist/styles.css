@@ -5,7 +5,21 @@
 
 
 
-
+.ts_button {
+	margin-top: 1rem;
+	cursor: pointer;
+}
+button.ts_button[disabled] {
+	opacity: 0.3;
+	background-color: unset !important;
+	color: unset !important;
+	box-shadow: var(--input-shadow);
+}
+button.ts_button[disabled]:hover {
+	background-color: unset !important;
+	color: unset !important;
+	box-shadow: var(--input-shadow);
+}
 
 
 

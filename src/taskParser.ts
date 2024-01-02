@@ -485,17 +485,40 @@ export class TaskParser {
             return true;
         }
 
-
-
-
         if (lineTaskDue === TickTickTaskDue) {
             //console.log('due date consistent')
             return false;
-        } else if (lineTaskDue.toString() === "Invalid Date" || TickTickTaskDue.toString() === "Invalid Date") {
+        } else if (lineTaskDue.toString() === "Invalid Date" && TickTickTaskDue.toString() === "Invalid Date") {
             // console.log('invalid date')
             return false;
         } else {
-            return true;
+			const date1 = new Date(lineTaskDue);
+			const date2 = new Date(TickTickTaskDue);
+
+			const utcDate1 = new Date(date1.getUTCFullYear(), date1.getUTCMonth(), date1.getUTCDate(),date1.getUTCHours(), date1.getUTCMinutes(), date1.getUTCSeconds());
+			const utcDate2 = new Date(date2.getUTCFullYear(), date2.getUTCMonth(), date2.getUTCDate(),date2.getUTCHours(), date2.getUTCMinutes(), date2.getUTCSeconds());
+
+			if (utcDate1.getTime() === utcDate2.getTime()) {
+				console.log("The timestamps are the same time.");
+				return false;
+			} else {
+				if (this.plugin.settings.debugMode) {
+					// Calculate the difference in minutes
+					const timeDifferenceInMilliseconds = Math.abs(utcDate2.getTime() - utcDate1.getTime());
+					const days = Math.floor(timeDifferenceInMilliseconds / (1000 * 60 * 60 * 24));
+					const hours = Math.floor((timeDifferenceInMilliseconds % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+					const minutes = Math.floor((timeDifferenceInMilliseconds % (1000 * 60 * 60)) / (1000 * 60));
+
+					if (days > 0) {
+						console.log(`The timestamps are ${days} days, ${hours} hours, and ${minutes} minutes apart.`);
+					} else if (hours > 0) {
+						console.log(`The timestamps are ${hours} hours and ${minutes} minutes apart.`);
+					} else {
+						console.log(`The timestamps are ${minutes} minutes apart.`);
+					}
+				}
+				return true;
+			}
         }
     }
 
@@ -635,7 +658,7 @@ export class TaskParser {
 
     addTickTickLink(linetext: string, taskId: string, projecId: string): string {
         let url = this.createURL(taskId, projecId)
-        const regex = new RegExp(`${keywords.TickTick_TAG}`, "g");
+        const regex = new RegExp(`${keywords.TickTick_TAG}`, "gi");
         const link = `[link](${url})`
         return linetext.replace(regex, link + ' ' + '$&');
     }
