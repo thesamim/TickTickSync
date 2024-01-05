@@ -14,28 +14,28 @@ The plugin works best when the [Tasks](https://github.com/obsidian-tasks-group/o
 
 ## Notes
 
-1.  TickTick lists are referred to as Projects in the plugin, and throughout documentation.
-2.  TickTick only has four priorities (High, Medium, Low, None). Please see Priority in [Task Format](#Task-format) for Task mapping of priority
-3.  **Warning:** TickTickSync automatically creates .md files corresponding with the lists/projects created in TickTick and downloads all tasks to them.  
-    If the files are deleted in Obsidian while the TickTickSync plugin is active, those tasks will be deleted.  
-    To recover those tasks, go to the "Trash" menu item on the TickTick interface and recover deleted tasks from there.
-4.  Please see known issue 3. below. **Strongly** recommend using subtasks rather than items to avoid loss of data.
+1. **All Task Deletion operations must be confirmed.** In the fullness of time, when we get out of Beta, this might be a preference item. For now it's compulsory.
+2. TickTick lists are referred to as Projects in the plugin, and throughout documentation.
+3. TickTick only has four priorities (High, Medium, Low, None). Please see Priority in [Task Format](#Task-format) for Task mapping of priority
+4. **Warning:** TickTickSync automatically creates .md files corresponding with the lists/projects created in TickTick and downloads all tasks to them.  
+   If the files are deleted in Obsidian while the TickTickSync plugin is active, those tasks will be deleted. If you accidentally confirm that deletion: 
+   To recover those tasks, go to the "Trash" menu item on the TickTick interface and recover deleted tasks from there.
+5. TickTickSync now supports Task Items and will **NOT** delete Task Content. However, as of now, it will not allow management of Task Content.
+6. A link to the containing file in Obsidian is added to the Task Title in TickTick, but the content field is not mangled.
+7. Relatively confident that Time Zone difference issues are resolved. If not: Please open an issue with details.
 
 ## Known Issues
 
-1.  Currently, ALL TickTick tasks are synched. Depending on feedback, may add a tag on the TickTick side. ie: If tagged with #obisidian a task will be synched. If not, it will be ignored.
-2.  The plugin only works with the [Tasks emoji formats](https://publish.obsidian.md/tasks/Reference/Task+Formats/About+Task+Formats). It will **not** work with the Dataview format. In the fullness of time, this plugin will be refactored to use Tasks functionality to support both.
-3.  Descriptions are no longer overwritten, the Obsidian URL is added to title. Task Items are downloaded. But full update is not supported. Yet.
-4.  ~**Description warning**: Currently, a link to the vault and file in the vault are saved in the Description field. Meaning that any items or descriptions will be over-written during synchronization~
-    1.  ~How this will be handled will be determined by feedback from users.~
-5.  Have only tested in one time zone. Not sure if cross time zone tasks will work, or if TickTick's time zone implementations will be handled.
-6.  Due Date:
-    1.  On the Obsidian side: if no time is provided, the start time will default to 08:00
-    2.  On the TickTick side: if not time is provided, the start time will be 00:00
-7.  Parent/Child tasks are supported bi-directionally. However, changes to the parent/child relationship are not handled. Yet.
-8.  Moving tasks between Projects/Lists is unsupported at this time.
-9.  Because Tags can't have spaces, at this time it is not possible to add a task to a project with name that contains spaces. In the fullness of time, will implement some kind of workaround (eg: `#folder_with_a_space` will be converted to `folder with a space`)
-10. If a file has a default project association (see settings), it is possible to create a task with project tag other than the default project. The Task will be correctly synched to TickTick in the correct folder. However, if the Task is then updated with subtasks, from TickTick, the subtasks will be synched to the project's default file rather than the file where the original parent task was created.
+1. Currently, ALL TickTick tasks are synched. This [issue](https://github.com/thesamim/TickTickSync/issues/7) tracks the resolution: If tagged with #obisidian a task will be synched. If not, it will be ignored.
+2. The plugin only works with the [Tasks emoji formats](https://publish.obsidian.md/tasks/Reference/Task+Formats/About+Task+Formats). It will **not** work with the Dataview format. In the fullness of time, this plugin will be refactored to use Tasks functionality to support both.
+3. Due Date:
+   1. On the Obsidian side: if no time is provided, the start time will default to 08:00
+   2. On the TickTick side: if not time is provided, the start time will be 00:00
+   3. The [Tasks plugin](https://github.com/obsidian-tasks-group/obsidian-tasks) queries will not find TickTickSync Tasks because the dates are not positioned per [Tasks Format](https://publish.obsidian.md/tasks/Editing/Auto-Suggest#What+do+I+need+to+know+about+the+order+of+items+in+a+task%3F)  
+4. Parent/Child tasks are supported bi-directionally. However, changes to the parent/child relationship are not handled. Yet.
+5. Moving tasks between Projects/Lists is unsupported at this time.
+6. Because Tags can't have spaces, at this time it is not possible to add a task to a project with name that contains spaces. In the fullness of time, will implement some kind of workaround (eg: `#folder_with_a_space` will be converted to `folder with a space`)
+7. If a file has a default project association (see settings), it is possible to create a task with project tag other than the default project. The Task will be correctly synched to TickTick in the correct folder. However, if the Task is then updated with subtasks, from TickTick, the subtasks will be synched to the project's default file rather than the file where the original parent task was created.
 
 ## Installation
 
@@ -97,6 +97,19 @@ If you would rather install the plugin manually, you can do the following:
 | `- [ ] taskB #tag #testProject #ticktick` will be added to testProject. |                                                                                                                                                                                                                      |                                                 |
 | #tag                                                                    | Note that all tags without a project of the same name are treated as normal tags                                                                                                                                     | `- [ ] task #tagA #tagB #tagC #ticktick`        |
 | Priority                                                                |                                                                                                                                                                                                                      |                                                 |
+
+#### Task examples
+##### Task with SubTasks
+
+
+| Code                                                                                                                                                                                               | Result |  
+|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------| ---- |  
+| ```- [ ] This is the parent task #ticktick  <br>```<br>```    - [ ] This is it's first child #ticktick```<br>```        - [ ] This is it's second child #ticktick```  <br> | - [ ] This is the parent task #ticktick  <br>    - [ ] This is it's first child #ticktick  <br>	    - [ ] This is it's second child #ticktick   |  
+|                                                                                                                                                                                                    |  |
+
+
+
+
 
 TickTick only has three priority levels. They are mapped as follows.
 

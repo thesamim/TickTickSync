@@ -219,7 +219,8 @@ export class TaskParser {
         let parentTaskObject = null
         //Detect parentID
         let textWithoutIndentation = lineText
-        if (this.getTabIndentation(lineText) > 0) {
+		const lineTextTabIndentation = this.getTabIndentation(lineText);
+		if (lineTextTabIndentation > 0) {
             //console.log(`Indentation is ${this.getTabIndentation(lineText)}`)
             textWithoutIndentation = this.removeTaskIndentation(lineText)
             //console.log(textWithoutIndentation)
@@ -238,11 +239,11 @@ export class TaskParser {
                     break
                 }
                 //If the number of tabs is greater than or equal to the current line, skip
-                if (this.getTabIndentation(line) >= this.getTabIndentation(lineText)) {
+                if (this.getTabIndentation(line) >= lineTextTabIndentation) {
                     //console.log(`Indentation is ${this.getTabIndentation(line)}`)
                     continue
                 }
-                if ((this.getTabIndentation(line) < this.getTabIndentation(lineText))) {
+                if ((this.getTabIndentation(line) < lineTextTabIndentation)) {
                     //console.log(`Indentation is ${this.getTabIndentation(line)}`)
                     if (this.hasTickTickId(line)) {
                         parentId = this.getTickTickIdFromLineText(line)
@@ -499,7 +500,6 @@ export class TaskParser {
 			const utcDate2 = new Date(date2.getUTCFullYear(), date2.getUTCMonth(), date2.getUTCDate(),date2.getUTCHours(), date2.getUTCMinutes(), date2.getUTCSeconds());
 
 			if (utcDate1.getTime() === utcDate2.getTime()) {
-				console.log("The timestamps are the same time.");
 				return false;
 			} else {
 				if (this.plugin.settings.debugMode) {

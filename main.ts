@@ -61,8 +61,8 @@ export default class TickTickSync extends Plugin {
 				let oldTasksHolder = fileMetataDataStructure[file]; //an array of tasks.
 				let newTasksHolder = {};
 				newTasksHolder = {
-					TickTickTasks: oldTasksHolder.TickTickTasks.map((taskString) => ({
-						taskId: taskString,
+					TickTickTasks: oldTasksHolder.TickTickTasks.map((taskIDString) => ({
+						taskId: taskIDString,
 						taskItems: [] //TODO: Validate that the assumption that the next sync will fill these correctly.
 					})),
 					TickTickCount: oldTasksHolder.TickTickCount,
@@ -636,12 +636,6 @@ const freakingLongMessage = "one\n\ttwo,three,\nfour,\t\n\tfive" +
 			} catch (error) {
 				console.error('An error occurred in saveSettings:', error);
 			}
-
-			//TODO: We slept 5 seconds to wait for stuff to catch up. But then we changed things up because if
-			//      tasks got synced, no amount of waiting was getting it right. So we return out of here if any
-			//      synchronization happened. Removing for now.
-			// // Sleep for 5 seconds
-			// await new Promise(resolve => setTimeout(resolve, 5000));
 
 			const filesToSync = this.settings.fileMetadata;
 			if (this.settings.debugMode) {

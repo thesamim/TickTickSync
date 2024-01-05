@@ -6,6 +6,7 @@ import ObjectID from 'bson-objectid';
 import {TaskDetail, FileMetadata} from "./cacheOperation"
 import { RegExpMatchArray } from 'typescript';
 import {TaskDeletionModal} from "./TaskDeletionModal";
+import {Task} from "obsidian-task/src/Task";
 
 type deletedTask = {
 	taskId: string,
@@ -91,7 +92,7 @@ export class SyncMan {
 							if (taskURL) {
 								updatedTask.title = updatedTask.title + " " + taskURL;
 							}
-							let updateResult = this.plugin.tickTickRestAPI?.UpdateTask(updatedTask);
+							let updateResult = await this.plugin.tickTickRestAPI?.UpdateTask(updatedTask);
 						}
 					} catch (error) {
 						console.log("Task Item removal failed: ", error);
@@ -102,21 +103,26 @@ export class SyncMan {
 
 		} else {
 			//We had a file. There is no content. User deleted ALL tasks, all items will be deleted as a side effect.
-			console.error("All tasks will be deleted.", file, currentFileValue,filepath );
-			new Notice(`All content from ${file} appears to have been removed. \n If this is correct, please confirm task deletion.`)
 			const deletedTaskIDs = fileMetadata_TickTickTasks.map((taskDetail) => taskDetail.taskId);
-			await this.deleteTasksByIds(deletedTaskIDs);
+			if (deletedTaskIDs.length > 0) {
+				console.error("All tasks will be deleted.", file, currentFileValue, filepath);
+				new Notice(`All content from ${file.path} appears to have been removed. \n If this is correct, please confirm task deletion.`, 0)
+				await this.deleteTasksByIds(deletedTaskIDs);
+			}
 		}
 
 	}
-	findMissingTaskIds(currentContent: string, tasks: TaskDetail[]) {
+	findMissingTaskIds(currentContent: string, taskDetails: TaskDetail[]) {
 
 		// Extract all taskIds from the currentContent, considering the specific structure.
 		const regex = /%%\[ticktick_id:: ([a-f0-9]{24})\]%%/g;
 		const matches: RegExpMatchArray = currentContent.matchAll(regex);
 		const existingTaskIds = new Set([...matches].map((match) => match[1]));
 		// Find taskIds in the tasks list that are not present in the existingTaskIds set.
-		const missingTaskIds = tasks.filter((task) => !existingTaskIds.has(task.taskId)).map((task) => task.taskId);
+		// Filter and extract taskIds from taskDetails
+		const missingTaskIds = taskDetails
+			.filter((taskDetail) => !existingTaskIds.has(taskDetail.taskId))
+		.map((taskDetail: TaskDetail) => taskDetail.taskId)// Explicitly create an array of strings
 		return missingTaskIds;
 	}
 
@@ -271,16 +277,15 @@ export class SyncMan {
 			//tag or labels whether to modify
 			const tagsModified = this.plugin.taskParser?.isTagsChanged(lineTask, savedTask)
 			//project whether to modify
+			//TODO: Project ID modification?
 			const projectModified = this.plugin.taskParser?.isProjectIdChanged(lineTask, savedTask)
 			//Whether status is modified?
 			const statusModified = this.plugin.taskParser?.isStatusChanged(lineTask, savedTask)
 			//due date whether to modify
 			const dueDateModified = this.plugin.taskParser?.isDueDateChanged(lineTask, savedTask)
-			//TODO Fix This!
-			// parent id whether to modify
+			//TODO  parent id whether to modify
 			const parentIdModified = this.plugin.taskParser?.isParentIdChanged(lineTask, savedTask);
 			//check priority
-
 			const priorityModified = !(lineTask.priority == savedTask.priority)
 
 
@@ -332,7 +337,7 @@ export class SyncMan {
 						`${await this.plugin.cacheOperation?.getProjectNameByIdFromCache(lineTask.projectId)} \n` +
 							`This is not handled yet. Please adjust manually.`
 						// new Notice(noticeMessage, 0);
-						console.log(noticeMessage);
+						// console.log(noticeMessage);
 					}
 					savedTask.projectId = lineTask.projectId
 					projectChanged = false;
@@ -351,7 +356,7 @@ export class SyncMan {
 						`but is now a child of:\n${newParent? newParent.title.trim(): "No new parent found."}\n`+
 						`This is not handled yet. Please adjust manually.\n`
 						// new Notice( noticeMessage, 0)
-						console.log(noticeMessage);
+						// console.log(noticeMessage);
 
 					}
 					savedTask.parentId = lineTask.parentId
@@ -438,8 +443,9 @@ export class SyncMan {
 			}
 
 
-		} else  //Not a task, check Items.
-		if (this.plugin.taskParser?.isMarkdownTask(lineText)) await this.handleTaskItem(lineText, filepath, fileContent, lineNumber);
+		} else { //Not a task, check Items.
+			await this.handleTaskItem(lineText, filepath, fileContent, lineNumber);
+		}
 	}
 
 	private async handleTaskItem(lineText: string, filepath: string, fileContent: string, lineNumber: number) {
@@ -635,8 +641,7 @@ export class SyncMan {
 
 			for (let i = 0; i < lines.length; i++) {
 				const line = lines[i];
-				//TODO: I think this misses Item modifications.
-				if (this.plugin.taskParser?.hasTickTickId(line) && this.plugin.taskParser?.hasTickTickTag(line)) {
+				if (this.plugin.taskParser?.isMarkdownTask(line)) {
 					try {
 						await this.lineModifiedTaskCheck(filepath, line, i, content);
 						hasModifiedTask = true;
@@ -962,7 +967,6 @@ export class SyncMan {
 
 
 	//After renaming the file, check all tasks in the file and update all links.
-	//TODO: Consider removing this. We're not going to track obsURL in cache. (Are we?)
 	async updateTaskContent(filepath: string) {
 		const metadata = await this.plugin.cacheOperation?.getFileMetadata(filepath)
 		if (!metadata || !metadata.TickTickTasks) {

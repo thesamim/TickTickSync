@@ -165,7 +165,7 @@ export class FileOperation {
             taskA.id.localeCompare(taskB.id)));
         //try not overwrite files while downloading a whole bunch of tasks. Create them first, then do the addtask mambo
         const projectIds = [...new Set(tasks.map(task => task.projectId))];
-        projectIds.forEach(async (projectId) => {
+        for (const projectId of projectIds) {
             let taskFile = await this.plugin.cacheOperation?.getFilepathForProjectId(projectId);
             let metaData;
             if (taskFile) {
@@ -201,8 +201,8 @@ export class FileOperation {
             if (this.plugin.settings.debugMode) {
                 console.log(result ? "Completed add task." : "Failed add task")
             }
-        });
-        return true;
+        }
+		return true;
     }
 
 
@@ -235,10 +235,14 @@ export class FileOperation {
                 lineToInsert = lastTaskLine + 1;
                 if (lastLineId)
                 {
-                    //TODO: probably cheaper ways to do this.
-                    let lastTask = await this.plugin.cacheOperation?.loadTaskFromCacheID(lastLineId);
-                    if (lastTask && lastTask.items) {
-                        lineToInsert = lineToInsert + lastTask.items.length;
+                    let lastTask: ITask = await this.plugin.cacheOperation?.loadTaskFromCacheID(lastLineId);
+                    if (lastTask) {
+						if (lastTask.items) {
+							lineToInsert = lineToInsert + lastTask.items.length;
+						}
+						if (lastTask.childIds) {
+							lineToInsert = lineToInsert + lastTask.childIds.length;
+						}
                     }
 
                 }
@@ -261,6 +265,7 @@ export class FileOperation {
     }
 
     private async writeLines(tasks: ITask[], lineToInsert: number, lines: string[], file: TFile): Promise<string[]> {
+		const addedTask: string[] = [];
         for (const task of tasks) {
             let itemCount = 0;
 
@@ -280,7 +285,17 @@ export class FileOperation {
                     } else {
                         parentTabs = "\t"
                     }
+					//We found a parent. If the parent has just been added Its items are going to be
+					//one on Line entry. If the parent already existed, we need to get the item count.
+					if (addedTask.indexOf(task.parentId) < 0) {
+						//it's an existing task quickest way to get its items:
+						const parentTask = await this.plugin.cacheOperation?.loadTaskFromCacheID(task.parentId);
+						if (parentTask && parentTask.items) {
+							parentIndex = parentIndex + parentTask.items.length;
+						}
+					}
                     lineText = parentTabs + lineText
+					console.log("task: ", task.title, "parent Tabs: ", parentTabs,length)
                     if (lineText.includes("\n")) { // are there items?
                         // console.log("child task")
                         lineText = lineText.replace(/\n/g, "\n" + parentTabs + "\t");
@@ -304,6 +319,7 @@ export class FileOperation {
                 }
                 lines.splice(lineToInsert, 0, lineText);
             }
+
             await this.plugin.cacheOperation?.appendTaskToCache(task, file.name);
             //We just add the ticktick tag, update it on ticktick now.
             let tags = this.plugin.taskParser?.getAllTagsFromLineText(lineText);
@@ -315,6 +331,9 @@ export class FileOperation {
                 task.title = task.title + " " + taskURL;
             }
             let updatedTask = await this.plugin.tickTickRestAPI?.UpdateTask(task)
+			//keep track of added Tasks because item count is affected
+
+			addedTask.push(task.id);
             lineToInsert = lineToInsert + 1 + itemCount;
         }
 		return lines;
@@ -338,16 +357,19 @@ export class FileOperation {
             let line = lines[i]
             if (line.includes(taskId) && this.plugin.taskParser?.hasTickTickTag(line)) {
                 let newTaskContent = await this.plugin.taskParser?.convertTaskObjectToTaskLine(task);
-                let parsedTask = await this.plugin.taskParser?.taskFromLine(newTaskContent, filepath);
-                let parentTabs = parsedTask?.indentation;
+				//get tabs for current task
+                let taskToBeReplaced = await this.plugin.taskParser?.taskFromLine(line, filepath);
+                let parentTabs = taskToBeReplaced?.indentation;
+				let itemCount = 0;
                 if (newTaskContent.includes("\n")) { // are there items?
-                    newTaskContent = newTaskContent.replace(/\n/g, "\n" + "\t");
-                    const itemCount = (newTaskContent.match(/\n/g) || []).length;
+                    newTaskContent = newTaskContent.replace(/\n/g, "\n" + parentTabs + '\t');
+					itemCount = (newTaskContent.match(/\n/g) || []).length;
                 }
+				if (currentTask.items && currentTask.items.length > 0 ) {
+					lines.splice(i+1,currentTask.items.length)
+				}
                 lines[i] = parentTabs + line.replace(line, newTaskContent)
-                if (currentTask.items && currentTask.items.length > 0 ) {
-                    lines.splice(i+1,currentTask.items.length)
-                }
+
                 // if (task.items && task.items.length > 0 ) {
                 //     console.log(`new Task has ${currentTask.items.length}`)
                 // }
@@ -394,9 +416,11 @@ export class FileOperation {
         const taskId = task.id
         // Get the task file path
         const currentTask = await this.plugin.cacheOperation?.loadTaskFromCacheID(taskId)
-        const filepath = currentTask.path
-        this.deleteTaskFromSpecificFile(filepath, task.id)
-
+		//TODO: It is redundant to have a path attribute AND filemetadata. Need to pick one or the other.
+		if (currentTask.path) {
+			const filepath = currentTask.path
+			await this.deleteTaskFromSpecificFile(filepath, task.id)
+		}
     }
 
     // sync updated task content to file
