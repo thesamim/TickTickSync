@@ -295,7 +295,6 @@ export class FileOperation {
 						}
 					}
                     lineText = parentTabs + lineText
-					console.log("task: ", task.title, "parent Tabs: ", parentTabs,length)
                     if (lineText.includes("\n")) { // are there items?
                         // console.log("child task")
                         lineText = lineText.replace(/\n/g, "\n" + parentTabs + "\t");

@@ -1,4 +1,7 @@
 import {MarkdownView, Notice, Plugin, Editor, WorkspaceLeaf} from 'obsidian';
+import {BrowserWindow, session} from "@electron/remote";
+import { WebRequest } from 'electron'
+
 
 
 //settings
@@ -98,65 +101,9 @@ export default class TickTickSync extends Plugin {
 				this.syncLock = false
 				new Notice(`Sync completed..`)
 			});
-			const ribbonIconEl1 = this.addRibbonIcon('check', 'TickTickSync', async (evt: MouseEvent) => {
-const freakingLongMessage = "one\n\ttwo,three,\nfour,\t\n\tfive" +
-	"\t\t\t//Used for quick and dirty experiments.\n" +
-	"\t\t\t// const ribbonIconEl1 = this.addRibbonIcon('check', 'TickTickSync', async (evt: MouseEvent) => {\n" +
-	"\t\t\t// const markdownLeaves = this.app.workspace.getLeavesOfType(\"markdown\");\n" +
-	"\t\t\t// markdownLeaves.forEach((leaf) => {\n" +
-	"\t\t\t//     console.log(leaf)\n" +
-	"\t\t\t//     const filesToSync = this.settings.fileMetadata;\n" +
-	"\t\t\t//     if (this.settings.debugMode) {\n" +
-	"\t\t\t//         console.log(filesToSync)\n" +
-	"\t\t\t//     }\n"
-	new Notice(freakingLongMessage.trim(), 0)
-
-			});
-			//Used for quick and dirty experiments.
+			//Used for testing adhoc code.
 			// const ribbonIconEl1 = this.addRibbonIcon('check', 'TickTickSync', async (evt: MouseEvent) => {
-			// const markdownLeaves = this.app.workspace.getLeavesOfType("markdown");
-			// markdownLeaves.forEach((leaf) => {
-			//     console.log(leaf)
-			//     const filesToSync = this.settings.fileMetadata;
-			//     if (this.settings.debugMode) {
-			//         console.log(filesToSync)
-			//     }
-
-			//     for (let fileKey in filesToSync) {
-			//         if (this.settings.debugMode) {
-			//             console.log(fileKey)
-			//             let file = this.app.vault.getAbstractFileByPath(fileKey)
-			//             leaf.openFile(file)
-			//         }
-			//     }
-
-			// });
-			// Called when the user clicks the icon.
-
-			// const Oid = ObjectID();
-			// console.log("ojbect id: ", Oid.id, Oid.str, Oid.toHexString());
-			// const line = "   - [ ] Item 1 #foo #bar #ticktick #p [link](https://ticktick.com/webapp/#p/64f95c988f089e05b13c3f60/tasks/65665593815a004483066165) #ticktick %%[ticktick_id:: 6566559";
-
-
-			// const pattern = /(?<!#)#[^pq\s]+\b/g;
-
-			// let tags = [...line.matchAll(pattern)];
-			// tags = tags.map(tag => tag[0].replace('#', ''));
-			// tags.forEach(tag => console.log(typeof tag, tag))
-
-
-			// const cursor = this.app.workspace.getActiveViewOfType(MarkdownView)?.editor.getCursor()
-			// const line = cursor?.line
-			// const lineText = this.app.workspace.getActiveViewOfType(MarkdownView)?.editor.getLine(line)
-
-			// const file = this.app.workspace.getActiveFile()
-			// const filepath = file?.path
-			// const parsedTask = await this.taskParser?.taskFromLine(lineText, filepath)
-			// const indents = parsedTask?.indentation;
-			// console.log(line)
-			// console.log(lineText)
-			// console.log(indents?.length)
-			// console.log(`[${indents}]`)
+			// 	//Nothing to see here right now.
 			// });
 		}
 		//Key event monitoring, judging line breaks and deletions

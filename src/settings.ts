@@ -1,6 +1,8 @@
 import {App, Notice, PluginSettingTab, Setting} from 'obsidian';
 import TickTickSync from "../main";
 import {ConfirmFullSyncModal} from "./ConfirmFullSyncModal"
+import {BrowserWindow, session} from "@electron/remote";
+import {LoginModal} from "./LoginModal";
 
 interface MyProject {
 	id: string;
@@ -99,7 +101,14 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 					.setIcon('send')
 					.setTooltip('Log In')
 					.onClick(async () => {
-						await this.plugin.initializePlugin()
+						//TODO: The NWO TickTick sometimes requires a captcha. Getting The user to manually login
+						//      gets the token cookie for the session. If it expires, everything will fail and the
+						//      user will be asked to login again.
+						const didLogin = await this.launchLogin();
+						if (didLogin) {
+							console.log("Going to Initialize")
+							await this.plugin.initializePlugin()
+						}
 						this.display()
 
 					})
@@ -305,7 +314,6 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 					// console.log(`The task data of the ${taskId} is empty.`)
 					//get from TickTick
 					try {
-						console.log("TaskID: ", taskId);
 						taskObject = await this.plugin.tickTickRestAPI?.getTaskById(taskDetails.taskId, null);
 						if (taskObject && taskObject.deleted === 1) {
 							await this.plugin.cacheOperation?.deleteTaskIdFromMetadata(key, taskDetails.taskId)
@@ -344,10 +352,9 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 						taskObject = await this.plugin.cacheOperation?.loadTaskFromCacheID(taskDetail.taskId)
 					} catch (error) {
 						console.error(`An error occurred while loading task ${taskDetail.taskId} from cache: ${error.message}`);
-						console.log(taskObject)
 					}
 					if (!taskObject) {
-						console.log(`Task ${taskDetail.id}: ${taskDetail.title} seems to not exist.`)
+						console.log(`Task ${taskDetail.id}: ${taskDetail.title} is not found.`)
 						continue
 					}
 					if (!taskObject?.content) {
@@ -379,7 +386,8 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 			//check omitted tasks
 			console.log('checking unsynced tasks')
 			const files = this.app.vault.getFiles()
-			files.forEach(async (v, i) => {
+			for (const v of files) {
+				const i = files.indexOf(v);
 				if (v.extension == "md") {
 					try {
 						//console.log(`Scanning file ${v.path}`)
@@ -395,7 +403,7 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 					}
 
 				}
-			});
+			}
 			this.plugin.syncLock = false
 			new Notice(`All files have been scanned.`)
 		} catch (error) {
@@ -403,5 +411,16 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 			this.plugin.syncLock = false
 		}
 	}
+
+	private async launchLogin() {
+		const myModal = new LoginModal(this.app, (result) => {
+			this.ret = result;
+		});
+		const bConfirmation =  await myModal.showModal();
+
+		return bConfirmation;
+	}
+
+
 }
 								

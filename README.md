@@ -16,26 +16,27 @@ The plugin works best when the [Tasks](https://github.com/obsidian-tasks-group/o
 
 1. **All Task Deletion operations must be confirmed.** In the fullness of time, when we get out of Beta, this might be a preference item. For now it's compulsory.
 2. TickTick lists are referred to as Projects in the plugin, and throughout documentation.
-3. TickTick only has four priorities (High, Medium, Low, None). Please see Priority in [Task Format](#Task-format) for Task mapping of priority
+3. TickTick only has four priorities (High, Medium, Low, None). Please see Priority in [Task Format](#task-format) for Task mapping of priority
 4. **Warning:** TickTickSync automatically creates .md files corresponding with the lists/projects created in TickTick and downloads all tasks to them.  
    If the files are deleted in Obsidian while the TickTickSync plugin is active, those tasks will be deleted. If you accidentally confirm that deletion: 
    To recover those tasks, go to the "Trash" menu item on the TickTick interface and recover deleted tasks from there.
 5. TickTickSync now supports Task Items and will **NOT** delete Task Content. However, as of now, it will not allow management of Task Content.
-6. A link to the containing file in Obsidian is added to the Task Title in TickTick, but the content field is not mangled.
+6. A link to the containing file in Obsidian is added to the Task Title in TickTick, but the content field is not mangled. In the fullness of time content will be manageable in TickTickSync. Please watch this [issue](https://github.com/thesamim/TickTickSync/issues/10) for progress. 
 7. Relatively confident that Time Zone difference issues are resolved. If not: Please open an issue with details.
 
 ## Known Issues
 
-1. Currently, ALL TickTick tasks are synched. This [issue](https://github.com/thesamim/TickTickSync/issues/7) tracks the resolution: If tagged with #obisidian a task will be synched. If not, it will be ignored.
-2. The plugin only works with the [Tasks emoji formats](https://publish.obsidian.md/tasks/Reference/Task+Formats/About+Task+Formats). It will **not** work with the Dataview format. In the fullness of time, this plugin will be refactored to use Tasks functionality to support both.
-3. Due Date:
+1. Apparently TickTick has changed sign in procedures. TickTick sometimes requires the user login with a captcha. A temporary work-around: You will have to login manually from settings. Theoretically, this take takes care of the issue.
+2. Currently, ALL TickTick tasks are synched. This [issue](https://github.com/thesamim/TickTickSync/issues/7) tracks the resolution: If tagged with #obisidian a task will be synched. If not, it will be ignored.
+3. The plugin only works with the [Tasks emoji formats](https://publish.obsidian.md/tasks/Reference/Task+Formats/About+Task+Formats). It will **not** work with the Dataview format. In the fullness of time, this plugin will be refactored to use Tasks functionality to support both.
+4. Due Date:
    1. On the Obsidian side: if no time is provided, the start time will default to 08:00
    2. On the TickTick side: if not time is provided, the start time will be 00:00
    3. The [Tasks plugin](https://github.com/obsidian-tasks-group/obsidian-tasks) queries will not find TickTickSync Tasks because the dates are not positioned per [Tasks Format](https://publish.obsidian.md/tasks/Editing/Auto-Suggest#What+do+I+need+to+know+about+the+order+of+items+in+a+task%3F)  
-4. Parent/Child tasks are supported bi-directionally. However, changes to the parent/child relationship are not handled. Yet.
-5. Moving tasks between Projects/Lists is unsupported at this time.
-6. Because Tags can't have spaces, at this time it is not possible to add a task to a project with name that contains spaces. In the fullness of time, will implement some kind of workaround (eg: `#folder_with_a_space` will be converted to `folder with a space`)
-7. If a file has a default project association (see settings), it is possible to create a task with project tag other than the default project. The Task will be correctly synched to TickTick in the correct folder. However, if the Task is then updated with subtasks, from TickTick, the subtasks will be synched to the project's default file rather than the file where the original parent task was created.
+5. Parent/Child tasks are supported bi-directionally. However, changes to the parent/child relationship are not handled. Yet.
+6. Moving tasks between Projects/Lists is **NOT** supported at this time.
+7. Because Tags can't have spaces, at this time it is not possible to add a task to a project with name that contains spaces. In the fullness of time, will implement some kind of workaround (eg: `#folder_with_a_space` will be converted to `folder with a space`)
+8. If a file has a default project association (see settings), it is possible to create a task with project tag other than the default project. The Task will be correctly synched to TickTick in the correct folder. However, if the Task is then updated with subtasks, from TickTick, the subtasks will be synched to the project's default file rather than the file where the original parent task was created.
 
 ## Installation
 
@@ -88,41 +89,46 @@ If you would rather install the plugin manually, you can do the following:
 
 ### Task format
 
-| Syntax                                                                  | Description                                                                                                                                                                                                          | Example                                         |
-| ----------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
-| #ticktick                                                               | Tasks marked with `#ticktick` will be added to ticktick, while tasks without the `#ticktick` tag will not be processed.If you have enabled Full vault sync in the settings, `#ticktick` will be added automatically. | `- [ ] task #ticktick`                          |
-| 📅YYYY-MM-DD                                                            | The date format is 📅YYYY-MM-DD, indicating the due date of a task.                                                                                                                                                  | `- [ ] task content 📅2025-02-05 #ticktick`     |
-| Supports the following calendar emojis.📅📆🗓🗓️                          |                                                                                                                                                                                                                      |                                                 |
-| #projectTag                                                             | New tasks will be added to the default project(For example, inbox .), and you can change the default project in the settings or use a tag with the same name to specify a particular project.                        | `- [ ] taskA #ticktick` will be added to inbox. |
-| `- [ ] taskB #tag #testProject #ticktick` will be added to testProject. |                                                                                                                                                                                                                      |                                                 |
-| #tag                                                                    | Note that all tags without a project of the same name are treated as normal tags                                                                                                                                     | `- [ ] task #tagA #tagB #tagC #ticktick`        |
-| Priority                                                                |                                                                                                                                                                                                                      |                                                 |
+Please see [Task Examples](#task-examples) 
 
-#### Task examples
-##### Task with SubTasks
+| Syntax                                                                  | Description                                                                                                                                                                                                                                                                                                                                                                          | Example                                         |
+| ----------------------------------------------------------------------- |--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------| ----------------------------------------------- |
+| #ticktick                                                               | Tasks marked with #ticktick will be synced to TickTick. Tasks without the #ticktick tag, but are one line below a #ticktick task and indented will be treated as Task Items (See Example Below). If you have enabled Full vault sync in the settings, #ticktick will be added automatically to **ALL** Tasks. UnTagged Tasks are ignored. Please see [Task Examples](#task-examples) | `- [ ] task #ticktick`                          |
+| 📅YYYY-MM-DD | The date format is 📅YYYY-MM-DD, indicating the due date of a task. | `- [ ] task content 📅2025-02-05 #ticktick`   <br>Supports the following calendar emojis.📅📆🗓🗓️|                                                                                                                                                                                                                                                                                                                  | `- [ ] task content 📅2025-02-05 #ticktick`     |
+| #projectTag | New tasks will be added to the default project(For example, inbox .), and you can change the default project in the settings or use a tag with the same name to specify a particular project.  | `- [ ] taskA #ticktick` will be added to inbox.<br>`- [ ] taskB #tag #testProject #ticktick` will be added to testProject.|
+| #tag                                                                    | Note that all tags without a project of the same name are treated as normal tags                                                                                                                                                                                                                                                                                                     | `- [ ] task #tagA #tagB #tagC #ticktick`        |
+| Priority  |    <p>TickTick only has three priority levels. They are mapped as follows.</p><table><thead><tr><th>TickTick</th><th>Obsidian</th></tr></thead><tbody><tr><td>0</td><td>null</td></tr><tr><td>0</td><td>&#39;⏬&#39;</td></tr><tr><td>1</td><td>&#39;🔽&#39;</td></tr><tr><td>3</td><td>&#39;🔼&#39;</td></tr><tr><td>5</td><td>&#39;⏫&#39;</td></tr><tr><td>5</td><td>&#39;🔺&#39;</td></tr></tbody></table>    | `- [ ] task ⏫ #ticktick` |
 
+### Task examples
+<table>
+<tr>
+<th> Task with Sub Tasks </th>
+<th> Task with Items </th>
+<th> Task ignored</th>
+</tr>
+<tr>
+<td>
 
-| Code                                                                                                                                                                                               | Result |  
-|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------| ---- |  
-| ```- [ ] This is the parent task #ticktick  <br>```<br>```    - [ ] This is it's first child #ticktick```<br>```        - [ ] This is it's second child #ticktick```  <br> | - [ ] This is the parent task #ticktick  <br>    - [ ] This is it's first child #ticktick  <br>	    - [ ] This is it's second child #ticktick   |  
-|                                                                                                                                                                                                    |  |
+- [ ] Task with Sub Tasks #ticktick
+	- [ ] Sub Task 1 #ticktick
+	- [ ] Sub Task 2 #ticktick
 
+</td>
+<td>
 
+- [ ] Task with Items #ticktick
+	- [ ] Item 1
+	- [ ] Item 2
 
+</td>
+<td>
 
+- [ ] This task will not be ignored. It does not have a ticktick tag.
 
-TickTick only has three priority levels. They are mapped as follows.
+</td>
+</tr>
+</table>
 
-| TickTick | Obsidian |
-| -------- | -------- |
-| 0        | null     |
-| 0        | '⏬'     |
-| 1        | '🔽'     |
-| 3        | '🔼'     |
-| 5        | '⏫'     |
-| 5        | '🔺'     |
-
-| `- [ ] task ⏫ #ticktick` |
 
 ### Set a default project for each file separately
 
