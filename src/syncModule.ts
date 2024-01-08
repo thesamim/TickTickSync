@@ -862,6 +862,7 @@ export class SyncMan {
 			const reallyDeletedTickTickTasks = deletedTickTickTasks.filter(task => deletedTasks.some(t => t.taskId === task.id));
 			// this.dumpArray('== reallyDeletedTickTickTasks deleted from TickTick:', reallyDeletedTickTickTasks);
 
+
 			if (reallyDeletedTickTickTasks.length > 0) {
 				const taskTitlesForConfirmation = reallyDeletedTickTickTasks.map((task: ITask) => task.id)
 
@@ -873,6 +874,7 @@ export class SyncMan {
 						await this.plugin.cacheOperation?.deleteTaskFromCache(task.id)
 						bModifiedFileSystem = true;
 					}
+
 				}
 			}
 
