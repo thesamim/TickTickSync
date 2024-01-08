@@ -24,7 +24,7 @@ import ObjectID from 'bson-objectid';
 
 //import modals
 import {SetDefaultProjectForFileModal} from 'src/defaultProjectModal';
-import {TaskDeletionModal} from "./src/TaskDeletionModal";
+
 
 
 export default class TickTickSync extends Plugin {

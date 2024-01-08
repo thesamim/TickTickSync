@@ -862,15 +862,19 @@ export class SyncMan {
 			const reallyDeletedTickTickTasks = deletedTickTickTasks.filter(task => deletedTasks.some(t => t.taskId === task.id));
 			// this.dumpArray('== reallyDeletedTickTickTasks deleted from TickTick:', reallyDeletedTickTickTasks);
 
-			const taskTitlesForConfirmation = reallyDeletedTickTickTasks.map((task: ITask) => task.id)
 
-			const bConfirm = await  this.confirmDeletion(taskTitlesForConfirmation, "tasks deleted from TickTick");
+			if (reallyDeletedTickTickTasks.length > 0) {
+				const taskTitlesForConfirmation = reallyDeletedTickTickTasks.map((task: ITask) => task.id)
 
-			if (bConfirm) {
-				for (const task of reallyDeletedTickTickTasks) {
-					await this.plugin.fileOperation?.deleteTaskFromFile(task);
-					await this.plugin.cacheOperation?.deleteTaskFromCache(task.id)
-					bModifiedFileSystem = true;
+				const bConfirm = await this.confirmDeletion(taskTitlesForConfirmation, "tasks deleted from TickTick");
+
+				if (bConfirm) {
+					for (const task of reallyDeletedTickTickTasks) {
+						await this.plugin.fileOperation?.deleteTaskFromFile(task);
+						await this.plugin.cacheOperation?.deleteTaskFromCache(task.id)
+						bModifiedFileSystem = true;
+					}
+
 				}
 			}
 
