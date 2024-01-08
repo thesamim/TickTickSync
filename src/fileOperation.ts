@@ -1,6 +1,7 @@
 import { App, Notice, TFile } from 'obsidian';
 import TickTickSync from "../main";
 import { ITask } from 'ticktick-api-lvt/dist/types/Task';
+
 export class FileOperation {
     app: App;
     plugin: TickTickSync;
@@ -157,56 +158,6 @@ export class FileOperation {
         }
     }
 
-
-    //TODO: Verify that this really not used anywhere.
-    // //add #TickTick at the end of task line, if full vault sync enabled
-    // async addTickTickTagToLine(filepath: string, lineText: string, lineNumber: number, fileContent: string) {
-    //     // console.log("addTickTickTagToLine")
-    //     // Get the file object and update the content
-    //     const file = this.app.vault.getAbstractFileByPath(filepath)
-    //     const content = fileContent
-
-    //     const lines = content.split('\n')
-    //     let modified = false
-
-
-    //     const line = lineText
-    //     if (!this.plugin.taskParser?.isMarkdownTask(line)) {
-    //         //console.log(line)
-    //         //console.log("It is not a markdown task.")
-    //         return;
-    //     }
-    //     //if content is empty
-    //     if (this.plugin.taskParser?.getTaskContentFromLineText(line) == "") {
-    //         //console.log("Line content is empty")
-    //         return;
-    //     }
-    //     if (!this.plugin.taskParser?.hasTickTickId(line) && !this.plugin.taskParser?.hasTickTickTag(line)) {
-    //         //console.log(line)
-    //         //console.log('prepare to add TickTick tag')
-    //         const newLine = this.plugin.taskParser?.addTickTickTag(line);
-    //         //console.log(newLine)
-    //         lines[lineNumber] = newLine
-    //         modified = true
-    //     }
-
-
-    //     if (modified) {
-    //         // console.log(`New task found in files ${filepath}`)
-    //         const newContent = lines.join('\n')
-    //         // console.log(newContent)
-    //         await this.app.vault.modify(file, newContent)
-
-    //         //update filemetadate
-    //         const metadata = await this.plugin.cacheOperation?.getFileMetadata(filepath)
-    //         if (!metadata) {
-    //             await this.plugin.cacheOperation?.newEmptyFileMetadata(filepath)
-    //         }
-
-    //     }
-    // }
-
-
     // sync updated task content to file
     async addTasksToFile(tasks: ITask[]): Promise<Boolean> {
         //sort by project id and task id
@@ -214,7 +165,7 @@ export class FileOperation {
             taskA.id.localeCompare(taskB.id)));
         //try not overwrite files while downloading a whole bunch of tasks. Create them first, then do the addtask mambo
         const projectIds = [...new Set(tasks.map(task => task.projectId))];
-        projectIds.forEach(async (projectId) => {
+        for (const projectId of projectIds) {
             let taskFile = await this.plugin.cacheOperation?.getFilepathForProjectId(projectId);
             let metaData;
             if (taskFile) {
@@ -228,7 +179,8 @@ export class FileOperation {
                     //the file doesn't exist. Create it.
                     //TODO: Deal with Folders and sections in the fullness of time.
                     new Notice(`Creating new file: ${taskFile}`);
-                    file = await this.app.vault.create(taskFile, "== Added by Obsidian-TickTick == ")
+                    let whoAdded = `${this.plugin.manifest.name} -- ${this.plugin.manifest.version}`;
+                    file = await this.app.vault.create(taskFile, `== Added by ${whoAdded} == `)
                 }
             }
             let projectTasks = tasks.filter(task => task.projectId === projectId);
@@ -249,8 +201,8 @@ export class FileOperation {
             if (this.plugin.settings.debugMode) {
                 console.log(result ? "Completed add task." : "Failed add task")
             }
-        });
-        return true;
+        }
+		return true;
     }
 
 
@@ -267,11 +219,13 @@ export class FileOperation {
             let lastTaskLine = 0;
 
             let lastLineInFile = lines.length;
+            let lastLineId = "";
             for (let i = 0; i < lines.length; i++) {
                 const line = lines[i];
 
                 if (this.plugin.taskParser?.hasTickTickTag(line)) {
                     lastTaskLine = i;
+                    lastLineId = this.plugin.taskParser?.getTickTickIdFromLineText(line);
                 }
             }
             let lineToInsert: number;
@@ -279,11 +233,24 @@ export class FileOperation {
 
             if (lastTaskLine > 0) {
                 lineToInsert = lastTaskLine + 1;
+                if (lastLineId)
+                {
+                    let lastTask: ITask = await this.plugin.cacheOperation?.loadTaskFromCacheID(lastLineId);
+                    if (lastTask) {
+						if (lastTask.items) {
+							lineToInsert = lineToInsert + lastTask.items.length;
+						}
+						if (lastTask.childIds) {
+							lineToInsert = lineToInsert + lastTask.childIds.length;
+						}
+                    }
+
+                }
             } else {
                 lineToInsert = lastLineInFile;
             }
             let oldLineCount = lines.length;
-            lines = await this.writeLines(tasks, lineToInsert, lines, file, metaData);
+            lines = await this.writeLines(tasks, lineToInsert, lines, file);
             let newLineCount = lines.length
             if (oldLineCount < newLineCount) {
                 const newContent = lines.join('\n');
@@ -292,13 +259,15 @@ export class FileOperation {
             }
             return true;
         } catch (error) {
-            console.error(`Could not add Task ${task.id} to file ${filePath} \n Error: ${error}`);
+            console.error(`Could not add Tasks to file ${filePath} \n Error: ${error}`);
             return false;
         }
     }
 
     private async writeLines(tasks: ITask[], lineToInsert: number, lines: string[], file: TFile): Promise<string[]> {
-        tasks.forEach(async (task) => {
+		const addedTask: string[] = [];
+        for (const task of tasks) {
+            let itemCount = 0;
 
             let lineText = await this.plugin.taskParser?.convertTaskObjectToTaskLine(task);
             if (task.parentId) {
@@ -316,30 +285,57 @@ export class FileOperation {
                     } else {
                         parentTabs = "\t"
                     }
+					//We found a parent. If the parent has just been added Its items are going to be
+					//one on Line entry. If the parent already existed, we need to get the item count.
+					if (addedTask.indexOf(task.parentId) < 0) {
+						//it's an existing task quickest way to get its items:
+						const parentTask = await this.plugin.cacheOperation?.loadTaskFromCacheID(task.parentId);
+						if (parentTask && parentTask.items) {
+							parentIndex = parentIndex + parentTask.items.length;
+						}
+					}
                     lineText = parentTabs + lineText
+                    if (lineText.includes("\n")) { // are there items?
+                        // console.log("child task")
+                        lineText = lineText.replace(/\n/g, "\n" + parentTabs + "\t");
+                        itemCount = (lineText.match(/\n/g) || []).length;
+                    }
                     lines.splice(parentIndex + 1, 0, lineText);
                 } else {
                     console.error("Parent not found, inserting at: ", lineToInsert)
                     lineText = "\t" + lineText
+                    if (lineText.includes("\n")) { // are there items?
+                        // console.log("Orphaned child")
+                        lineText = lineText.replace(/\n/g, "\n" + "\t\t");
+                        itemCount = (lineText.match(/\n/g) || []).length;
+                    }
                     lines.splice(lineToInsert, 0, lineText);
                 }
             } else {
+                if (lineText.includes("\n")) { // are there items?
+                    lineText = lineText.replace(/\n/g, "\n" + "\t");
+                    itemCount = (lineText.match(/\n/g) || []).length;
+                }
                 lines.splice(lineToInsert, 0, lineText);
             }
+
             await this.plugin.cacheOperation?.appendTaskToCache(task, file.name);
             //We just add the ticktick tag, update it on ticktick now.
             let tags = this.plugin.taskParser?.getAllTagsFromLineText(lineText);
             if (tags) {
                 task.tags = tags;
             }
-            let content = this.plugin.taskParser?.getObsidianUrlFromFilepath(file.name)
-            if (content) {
-                task.content = content;
+            let taskURL = this.plugin.taskParser?.getObsidianUrlFromFilepath(file.name)
+            if (taskURL) {
+                task.title = task.title + " " + taskURL;
             }
             let updatedTask = await this.plugin.tickTickRestAPI?.UpdateTask(task)
-            lineToInsert++;
-        });
-        return lines;
+			//keep track of added Tasks because item count is affected
+
+			addedTask.push(task.id);
+            lineToInsert = lineToInsert + 1 + itemCount;
+        }
+		return lines;
     }
 
     // update task content to file
@@ -357,17 +353,25 @@ export class FileOperation {
         let modified = false
 
         for (let i = 0; i < lines.length; i++) {
-            const line = lines[i]
+            let line = lines[i]
             if (line.includes(taskId) && this.plugin.taskParser?.hasTickTickTag(line)) {
-                const newTaskContent = await this.plugin.taskParser?.convertTaskObjectToTaskLine(task);
-                const regex = /^[^-.]*/;
-                let parentTabs = line.match(regex)[0];
-                if (parentTabs) {
-                    parentTabs = parentTabs;
-                } else {
-                    parentTabs = "";
+                let newTaskContent = await this.plugin.taskParser?.convertTaskObjectToTaskLine(task);
+				//get tabs for current task
+                let taskToBeReplaced = await this.plugin.taskParser?.taskFromLine(line, filepath);
+                let parentTabs = taskToBeReplaced?.indentation;
+				let itemCount = 0;
+                if (newTaskContent.includes("\n")) { // are there items?
+                    newTaskContent = newTaskContent.replace(/\n/g, "\n" + parentTabs + '\t');
+					itemCount = (newTaskContent.match(/\n/g) || []).length;
                 }
+				if (currentTask.items && currentTask.items.length > 0 ) {
+					lines.splice(i+1,currentTask.items.length)
+				}
                 lines[i] = parentTabs + line.replace(line, newTaskContent)
+
+                // if (task.items && task.items.length > 0 ) {
+                //     console.log(`new Task has ${currentTask.items.length}`)
+                // }
                 modified = true
                 break
             }
@@ -382,6 +386,7 @@ export class FileOperation {
     // delete task from file
     async deleteTaskFromSpecificFile(filePath: string, taskId: string) {
         // Get the file object and update the content
+		console.error("Task being deleted from file: ", taskId, filePath)
         const file = this.app.vault.getAbstractFileByPath(filePath)
         const content = await this.app.vault.read(file)
 
@@ -406,12 +411,15 @@ export class FileOperation {
 
     }
     async deleteTaskFromFile(task: ITask) {
+		console.error("Task being deleted from file : ", task.id)
         const taskId = task.id
         // Get the task file path
         const currentTask = await this.plugin.cacheOperation?.loadTaskFromCacheID(taskId)
-        const filepath = currentTask.path
-        this.deleteTaskFromSpecificFile(filepath, task.id)
-
+		//TODO: It is redundant to have a path attribute AND filemetadata. Need to pick one or the other.
+		if (currentTask.path) {
+			const filepath = currentTask.path
+			await this.deleteTaskFromSpecificFile(filepath, task.id)
+		}
     }
 
     // sync updated task content to file

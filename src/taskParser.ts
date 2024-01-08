@@ -3,6 +3,10 @@ import TickTickSync from "../main";
 import { Tick } from 'ticktick-api-lvt'
 import { ITask } from "ticktick-api-lvt/dist/types/Task"
 import { ITag } from 'ticktick-api-lvt/dist/types/Tag';
+import {Task, TaskRegularExpressions} from "obsidian-task/src/Task"
+import { TaskLocation } from 'obsidian-task/src/TaskLocation';
+
+
 
 
 
@@ -86,7 +90,7 @@ const priorityMapping = [
 
 
 const REGEX = {
-    TickTick_TAG: new RegExp(`^[\\s]*[-] \\[[x ]\\] [\\s\\S]*${keywords.TickTick_TAG}[\\s\\S]*$`, "i"),
+    TickTick_TAG: new RegExp(`^[\\s]*[\\s\\S]*${keywords.TickTick_TAG}[\\s\\S]*$`, "i"),
     TickTick_ID: /\[ticktick_id::\s*[\d\S]+\]/,
     TickTick_ID_NUM: /\[ticktick_id::\s*(.*?)\]/,
     TickTick_LINK: /\[link\]\(.*?\)/,
@@ -105,7 +109,8 @@ const REGEX = {
         REMOVE_TickTick_LINK: /\[link\]\(.*?\)/,
     },
     // ALL_TAGS: /#[\w\u4e00-\u9fa5-]+/g,
-    ALL_TAGS: /#[\w\u4e00-\u9fa5-]+(?<!\b(\/#q))/g, //tickitck has a #q in the middle of the URL. bypass it.   
+    // ALL_TAGS: /#[\w\u4e00-\u9fa5-]+(?<!\b(\/#q))/g, //tickitck has a #q in the middle of the URL. bypass it.   
+    ALL_TAGS: /(?<!#)#[^pq\s]+\b/g, //Forget Qs and Ps. No pun intented.
     TASK_CHECKBOX_CHECKED: /- \[(x|X)\] /,
     TASK_INDENTATION: /^(\s{2,}|\t)(-|\*)\s+\[(x|X| )\]/,
     TAB_INDENTATION: /^(\t+)/,
@@ -130,6 +135,8 @@ export class TaskParser {
     async convertTaskObjectToTaskLine(task: ITask): Promise<string> {
         let resultLine = "";
 
+        task.title = this.stripOBSUrl(task.title);
+
         resultLine = `- [${task.status > 0 ? 'X' : ' '}] ${task.title}`;
 
         //add Tags
@@ -145,16 +152,34 @@ export class TaskParser {
         }
         //add priority
         resultLine = this.addPriorityToLine(resultLine, task);
-        let url = this.createURL(task.id);
-
-        resultLine = this.addTickTickLink(resultLine, url);
+        
+        resultLine = this.addTickTickLink(resultLine, task.id, task.projectId);
         resultLine = this.addTickTickId(resultLine, task.id);
 
+        if (task.items && task.items.length > 0) {
+            resultLine = this.addItems(resultLine, task.items)
+        }
 
 
         return resultLine;
 
     }
+    stripOBSUrl(title: string): string {
+        title = title.replace(/\[.*?\]\(obsidian:\/\/open\?vault=.*?&file=.*?\)/g, "");
+        return title;
+    }
+
+    private addItems(resultLine: string, items: any[]): string {
+        //TODO count indentations?
+        items.forEach(item => {
+            let completion = item.status > 0? "- [X]" : "- [ ]"; 
+            resultLine = `${resultLine} \n${completion} ${item.title} %%${item.id}%%`;
+        });
+        return resultLine;
+    }
+
+
+
     private addPriorityToLine(resultLine: string, task: ITask) {
         let priority = this.translateTickTickToObsidian(task.priority);
         if (priority != null) {
@@ -194,7 +219,8 @@ export class TaskParser {
         let parentTaskObject = null
         //Detect parentID
         let textWithoutIndentation = lineText
-        if (this.getTabIndentation(lineText) > 0) {
+		const lineTextTabIndentation = this.getTabIndentation(lineText);
+		if (lineTextTabIndentation > 0) {
             //console.log(`Indentation is ${this.getTabIndentation(lineText)}`)
             textWithoutIndentation = this.removeTaskIndentation(lineText)
             //console.log(textWithoutIndentation)
@@ -213,11 +239,11 @@ export class TaskParser {
                     break
                 }
                 //If the number of tabs is greater than or equal to the current line, skip
-                if (this.getTabIndentation(line) >= this.getTabIndentation(lineText)) {
+                if (this.getTabIndentation(line) >= lineTextTabIndentation) {
                     //console.log(`Indentation is ${this.getTabIndentation(line)}`)
                     continue
                 }
-                if ((this.getTabIndentation(line) < this.getTabIndentation(lineText))) {
+                if ((this.getTabIndentation(line) < lineTextTabIndentation)) {
                     //console.log(`Indentation is ${this.getTabIndentation(line)}`)
                     if (this.hasTickTickId(line)) {
                         parentId = this.getTickTickIdFromLineText(line)
@@ -272,16 +298,19 @@ export class TaskParser {
         const TickTick_id = this.getTickTickIdFromLineText(textWithoutIndentation)
         const priority = this.getTaskPriority(textWithoutIndentation)
         if (filepath) {
-            let url = encodeURI(`obsidian://open?vault=${this.app.vault.getName()}&file=${filepath}`)
-            description = `[${filepath}](${url})`;
+            let taskURL = this.plugin.taskParser?.getObsidianUrlFromFilepath(filepath)
+            if (taskURL) {
+                description = taskURL;
+            }
+            
         }
         const task: ITask = {
             id: TickTick_id || "",
             projectId: projectId,
-            title: title,
-            //todo: look for actual content! For now, using description
+            title: title.trim() + " " + description,
+            //todo: Not cloberring the content field, what should we do?
             //content: ??
-            content: description,
+            // content: description,
             parentId: parentId || "",
             dueDate: dueDate || '',
             //TickTick, for some reason, will derive a start date from due date, and eff up the date displayed. 
@@ -302,8 +331,11 @@ export class TaskParser {
     hasTickTickTag(text: string) {
         //console.log("Check whether TickTick tag is included")
         //console.log(text)
-        // console.log("Regex is: ", REGEX.TickTick_TAG)
-        return (REGEX.TickTick_TAG.test(text))
+        if (this.isMarkdownTask(text)) {
+            return REGEX.TickTick_TAG.test(text);
+        } else {
+            return false;
+        }
     }
 
 
@@ -322,7 +354,7 @@ export class TaskParser {
 
     addChildToParent(parentTask: ITask, childId: string) {
         if (!parentTask.childIds) {
-            parentTask.childIds = []; 
+            parentTask.childIds = [];
         }
         parentTask.childIds.push(childId);
         return parentTask;
@@ -376,14 +408,17 @@ export class TaskParser {
 
     //get all tags from task text
     getAllTagsFromLineText(lineText: string) {
-        let tags = lineText.match(REGEX.ALL_TAGS);
+        // let tags = lineText.matchAll(REGEX.ALL_TAGS);
 
-        if (tags) {
-            // Remove '#' from each tag
-            tags = tags.map(tag => tag.replace('#', ''));
-        }
+        // if (tags) {
+        //     // Remove '#' from each tag
+        //     tags = tags.map(tag => tag.replace('#', ''));
+        // }
+        const tags = [...lineText.matchAll(REGEX.ALL_TAGS)];
+        const tagArray = tags.map(tag => tag[0].replace('#', ''));
+        // tagArray.forEach(tag => console.log(typeof tag, tag)) 
 
-        return tags;
+        return tagArray;
     }
 
     //get checkbox status
@@ -394,10 +429,13 @@ export class TaskParser {
 
     //task content compare
     isTitleChanged(lineTask: ITask, TickTickTask: ITask) {
-        const lineTaskTitle = lineTask.title
-        const TickTickTaskTitle = TickTickTask.title
+        //TODO: This is ugly, but I'm tired of chasing it. There's still a place where 
+        //      we're adding the OBSUrl to the tile when we don't need to. Everything else
+        //      works, so just kludge it for now.
+        const lineTaskTitle = this.stripOBSUrl(lineTask.title)
+        const TickTickTaskTitle = this.stripOBSUrl(TickTickTask.title)
         //Whether content is modified?
-        const contentModified = (lineTaskTitle === TickTickTaskTitle)
+        const contentModified = (lineTaskTitle.trim() === TickTickTaskTitle.trim())
         return (!contentModified)
     }
 
@@ -448,17 +486,39 @@ export class TaskParser {
             return true;
         }
 
-
-
-
         if (lineTaskDue === TickTickTaskDue) {
             //console.log('due date consistent')
             return false;
-        } else if (lineTaskDue.toString() === "Invalid Date" || TickTickTaskDue.toString() === "Invalid Date") {
+        } else if (lineTaskDue.toString() === "Invalid Date" && TickTickTaskDue.toString() === "Invalid Date") {
             // console.log('invalid date')
             return false;
         } else {
-            return true;
+			const date1 = new Date(lineTaskDue);
+			const date2 = new Date(TickTickTaskDue);
+
+			const utcDate1 = new Date(date1.getUTCFullYear(), date1.getUTCMonth(), date1.getUTCDate(),date1.getUTCHours(), date1.getUTCMinutes(), date1.getUTCSeconds());
+			const utcDate2 = new Date(date2.getUTCFullYear(), date2.getUTCMonth(), date2.getUTCDate(),date2.getUTCHours(), date2.getUTCMinutes(), date2.getUTCSeconds());
+
+			if (utcDate1.getTime() === utcDate2.getTime()) {
+				return false;
+			} else {
+				if (this.plugin.settings.debugMode) {
+					// Calculate the difference in minutes
+					const timeDifferenceInMilliseconds = Math.abs(utcDate2.getTime() - utcDate1.getTime());
+					const days = Math.floor(timeDifferenceInMilliseconds / (1000 * 60 * 60 * 24));
+					const hours = Math.floor((timeDifferenceInMilliseconds % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+					const minutes = Math.floor((timeDifferenceInMilliseconds % (1000 * 60 * 60)) / (1000 * 60));
+
+					if (days > 0) {
+						console.log(`The timestamps are ${days} days, ${hours} hours, and ${minutes} minutes apart.`);
+					} else if (hours > 0) {
+						console.log(`The timestamps are ${hours} hours and ${minutes} minutes apart.`);
+					} else {
+						console.log(`The timestamps are ${minutes} minutes apart.`);
+					}
+				}
+				return true;
+			}
         }
     }
 
@@ -574,10 +634,15 @@ export class TaskParser {
         return formattedDate;
     }
 
-
-    isMarkdownTask(str: string): boolean {
+    //TODO fix this.
+    oldMarkdownTask(str: string): boolean {
         const taskRegex = /^\s*-\s+\[([x ])\]/;
         return taskRegex.test(str);
+    }
+
+    isMarkdownTask(str: string): boolean { 
+        const forRealRegex = TaskRegularExpressions.taskRegex;
+        return forRealRegex.test(str);
     }
 
     addTickTickTag(str: string): string {
@@ -591,9 +656,9 @@ export class TaskParser {
     }
 
 
-    addTickTickLink(linetext: string, taskId: string): string {
-        let url = this.createURL(taskId)
-        const regex = new RegExp(`${keywords.TickTick_TAG}`, "g");
+    addTickTickLink(linetext: string, taskId: string, projecId: string): string {
+        let url = this.createURL(taskId, projecId)
+        const regex = new RegExp(`${keywords.TickTick_TAG}`, "gi");
         const link = `[link](${url})`
         return linetext.replace(regex, link + ' ' + '$&');
     }
@@ -605,8 +670,14 @@ export class TaskParser {
     }
 
     //ticktick specific url
-    createURL(newTaskId: string): string {
-        return `https://ticktick.com/webapp/#q/all/tasks/${newTaskId}`;
+    createURL(newTaskId: string, projectId: string): string {
+        let url = "";
+        if (projectId) {
+            url = `https://ticktick.com/webapp/#p/${projectId}/tasks/${newTaskId}`;
+        } else {
+            url = `https://ticktick.com/webapp/#q/all/tasks/${newTaskId}`;
+        }
+        return url;
     }
 
     translateTickTickToObsidian(ticktickPriority: number) {
@@ -617,5 +688,15 @@ export class TaskParser {
     translateObsidianToTickTick(obsidianPriority: number) {
         const mapping = priorityMapping.find((item) => item.obsidian === obsidianPriority);
         return mapping ? mapping.ticktick : null;
+    }
+
+    async taskFromLine(line: string, path: string): Promise<Task> {
+        let taskLocation: TaskLocation = TaskLocation.fromUnknownPosition(path);
+        let task = Task.fromLine({
+            line,
+            taskLocation: TaskLocation.fromUnknownPosition(path),
+            fallbackDate: null,
+        });
+        return task;
     }
 }
