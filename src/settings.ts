@@ -2,7 +2,6 @@ import {App, Notice, PluginSettingTab, Setting} from 'obsidian';
 import TickTickSync from "../main";
 import {ConfirmFullSyncModal} from "./ConfirmFullSyncModal"
 import {BrowserWindow, session} from "@electron/remote";
-import {LoginModal} from "./LoginModal";
 
 interface MyProject {
 	id: string;
@@ -26,6 +25,7 @@ export interface TickTickSyncSettings {
 	enableFullVaultSync: boolean;
 	statistics: any;
 	debugMode: boolean;
+	token:string;
 }
 
 
@@ -101,14 +101,17 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 					.setIcon('send')
 					.setTooltip('Log In')
 					.onClick(async () => {
-						//TODO: The NWO TickTick sometimes requires a captcha. Getting The user to manually login
-						//      gets the token cookie for the session. If it expires, everything will fail and the
-						//      user will be asked to login again.
-						const didLogin = await this.launchLogin();
-						if (didLogin) {
-							console.log("Going to Initialize")
-							await this.plugin.initializePlugin()
-						}
+
+						//TODO: Get this from settings or something
+						const url = `https://ticktick.com/signin`;
+
+						this.loadLoginWindow(url).then(async (token): string => {
+							if (token) {
+								console.log("Going to Initialize")
+								this.plugin.settings.token = token;
+								await this.plugin.initializePlugin()
+							}
+						});
 						this.display()
 
 					})
@@ -412,15 +415,38 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 		}
 	}
 
-	private async launchLogin() {
-		const myModal = new LoginModal(this.app, (result) => {
-			this.ret = result;
+	private async loadLoginWindow(url: string) {
+
+		return new Promise((resolve) => {
+			//Get a cookie!
+			const window = new BrowserWindow({ show: false,
+				width: 600,
+				height: 800,
+				webPreferences: {
+					nodeIntegration: false, // We recommend disabling nodeIntegration for security.
+					contextIsolation: true, // We recommend enabling contextIsolation for security.
+					// see https://github.com/electron/electron/blob/master/docs/tutorial/security.md
+				},
+			});
+			window.loadURL(url);
+			window.once('ready-to-show', () => {
+				window.show()
+			})
+
+			let token = "";
+			window.on('closed', () => {
+				session.defaultSession.cookies.get({domain: ".ticktick.com", name: "t"})
+					.then((cookies) => {
+						token = cookies[0].value
+						window.destroy();
+						resolve(token);
+					}).catch((error) => {
+					console.error(error)
+				})
+			});
 		});
-		const bConfirmation =  await myModal.showModal();
 
-		return bConfirmation;
 	}
-
 
 }
 								
