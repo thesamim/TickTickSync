@@ -264,7 +264,7 @@ export class SyncMan {
 				console.error(`There is no task ${lineTask.id}, ${lineTask.title} in the local cache. It will be deleted`)
 				//TODO add modal that allows user the choice of deleting or adding.
 				new Notice(`There is no task ${lineTask.id}, ${lineTask.title} in the local cache. It will be deleted`)
-				await this.plugin.fileOperation?.deleteTaskFromSpecificFile(filepath, lineTask.id);
+				await this.plugin.fileOperation?.deleteTaskFromSpecificFile(filepath, lineTask.id, lineTask.title, true);
 				return
 			}
 			//console.log(savedTask)
@@ -705,7 +705,7 @@ export class SyncMan {
 	async deleteTasksByIds(taskIds: string[]): Promise<string[]> {
 		const deletedTaskIds = [];
 		//TODO: Confirm deletions!
-		const bConfirm = await this.confirmDeletion(taskIds);
+		const bConfirm = await this.confirmDeletion(taskIds, "The tasks were removed from the file");
 		if (!bConfirm) {
 			new Notice("Tasks will not be deleted. Please rectify the issue before the next sync.", 0)
 			return [];
@@ -861,11 +861,16 @@ export class SyncMan {
 			const reallyDeletedTickTickTasks = deletedTickTickTasks.filter(task => deletedTasks.some(t => t.taskId === task.id));
 			// this.dumpArray('== reallyDeletedTickTickTasks deleted from TickTick:', reallyDeletedTickTickTasks);
 
+			const taskTitlesForConfirmation = reallyDeletedTickTickTasks.map((task: ITask) => task.id)
 
-			for (const task of reallyDeletedTickTickTasks) {
-				await this.plugin.fileOperation?.deleteTaskFromFile(task);
-				await this.plugin.cacheOperation?.deleteTaskFromCache(task.id)
-				bModifiedFileSystem = true;
+			const bConfirm = await  this.confirmDeletion(taskTitlesForConfirmation, "tasks deleted from TickTick");
+
+			if (bConfirm) {
+				for (const task of reallyDeletedTickTickTasks) {
+					await this.plugin.fileOperation?.deleteTaskFromFile(task);
+					await this.plugin.cacheOperation?.deleteTaskFromCache(task.id)
+					bModifiedFileSystem = true;
+				}
 			}
 
 
@@ -994,11 +999,11 @@ export class SyncMan {
 
 	}
 
-	private async confirmDeletion(taskIds: string[]) {
-		let tasks = await this.plugin.cacheOperation?.getTaskTitles(taskIds);
+	private async confirmDeletion(taskIds: string[], reason: string) {
+		const tasksTitles = await this.plugin.cacheOperation?.getTaskTitles(taskIds);
 
 
-		const myModal = new TaskDeletionModal(this.app, this, tasks, (result) => {
+		const myModal = new TaskDeletionModal(this.app, tasksTitles, reason, (result) => {
 			this.ret = result;
 		});
 		const bConfirmation = await myModal.showModal();

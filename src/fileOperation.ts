@@ -1,6 +1,7 @@
 import { App, Notice, TFile } from 'obsidian';
 import TickTickSync from "../main";
 import { ITask } from 'ticktick-api-lvt/dist/types/Task';
+import {TaskDeletionModal} from "./TaskDeletionModal";
 
 export class FileOperation {
     app: App;
@@ -384,8 +385,16 @@ export class FileOperation {
 
     }
     // delete task from file
-    async deleteTaskFromSpecificFile(filePath: string, taskId: string) {
+    async deleteTaskFromSpecificFile(filePath: string, taskId: string, taskTitle: string, bConfirmDialog: boolean) {
         // Get the file object and update the content
+
+		if (bConfirmDialog) {
+			const bConfirm = await this.confirmDeletion(taskTitle);
+			if (!bConfirm) {
+				new Notice("Tasks will not be deleted. Please rectify the issue before the next sync.", 0)
+				return [];
+			}
+		}
 		console.error("Task being deleted from file: ", taskId, filePath)
         const file = this.app.vault.getAbstractFileByPath(filePath)
         const content = await this.app.vault.read(file)
@@ -411,14 +420,13 @@ export class FileOperation {
 
     }
     async deleteTaskFromFile(task: ITask) {
-		console.error("Task being deleted from file : ", task.id)
         const taskId = task.id
         // Get the task file path
         const currentTask = await this.plugin.cacheOperation?.loadTaskFromCacheID(taskId)
 		//TODO: It is redundant to have a path attribute AND filemetadata. Need to pick one or the other.
 		if (currentTask.path) {
 			const filepath = currentTask.path
-			await this.deleteTaskFromSpecificFile(filepath, task.id)
+			await this.deleteTaskFromSpecificFile(filepath, task.id, task.title, false)
 		}
     }
 
@@ -523,7 +531,17 @@ export class FileOperation {
         }
     }
 
+	private async confirmDeletion(taskTitle: string) {
+		const tasksTitles = [];
+		tasksTitles.push(taskTitle)
+		const reason: string = "task not found in local cache."
+		const myModal = new TaskDeletionModal(this.app, tasksTitles, reason, (result) => {
+			this.ret = result;
+		});
+		const bConfirmation = await myModal.showModal();
 
+		return bConfirmation;
+	}
 
 
 

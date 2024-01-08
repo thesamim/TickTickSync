@@ -123,7 +123,7 @@ Please see [Task Examples](#task-examples)
 </td>
 <td>
 
-- [ ] This task will not be ignored. It does not have a ticktick tag.
+- [ ] This task will be ignored. It does not have a ticktick tag.
 
 </td>
 </tr>
