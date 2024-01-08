@@ -4,17 +4,21 @@ import TickTickSync from "../main";
 
 export class TaskDeletionModal extends Modal {
 	title = 'Task Deletion Confirmation';
-	message = 'The following Task(s) will be deleted.';
+
+	message = 'The following Task(s) will be deleted because: ';
 	cancelLabel = 'Cancel';
 	confirmLabel = 'Confirm Deletion';
-	tasks: string [] =  [];
+	taskTitles: string [] =  [];
 	result: boolean;
+	reason: string;
 	onSubmit: (result: boolean) => void;
 	resolvePromise: (value: (PromiseLike<boolean> | boolean)) => void;
 
-	constructor(app: App, plugin: TickTickSync, tasks: string[], onSubmit: (result: boolean) => void) {
+	constructor(app: App, taskTitles: string[], reason: string, onSubmit: (result: boolean) => void) {
 		super(app);
-		this.tasks = tasks;
+		this.taskTitles = taskTitles;
+		this.reason = reason;
+
 		this.onSubmit = onSubmit;
 	}
 
@@ -25,9 +29,10 @@ export class TaskDeletionModal extends Modal {
 		const {titleEl, contentEl} = this;
 
 		titleEl.setText(this.title);
-		contentEl.createEl('p', {text: this.message});
+
+		contentEl.createEl('p', {text: `${this.message}${this.reason}`});
 		const unorderedList = contentEl.createEl('ul');
-		this.tasks.forEach((task) => {unorderedList.createEl('li', {text: task})})
+		this.taskTitles.forEach((task) => {unorderedList.createEl('li', {text: task})})
 
 		
 		new Setting(contentEl).addButton(cancelBtn => {
