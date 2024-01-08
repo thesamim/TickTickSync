@@ -14,6 +14,7 @@ type deletedTask = {
 }
 
 export class SyncMan {
+
 	app: App;
 	plugin: TickTickSync;
 

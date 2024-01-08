@@ -17,6 +17,7 @@ import {CacheOperation, TaskDetail} from './src/cacheOperation';
 import {FileOperation} from './src/fileOperation';
 
 //sync module
+
 import {SyncMan} from './src/syncModule';
 
 import ObjectID from 'bson-objectid';
