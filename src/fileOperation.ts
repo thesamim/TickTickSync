@@ -387,15 +387,14 @@ export class FileOperation {
     // delete task from file
     async deleteTaskFromSpecificFile(filePath: string, taskId: string, taskTitle: string, bConfirmDialog: boolean) {
         // Get the file object and update the content
-
-		if (bConfirmDialog) {
+	if (bConfirmDialog) {
 			const bConfirm = await this.confirmDeletion(taskTitle);
 			if (!bConfirm) {
 				new Notice("Tasks will not be deleted. Please rectify the issue before the next sync.", 0)
 				return [];
 			}
 		}
-		console.error("Task being deleted from file: ", taskId, filePath)
+	console.error("Task being deleted from file: ", taskId, filePath)
         const file = this.app.vault.getAbstractFileByPath(filePath)
         const content = await this.app.vault.read(file)
 

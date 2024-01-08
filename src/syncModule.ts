@@ -705,6 +705,7 @@ export class SyncMan {
 	async deleteTasksByIds(taskIds: string[]): Promise<string[]> {
 		const deletedTaskIds = [];
 		//TODO: Confirm deletions!
+
 		const bConfirm = await this.confirmDeletion(taskIds, "The tasks were removed from the file");
 		if (!bConfirm) {
 			new Notice("Tasks will not be deleted. Please rectify the issue before the next sync.", 0)
@@ -998,6 +999,7 @@ export class SyncMan {
 
 
 	}
+
 
 	private async confirmDeletion(taskIds: string[], reason: string) {
 		const tasksTitles = await this.plugin.cacheOperation?.getTaskTitles(taskIds);
