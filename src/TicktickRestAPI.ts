@@ -26,11 +26,12 @@ export class TickTickRestAPI {
 				const userName = this.plugin.settings.username;
 				const password = this.plugin.settings.password;
 				const token = this.plugin.settings.token;
+				const baseURL = this.plugin.settings.baseURL;
 				if (!token || token === "" || !userName || userName === "" || !password || password === "") {
 					new Notice("Please login from Settings.", 0)
 				}
 				//TODO: prevent repeated logins
-                const api = new Tick({ username: userName, password: password, token: token });
+                const api = new Tick({ username: userName, password: password, baseUrl: baseURL, token: token });
                 apiInitialized = await api.login();
 
                 this.plugin.settings.apiInitialized = apiInitialized;
