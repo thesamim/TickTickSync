@@ -673,9 +673,9 @@ export class TaskParser {
     createURL(newTaskId: string, projectId: string): string {
         let url = "";
         if (projectId) {
-            url = `https://ticktick.com/webapp/#p/${projectId}/tasks/${newTaskId}`;
+            url = `${this.plugin.settings.baseURL}/webapp/#p/${projectId}/tasks/${newTaskId}`;
         } else {
-            url = `https://ticktick.com/webapp/#q/all/tasks/${newTaskId}`;
+            url = `${this.plugin.settings.baseURL}/webapp/#q/all/tasks/${newTaskId}`;
         }
         return url;
     }

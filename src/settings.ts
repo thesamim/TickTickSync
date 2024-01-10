@@ -3,13 +3,9 @@ import TickTickSync from "../main";
 import {ConfirmFullSyncModal} from "./ConfirmFullSyncModal"
 import {BrowserWindow, session} from "@electron/remote";
 
-interface MyProject {
-	id: string;
-	name: string;
-}
-
 
 export interface TickTickSyncSettings {
+	baseURL: string;
 	initialized: boolean;
 	//mySetting: string;
 	//TickTickTasksFilePath: string;
@@ -60,7 +56,7 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 
 		containerEl.createEl('h2', {text: 'Settings'});
 
-		const myProjectsOptions: MyProject | undefined = this.plugin.settings.TickTickTasksData?.projects?.reduce((obj, item) => {
+		const myProjectsOptions: Record<string, string> | undefined = this.plugin.settings.TickTickTasksData?.projects?.reduce((obj, item) => {
 			try {
 				obj[(item.id).toString()] = item.name;
 				return obj;
@@ -69,6 +65,24 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 				return obj;
 			}
 		}, {});
+		const providerOptions: Record<string, string> = {"1": "ticktick.com", "2": "dida365.com"}
+		console.log(this.plugin.settings.baseURL)
+		const currentVal = Object.keys(providerOptions).find(key => providerOptions[key] === this.plugin.settings.baseURL)
+		console.log(" ", currentVal)
+
+		new Setting(containerEl)
+			.setName("TickTick/Dida")
+			.setDesc("Select home server")
+			.setHeading()
+			.addDropdown(component =>
+				component
+					.addOptions(providerOptions)
+					.setValue(currentVal)
+					.onChange(async (value: string) => {
+						this.plugin.settings.baseURL = providerOptions[value]
+						await this.plugin.saveSettings();
+					})
+			)
 
 		new Setting(containerEl)
 			.setName('Username')
@@ -101,11 +115,9 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 					.setIcon('send')
 					.setTooltip('Log In')
 					.onClick(async () => {
+						const url = `https://${this.plugin.settings.baseURL}/signin`;
 
-						//TODO: Get this from settings or something
-						const url = `https://ticktick.com/signin`;
-
-						this.loadLoginWindow(url).then(async (token): string => {
+						this.loadLoginWindow(url).then(async (token:string) => {
 							if (token) {
 								console.log("Going to Initialize")
 								this.plugin.settings.token = token;
@@ -359,9 +371,6 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 					if (!taskObject) {
 						console.log(`Task ${taskDetail.id}: ${taskDetail.title} is not found.`)
 						continue
-					}
-					if (!taskObject?.content) {
-						console.log(`The content of the task ${taskDetail} is empty.`)
 					}
 					const oldTitle = taskObject?.title ?? '';
 					if (!oldTitle.includes(obsidianURL)) {
