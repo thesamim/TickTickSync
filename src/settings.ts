@@ -6,6 +6,8 @@ import {FolderSuggest} from "./FolderSuggester";
 
 
 export interface TickTickSyncSettings {
+	SyncProject: any;
+	SyncTag: any;
 	baseURL: string;
 	initialized: boolean;
 	//mySetting: string;
@@ -49,7 +51,7 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 		this.plugin = plugin;
 	}
 
-	display(): void {
+	async display(): void {
 		const {containerEl} = this;
 
 		containerEl.empty();
@@ -66,9 +68,11 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 			}
 		}, {});
 		const providerOptions: Record<string, string> = {"1": "ticktick.com", "2": "dida365.com"}
-		console.log(this.plugin.settings.baseURL)
 		const currentVal = Object.keys(providerOptions).find(key => providerOptions[key] === this.plugin.settings.baseURL)
-		console.log(" ", currentVal)
+
+		containerEl.createEl('hr');
+		containerEl.createEl('h1', {text: 'Access Control'});
+
 
 		new Setting(containerEl)
 			.setName("TickTick/Dida")
@@ -117,7 +121,7 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 					.onClick(async () => {
 						const url = `https://${this.plugin.settings.baseURL}/signin`;
 
-						this.loadLoginWindow(url).then(async (token:string) => {
+						this.loadLoginWindow(url).then(async (token: string) => {
 							if (token) {
 								console.log("Going to Initialize")
 								this.plugin.settings.token = token;
@@ -130,9 +134,61 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 			})
 			.setDesc("Click to Log in after any changes, or to re-login");
 
-		// this.addDefaultFolderPathSetting();
+
+		containerEl.createEl('hr');
+		containerEl.createEl('h1', {text: 'Sync control'});
 		this.add_default_folder_path();
 
+		new Setting(containerEl)
+			.setName('Default project')
+			.setDesc('New tasks are automatically synced to the default project. You can modify the project here.')
+			.addDropdown(component =>
+				component
+					.addOption(this.plugin.settings.defaultProjectId, this.plugin.settings.defaultProjectName)
+					.addOptions(myProjectsOptions)
+					.onChange(async (value) => {
+						this.plugin.settings.defaultProjectId = value
+						this.plugin.settings.defaultProjectName = await this.plugin.cacheOperation?.getProjectNameByIdFromCache(value)
+						await this.plugin.saveSettings()
+
+
+					})
+			)
+		containerEl.createEl('hr');
+		containerEl.createEl('h2', {text: 'Limit synchronization'});
+		new Setting(containerEl)
+			.setDesc("To limit the tasks TickTickSync will synchronize from TickTick to " +
+				"Obsidian select a tag or project(list) below. If a tag is entered, only tasks with that tag will be " +
+				"synchronized. If a project(list) is selected, only tasks in that project will be synchronized. If " +
+				"both are chosen on tasks with that tag in that project will be synchronized.")
+
+		new Setting(containerEl)
+			.setName('Project')
+			.setDesc('Only tasks in this project will be synchronized.')
+			.addDropdown(component =>
+				component
+					.addOption("", "")
+					.addOptions(myProjectsOptions)
+					.setValue(this.plugin.settings.SyncProject)
+					.onChange(async (value) => {
+						console.log("chose: " ,value)
+						this.plugin.settings.SyncProject = value;
+						await this.plugin.saveSettings()
+					})
+			)
+
+		new Setting(containerEl)
+			.setName('Tag')
+			.setDesc('Tag value, no "#"')
+			.addText(text => text
+				.setValue(this.plugin.settings.SyncTag)
+				.onChange(async (value) => {
+					this.plugin.settings.SyncTag = value;
+					await this.plugin.saveSettings();
+				})
+			)
+
+		containerEl.createEl('hr');
 		new Setting(containerEl)
 			.setName('Automatic sync interval time')
 			.setDesc('Please specify the desired interval time, with seconds as the default unit. The default setting is 300 seconds, which corresponds to syncing once every 5 minutes. You can customize it, but it cannot be lower than 20 seconds.')
@@ -158,23 +214,6 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 						this.plugin.saveSettings()
 						new Notice('Settings have been updated.');
 						//
-					})
-			)
-
-
-		new Setting(containerEl)
-			.setName('Default project')
-			.setDesc('New tasks are automatically synced to the default project. You can modify the project here.')
-			.addDropdown(component =>
-				component
-					.addOption(this.plugin.settings.defaultProjectId, this.plugin.settings.defaultProjectName)
-					.addOptions(myProjectsOptions)
-					.onChange(async (value) => {
-						this.plugin.settings.defaultProjectId = value
-						this.plugin.settings.defaultProjectName = await this.plugin.cacheOperation?.getProjectNameByIdFromCache(value)
-						this.plugin.saveSettings()
-
-
 					})
 			)
 
@@ -208,6 +247,9 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 						}
 					})
 			)
+
+		containerEl.createEl('hr');
+		containerEl.createEl('h1', {text: 'Manual operations'});
 
 
 		new Setting(containerEl)

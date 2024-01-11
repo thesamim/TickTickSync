@@ -20,7 +20,7 @@ export class FileOperation {
     async completeTaskInTheFile(taskId: string) {
         // Get the task file path
         const currentTask = await this.plugin.cacheOperation?.loadTaskFromCacheID(taskId)
-        const filepath = currentTask.path
+        const filepath = await this.plugin.cacheOperation?.getFilepathForTask(taskId)
 
         // Get the file object and update the content
         const file = this.app.vault.getAbstractFileByPath(filepath)
@@ -48,7 +48,7 @@ export class FileOperation {
     async uncompleteTaskInTheFile(taskId: string) {
         // Get the task file path
         const currentTask = await this.plugin.cacheOperation?.loadTaskFromCacheID(taskId)
-        const filepath = currentTask.path
+        const filepath = await this.plugin.cacheOperation?.getFilepathForTask(taskId)
 
         // Get the file object and update the content
         const file = this.app.vault.getAbstractFileByPath(filepath)
@@ -359,8 +359,13 @@ export class FileOperation {
         const taskId = task.id
         // Get the task file path
         const currentTask = await this.plugin.cacheOperation?.loadTaskFromCacheID(taskId)
-        const filepath = currentTask.path
-
+        let filepath = await this.plugin.cacheOperation?.getFilepathForTask(taskId)
+		if(!filepath) {
+			filepath = await this.plugin.cacheOperation?.getFilepathForProjectId(task.projectId);
+			if(!filepath) {
+				throw new Error(`File not found for ${task.id}, ${task.title}`)
+			}
+		}
         // Get the file object and update the content
         const file = this.app.vault.getAbstractFileByPath(filepath)
         const content = await this.app.vault.read(file)
@@ -433,23 +438,23 @@ export class FileOperation {
 
 
     }
-    async deleteTaskFromFile(task: ITask) {
-        const taskId = task.id
-        // Get the task file path
-        const currentTask = await this.plugin.cacheOperation?.loadTaskFromCacheID(taskId)
-		//TODO: It is redundant to have a path attribute AND filemetadata. Need to pick one or the other.
-		if (currentTask.path) {
-			const filepath = currentTask.path
-			await this.deleteTaskFromSpecificFile(filepath, task.id, task.title, false)
-		}
-    }
 
-    // sync updated task content to file
+	async deleteTaskFromFile(task: ITask) {
+		const taskId = task.id
+		// Get the task file path
+		const currentTask = await this.plugin.cacheOperation?.loadTaskFromCacheID(taskId)
+
+		const filepath = this.plugin.cacheOperation?.getFilepathForTask(taskId)
+		await this.deleteTaskFromSpecificFile(filepath, task.id, task.title, false)
+
+	}
+
+	// sync updated task content to file
     async syncUpdatedTaskContentToTheFile(evt: Object) {
         const taskId = evt.object_id
         // Get the task file path
         const currentTask = await this.plugin.cacheOperation?.loadTaskFromCacheID(taskId)
-        const filepath = currentTask.path
+        const filepath = await this.plugin.cacheOperation?.getFilepathForTask(taskId)
 
         // Get the file object and update the content
         const file = this.app.vault.getAbstractFileByPath(filepath)

@@ -342,12 +342,14 @@ export class SyncMan {
 					if (this.plugin.settings.debugMode) {
 						console.error(`Project id modified for task ${lineTask_ticktick_id}, ${lineTask.projectId}, ${savedTask.projectId}`)
 						console.error("This is not yet handled.");
-						const noticeMessage = `Task ${lineTask_ticktick_id}: ${lineTaskTitle} has moved from ` +
-						`${await this.plugin.cacheOperation?.getProjectNameByIdFromCache(savedTask.projectId)} to` +
-						`${await this.plugin.cacheOperation?.getProjectNameByIdFromCache(lineTask.projectId)} \n` +
-							`This is not handled yet. Please adjust manually.`
-						// new Notice(noticeMessage, 0);
-						// console.log(noticeMessage);
+						// const noticeMessage = `Task ${lineTask_ticktick_id}: ${lineTaskTitle} has moved from ` +
+						// `${await this.plugin.cacheOperation?.getProjectNameByIdFromCache(savedTask.projectId)} to` +
+						// `${await this.plugin.cacheOperation?.getProjectNameByIdFromCache(lineTask.projectId)} \n` +
+						// 	`This is not handled yet. Please adjust manually.`
+						// // new Notice(noticeMessage, 0);
+						// if (this.plugin.settings.debugMode) {
+						// 	console.log(noticeMessage);
+						// }
 					}
 					savedTask.projectId = lineTask.projectId
 					projectChanged = false;
@@ -359,14 +361,16 @@ export class SyncMan {
 					if (this.plugin.settings.debugMode) {
 						console.error(`Parent id modified for task ${lineTask_ticktick_id}, ${lineTask.parentId}, ${savedTask.parentId}`)
 						console.error("This is not yet handled.");
-						let oldParent = await this.plugin.cacheOperation?.loadTaskFromCacheID(savedTask.parentId);
-						let newParent = await this.plugin.cacheOperation?.loadTaskFromCacheID(lineTask.parentId)
-						let noticeMessage = `Task ${lineTask_ticktick_id}:\n${this.plugin.taskParser?.stripOBSUrl(lineTaskTitle).trim()}\n` +
-						`used to be a child of:\n${oldParent? oldParent.title.trim(): "No old parent found"}\n` +
-						`but is now a child of:\n${newParent? newParent.title.trim(): "No new parent found."}\n`+
-						`This is not handled yet. Please adjust manually.\n`
-						// new Notice( noticeMessage, 0)
-						// console.log(noticeMessage);
+						// let oldParent = await this.plugin.cacheOperation?.loadTaskFromCacheID(savedTask.parentId);
+						// let newParent = await this.plugin.cacheOperation?.loadTaskFromCacheID(lineTask.parentId)
+						// let noticeMessage = `Task ${lineTask_ticktick_id}:\n${this.plugin.taskParser?.stripOBSUrl(lineTaskTitle).trim()}\n` +
+						// `used to be a child of:\n${oldParent? oldParent.title.trim(): "No old parent found"}\n` +
+						// `but is now a child of:\n${newParent? newParent.title.trim(): "No new parent found."}\n`+
+						// `This is not handled yet. Please adjust manually.\n`
+						// // new Notice( noticeMessage, 0)
+						// if (this.plugin.settings.debugMode) {
+						// 	console.log(noticeMessage);
+						// }
 
 					}
 					savedTask.parentId = lineTask.parentId
@@ -385,7 +389,6 @@ export class SyncMan {
 					//TODO: Breaking SOC here.
 					savedTask.modifiedTime = this.plugin.taskParser?.formatDateToISO(new Date());
 					const result = await this.plugin.tickTickRestAPI?.UpdateTask(savedTask)
-					savedTask.path = filepath
 					await this.plugin.cacheOperation?.updateTaskToCacheByID(savedTask);
 				}
 				// console.log(result)
@@ -463,7 +466,17 @@ export class SyncMan {
 			let modified = false;
 			let added = false;
 			//it's a task. Is it a task item?
+			//is it a task at all?
+			if (!this.plugin.taskParser?.isMarkdownTask(lineText)) {
+				//Nah Brah. Bail.
+				return;
+			}
 			let parsedItem = await this.plugin.taskParser?.taskFromLine(lineText, filepath);
+			if (this.plugin.settings.debugMode) {
+				if (!parsedItem || !(await parsedItem).description || !((await parsedItem).status)) {
+					console.error(`Task construction failed in line: ${lineText}`)
+				}
+			}
 			let tabs = parsedItem?.indentation;
 			let content = parsedItem?.description;
 			if (content?.trim().length == 0) {
@@ -506,8 +519,9 @@ export class SyncMan {
 									}
 									break;
 								} else {
-									console.log(`${itemId} Not found.`)
-									console.log("item ID", itemId, "in", parentTask.items)
+									//TODO: Should ought to do something about this. Like either delete it from TT or
+									//      delete it from OBS. Or something.
+									console.log("item ID", itemId, " not found in", parentTask.items)
 									break;
 								}
 							} else {
@@ -550,8 +564,6 @@ export class SyncMan {
 							parentTask.title = parentTask.title + " " + taskURL;
 						}
 						const result = await this.plugin.tickTickRestAPI?.UpdateTask(parentTask)
-						parentTask.path = filepath
-
 						const action = added ? "added" : "modified";
 						new Notice(`new Item ${content} ${action}`)
 					}
@@ -572,6 +584,11 @@ export class SyncMan {
 			//check for deleted Items.
 			let modified = false;
 			//Is it a task item?
+			//is it a task at all?
+			if (!this.plugin.taskParser?.isMarkdownTask(lineText)) {
+				//Nah Brah. Bail.
+				return;
+			}
 			let parsedItem = await this.plugin.taskParser?.taskFromLine(lineText, filepath);
 			let tabs = parsedItem?.indentation;
 			let content = parsedItem.description;
@@ -615,7 +632,6 @@ export class SyncMan {
 					//TODO: Verify that pushing an item with title and status will just matically add it.
 					parentTask.modifiedTime = this.plugin.taskParser?.formatDateToISO(new Date());
 					const result = await this.plugin.tickTickRestAPI?.UpdateTask(parentTask)
-					parentTask.path = filepath
 					await this.plugin.cacheOperation?.updateTaskToCacheByID(parentTask);
 				}
 
@@ -832,8 +848,17 @@ export class SyncMan {
 			}
 			let bModifiedFileSystem = false;
 			let allTaskDetails = await this.plugin.tickTickSyncAPI?.getAllTasks();
+
 			let tasksFromTickTic = allTaskDetails.update;
 			let deletedTasks = allTaskDetails.delete;
+			if (this.plugin.settings.SyncTag || this.plugin.settings.SyncProject) {
+				tasksFromTickTic = tasksFromTickTic.filter(task => {
+					const hasTag = task.tags.includes(this.plugin.settings.SyncTag);
+					const hasProjectId = task.projectId === this.plugin.settings.SyncProject;
+					return hasTag || hasProjectId;
+				});
+				//Filtering deleted tasks would take an act of congress. Just warn the user.
+			}
 			let tasksInCache = await this.plugin.cacheOperation?.loadTasksFromCache()
 
 			if (!tasksFromTickTic || tasksFromTickTic.length === 0) {
@@ -1029,5 +1054,7 @@ export class SyncMan {
 
 		return bConfirmation;
 	}
+
+
 
 }

@@ -267,7 +267,7 @@ export class CacheOperation {
             if (metadatas[key].defaultProjectId === projectId) {
                 return key;
             }
-        };
+        }
 
         //otherwise, return the project name as a md file and hope for the best.
         let filePath = await this.getProjectNameByIdFromCache(projectId) + ".md"
@@ -275,7 +275,7 @@ export class CacheOperation {
         if (!filePath) {
             filePath = this.plugin.settings.defaultProjectName + ".md"
         }
-
+		console.warn(`File path not found for ${projectId}, returning ${filePath} instead. `)
         return filePath;
     }
 
@@ -327,7 +327,6 @@ export class CacheOperation {
                 this.plugin.settings.TickTickTasksData.tasks = [];
                 await this.plugin.saveSettings();
             }
-            task.path = filePath;
             task.title = this.plugin.taskParser?.stripOBSUrl(task.title);
             this.plugin.settings.TickTickTasksData.tasks.push(task);
             await this.addTaskToMetadata(filePath, task)
@@ -371,12 +370,8 @@ export class CacheOperation {
             //Delete the existing task
             await this.deleteTaskFromCache(task.id)
             //Add new task
-            let filePath = "";
-            if (task.path) {
-                filePath = task.path;
-            } else {
-                filePath = await this.getFilepathForProjectId(task.projectId);
-            }
+			const filePath = await this.getFilepathForProjectId(task.projectId);
+
 			await this.appendTaskToCache(task, filePath);
             return task;
         } catch (error) {
