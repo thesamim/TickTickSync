@@ -31,6 +31,13 @@ export class TickTickRestAPI {
 					new Notice("Please login from Settings.", 0)
 				}
 				//TODO: prevent repeated logins
+				if (this.plugin.settings.debugMode) {
+					console.log(JSON.stringify({
+						username: userName,
+						baseUrl: baseURL,
+						token: token
+					}));
+				}
                 const api = new Tick({ username: userName, password: password, baseUrl: baseURL, token: token });
                 apiInitialized = await api.login();
 

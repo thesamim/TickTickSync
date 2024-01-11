@@ -26,7 +26,8 @@
 		"obsidian-task": "github:obsidian-tasks-group/obsidian-tasks",
 		"@electron/remote": "^2.0.8",
 		"electron": "^19.0.9",
-		"ticktick-api-lvt": "github:thesamim/ticktick-api-lvt"
+		"ticktick-api-lvt": "github:thesamim/ticktick-api-lvt",
+		"@popperjs/core": "^2.11.6"
 	},
 	"repository": {
 		"type": "git",

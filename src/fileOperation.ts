@@ -1,4 +1,4 @@
-import { App, Notice, TFile } from 'obsidian';
+import {App, Notice, TFile, TFolder} from 'obsidian';
 import TickTickSync from "../main";
 import { ITask } from 'ticktick-api-lvt/dist/types/Task';
 import {TaskDeletionModal} from "./TaskDeletionModal";
@@ -77,6 +77,10 @@ export class FileOperation {
         // console.log("addTickTickTagToFile")
         // Get the file object and update the content
         const file = this.app.vault.getAbstractFileByPath(filepath)
+		if ((file) && (file instanceof TFolder)) {
+			//leave folders alone.
+			return;
+		}
 
         const content = await this.app.vault.read(file)
         const lines = content.split('\n')
@@ -125,6 +129,10 @@ export class FileOperation {
     async addTickTickLinkToFile(filepath: string) {
         // Get the file object and update the content
         const file = this.app.vault.getAbstractFileByPath(filepath)
+		if ((file) && (file instanceof TFolder)) {
+			//leave folders alone.
+			return;
+		}
         const content = await this.app.vault.read(file)
 
         const lines = content.split('\n')
@@ -179,7 +187,14 @@ export class FileOperation {
                 if (!(file instanceof TFile)) {
                     //the file doesn't exist. Create it.
                     //TODO: Deal with Folders and sections in the fullness of time.
-                    new Notice(`Creating new file: ${taskFile}`);
+					const folderPath = this.plugin.settings.defaultFolder;
+					let folder = this.app.vault.getAbstractFileByPath(folderPath)
+					if (!(folder instanceof TFolder)) {
+						console.error(`Folder ${folderPath} does exit. It will be created`)
+						folder = await this.app.vault.createFolder(folderPath);
+					}
+                    new Notice(`Creating new file: ${folder.path}/${taskFile}`);
+					taskFile = `${folder.path}/${taskFile}`;
                     let whoAdded = `${this.plugin.manifest.name} -- ${this.plugin.manifest.version}`;
                     file = await this.app.vault.create(taskFile, `== Added by ${whoAdded} == `)
                 }
@@ -394,7 +409,7 @@ export class FileOperation {
 				return [];
 			}
 		}
-	console.error("Task being deleted from file: ", taskId, filePath)
+		console.info("Task being deleted from file: ", taskId, filePath)
         const file = this.app.vault.getAbstractFileByPath(filePath)
         const content = await this.app.vault.read(file)
 

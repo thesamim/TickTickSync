@@ -1,7 +1,8 @@
-import {App, Notice, PluginSettingTab, Setting} from 'obsidian';
+import {App, Notice, PluginSettingTab, Setting, TFolder} from 'obsidian';
 import TickTickSync from "../main";
 import {ConfirmFullSyncModal} from "./ConfirmFullSyncModal"
 import {BrowserWindow, session} from "@electron/remote";
+import {FolderSuggest} from "./FolderSuggester";
 
 
 export interface TickTickSyncSettings {
@@ -15,6 +16,7 @@ export interface TickTickSyncSettings {
 	apiInitialized: boolean;
 	defaultProjectName: string;
 	defaultProjectId: string;
+	defaultFolder: string;
 	automaticSynchronizationInterval: Number;
 	TickTickTasksData: any;
 	fileMetadata: any;
@@ -35,8 +37,7 @@ export const DEFAULT_SETTINGS: TickTickSyncSettings = {
 	enableFullVaultSync: false,
 	statistics: {},
 	debugMode: false,
-	//mySetting: 'default',
-	//TickTickTasksFilePath: 'TickTickTasks.json'
+	defaultFolder: "/"
 
 }
 
@@ -130,6 +131,8 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 			})
 			.setDesc("Click to Log in after any changes, or to re-login");
 
+		// this.addDefaultFolderPathSetting();
+		this.add_default_folder_path();
 
 		new Setting(containerEl)
 			.setName('Automatic sync interval time')
@@ -336,7 +339,7 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 					} catch (error) {
 						if (error.message.includes('404')) {
 							// console.log(`Task ${taskId} seems to not exist.`);
-							await this.plugin.cacheOperation?.deleteTaskIdFromMetadata(key, taskId)
+							await this.plugin.cacheOperation?.deleteTaskIdFromMetadata(key, taskDetails.taskId)
 							continue
 						} else {
 							console.error(error);
@@ -349,7 +352,7 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 			;
 
 		}
-		this.plugin.saveSettings()
+		await this.plugin.saveSettings()
 
 
 		// console.log('checking renamed files')
@@ -457,5 +460,23 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 
 	}
 
+
+	add_default_folder_path(): void {
+		new Setting(this.containerEl)
+			.setName("Default folder location")
+			.setDesc("Folder to be used for Task syncing.")
+			.addSearch((cb) => {
+				new FolderSuggest(cb.inputEl);
+				cb.setPlaceholder("Example: folder1/folder2")
+					.setValue(this.plugin.settings.defaultFolder)
+					.onChange(async (new_folder) => {
+						this.plugin.settings.defaultFolder = new_folder
+						await this.plugin.saveSettings();
+					});
+				// @ts-ignore
+				// maybe someday we'll style it.
+				// cb.containerEl.addClass("def-folder");
+			});
+	}
 }
-								
+

@@ -36,6 +36,10 @@ export class SyncMan {
 
 		if (file_path) {
 			file = this.app.vault.getAbstractFileByPath(file_path)
+			if ((file) && (file instanceof TFolder)) {
+				//leave folders alone.
+				return;
+			}
 			filepath = file_path
 			if (file instanceof TFile) {
 				currentFileValue = await this.app.vault.read(file)
@@ -206,13 +210,17 @@ export class SyncMan {
 
 		if (file_path) {
 			file = this.app.vault.getAbstractFileByPath(file_path)
+			if ((file) && (file instanceof TFolder)) {
+				//leave folders alone.
+				return false;
+			}
 			if (file) {
 				filepath = file_path
 				currentFileValue = await this.app.vault.read(file)
 			} else {
 				console.error(`File: ${file_path} not found. Removing from Meta Data`)
 				await this.plugin.cacheOperation?.deleteFilepathFromMetadata(file_path);
-				return;
+				return false;
 			}
 		} else {
 			const workspace = this.app.workspace;
@@ -237,6 +245,7 @@ export class SyncMan {
 			const linetxt = lines[line]
 			currentFileValue = await this.addTask(linetxt, filepath, line, currentFileValue, editor, cursor);
 		}
+		return true;
 	}
 
 
@@ -456,8 +465,8 @@ export class SyncMan {
 			//it's a task. Is it a task item?
 			let parsedItem = await this.plugin.taskParser?.taskFromLine(lineText, filepath);
 			let tabs = parsedItem?.indentation;
-			let content = parsedItem.description;
-			if (content.trim().length == 0) {
+			let content = parsedItem?.description;
+			if (content?.trim().length == 0) {
 				//they hit enter, but haven't typed anything yet.
 				// it will get added when they actually type something
 				return;
@@ -626,6 +635,10 @@ export class SyncMan {
 		try {
 			if (file_path) {
 				file = this.app.vault.getAbstractFileByPath(file_path);
+				if ((file) && (file instanceof TFolder)) {
+					//leave folders alone.
+					return;
+				}
 				filepath = file_path;
 				currentFileValue = await this.app.vault.read(file);
 			} else {
