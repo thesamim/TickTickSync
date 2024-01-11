@@ -1,12 +1,10 @@
 import TickTickSync from "../main";
 import {App, Editor, EditorPosition, MarkdownView, Notice, TFile, TFolder} from 'obsidian';
-import {TickTickSyncAPI} from "./TicktickSyncAPI";
 import {ITask} from "ticktick-api-lvt/dist/types/Task";
 import ObjectID from 'bson-objectid';
-import {TaskDetail, FileMetadata} from "./cacheOperation"
-import { RegExpMatchArray } from 'typescript';
+import {TaskDetail} from "./cacheOperation"
+import {RegExpMatchArray} from 'typescript';
 import {TaskDeletionModal} from "./TaskDeletionModal";
-import {Task} from "obsidian-task/src/Task";
 
 type deletedTask = {
 	taskId: string,
@@ -851,13 +849,32 @@ export class SyncMan {
 
 			let tasksFromTickTic = allTaskDetails.update;
 			let deletedTasks = allTaskDetails.delete;
-			if (this.plugin.settings.SyncTag || this.plugin.settings.SyncProject) {
+			//TODO: Filtering deleted tasks would take an act of congress. Just warn the user in Readme.
+			if (this.plugin.settings.SyncTag && this.plugin.settings.SyncProject) {
+				let hasTag;
+				hasTag = tasksFromTickTic.filter(task => {
+					hasTag = task.tags.includes(this.plugin.settings.SyncTag);
+					return hasTag;
+				});
+				if (hasTag) {
+					tasksFromTickTic = hasTag.filter(task => {
+						return task.projectId === this.plugin.settings.SyncProject;
+					});
+				} else {
+					//nothing to process
+					return;
+				}
+
+			} else if (this.plugin.settings.SyncTag || this.plugin.settings.SyncProject) {
 				tasksFromTickTic = tasksFromTickTic.filter(task => {
 					const hasTag = task.tags.includes(this.plugin.settings.SyncTag);
 					const hasProjectId = task.projectId === this.plugin.settings.SyncProject;
 					return hasTag || hasProjectId;
 				});
-				//Filtering deleted tasks would take an act of congress. Just warn the user.
+				if (!tasksFromTickTic || !(tasksFromTickTic.length >0)) {
+					//nothign to process
+					return;
+				}
 			}
 			let tasksInCache = await this.plugin.cacheOperation?.loadTasksFromCache()
 
