@@ -9,14 +9,13 @@ export interface TickTickSyncSettings {
 	baseURL: string;
 	initialized: boolean;
 	//mySetting: string;
-	//TickTickTasksFilePath: string;
 	username: string;
 	password: string;
 	// TickTickAPIToken: string; // replace with correct type
 	apiInitialized: boolean;
 	defaultProjectName: string;
 	defaultProjectId: string;
-	defaultFolder: string;
+	TickTickTasksFilePath: string;
 	automaticSynchronizationInterval: Number;
 	TickTickTasksData: any;
 	fileMetadata: any;
@@ -37,7 +36,7 @@ export const DEFAULT_SETTINGS: TickTickSyncSettings = {
 	enableFullVaultSync: false,
 	statistics: {},
 	debugMode: false,
-	defaultFolder: "/"
+	TickTickTasksFilePath: "/"
 
 }
 
@@ -464,13 +463,13 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 	add_default_folder_path(): void {
 		new Setting(this.containerEl)
 			.setName("Default folder location")
-			.setDesc("Folder to be used for Task syncing.")
+			.setDesc("Folder to be used for TickTick Tasks.")
 			.addSearch((cb) => {
 				new FolderSuggest(cb.inputEl);
 				cb.setPlaceholder("Example: folder1/folder2")
-					.setValue(this.plugin.settings.defaultFolder)
+					.setValue(this.plugin.settings.TickTickTasksFilePath)
 					.onChange(async (new_folder) => {
-						this.plugin.settings.defaultFolder = new_folder
+						this.plugin.settings.TickTickTasksFilePath = new_folder
 						await this.plugin.saveSettings();
 					});
 				// @ts-ignore

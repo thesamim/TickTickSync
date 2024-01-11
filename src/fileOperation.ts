@@ -187,7 +187,7 @@ export class FileOperation {
                 if (!(file instanceof TFile)) {
                     //the file doesn't exist. Create it.
                     //TODO: Deal with Folders and sections in the fullness of time.
-					const folderPath = this.plugin.settings.defaultFolder;
+					const folderPath = this.plugin.settings.TickTickTasksFilePath;
 					let folder = this.app.vault.getAbstractFileByPath(folderPath)
 					if (!(folder instanceof TFolder)) {
 						console.error(`Folder ${folderPath} does exit. It will be created`)
