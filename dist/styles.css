@@ -21,7 +21,11 @@ button.ts_button[disabled]:hover {
 	box-shadow: var(--input-shadow);
 }
 
-
+.ts_login_button {
+	width: 112px;
+	margin-top: 1rem;
+	cursor: pointer;
+}
 
 /*
 .cm-line span.cm-comment {

@@ -3,7 +3,9 @@ import {ITask} from "ticktick-api-lvt/dist/types/Task"
 import {App, Notice} from 'obsidian';
 import TickTickSync from "../main";
 import {IProject} from 'ticktick-api-lvt/dist/types/Project';
-
+import {session} from 'electron';
+import CookiesGetFilter = Electron.CookiesGetFilter;
+import {log} from "obsidian-task/src/lib/logging";
 
 export class TickTickRestAPI {
 	[x: string]: any;
@@ -12,33 +14,30 @@ export class TickTickRestAPI {
 	plugin: TickTickSync;
 	api: Tick | null;
 	token: string;
+	baseUrl: string;
 
 	constructor(app: App, plugin: TickTickSync) {
 		//super(app,settings);
 		this.app = app;
 		this.plugin = plugin;
 		this.token = this.plugin.settings.token;
+		this.baseURL = this.plugin.settings.baseURL;
 
-		const userName = this.plugin.settings.username;
-		const password = this.plugin.settings.password;
-		const baseURL = this.plugin.settings.baseURL;
-		if (!this.token || this.token === "" || !userName || userName === "" || !password || password === "") {
+		if (!this.token || this.token === "" ) {
 			new Notice("Please login from Settings.", 0)
 			this.api = null;
+			console.log("No Token")
 		} else {
-			//TODO: prevent repeated logins
 			if (this.plugin.settings.debugMode) {
 				console.log(JSON.stringify({
-					username: userName,
-					baseUrl: baseURL,
-					token: this.token
+					baseUrl: this.baseURL,
+					token: "[" + this.token.substring(0, 10) + "...]" + " len: " + this.token.length
 				}));
 			}
-			this.api = new Tick({username: userName, password: password, baseUrl: baseURL, token: this.token});
+			this.api = new Tick({baseUrl: this.plugin.settings.baseURL, token: this.token});
 			this.plugin.settings.apiInitialized = false;
 		}
 	}
-
 
 	async initializeAPI() {
 		if (this.api === null || this.api === undefined) {
@@ -47,8 +46,18 @@ export class TickTickRestAPI {
 		let apiInitialized = this.plugin.settings.apiInitialized;
 		if (!apiInitialized)
 			try {
-				apiInitialized = await this.api.login();
+				const userSettings  = await this.api.getUserSettings();
+				if (userSettings) {
+					apiInitialized = true;
+					await this.api.getInboxProperties()
+					console.log("InobxID: ", this.api.inboxId)
+					this.plugin.settings.defaultProjectId = this.api.inboxId;
+					this.plugin.settings.defaultProjectName = "Inbox";
 
+				} else {
+					console.log(userSettings)
+					console.log(this.api.lastError);
+				}
 				this.plugin.settings.apiInitialized = apiInitialized;
 
 				if (apiInitialized) {
@@ -56,7 +65,7 @@ export class TickTickRestAPI {
 						console.log(`Logged In: ${apiInitialized}`);
 					}
 				} else {
-					new Notice("Login failed, please check userID and password")
+					new Notice("Login failed, please login through settings.")
 					console.error("Login failed! ");
 					this.plugin.settings.apiInitialized = false;
 				}
@@ -284,7 +293,9 @@ export class TickTickRestAPI {
 		try {
 			//This returns the SyncBean object, which has ALL the task details
 			const result = await this.api.getTasksStatus();
-
+			if  (result.length === 0) {
+				throw new Error("No Results.")
+			}
 			return (result)
 
 		} catch (error) {

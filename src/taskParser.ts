@@ -90,7 +90,8 @@ const priorityMapping = [
 
 
 const REGEX = {
-    TickTick_TAG: new RegExp(`^[\\s]*[\\s\\S]*${keywords.TickTick_TAG}[\\s\\S]*$`, "i"),
+	//hopefully tighter find.
+    TickTick_TAG: new RegExp(`(?<=[ ;])${keywords.TickTick_TAG}+`, 'i'),
     TickTick_ID: /\[ticktick_id::\s*[\d\S]+\]/,
     TickTick_ID_NUM: /\[ticktick_id::\s*(.*?)\]/,
     TickTick_LINK: /\[link\]\(.*?\)/,
@@ -100,7 +101,8 @@ const REGEX = {
     PROJECT_NAME: /\[project::\s*(.*?)\]/,
     TASK_CONTENT: {
         REMOVE_PRIORITY: /[🔺⏫🔼🔽⏬]/ug,
-        REMOVE_TAGS: /(^|\s)( *#[a-zA-Z\d\u4e00-\u9fa5-]+)/g, //Allow 1 or more spaces before hashtag
+		//accommodate UTF-16 languages.
+        REMOVE_TAGS: /(?<=\s)#[\w\d\u4e00-\u9fff\u0600-\u06ff\uac00-\ud7af]+/g,
         REMOVE_SPACE: /^\s+|\s+$/g,
         REMOVE_DATE: new RegExp(`(${keywords.DUE_DATE})\\s?\\d{4}-\\d{2}-\\d{2}\\s(\\d{1,}:\\d{2})?`),
         REMOVE_INLINE_METADATA: /%%\[\w+::\s*\w+\]%%/,
@@ -108,9 +110,8 @@ const REGEX = {
         REMOVE_CHECKBOX_WITH_INDENTATION: /^([ \t]*)?(-|\*)\s+\[(x|X| )\]\s/,
         REMOVE_TickTick_LINK: /\[link\]\(.*?\)/,
     },
-    // ALL_TAGS: /#[\w\u4e00-\u9fa5-]+/g,
-    // ALL_TAGS: /#[\w\u4e00-\u9fa5-]+(?<!\b(\/#q))/g, //tickitck has a #q in the middle of the URL. bypass it.   
-    ALL_TAGS: /(?<!#)#[^pq\s]+\b/g, //Forget Qs and Ps. No pun intented.
+	//todo: this and remove_tags are redundant. Probably some of the other stuff to. Rationalize this lot.
+    ALL_TAGS: /(?<=\s)#[\w\d\u4e00-\u9fff\u0600-\u06ff\uac00-\ud7af]+/g,
     TASK_CHECKBOX_CHECKED: /- \[(x|X)\] /,
     TASK_INDENTATION: /^(\s{2,}|\t)(-|\*)\s+\[(x|X| )\]/,
     TAB_INDENTATION: /^(\t+)/,
@@ -329,8 +330,6 @@ export class TaskParser {
 
 
     hasTickTickTag(text: string) {
-        //console.log("Check whether TickTick tag is included")
-        //console.log(text)
         if (this.isMarkdownTask(text)) {
             return REGEX.TickTick_TAG.test(text);
         } else {
@@ -394,6 +393,7 @@ export class TaskParser {
     }
 
     getTaskContentFromLineText(lineText: string) {
+		console.log("Before: ", lineText, REGEX.TASK_CONTENT.REMOVE_TAGS)
         const TaskContent = lineText.replace(REGEX.TASK_CONTENT.REMOVE_INLINE_METADATA, "")
             .replace(REGEX.TASK_CONTENT.REMOVE_TickTick_LINK, "")
             .replace(REGEX.TASK_CONTENT.REMOVE_PRIORITY, " ") //There must be spaces before and after priority.
@@ -402,6 +402,7 @@ export class TaskParser {
             .replace(REGEX.TASK_CONTENT.REMOVE_CHECKBOX, "")
             .replace(REGEX.TASK_CONTENT.REMOVE_CHECKBOX_WITH_INDENTATION, "")
             .replace(REGEX.TASK_CONTENT.REMOVE_SPACE, "")
+		console.log("AfteR: ", TaskContent)
         return (TaskContent)
     }
 
@@ -650,6 +651,7 @@ export class TaskParser {
     }
 
     getObsidianUrlFromFilepath(filepath: string) {
+		console.log("Getting OBS path for: ", filepath)
         const url = encodeURI(`obsidian://open?vault=${this.app.vault.getName()}&file=${filepath}`)
         const obsidianUrl = `[${filepath}](${url})`;
         return (obsidianUrl)
@@ -673,9 +675,9 @@ export class TaskParser {
     createURL(newTaskId: string, projectId: string): string {
         let url = "";
         if (projectId) {
-            url = `${this.plugin.settings.baseURL}/webapp/#p/${projectId}/tasks/${newTaskId}`;
+            url = `https://${this.plugin.settings.baseURL}/webapp/#p/${projectId}/tasks/${newTaskId}`;
         } else {
-            url = `${this.plugin.settings.baseURL}/webapp/#q/all/tasks/${newTaskId}`;
+            url = `https://${this.plugin.settings.baseURL}/webapp/#q/all/tasks/${newTaskId}`;
         }
         return url;
     }

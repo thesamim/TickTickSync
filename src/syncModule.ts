@@ -143,7 +143,7 @@ export class SyncMan {
 
 	async addTask(lineTxt: string, filePath: string, line: number, fileContent: string, editor: Editor | null, cursor: EditorPosition | null) {
 		//Add task
-
+		console.log("Adding to: ", filePath)
 		if ((!this.plugin.taskParser?.hasTickTickId(lineTxt) && this.plugin.taskParser?.hasTickTickTag(lineTxt))) { //Whether #ticktick is included
 			try {
 				const currentTask = await this.plugin.taskParser?.convertTextToTickTickTaskObject(lineTxt, filePath, line, fileContent)
@@ -846,6 +846,7 @@ export class SyncMan {
 			}
 			let bModifiedFileSystem = false;
 			let allTaskDetails = await this.plugin.tickTickSyncAPI?.getAllTasks();
+			console.log(this.plugin.tickTickRestAPI?.api?.apiUrl)
 
 			let tasksFromTickTic = allTaskDetails.update;
 			let deletedTasks = allTaskDetails.delete;
@@ -875,6 +876,9 @@ export class SyncMan {
 					//nothign to process
 					return;
 				}
+			}
+			if (this.plugin.settings.debugMode) {
+				console.log("We have: ", tasksFromTickTic.length, " tasks on " + this.plugin.tickTickRestAPI?.api?.apiUrl)
 			}
 			let tasksInCache = await this.plugin.cacheOperation?.loadTasksFromCache()
 
@@ -997,7 +1001,6 @@ export class SyncMan {
 
 		} catch (err) {
 			console.error('An error occurred while synchronizing:', err);
-
 		}
 	}
 

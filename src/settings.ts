@@ -1,4 +1,4 @@
-import {App, Notice, PluginSettingTab, Setting, TFolder} from 'obsidian';
+import {App, Notice, PluginSettingTab, SearchComponent, Setting, TAbstractFile, TFolder} from 'obsidian';
 import TickTickSync from "../main";
 import {ConfirmFullSyncModal} from "./ConfirmFullSyncModal"
 import {BrowserWindow, session} from "@electron/remote";
@@ -10,10 +10,6 @@ export interface TickTickSyncSettings {
 	SyncTag: any;
 	baseURL: string;
 	initialized: boolean;
-	//mySetting: string;
-	username: string;
-	password: string;
-	// TickTickAPIToken: string; // replace with correct type
 	apiInitialized: boolean;
 	defaultProjectName: string;
 	defaultProjectId: string;
@@ -86,54 +82,30 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 						this.plugin.settings.baseURL = providerOptions[value]
 						await this.plugin.saveSettings();
 					})
-			)
-
-		new Setting(containerEl)
-			.setName('Username')
-			.setDesc('...')
-			.addText(text => text
-				.setPlaceholder('Type username here...')
-				.setValue(this.plugin.settings.username)
-				.onChange(async (value) => {
-					this.plugin.settings.username = value;
-					await this.plugin.saveSettings();
-				})
 			);
 
 		new Setting(containerEl)
-			.setName('Password')
-			.setDesc('...')
-			.addText(text => text
-				.setPlaceholder('Type password here...')
-				.setValue(this.plugin.settings.password)
-				.onChange(async (value) => {
-					this.plugin.settings.password = value;
-					await this.plugin.saveSettings();
-				})
-			)
+			.setName("Login")
+			.setDesc("Please login here.")
+			.setHeading()
+			.addButton(loginBtn => {
+				loginBtn.setClass('ts_login_button');
+				loginBtn.setButtonText("Login");
+				loginBtn.setTooltip("Click To Login")
+				loginBtn.onClick(() => {
+					const url = `https://${this.plugin.settings.baseURL}/signin`;
 
+					this.loadLoginWindow(url).then(async (token: string) => {
+						if (token) {
+							console.log("Going to Initialize")
+							this.plugin.settings.token = token;
+							await this.plugin.initializePlugin()
+						}
+					});
+					this.display()
 
-		new Setting(containerEl)
-			.addExtraButton((button) => {
-				button
-					.setIcon('send')
-					.setTooltip('Log In')
-					.onClick(async () => {
-						const url = `https://${this.plugin.settings.baseURL}/signin`;
-
-						this.loadLoginWindow(url).then(async (token: string) => {
-							if (token) {
-								console.log("Going to Initialize")
-								this.plugin.settings.token = token;
-								await this.plugin.initializePlugin()
-							}
-						});
-						this.display()
-
-					})
-			})
-			.setDesc("Click to Log in after any changes, or to re-login");
-
+				});
+			});
 
 		containerEl.createEl('hr');
 		containerEl.createEl('h1', {text: 'Sync control'});
@@ -344,7 +316,7 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 			const allMDFiles = this.app.vault.getMarkdownFiles();
 			allMDFiles.forEach(file => {
 				// console.log("File: ", file);
-				this.plugin.tickTickSync?.fullTextModifiedTaskCheck(file.name)
+				this.plugin.tickTickSync?.fullTextModifiedTaskCheck(file.path)
 			});
 		}
 		this.plugin.saveSettings()
@@ -488,14 +460,17 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 
 			let token = "";
 			window.on('closed', () => {
-				session.defaultSession.cookies.get({domain: ".ticktick.com", name: "t"})
+				const domain = "." + this.plugin.settings.baseURL
+				session.defaultSession.cookies.get({domain: domain, name: "t"})
 					.then((cookies) => {
 						token = cookies[0].value
+						console.log(domain, token)
 						window.destroy();
 						resolve(token);
 					}).catch((error) => {
 					console.error(error)
 				})
+
 			});
 		});
 
@@ -503,21 +478,61 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 
 
 	add_default_folder_path(): void {
+		let folderSearch: SearchComponent | undefined;
 		new Setting(this.containerEl)
 			.setName("Default folder location")
 			.setDesc("Folder to be used for TickTick Tasks.")
 			.addSearch((cb) => {
+				folderSearch = cb;
 				new FolderSuggest(cb.inputEl);
 				cb.setPlaceholder("Example: folder1/folder2")
 					.setValue(this.plugin.settings.TickTickTasksFilePath)
-					.onChange(async (new_folder) => {
-						this.plugin.settings.TickTickTasksFilePath = new_folder
-						await this.plugin.saveSettings();
-					});
 				// @ts-ignore
 				// maybe someday we'll style it.
 				// cb.containerEl.addClass("def-folder");
-			});
+			})
+			.addButton((cb) => {
+				cb.setIcon('plus');
+				cb.setTooltip('Add folder');
+				cb.onClick(async () => {
+					let new_folder = folderSearch?.getValue();
+					const updatedFolder = await  this.validateNewFolder(new_folder);
+					if (new_folder) {
+						folderSearch?.setValue(new_folder)
+						this.plugin.settings.TickTickTasksFilePath = new_folder
+						await this.plugin.saveSettings();
+					}
+
+					this.display();
+				});
+			});;
+	}
+
+	private async validateNewFolder(new_folder: string | undefined) {
+		if (new_folder && (new_folder.length > 1) && (/^[/\\]/.test(new_folder))) {
+			new_folder = new_folder.substring(1);
+		}
+		let newFolderFile = this.app.vault.getAbstractFileByPath(new_folder);
+		if (!newFolderFile) {
+			//it doesn't exist, create it and return it's path.
+			try {
+				newFolderFile = await this.app.vault.createFolder(new_folder);
+				new Notice(`New folder ${newFolderFile.path} created.`)
+				return newFolderFile?.path;
+			} catch (error) {
+				new Notice(`Folder ${new_folder} creation failed: ${error}. Please correct and try again.`, 0)
+				return null;
+			}
+		} else {
+			console.log(typeof newFolderFile)
+			if (newFolderFile instanceof TFolder) {
+				//they picked right, and the folder exists.
+				new Notice(`Default folder is now ${newFolderFile.path}.`)
+				return newFolderFile.path
+			}
+		}
+
+
 	}
 }
 

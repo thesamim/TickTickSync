@@ -37,6 +37,7 @@ export class CacheOperation {
 
 
     async addTaskToMetadata(filepath: string, task: ITask) {
+		console.log("Adding task to : ", filepath)
         let metaData: FileMetadata = await this.getFileMetadata(filepath, task.projectId)
         let taskMeta: TaskDetail;
         taskMeta = { taskId: task.id, taskItems: [] };
@@ -547,16 +548,15 @@ export class CacheOperation {
         try {
             //get projects
             // console.log(`Save Projects to cache with ${this.plugin.tickTickRestAPI}`)
+			// Inbox ID is got on API initialization. Don't have to do it here any more.
             const projectGroups = await this.plugin.tickTickRestAPI?.GetProjectGroups();
             const projects: IProject[] = await this.plugin.tickTickRestAPI?.GetAllProjects();
-            //todo: consider doing it all from here. For now, just want the inbox ID
-            const allResources = await this.plugin.tickTickRestAPI?.getAllResources();
-            const inboxId = allResources["inboxId"];
-            this.plugin.settings.defaultProjectId = inboxId;
-            this.plugin.settings.defaultProjectName = "Inbox";
 
 
-            let inboxProject = { id: inboxId, name: "Inbox" };
+            let inboxProject = {
+				id: this.plugin.settings.defaultProjectId,
+				name: this.plugin.settings.defaultProjectName
+			};
 
             projects.push(inboxProject);
 
