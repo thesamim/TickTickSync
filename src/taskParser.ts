@@ -393,7 +393,7 @@ export class TaskParser {
     }
 
     getTaskContentFromLineText(lineText: string) {
-		console.log("Before: ", lineText, REGEX.TASK_CONTENT.REMOVE_TAGS)
+		// console.log("Before: ", lineText, REGEX.TASK_CONTENT.REMOVE_TAGS)
         const TaskContent = lineText.replace(REGEX.TASK_CONTENT.REMOVE_INLINE_METADATA, "")
             .replace(REGEX.TASK_CONTENT.REMOVE_TickTick_LINK, "")
             .replace(REGEX.TASK_CONTENT.REMOVE_PRIORITY, " ") //There must be spaces before and after priority.
@@ -402,7 +402,7 @@ export class TaskParser {
             .replace(REGEX.TASK_CONTENT.REMOVE_CHECKBOX, "")
             .replace(REGEX.TASK_CONTENT.REMOVE_CHECKBOX_WITH_INDENTATION, "")
             .replace(REGEX.TASK_CONTENT.REMOVE_SPACE, "")
-		console.log("AfteR: ", TaskContent)
+		// console.log("AfteR: ", TaskContent)
         return (TaskContent)
     }
 
@@ -651,7 +651,9 @@ export class TaskParser {
     }
 
     getObsidianUrlFromFilepath(filepath: string) {
-		console.log("Getting OBS path for: ", filepath)
+		if (this.plugin.settings.debugMode) {
+			console.log("Getting OBS path for: ", filepath)
+		}
         const url = encodeURI(`obsidian://open?vault=${this.app.vault.getName()}&file=${filepath}`)
         const obsidianUrl = `[${filepath}](${url})`;
         return (obsidianUrl)

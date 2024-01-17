@@ -26,7 +26,7 @@ export class TickTickRestAPI {
 		if (!this.token || this.token === "" ) {
 			new Notice("Please login from Settings.", 0)
 			this.api = null;
-			console.log("No Token")
+			console.error("No Token")
 		} else {
 			if (this.plugin.settings.debugMode) {
 				console.log(JSON.stringify({
@@ -50,13 +50,15 @@ export class TickTickRestAPI {
 				if (userSettings) {
 					apiInitialized = true;
 					await this.api.getInboxProperties()
-					console.log("InobxID: ", this.api.inboxId)
+					// console.log("InobxID: ", this.api.inboxId)
 					this.plugin.settings.defaultProjectId = this.api.inboxId;
 					this.plugin.settings.defaultProjectName = "Inbox";
 
 				} else {
-					console.log(userSettings)
-					console.log(this.api.lastError);
+					if (this.plugin.settings.debugMode) {
+						console.log(userSettings)
+					}
+					console.error(this.api.lastError);
 				}
 				this.plugin.settings.apiInitialized = apiInitialized;
 

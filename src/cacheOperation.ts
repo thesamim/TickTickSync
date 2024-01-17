@@ -37,7 +37,9 @@ export class CacheOperation {
 
 
     async addTaskToMetadata(filepath: string, task: ITask) {
-		console.log("Adding task to : ", filepath)
+		if (this.plugin.settings.debugMode) {
+			console.log("Adding task to : ", filepath)
+		}
         let metaData: FileMetadata = await this.getFileMetadata(filepath, task.projectId)
         let taskMeta: TaskDetail;
         taskMeta = { taskId: task.id, taskItems: [] };

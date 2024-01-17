@@ -109,13 +109,6 @@ export default class TickTickSync extends Plugin {
 			//Used for testing adhoc code.
 			const ribbonIconEl1 = this.addRibbonIcon('check', 'TickTickSync', async (evt: MouseEvent) => {
 				// Nothing to see here right now.
-				this.settings.version = "1.0.11";
-				if ((!this.settings.version) || (this.isOlder(this.settings.version ,"1.0.10"))) {
-					console.log("gonna whack")
-					delete this.settings.username;
-					delete this.settings.password;
-				}
-				console.log(this.settings)
 			});
 		}
 		//Key event monitoring, judging line breaks and deletions

@@ -98,7 +98,7 @@ export class SyncMan {
 							let updateResult = await this.plugin.tickTickRestAPI?.UpdateTask(updatedTask);
 						}
 					} catch (error) {
-						console.log("Task Item removal failed: ", error);
+						console.error("Task Item removal failed: ", error);
 					}
 				}
 			}
@@ -143,7 +143,9 @@ export class SyncMan {
 
 	async addTask(lineTxt: string, filePath: string, line: number, fileContent: string, editor: Editor | null, cursor: EditorPosition | null) {
 		//Add task
-		console.log("Adding to: ", filePath)
+		if (this.plugin.settings.debugMode) {
+			console.log("Adding to: ", filePath)
+		}
 		if ((!this.plugin.taskParser?.hasTickTickId(lineTxt) && this.plugin.taskParser?.hasTickTickTag(lineTxt))) { //Whether #ticktick is included
 			try {
 				const currentTask = await this.plugin.taskParser?.convertTextToTickTickTaskObject(lineTxt, filePath, line, fileContent)
@@ -506,12 +508,12 @@ export class SyncMan {
 									//TODO deal with "Won't do" which is -1
 									const oldItemStatus = oldItem.status == 0 ? false : true;
 									if (content.trim() != oldItem.title.trim()) {
-										console.log(`[${content}] vs [${oldItem.title}] and ${thisLineStatus} vs ${oldItemStatus}`)
+										// console.log(`[${content}] vs [${oldItem.title}] and ${thisLineStatus} vs ${oldItemStatus}`)
 										oldItem.title = content;
 										modified = true;
 									}
 									if (thisLineStatus != oldItemStatus) {
-										console.log(`[${content}] vs [${oldItem.title}] and ${thisLineStatus} vs ${oldItemStatus}`)
+										// console.log(`[${content}] vs [${oldItem.title}] and ${thisLineStatus} vs ${oldItemStatus}`)
 										oldItem.status = thisLineStatus ? 2 : 0;
 										modified = true;
 									}
@@ -546,7 +548,9 @@ export class SyncMan {
 							}
 
 						} else {
-							console.log(`parent didn't have items.`)
+							if (this.plugin.settings.debugMode) {
+								console.log(`parent didn't have items.`)
+							}
 							break;
 						}
 						break;
@@ -762,7 +766,9 @@ export class SyncMan {
 		}
 
 		if (!deletedTaskIds.length) {
-			console.log("Task not deleted");
+			if (this.plugin.settings.debugMode) {
+				console.log("Task not deleted");
+			}
 			return [];
 		}
 
@@ -846,7 +852,7 @@ export class SyncMan {
 			}
 			let bModifiedFileSystem = false;
 			let allTaskDetails = await this.plugin.tickTickSyncAPI?.getAllTasks();
-			console.log(this.plugin.tickTickRestAPI?.api?.apiUrl)
+			// console.log(this.plugin.tickTickRestAPI?.api?.apiUrl)
 
 			let tasksFromTickTic = allTaskDetails.update;
 			let deletedTasks = allTaskDetails.delete;

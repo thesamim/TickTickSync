@@ -3,6 +3,7 @@ import TickTickSync from "../main";
 import {ConfirmFullSyncModal} from "./ConfirmFullSyncModal"
 import {BrowserWindow, session} from "@electron/remote";
 import {FolderSuggest} from "./FolderSuggester";
+import * as electron from "electron";
 
 
 export interface TickTickSyncSettings {
@@ -97,9 +98,10 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 
 					this.loadLoginWindow(url).then(async (token: string) => {
 						if (token) {
-							console.log("Going to Initialize")
 							this.plugin.settings.token = token;
 							await this.plugin.initializePlugin()
+						} else {
+							console.error("No Token received.")
 						}
 					});
 					this.display()
@@ -385,7 +387,7 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 						console.error(`An error occurred while loading task ${taskDetail.taskId} from cache: ${error.message}`);
 					}
 					if (!taskObject) {
-						console.log(`Task ${taskDetail.id}: ${taskDetail.title} is not found.`)
+						console.error(`Task ${taskDetail.id}: ${taskDetail.title} is not found.`)
 						continue
 					}
 					const oldTitle = taskObject?.title ?? '';
@@ -444,6 +446,8 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 
 		return new Promise((resolve) => {
 			//Get a cookie!
+			//TODO: If plugin is reloaded. This will fail. Probably missing something in clean up
+			//      investigate later.
 			const window = new BrowserWindow({ show: false,
 				width: 600,
 				height: 800,
@@ -464,9 +468,8 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 				session.defaultSession.cookies.get({domain: domain, name: "t"})
 					.then((cookies) => {
 						token = cookies[0].value
-						console.log(domain, token)
-						window.destroy();
 						resolve(token);
+						window.destroy();
 					}).catch((error) => {
 					console.error(error)
 				})
