@@ -134,7 +134,7 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 			.setDesc("To limit the tasks TickTickSync will synchronize from TickTick to " +
 				"Obsidian select a tag or project(list) below. If a tag is entered, only tasks with that tag will be " +
 				"synchronized. If a project(list) is selected, only tasks in that project will be synchronized. If " +
-				"both are chosen on tasks with that tag in that project will be synchronized.")
+				"both are chosen only tasks with that tag in that project will be synchronized.")
 
 		new Setting(containerEl)
 			.setName('Project')

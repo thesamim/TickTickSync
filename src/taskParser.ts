@@ -651,9 +651,9 @@ export class TaskParser {
     }
 
     getObsidianUrlFromFilepath(filepath: string) {
-		if (this.plugin.settings.debugMode) {
-			console.log("Getting OBS path for: ", filepath)
-		}
+		// if (this.plugin.settings.debugMode) {
+		// 	console.log("Getting OBS path for: ", filepath)
+		// }
         const url = encodeURI(`obsidian://open?vault=${this.app.vault.getName()}&file=${filepath}`)
         const obsidianUrl = `[${filepath}](${url})`;
         return (obsidianUrl)

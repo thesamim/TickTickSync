@@ -143,9 +143,9 @@ export class SyncMan {
 
 	async addTask(lineTxt: string, filePath: string, line: number, fileContent: string, editor: Editor | null, cursor: EditorPosition | null) {
 		//Add task
-		if (this.plugin.settings.debugMode) {
-			console.log("Adding to: ", filePath)
-		}
+		// if (this.plugin.settings.debugMode) {
+		// 	console.log("Adding to: ", filePath)
+		// }
 		if ((!this.plugin.taskParser?.hasTickTickId(lineTxt) && this.plugin.taskParser?.hasTickTickTag(lineTxt))) { //Whether #ticktick is included
 			try {
 				const currentTask = await this.plugin.taskParser?.convertTextToTickTickTaskObject(lineTxt, filePath, line, fileContent)
@@ -860,7 +860,7 @@ export class SyncMan {
 			if (this.plugin.settings.SyncTag && this.plugin.settings.SyncProject) {
 				let hasTag;
 				hasTag = tasksFromTickTic.filter(task => {
-					hasTag = task.tags.includes(this.plugin.settings.SyncTag);
+					hasTag = task.tags.includes(this.plugin.settings.SyncTag.toLowerCase()); //because TickTick only stores lowercase tags.
 					return hasTag;
 				});
 				if (hasTag) {
@@ -874,12 +874,12 @@ export class SyncMan {
 
 			} else if (this.plugin.settings.SyncTag || this.plugin.settings.SyncProject) {
 				tasksFromTickTic = tasksFromTickTic.filter(task => {
-					const hasTag = task.tags.includes(this.plugin.settings.SyncTag);
+					const hasTag = task.tags.includes(this.plugin.settings.SyncTag.toLowerCase());//because TickTick only stores lowercase tags.
 					const hasProjectId = task.projectId === this.plugin.settings.SyncProject;
 					return hasTag || hasProjectId;
 				});
 				if (!tasksFromTickTic || !(tasksFromTickTic.length >0)) {
-					//nothign to process
+					//nothing to process
 					return;
 				}
 			}
