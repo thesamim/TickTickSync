@@ -1,12 +1,10 @@
 import TickTickSync from "../main";
 import {App, Editor, EditorPosition, MarkdownView, Notice, TFile, TFolder} from 'obsidian';
-import {TickTickSyncAPI} from "./TicktickSyncAPI";
 import {ITask} from "ticktick-api-lvt/dist/types/Task";
 import ObjectID from 'bson-objectid';
-import {TaskDetail, FileMetadata} from "./cacheOperation"
-import { RegExpMatchArray } from 'typescript';
+import {TaskDetail} from "./cacheOperation"
+import {RegExpMatchArray} from 'typescript';
 import {TaskDeletionModal} from "./TaskDeletionModal";
-import {Task} from "obsidian-task/src/Task";
 
 type deletedTask = {
 	taskId: string,
@@ -36,6 +34,10 @@ export class SyncMan {
 
 		if (file_path) {
 			file = this.app.vault.getAbstractFileByPath(file_path)
+			if ((file) && (file instanceof TFolder)) {
+				//leave folders alone.
+				return;
+			}
 			filepath = file_path
 			if (file instanceof TFile) {
 				currentFileValue = await this.app.vault.read(file)
@@ -96,7 +98,7 @@ export class SyncMan {
 							let updateResult = await this.plugin.tickTickRestAPI?.UpdateTask(updatedTask);
 						}
 					} catch (error) {
-						console.log("Task Item removal failed: ", error);
+						console.error("Task Item removal failed: ", error);
 					}
 				}
 			}
@@ -141,7 +143,9 @@ export class SyncMan {
 
 	async addTask(lineTxt: string, filePath: string, line: number, fileContent: string, editor: Editor | null, cursor: EditorPosition | null) {
 		//Add task
-
+		// if (this.plugin.settings.debugMode) {
+		// 	console.log("Adding to: ", filePath)
+		// }
 		if ((!this.plugin.taskParser?.hasTickTickId(lineTxt) && this.plugin.taskParser?.hasTickTickTag(lineTxt))) { //Whether #ticktick is included
 			try {
 				const currentTask = await this.plugin.taskParser?.convertTextToTickTickTaskObject(lineTxt, filePath, line, fileContent)
@@ -206,13 +210,17 @@ export class SyncMan {
 
 		if (file_path) {
 			file = this.app.vault.getAbstractFileByPath(file_path)
+			if ((file) && (file instanceof TFolder)) {
+				//leave folders alone.
+				return false;
+			}
 			if (file) {
 				filepath = file_path
 				currentFileValue = await this.app.vault.read(file)
 			} else {
 				console.error(`File: ${file_path} not found. Removing from Meta Data`)
 				await this.plugin.cacheOperation?.deleteFilepathFromMetadata(file_path);
-				return;
+				return false;
 			}
 		} else {
 			const workspace = this.app.workspace;
@@ -237,6 +245,7 @@ export class SyncMan {
 			const linetxt = lines[line]
 			currentFileValue = await this.addTask(linetxt, filepath, line, currentFileValue, editor, cursor);
 		}
+		return true;
 	}
 
 
@@ -333,12 +342,14 @@ export class SyncMan {
 					if (this.plugin.settings.debugMode) {
 						console.error(`Project id modified for task ${lineTask_ticktick_id}, ${lineTask.projectId}, ${savedTask.projectId}`)
 						console.error("This is not yet handled.");
-						const noticeMessage = `Task ${lineTask_ticktick_id}: ${lineTaskTitle} has moved from ` +
-						`${await this.plugin.cacheOperation?.getProjectNameByIdFromCache(savedTask.projectId)} to` +
-						`${await this.plugin.cacheOperation?.getProjectNameByIdFromCache(lineTask.projectId)} \n` +
-							`This is not handled yet. Please adjust manually.`
-						// new Notice(noticeMessage, 0);
-						// console.log(noticeMessage);
+						// const noticeMessage = `Task ${lineTask_ticktick_id}: ${lineTaskTitle} has moved from ` +
+						// `${await this.plugin.cacheOperation?.getProjectNameByIdFromCache(savedTask.projectId)} to` +
+						// `${await this.plugin.cacheOperation?.getProjectNameByIdFromCache(lineTask.projectId)} \n` +
+						// 	`This is not handled yet. Please adjust manually.`
+						// // new Notice(noticeMessage, 0);
+						// if (this.plugin.settings.debugMode) {
+						// 	console.log(noticeMessage);
+						// }
 					}
 					savedTask.projectId = lineTask.projectId
 					projectChanged = false;
@@ -350,14 +361,16 @@ export class SyncMan {
 					if (this.plugin.settings.debugMode) {
 						console.error(`Parent id modified for task ${lineTask_ticktick_id}, ${lineTask.parentId}, ${savedTask.parentId}`)
 						console.error("This is not yet handled.");
-						let oldParent = await this.plugin.cacheOperation?.loadTaskFromCacheID(savedTask.parentId);
-						let newParent = await this.plugin.cacheOperation?.loadTaskFromCacheID(lineTask.parentId)
-						let noticeMessage = `Task ${lineTask_ticktick_id}:\n${this.plugin.taskParser?.stripOBSUrl(lineTaskTitle).trim()}\n` +
-						`used to be a child of:\n${oldParent? oldParent.title.trim(): "No old parent found"}\n` +
-						`but is now a child of:\n${newParent? newParent.title.trim(): "No new parent found."}\n`+
-						`This is not handled yet. Please adjust manually.\n`
-						// new Notice( noticeMessage, 0)
-						// console.log(noticeMessage);
+						// let oldParent = await this.plugin.cacheOperation?.loadTaskFromCacheID(savedTask.parentId);
+						// let newParent = await this.plugin.cacheOperation?.loadTaskFromCacheID(lineTask.parentId)
+						// let noticeMessage = `Task ${lineTask_ticktick_id}:\n${this.plugin.taskParser?.stripOBSUrl(lineTaskTitle).trim()}\n` +
+						// `used to be a child of:\n${oldParent? oldParent.title.trim(): "No old parent found"}\n` +
+						// `but is now a child of:\n${newParent? newParent.title.trim(): "No new parent found."}\n`+
+						// `This is not handled yet. Please adjust manually.\n`
+						// // new Notice( noticeMessage, 0)
+						// if (this.plugin.settings.debugMode) {
+						// 	console.log(noticeMessage);
+						// }
 
 					}
 					savedTask.parentId = lineTask.parentId
@@ -376,7 +389,6 @@ export class SyncMan {
 					//TODO: Breaking SOC here.
 					savedTask.modifiedTime = this.plugin.taskParser?.formatDateToISO(new Date());
 					const result = await this.plugin.tickTickRestAPI?.UpdateTask(savedTask)
-					savedTask.path = filepath
 					await this.plugin.cacheOperation?.updateTaskToCacheByID(savedTask);
 				}
 				// console.log(result)
@@ -454,10 +466,20 @@ export class SyncMan {
 			let modified = false;
 			let added = false;
 			//it's a task. Is it a task item?
+			//is it a task at all?
+			if (!this.plugin.taskParser?.isMarkdownTask(lineText)) {
+				//Nah Brah. Bail.
+				return;
+			}
 			let parsedItem = await this.plugin.taskParser?.taskFromLine(lineText, filepath);
+			if (this.plugin.settings.debugMode) {
+				if (!parsedItem || !(await parsedItem).description || !((await parsedItem).status)) {
+					console.error(`Task construction failed in line: ${lineText}`)
+				}
+			}
 			let tabs = parsedItem?.indentation;
-			let content = parsedItem.description;
-			if (content.trim().length == 0) {
+			let content = parsedItem?.description;
+			if (content?.trim().length == 0) {
 				//they hit enter, but haven't typed anything yet.
 				// it will get added when they actually type something
 				return;
@@ -486,19 +508,20 @@ export class SyncMan {
 									//TODO deal with "Won't do" which is -1
 									const oldItemStatus = oldItem.status == 0 ? false : true;
 									if (content.trim() != oldItem.title.trim()) {
-										console.log(`[${content}] vs [${oldItem.title}] and ${thisLineStatus} vs ${oldItemStatus}`)
+										// console.log(`[${content}] vs [${oldItem.title}] and ${thisLineStatus} vs ${oldItemStatus}`)
 										oldItem.title = content;
 										modified = true;
 									}
 									if (thisLineStatus != oldItemStatus) {
-										console.log(`[${content}] vs [${oldItem.title}] and ${thisLineStatus} vs ${oldItemStatus}`)
+										// console.log(`[${content}] vs [${oldItem.title}] and ${thisLineStatus} vs ${oldItemStatus}`)
 										oldItem.status = thisLineStatus ? 2 : 0;
 										modified = true;
 									}
 									break;
 								} else {
-									console.log(`${itemId} Not found.`)
-									console.log("item ID", itemId, "in", parentTask.items)
+									//TODO: Should ought to do something about this. Like either delete it from TT or
+									//      delete it from OBS. Or something.
+									console.log("item ID", itemId, " not found in", parentTask.items)
 									break;
 								}
 							} else {
@@ -525,7 +548,9 @@ export class SyncMan {
 							}
 
 						} else {
-							console.log(`parent didn't have items.`)
+							if (this.plugin.settings.debugMode) {
+								console.log(`parent didn't have items.`)
+							}
 							break;
 						}
 						break;
@@ -541,8 +566,6 @@ export class SyncMan {
 							parentTask.title = parentTask.title + " " + taskURL;
 						}
 						const result = await this.plugin.tickTickRestAPI?.UpdateTask(parentTask)
-						parentTask.path = filepath
-
 						const action = added ? "added" : "modified";
 						new Notice(`new Item ${content} ${action}`)
 					}
@@ -563,6 +586,11 @@ export class SyncMan {
 			//check for deleted Items.
 			let modified = false;
 			//Is it a task item?
+			//is it a task at all?
+			if (!this.plugin.taskParser?.isMarkdownTask(lineText)) {
+				//Nah Brah. Bail.
+				return;
+			}
 			let parsedItem = await this.plugin.taskParser?.taskFromLine(lineText, filepath);
 			let tabs = parsedItem?.indentation;
 			let content = parsedItem.description;
@@ -606,7 +634,6 @@ export class SyncMan {
 					//TODO: Verify that pushing an item with title and status will just matically add it.
 					parentTask.modifiedTime = this.plugin.taskParser?.formatDateToISO(new Date());
 					const result = await this.plugin.tickTickRestAPI?.UpdateTask(parentTask)
-					parentTask.path = filepath
 					await this.plugin.cacheOperation?.updateTaskToCacheByID(parentTask);
 				}
 
@@ -626,6 +653,10 @@ export class SyncMan {
 		try {
 			if (file_path) {
 				file = this.app.vault.getAbstractFileByPath(file_path);
+				if ((file) && (file instanceof TFolder)) {
+					//leave folders alone.
+					return;
+				}
 				filepath = file_path;
 				currentFileValue = await this.app.vault.read(file);
 			} else {
@@ -735,7 +766,9 @@ export class SyncMan {
 		}
 
 		if (!deletedTaskIds.length) {
-			console.log("Task not deleted");
+			if (this.plugin.settings.debugMode) {
+				console.log("Task not deleted");
+			}
 			return [];
 		}
 
@@ -819,8 +852,40 @@ export class SyncMan {
 			}
 			let bModifiedFileSystem = false;
 			let allTaskDetails = await this.plugin.tickTickSyncAPI?.getAllTasks();
+			// console.log(this.plugin.tickTickRestAPI?.api?.apiUrl)
+
 			let tasksFromTickTic = allTaskDetails.update;
 			let deletedTasks = allTaskDetails.delete;
+			//TODO: Filtering deleted tasks would take an act of congress. Just warn the user in Readme.
+			if (this.plugin.settings.SyncTag && this.plugin.settings.SyncProject) {
+				let hasTag;
+				hasTag = tasksFromTickTic.filter(task => {
+					hasTag = task.tags.includes(this.plugin.settings.SyncTag.toLowerCase()); //because TickTick only stores lowercase tags.
+					return hasTag;
+				});
+				if (hasTag) {
+					tasksFromTickTic = hasTag.filter(task => {
+						return task.projectId === this.plugin.settings.SyncProject;
+					});
+				} else {
+					//nothing to process
+					return;
+				}
+
+			} else if (this.plugin.settings.SyncTag || this.plugin.settings.SyncProject) {
+				tasksFromTickTic = tasksFromTickTic.filter(task => {
+					const hasTag = task.tags.includes(this.plugin.settings.SyncTag.toLowerCase());//because TickTick only stores lowercase tags.
+					const hasProjectId = task.projectId === this.plugin.settings.SyncProject;
+					return hasTag || hasProjectId;
+				});
+				if (!tasksFromTickTic || !(tasksFromTickTic.length >0)) {
+					//nothing to process
+					return;
+				}
+			}
+			if (this.plugin.settings.debugMode) {
+				console.log("We have: ", tasksFromTickTic.length, " tasks on " + this.plugin.tickTickRestAPI?.api?.apiUrl)
+			}
 			let tasksInCache = await this.plugin.cacheOperation?.loadTasksFromCache()
 
 			if (!tasksFromTickTic || tasksFromTickTic.length === 0) {
@@ -942,7 +1007,6 @@ export class SyncMan {
 
 		} catch (err) {
 			console.error('An error occurred while synchronizing:', err);
-
 		}
 	}
 
@@ -1016,5 +1080,7 @@ export class SyncMan {
 
 		return bConfirmation;
 	}
+
+
 
 }

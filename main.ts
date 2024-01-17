@@ -79,17 +79,21 @@ export default class TickTickSync extends Plugin {
 			//Force a sync
 			await this.scheduledSynchronization();
 		}
+		if ((!this.settings.version) || (this.isOlder(this.settings.version ,"1.0.10"))) {
+			//get rid of user name and password. we don't need them no more.
+
+			delete this.settings.username;
+			delete this.settings.password
+			this.settings.version = this.manifest.version
+			await this.saveSettings();
+		}
+
 
 
 		// This adds a settings tab so the user can configure various aspects of the plugin
 		this.addSettingTab(new TickTickSyncSettingTab(this.app, this));
-		if (!this.settings.username) {
-			new Notice('Please enter your TickTick username and password.');
-			//return
-		} else {
-			this.settings.apiInitialized = false;
-			await this.initializePlugin();
-		}
+		this.settings.apiInitialized = false;
+		await this.initializePlugin();
 
 		//lastLine object {path:line} is saved in lastLines map
 		this.lastLines = new Map();
@@ -103,9 +107,9 @@ export default class TickTickSync extends Plugin {
 				new Notice(`Sync completed..`)
 			});
 			//Used for testing adhoc code.
-			// const ribbonIconEl1 = this.addRibbonIcon('check', 'TickTickSync', async (evt: MouseEvent) => {
-			// 	//Nothing to see here right now.
-			// });
+			const ribbonIconEl1 = this.addRibbonIcon('check', 'TickTickSync', async (evt: MouseEvent) => {
+				// Nothing to see here right now.
+			});
 		}
 		//Key event monitoring, judging line breaks and deletions
 		this.registerDomEvent(document, 'keyup', async (evt: KeyboardEvent) => {
@@ -660,6 +664,24 @@ export default class TickTickSync extends Plugin {
 		}
 		this.syncLock = true;
 		return true;
+	}
+
+private isOlder(version1:string, version2:string) {
+		const v1 = version1.split('.');
+		const v2 = version2.split('.');
+
+		for (let i = 0; i < Math.max(v1.length, v2.length); i++) {
+			const num1 = parseInt(v1[i] || 0);
+			const num2 = parseInt(v2[i] || 0);
+
+			if (num1 < num2) {
+				return true;
+			} else if (num1 > num2) {
+				return false;
+			}
+		}
+
+		return false;
 	}
 
 

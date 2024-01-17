@@ -1,4 +1,4 @@
-import { App, Notice, TFile } from 'obsidian';
+import {App, Notice, TFile, TFolder} from 'obsidian';
 import TickTickSync from "../main";
 import { ITask } from 'ticktick-api-lvt/dist/types/Task';
 import {TaskDeletionModal} from "./TaskDeletionModal";
@@ -20,7 +20,7 @@ export class FileOperation {
     async completeTaskInTheFile(taskId: string) {
         // Get the task file path
         const currentTask = await this.plugin.cacheOperation?.loadTaskFromCacheID(taskId)
-        const filepath = currentTask.path
+        const filepath = await this.plugin.cacheOperation?.getFilepathForTask(taskId)
 
         // Get the file object and update the content
         const file = this.app.vault.getAbstractFileByPath(filepath)
@@ -48,7 +48,7 @@ export class FileOperation {
     async uncompleteTaskInTheFile(taskId: string) {
         // Get the task file path
         const currentTask = await this.plugin.cacheOperation?.loadTaskFromCacheID(taskId)
-        const filepath = currentTask.path
+        const filepath = await this.plugin.cacheOperation?.getFilepathForTask(taskId)
 
         // Get the file object and update the content
         const file = this.app.vault.getAbstractFileByPath(filepath)
@@ -77,6 +77,10 @@ export class FileOperation {
         // console.log("addTickTickTagToFile")
         // Get the file object and update the content
         const file = this.app.vault.getAbstractFileByPath(filepath)
+		if ((file) && (file instanceof TFolder)) {
+			//leave folders alone.
+			return;
+		}
 
         const content = await this.app.vault.read(file)
         const lines = content.split('\n')
@@ -125,6 +129,10 @@ export class FileOperation {
     async addTickTickLinkToFile(filepath: string) {
         // Get the file object and update the content
         const file = this.app.vault.getAbstractFileByPath(filepath)
+		if ((file) && (file instanceof TFolder)) {
+			//leave folders alone.
+			return;
+		}
         const content = await this.app.vault.read(file)
 
         const lines = content.split('\n')
@@ -179,9 +187,31 @@ export class FileOperation {
                 if (!(file instanceof TFile)) {
                     //the file doesn't exist. Create it.
                     //TODO: Deal with Folders and sections in the fullness of time.
-                    new Notice(`Creating new file: ${taskFile}`);
+					const folderPath = this.plugin.settings.TickTickTasksFilePath;
+					let folder = this.app.vault.getAbstractFileByPath(folderPath)
+					if (!(folder instanceof TFolder)) {
+						console.error(`Folder ${folderPath} does not exit. It will be created`)
+						folder = await this.app.vault.createFolder(folderPath);
+					}
+                    new Notice(`Creating new file: ${folder.path}/${taskFile}`);
+					console.error(`Creating new file: ${folder.path}/${taskFile}`);
+					taskFile = `${folder.path}/${taskFile}`;
                     let whoAdded = `${this.plugin.manifest.name} -- ${this.plugin.manifest.version}`;
-                    file = await this.app.vault.create(taskFile, `== Added by ${whoAdded} == `)
+					try {
+						file = await this.app.vault.create(taskFile, `== Added by ${whoAdded} == `)
+					} catch (error) {
+						console.error("File creation failed: ", error)
+						if (error.message.includes("File already exists")) {
+							console.error("Attempting to find existing file")
+							//this has happened when we've had duplicated lists in TickTick.
+							//Until they fix it....
+							file = this.app.vault.getAbstractFileByPath(taskFile);
+							if (file instanceof TFile) {
+								const projectName = await this.plugin.cacheOperation?.getProjectNameByIdFromCache(projectId);
+								await this.app.vault.append(file, `\n====== Project **${projectName}** is probably duplicated in TickTick Adding tasks from other project here.  `)
+							}
+						}
+					}
                 }
             }
             let projectTasks = tasks.filter(task => task.projectId === projectId);
@@ -256,11 +286,11 @@ export class FileOperation {
             if (oldLineCount < newLineCount) {
                 const newContent = lines.join('\n');
                 await this.app.vault.modify(file, newContent);
-                this.plugin.lastLines.set(file.name, lines.length);
+                this.plugin.lastLines.set(file.path, lines.length);
             }
             return true;
         } catch (error) {
-            console.error(`Could not add Tasks to file ${filePath} \n Error: ${error}`);
+            console.error(`Could not add Tasks to file ${file.path} \n Error: ${error}`);
             return false;
         }
     }
@@ -320,13 +350,13 @@ export class FileOperation {
                 lines.splice(lineToInsert, 0, lineText);
             }
 
-            await this.plugin.cacheOperation?.appendTaskToCache(task, file.name);
+            await this.plugin.cacheOperation?.appendTaskToCache(task, file.path);
             //We just add the ticktick tag, update it on ticktick now.
             let tags = this.plugin.taskParser?.getAllTagsFromLineText(lineText);
             if (tags) {
                 task.tags = tags;
             }
-            let taskURL = this.plugin.taskParser?.getObsidianUrlFromFilepath(file.name)
+            let taskURL = this.plugin.taskParser?.getObsidianUrlFromFilepath(file.path)
             if (taskURL) {
                 task.title = task.title + " " + taskURL;
             }
@@ -344,8 +374,13 @@ export class FileOperation {
         const taskId = task.id
         // Get the task file path
         const currentTask = await this.plugin.cacheOperation?.loadTaskFromCacheID(taskId)
-        const filepath = currentTask.path
-
+        let filepath = await this.plugin.cacheOperation?.getFilepathForTask(taskId)
+		if(!filepath) {
+			filepath = await this.plugin.cacheOperation?.getFilepathForProjectId(task.projectId);
+			if(!filepath) {
+				throw new Error(`File not found for ${task.id}, ${task.title}`)
+			}
+		}
         // Get the file object and update the content
         const file = this.app.vault.getAbstractFileByPath(filepath)
         const content = await this.app.vault.read(file)
@@ -394,7 +429,7 @@ export class FileOperation {
 				return [];
 			}
 		}
-	console.error("Task being deleted from file: ", taskId, filePath)
+		console.info("Task being deleted from file: ", taskId, filePath)
         const file = this.app.vault.getAbstractFileByPath(filePath)
         const content = await this.app.vault.read(file)
 
@@ -418,23 +453,27 @@ export class FileOperation {
 
 
     }
-    async deleteTaskFromFile(task: ITask) {
-        const taskId = task.id
-        // Get the task file path
-        const currentTask = await this.plugin.cacheOperation?.loadTaskFromCacheID(taskId)
-		//TODO: It is redundant to have a path attribute AND filemetadata. Need to pick one or the other.
-		if (currentTask.path) {
-			const filepath = currentTask.path
-			await this.deleteTaskFromSpecificFile(filepath, task.id, task.title, false)
-		}
-    }
 
-    // sync updated task content to file
+	async deleteTaskFromFile(task: ITask) {
+		const taskId = task.id
+		// Get the task file path
+		const currentTask = await this.plugin.cacheOperation?.loadTaskFromCacheID(taskId)
+
+		const filepath = await  this.plugin.cacheOperation?.getFilepathForTask(taskId)
+		if (filepath) {
+			await this.deleteTaskFromSpecificFile(filepath, task.id, task.title, false)
+		} else {
+			throw new Error(`File not found for ${task.title}. File path found is ${filepath}`)
+		}
+
+	}
+
+	// sync updated task content to file
     async syncUpdatedTaskContentToTheFile(evt: Object) {
         const taskId = evt.object_id
         // Get the task file path
         const currentTask = await this.plugin.cacheOperation?.loadTaskFromCacheID(taskId)
-        const filepath = currentTask.path
+        const filepath = await this.plugin.cacheOperation?.getFilepathForTask(taskId)
 
         // Get the file object and update the content
         const file = this.app.vault.getAbstractFileByPath(filepath)

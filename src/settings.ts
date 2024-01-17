@@ -1,24 +1,20 @@
-import {App, Notice, PluginSettingTab, Setting} from 'obsidian';
+import {App, Notice, PluginSettingTab, SearchComponent, Setting, TAbstractFile, TFolder} from 'obsidian';
 import TickTickSync from "../main";
 import {ConfirmFullSyncModal} from "./ConfirmFullSyncModal"
 import {BrowserWindow, session} from "@electron/remote";
-
-interface MyProject {
-	id: string;
-	name: string;
-}
+import {FolderSuggest} from "./FolderSuggester";
+import * as electron from "electron";
 
 
 export interface TickTickSyncSettings {
+	SyncProject: any;
+	SyncTag: any;
+	baseURL: string;
 	initialized: boolean;
-	//mySetting: string;
-	//TickTickTasksFilePath: string;
-	username: string;
-	password: string;
-	// TickTickAPIToken: string; // replace with correct type
 	apiInitialized: boolean;
 	defaultProjectName: string;
 	defaultProjectId: string;
+	TickTickTasksFilePath: string;
 	automaticSynchronizationInterval: Number;
 	TickTickTasksData: any;
 	fileMetadata: any;
@@ -39,8 +35,7 @@ export const DEFAULT_SETTINGS: TickTickSyncSettings = {
 	enableFullVaultSync: false,
 	statistics: {},
 	debugMode: false,
-	//mySetting: 'default',
-	//TickTickTasksFilePath: 'TickTickTasks.json'
+	TickTickTasksFilePath: "/"
 
 }
 
@@ -53,14 +48,14 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 		this.plugin = plugin;
 	}
 
-	display(): void {
+	async display(): void {
 		const {containerEl} = this;
 
 		containerEl.empty();
 
 		containerEl.createEl('h2', {text: 'Settings'});
 
-		const myProjectsOptions: MyProject | undefined = this.plugin.settings.TickTickTasksData?.projects?.reduce((obj, item) => {
+		const myProjectsOptions: Record<string, string> | undefined = this.plugin.settings.TickTickTasksData?.projects?.reduce((obj, item) => {
 			try {
 				obj[(item.id).toString()] = item.name;
 				return obj;
@@ -69,56 +64,105 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 				return obj;
 			}
 		}, {});
+		const providerOptions: Record<string, string> = {"1": "ticktick.com", "2": "dida365.com"}
+		const currentVal = Object.keys(providerOptions).find(key => providerOptions[key] === this.plugin.settings.baseURL)
+
+		containerEl.createEl('hr');
+		containerEl.createEl('h1', {text: 'Access Control'});
+
 
 		new Setting(containerEl)
-			.setName('Username')
-			.setDesc('...')
-			.addText(text => text
-				.setPlaceholder('Type username here...')
-				.setValue(this.plugin.settings.username)
-				.onChange(async (value) => {
-					this.plugin.settings.username = value;
-					await this.plugin.saveSettings();
-				})
+			.setName("TickTick/Dida")
+			.setDesc("Select home server")
+			.setHeading()
+			.addDropdown(component =>
+				component
+					.addOptions(providerOptions)
+					.setValue(currentVal)
+					.onChange(async (value: string) => {
+						this.plugin.settings.baseURL = providerOptions[value]
+						await this.plugin.saveSettings();
+					})
 			);
 
 		new Setting(containerEl)
-			.setName('Password')
-			.setDesc('...')
+			.setName("Login")
+			.setDesc("Please login here.")
+			.setHeading()
+			.addButton(loginBtn => {
+				loginBtn.setClass('ts_login_button');
+				loginBtn.setButtonText("Login");
+				loginBtn.setTooltip("Click To Login")
+				loginBtn.onClick(() => {
+					const url = `https://${this.plugin.settings.baseURL}/signin`;
+
+					this.loadLoginWindow(url).then(async (token: string) => {
+						if (token) {
+							this.plugin.settings.token = token;
+							await this.plugin.initializePlugin()
+						} else {
+							console.error("No Token received.")
+						}
+					});
+					this.display()
+
+				});
+			});
+
+		containerEl.createEl('hr');
+		containerEl.createEl('h1', {text: 'Sync control'});
+		this.add_default_folder_path();
+
+		new Setting(containerEl)
+			.setName('Default project')
+			.setDesc('New tasks are automatically synced to the default project. You can modify the project here.')
+			.addDropdown(component =>
+				component
+					.addOption(this.plugin.settings.defaultProjectId, this.plugin.settings.defaultProjectName)
+					.addOptions(myProjectsOptions)
+					.onChange(async (value) => {
+						this.plugin.settings.defaultProjectId = value
+						this.plugin.settings.defaultProjectName = await this.plugin.cacheOperation?.getProjectNameByIdFromCache(value)
+						await this.plugin.saveSettings()
+
+
+					})
+			)
+		containerEl.createEl('hr');
+		containerEl.createEl('h2', {text: 'Limit synchronization'});
+		new Setting(containerEl)
+			.setDesc("To limit the tasks TickTickSync will synchronize from TickTick to " +
+				"Obsidian select a tag or project(list) below. If a tag is entered, only tasks with that tag will be " +
+				"synchronized. If a project(list) is selected, only tasks in that project will be synchronized. If " +
+				"both are chosen only tasks with that tag in that project will be synchronized.")
+
+		new Setting(containerEl)
+			.setName('Project')
+			.setDesc('Only tasks in this project will be synchronized.')
+			.addDropdown(component =>
+				component
+					.addOption("", "")
+					.addOptions(myProjectsOptions)
+					.setValue(this.plugin.settings.SyncProject)
+					.onChange(async (value) => {
+						console.log("chose: " ,value)
+						this.plugin.settings.SyncProject = value;
+						await this.plugin.saveSettings()
+					})
+			)
+
+		new Setting(containerEl)
+			.setName('Tag')
+			.setDesc('Tag value, no "#"')
 			.addText(text => text
-				.setPlaceholder('Type password here...')
-				.setValue(this.plugin.settings.password)
+				.setValue(this.plugin.settings.SyncTag)
 				.onChange(async (value) => {
-					this.plugin.settings.password = value;
+					this.plugin.settings.SyncTag = value;
 					await this.plugin.saveSettings();
 				})
 			)
 
-
-		new Setting(containerEl)
-			.addExtraButton((button) => {
-				button
-					.setIcon('send')
-					.setTooltip('Log In')
-					.onClick(async () => {
-
-						//TODO: Get this from settings or something
-						const url = `https://ticktick.com/signin`;
-
-						this.loadLoginWindow(url).then(async (token): string => {
-							if (token) {
-								console.log("Going to Initialize")
-								this.plugin.settings.token = token;
-								await this.plugin.initializePlugin()
-							}
-						});
-						this.display()
-
-					})
-			})
-			.setDesc("Click to Log in after any changes, or to re-login");
-
-
+		containerEl.createEl('hr');
 		new Setting(containerEl)
 			.setName('Automatic sync interval time')
 			.setDesc('Please specify the desired interval time, with seconds as the default unit. The default setting is 300 seconds, which corresponds to syncing once every 5 minutes. You can customize it, but it cannot be lower than 20 seconds.')
@@ -144,23 +188,6 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 						this.plugin.saveSettings()
 						new Notice('Settings have been updated.');
 						//
-					})
-			)
-
-
-		new Setting(containerEl)
-			.setName('Default project')
-			.setDesc('New tasks are automatically synced to the default project. You can modify the project here.')
-			.addDropdown(component =>
-				component
-					.addOption(this.plugin.settings.defaultProjectId, this.plugin.settings.defaultProjectName)
-					.addOptions(myProjectsOptions)
-					.onChange(async (value) => {
-						this.plugin.settings.defaultProjectId = value
-						this.plugin.settings.defaultProjectName = await this.plugin.cacheOperation?.getProjectNameByIdFromCache(value)
-						this.plugin.saveSettings()
-
-
 					})
 			)
 
@@ -194,6 +221,9 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 						}
 					})
 			)
+
+		containerEl.createEl('hr');
+		containerEl.createEl('h1', {text: 'Manual operations'});
 
 
 		new Setting(containerEl)
@@ -288,7 +318,7 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 			const allMDFiles = this.app.vault.getMarkdownFiles();
 			allMDFiles.forEach(file => {
 				// console.log("File: ", file);
-				this.plugin.tickTickSync?.fullTextModifiedTaskCheck(file.name)
+				this.plugin.tickTickSync?.fullTextModifiedTaskCheck(file.path)
 			});
 		}
 		this.plugin.saveSettings()
@@ -324,7 +354,7 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 					} catch (error) {
 						if (error.message.includes('404')) {
 							// console.log(`Task ${taskId} seems to not exist.`);
-							await this.plugin.cacheOperation?.deleteTaskIdFromMetadata(key, taskId)
+							await this.plugin.cacheOperation?.deleteTaskIdFromMetadata(key, taskDetails.taskId)
 							continue
 						} else {
 							console.error(error);
@@ -337,7 +367,7 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 			;
 
 		}
-		this.plugin.saveSettings()
+		await this.plugin.saveSettings()
 
 
 		// console.log('checking renamed files')
@@ -357,11 +387,8 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 						console.error(`An error occurred while loading task ${taskDetail.taskId} from cache: ${error.message}`);
 					}
 					if (!taskObject) {
-						console.log(`Task ${taskDetail.id}: ${taskDetail.title} is not found.`)
+						console.error(`Task ${taskDetail.id}: ${taskDetail.title} is not found.`)
 						continue
-					}
-					if (!taskObject?.content) {
-						console.log(`The content of the task ${taskDetail} is empty.`)
 					}
 					const oldTitle = taskObject?.title ?? '';
 					if (!oldTitle.includes(obsidianURL)) {
@@ -419,6 +446,8 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 
 		return new Promise((resolve) => {
 			//Get a cookie!
+			//TODO: If plugin is reloaded. This will fail. Probably missing something in clean up
+			//      investigate later.
 			const window = new BrowserWindow({ show: false,
 				width: 600,
 				height: 800,
@@ -435,18 +464,78 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 
 			let token = "";
 			window.on('closed', () => {
-				session.defaultSession.cookies.get({domain: ".ticktick.com", name: "t"})
+				const domain = "." + this.plugin.settings.baseURL
+				session.defaultSession.cookies.get({domain: domain, name: "t"})
 					.then((cookies) => {
 						token = cookies[0].value
-						window.destroy();
 						resolve(token);
+						window.destroy();
 					}).catch((error) => {
 					console.error(error)
 				})
+
 			});
 		});
 
 	}
 
+
+	add_default_folder_path(): void {
+		let folderSearch: SearchComponent | undefined;
+		new Setting(this.containerEl)
+			.setName("Default folder location")
+			.setDesc("Folder to be used for TickTick Tasks.")
+			.addSearch((cb) => {
+				folderSearch = cb;
+				new FolderSuggest(cb.inputEl);
+				cb.setPlaceholder("Example: folder1/folder2")
+					.setValue(this.plugin.settings.TickTickTasksFilePath)
+				// @ts-ignore
+				// maybe someday we'll style it.
+				// cb.containerEl.addClass("def-folder");
+			})
+			.addButton((cb) => {
+				cb.setIcon('plus');
+				cb.setTooltip('Add folder');
+				cb.onClick(async () => {
+					let new_folder = folderSearch?.getValue();
+					const updatedFolder = await  this.validateNewFolder(new_folder);
+					if (new_folder) {
+						folderSearch?.setValue(new_folder)
+						this.plugin.settings.TickTickTasksFilePath = new_folder
+						await this.plugin.saveSettings();
+					}
+
+					this.display();
+				});
+			});;
+	}
+
+	private async validateNewFolder(new_folder: string | undefined) {
+		if (new_folder && (new_folder.length > 1) && (/^[/\\]/.test(new_folder))) {
+			new_folder = new_folder.substring(1);
+		}
+		let newFolderFile = this.app.vault.getAbstractFileByPath(new_folder);
+		if (!newFolderFile) {
+			//it doesn't exist, create it and return it's path.
+			try {
+				newFolderFile = await this.app.vault.createFolder(new_folder);
+				new Notice(`New folder ${newFolderFile.path} created.`)
+				return newFolderFile?.path;
+			} catch (error) {
+				new Notice(`Folder ${new_folder} creation failed: ${error}. Please correct and try again.`, 0)
+				return null;
+			}
+		} else {
+			console.log(typeof newFolderFile)
+			if (newFolderFile instanceof TFolder) {
+				//they picked right, and the folder exists.
+				new Notice(`Default folder is now ${newFolderFile.path}.`)
+				return newFolderFile.path
+			}
+		}
+
+
+	}
 }
-								
+

@@ -37,6 +37,9 @@ export class CacheOperation {
 
 
     async addTaskToMetadata(filepath: string, task: ITask) {
+		// if (this.plugin.settings.debugMode) {
+		// 	console.log("Adding task to : ", filepath)
+		// }
         let metaData: FileMetadata = await this.getFileMetadata(filepath, task.projectId)
         let taskMeta: TaskDetail;
         taskMeta = { taskId: task.id, taskItems: [] };
@@ -267,7 +270,7 @@ export class CacheOperation {
             if (metadatas[key].defaultProjectId === projectId) {
                 return key;
             }
-        };
+        }
 
         //otherwise, return the project name as a md file and hope for the best.
         let filePath = await this.getProjectNameByIdFromCache(projectId) + ".md"
@@ -275,7 +278,7 @@ export class CacheOperation {
         if (!filePath) {
             filePath = this.plugin.settings.defaultProjectName + ".md"
         }
-
+		console.warn(`File path not found for ${projectId}, returning ${filePath} instead. `)
         return filePath;
     }
 
@@ -327,7 +330,6 @@ export class CacheOperation {
                 this.plugin.settings.TickTickTasksData.tasks = [];
                 await this.plugin.saveSettings();
             }
-            task.path = filePath;
             task.title = this.plugin.taskParser?.stripOBSUrl(task.title);
             this.plugin.settings.TickTickTasksData.tasks.push(task);
             await this.addTaskToMetadata(filePath, task)
@@ -371,12 +373,8 @@ export class CacheOperation {
             //Delete the existing task
             await this.deleteTaskFromCache(task.id)
             //Add new task
-            let filePath = "";
-            if (task.path) {
-                filePath = task.path;
-            } else {
-                filePath = await this.getFilepathForProjectId(task.projectId);
-            }
+			const filePath = await this.getFilepathForProjectId(task.projectId);
+
 			await this.appendTaskToCache(task, filePath);
             return task;
         } catch (error) {
@@ -552,16 +550,15 @@ export class CacheOperation {
         try {
             //get projects
             // console.log(`Save Projects to cache with ${this.plugin.tickTickRestAPI}`)
+			// Inbox ID is got on API initialization. Don't have to do it here any more.
             const projectGroups = await this.plugin.tickTickRestAPI?.GetProjectGroups();
             const projects: IProject[] = await this.plugin.tickTickRestAPI?.GetAllProjects();
-            //todo: consider doing it all from here. For now, just want the inbox ID
-            const allResources = await this.plugin.tickTickRestAPI?.getAllResources();
-            const inboxId = allResources["inboxId"];
-            this.plugin.settings.defaultProjectId = inboxId;
-            this.plugin.settings.defaultProjectName = "Inbox";
 
 
-            let inboxProject = { id: inboxId, name: "Inbox" };
+            let inboxProject = {
+				id: this.plugin.settings.defaultProjectId,
+				name: this.plugin.settings.defaultProjectName
+			};
 
             projects.push(inboxProject);
 
