@@ -860,7 +860,7 @@ export class SyncMan {
 			if (this.plugin.settings.SyncTag && this.plugin.settings.SyncProject) {
 				let hasTag;
 				hasTag = tasksFromTickTic.filter(task => {
-					hasTag = task.tags.includes(this.plugin.settings.SyncTag.toLowerCase()); //because TickTick only stores lowercase tags.
+					hasTag = task.tags?.includes(this.plugin.settings.SyncTag.toLowerCase()); //because TickTick only stores lowercase tags.
 					return hasTag;
 				});
 				if (hasTag) {
