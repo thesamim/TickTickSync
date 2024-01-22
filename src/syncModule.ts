@@ -5,6 +5,7 @@ import ObjectID from 'bson-objectid';
 import {TaskDetail} from "./cacheOperation"
 import {RegExpMatchArray} from 'typescript';
 import {TaskDeletionModal} from "./TaskDeletionModal";
+import fs from "fs";
 
 type deletedTask = {
 	taskId: string,
@@ -473,9 +474,13 @@ export class SyncMan {
 			}
 			let parsedItem = await this.plugin.taskParser?.taskFromLine(lineText, filepath);
 			if (this.plugin.settings.debugMode) {
-				if (!parsedItem || !(await parsedItem).description || !((await parsedItem).status)) {
+				if (!parsedItem) {
 					console.error(`Task construction failed in line: ${lineText}`)
 				}
+			}
+			if (!parsedItem.description || !(parsedItem.status)) {
+				//empty item. Bail.
+				return;
 			}
 			let tabs = parsedItem?.indentation;
 			let content = parsedItem?.description;
@@ -1024,18 +1029,20 @@ export class SyncMan {
 			// if (this.plugin.tickTickSyncAPI) {
 			// console.log("It's defined", this.plugin.tickTickSyncAPI)
 			// }
-			const resources = await this.plugin.tickTickSyncAPI.getAllResources()
+			const bkupData = await this.plugin.tickTickRestAPI?.exportData()
 
-			const now: Date = new Date();
-			const timeString: string = `${now.getFullYear()}${now.getMonth() + 1}${now.getDate()}${now.getHours()}${now.getMinutes()}${now.getSeconds()}`;
+			if (bkupData) {
+				const now: Date = new Date();
+				const timeString: string = `${now.getFullYear()}${now.getMonth() + 1}${now.getDate()}${now.getHours()}${now.getMinutes()}${now.getSeconds()}`;
 
-			const name = "ticktick-backup-" + timeString + ".json"
+				const name = "ticktick-backup-" + timeString + ".csv"
 
-			this.app.vault.create(name, JSON.stringify(resources))
-			//console.log(`ticktick backup successful`)
-			new Notice(`TickTick backup data is saved in the path ${name}`)
+				await this.app.vault.create(name, bkupData)
+				//console.log(`ticktick backup successful`)
+				new Notice(`TickTick backup data is saved in the path ${name}`)
+			}
 		} catch (error) {
-			console.error("An error occurred while creating TickTick backup:", error);
+			console.error("An error occurred while creating TickTick backup");
 		}
 
 	}

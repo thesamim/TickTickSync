@@ -305,6 +305,18 @@ export class TickTickRestAPI {
 			return []
 		}
 	}
+	async exportData(): Promise<string> {
+		await this.initializeAPI();
+		//This is a CSV backup.
+		const result = await this.api.exportData();
+		if (!result) {
+			let error = this.api?.lastError;
+			let bodyParts = JSON.parse(error.body)
+			console.error("Back error status.", "\nStatus Code:", error.statusCode, "\nError Code: ", bodyParts.errorCode, "\nError Message: ", bodyParts.errorMessage)
+			throw new Error(`Back up failed`)
+		}
+		return (result)
+	}
 
 
 }
