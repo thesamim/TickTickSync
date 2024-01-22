@@ -107,9 +107,9 @@ export default class TickTickSync extends Plugin {
 				new Notice(`Sync completed..`)
 			});
 			//Used for testing adhoc code.
-			const ribbonIconEl1 = this.addRibbonIcon('check', 'TickTickSync', async (evt: MouseEvent) => {
-				// Nothing to see here right now.
-			});
+			// const ribbonIconEl1 = this.addRibbonIcon('check', 'TickTickSync', async (evt: MouseEvent) => {
+			// 	// Nothing to see here right now.
+			// });
 		}
 		//Key event monitoring, judging line breaks and deletions
 		this.registerDomEvent(document, 'keyup', async (evt: KeyboardEvent) => {

@@ -7,14 +7,15 @@ The plugin works best when the [Tasks](https://github.com/obsidian-tasks-group/o
 ## Features
 
 - Any task created in Obsidian and tagged with #ticktick will be synchronized with TickTick
-- Any task created in TickTick will be synchronized to Obisidian.
+- Any task created in TickTick will be synchronized to Obisidian, unless synchronization is limited. [details here](https://github.com/thesamim/TickTickSync/wiki/Documentation#limit-synchronization).
 - Updates are bi-directional
 - Tasks added or updated from Obsidian are synched to TickTick immediately.
 - Tasks added or updated from TickTick are synched on a configurable time interval.
 
 ## Notes
 
-1. **All Task Deletion operations must be confirmed.** In the fullness of time, when we get out of Beta, this might be a preference item. For now it's compulsory.
+1. TickTickSyn [back ups](https://github.com/thesamim/TickTickSync/wiki/Documentation#backup-ticktick-data) are now CSV files that are compatible with TickTick's "Import Backups."
+2. **All Task Deletion operations must be confirmed.** In the fullness of time, when we get out of Beta, this might be a preference item. For now it's compulsory.
 2. TickTick lists are referred to as Projects in the plugin, and throughout documentation.
 3. TickTick only has four priorities (High, Medium, Low, None). Please see Priority in [Task Format](https://github.com/thesamim/TickTickSync/wiki/Documentation#task-format) for Task mapping of priority
 4. **Warning:** TickTickSync automatically creates .md files corresponding with the lists/projects created in TickTick and downloads all tasks to them.  
