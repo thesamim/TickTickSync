@@ -51,9 +51,10 @@ export class TickTickRestAPI {
 					apiInitialized = true;
 					await this.api.getInboxProperties()
 					// console.log("InobxID: ", this.api.inboxId)
-					this.plugin.settings.defaultProjectId = this.api.inboxId;
-					this.plugin.settings.defaultProjectName = "Inbox";
-
+					if (!this.plugin.settings.defaultProjectId) {
+						this.plugin.settings.defaultProjectId = this.api.inboxId;
+						this.plugin.settings.defaultProjectName = "Inbox";
+					}
 				} else {
 					if (this.plugin.settings.debugMode) {
 						console.log(userSettings)
