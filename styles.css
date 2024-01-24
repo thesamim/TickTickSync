@@ -21,6 +21,22 @@ button.ts_button[disabled]:hover {
 
 
 
+.project-table-table{
+	width: 100%;
+	margin-bottom: 10px;
+	font-size: 0.9rem;
+	border: 2px solid var(--background-secondary);
+	border-radius: 5px;
+	padding: 10px;
+	border-collapse: collapse;
+}
+
+.project-table-border{
+	border: 2px solid var(--background-secondary);
+	padding: 10px;
+}
+
+
 
 
 

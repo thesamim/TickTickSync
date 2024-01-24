@@ -42,16 +42,7 @@ export class TickTickSyncAPI {
         }
     }
     
-    //backup TickTick
-    async getAllTasks() {
-        try {
-            let data = this.plugin.tickTickRestAPI?.getAllTasks()
-            return data;
-        } catch (error) {
-            console.error(error);
-            throw new Error('Failed to fetch user resources due to network error');
-        }
-    }
+
     
     async getUserResource() {
         try {
@@ -222,7 +213,6 @@ export class TickTickSyncAPI {
         //     }
         // }
     }
-    
     
     
     

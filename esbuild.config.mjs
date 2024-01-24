@@ -12,6 +12,7 @@ const copyManifestPlugin = () => ({
 		build.onEnd(async () => {
 			try {
 				fs.copyFileSync('./manifest.json', './dist/manifest.json');
+				fs.copyFileSync('./styles.css', './dist/styles.css');
 			} catch (e) {
 				console.error('Failed to copy file:', e);
 			}

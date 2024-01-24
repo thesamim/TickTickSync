@@ -1,4 +1,4 @@
-import {MarkdownView, Notice, Plugin, Editor, WorkspaceLeaf} from 'obsidian';
+import {MarkdownView, Notice, Plugin, Editor, WorkspaceLeaf, TFolder, ListItemCache} from 'obsidian';
 import {BrowserWindow, session} from "@electron/remote";
 import { WebRequest } from 'electron'
 
@@ -23,7 +23,7 @@ import {SyncMan} from './src/syncModule';
 import ObjectID from 'bson-objectid';
 
 //import modals
-import {SetDefaultProjectForFileModal} from 'src/defaultProjectModal';
+import {SetDefaultProjectForFileModal} from 'src/modals/DefaultProjectModal';
 
 
 
@@ -74,20 +74,21 @@ export default class TickTickSync extends Plugin {
 				};
 				fileMetataDataStructure[file] = newTasksHolder;
 			}
-			this.settings.version = this.manifest.version
-			await this.saveSettings();
 			//Force a sync
 			await this.scheduledSynchronization();
 		}
 		if ((!this.settings.version) || (this.isOlder(this.settings.version ,"1.0.10"))) {
 			//get rid of user name and password. we don't need them no more.
-
 			delete this.settings.username;
 			delete this.settings.password
+		}
+
+		//Update the version number. It will save me headaches later.
+		if ((!this.settings.version) || (this.isOlder(this.settings.version ,this.manifest.version)))
+		{
 			this.settings.version = this.manifest.version
 			await this.saveSettings();
 		}
-
 
 
 		// This adds a settings tab so the user can configure various aspects of the plugin
@@ -111,6 +112,7 @@ export default class TickTickSync extends Plugin {
 			// 	// Nothing to see here right now.
 			// });
 		}
+
 		//Key event monitoring, judging line breaks and deletions
 		this.registerDomEvent(document, 'keyup', async (evt: KeyboardEvent) => {
 			if (!this.settings.apiInitialized) {
@@ -134,6 +136,7 @@ export default class TickTickSync extends Plugin {
 				}
 				await this.lineNumberCheck()
 			}
+
 			if (evt.key === "Delete" || evt.key === "Backspace") {
 				try {
 					//console.log(`${evt.key} key is released`);
@@ -188,6 +191,9 @@ export default class TickTickSync extends Plugin {
 					return
 				}
 
+				//TODO: lineNumberCheck also triggers a line modified check. I suspect this is redundant and
+				//      inefficient when a new task is being added. I've added returns out of there, but I need for find if the last line check
+				//      is needed for an add.
 				await this.lineNumberCheck()
 				if (!(this.checkModuleClass())) {
 					return
@@ -197,9 +203,8 @@ export default class TickTickSync extends Plugin {
 				}
 				if (!await this.checkAndHandleSyncLock()) return;
 				await this.tickTickSync?.lineContentNewTaskCheck(editor, view)
-				this.syncLock = false
 				await this.saveSettings()
-
+				this.syncLock = false
 			} catch (error) {
 				console.error(`An error occurred while check new task in line: ${error.message}`);
 				this.syncLock = false
@@ -207,6 +212,37 @@ export default class TickTickSync extends Plugin {
 
 		}))
 
+		//Listen to the rename event and update the path in task data
+		this.registerEvent(this.app.vault.on('delete', async (file) => {
+			if (file instanceof TFolder) {
+				//individual file deletes will be handled. I hope.
+				return
+			}
+			if (!this.settings.apiInitialized) {
+				console.error("API Not intialized!")
+				return
+			}
+			const fileMetadata = await this.cacheOperation?.getFileMetadata(file.path, null)
+			if (!fileMetadata || !fileMetadata.TickTickTasks) {
+				//console.log('There is no task in the deleted file')
+				return
+			}
+			if (!(this.checkModuleClass())) {
+				return
+			}
+			await this.cacheOperation?.updateRenamedFilePath(oldpath, file.path)
+			await this.saveSettings()
+
+			//update task description
+			if (!await this.checkAndHandleSyncLock()) return;
+			try {
+				await this.tickTickSync?.updateTaskContent(file.path)
+			} catch (error) {
+				console.error('An error occurred in updateTaskDescription:', error);
+			}
+			this.syncLock = false;
+
+		}));
 
 		//Listen to the rename event and update the path in task data
 		this.registerEvent(this.app.vault.on('rename', async (file, oldpath) => {
@@ -258,6 +294,7 @@ export default class TickTickSync extends Plugin {
 
 				//To avoid conflicts, Do not check files being edited
 				if (activateFile?.path == filepath) {
+					//TODO: find out if they cut or pasted task(s) in here.
 					return
 				}
 
@@ -435,6 +472,7 @@ export default class TickTickSync extends Plugin {
 	}
 
 	async lineNumberCheck() {
+		let modified = false;
 		const markDownView = this.app.workspace.getActiveViewOfType(MarkdownView);
 		if (markDownView) {
 			const cursor = markDownView?.editor.getCursor()
@@ -449,7 +487,7 @@ export default class TickTickSync extends Plugin {
 			const filepath = file?.path
 			if (typeof this.lastLines === 'undefined' || typeof this.lastLines.get(fileName as string) === 'undefined') {
 				this.lastLines.set(fileName as string, line as number);
-				return
+				return false;
 			}
 
 			//console.log(`filename is ${fileName}`)
@@ -464,26 +502,25 @@ export default class TickTickSync extends Plugin {
 				const lastLineText = markDownView.editor.getLine(lastLine as number)
 				// console.log(lastLineText)
 				if (!(this.checkModuleClass())) {
-					return
+					return false
 				}
 				this.lastLines.set(fileName as string, line as number);
 				// try{
-				if (!await this.checkAndHandleSyncLock()) return;
-				await this.tickTickSync?.lineModifiedTaskCheck(filepath as string, lastLineText, lastLine as number, fileContent)
+				if (!await this.checkAndHandleSyncLock()) {
+					return false
+				};
+				modified = await this.tickTickSync?.lineModifiedTaskCheck(filepath as string, lastLineText, lastLine as number, fileContent)
 				this.syncLock = false;
 				// }catch(error){
 				//     console.error(`An error occurred while check modified task in line text: ${error}`);
 				//     this.syncLock = false
 				// }
-
-
 			} else {
 				//console.log('Line not changed');
 			}
 
 		}
-
-
+		return modified
 	}
 
 	async checkboxEventhandle(evt: MouseEvent) {
@@ -618,19 +655,20 @@ export default class TickTickSync extends Plugin {
 
 				if (!await this.checkAndHandleSyncLock()) return;
 				try {
+					await this.tickTickSync?.fullTextModifiedTaskCheck(fileKey);
+				} catch (error) {
+					console.error('An error occurred in fullTextModifiedTaskCheck:', error);
+				}
+				this.syncLock = false;
+
+				if (!await this.checkAndHandleSyncLock()) return;
+				try {
 					await this.tickTickSync?.deletedTaskCheck(fileKey);
 				} catch (error) {
 					console.error('An error occurred in deletedTaskCheck:', error);
 				}
 				this.syncLock = false;
 
-				if (!await this.checkAndHandleSyncLock()) return;
-				try {
-					await this.tickTickSync?.fullTextModifiedTaskCheck(fileKey);
-				} catch (error) {
-					console.error('An error occurred in fullTextModifiedTaskCheck:', error);
-				}
-				this.syncLock = false;
 			}
 
 		} catch (error) {

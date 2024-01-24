@@ -11,21 +11,30 @@ The plugin works best when the [Tasks](https://github.com/obsidian-tasks-group/o
 - Updates are bi-directional
 - Tasks added or updated from Obsidian are synched to TickTick immediately.
 - Tasks added or updated from TickTick are synched on a configurable time interval.
+- Moving Tasks between Projects is now supported. Please see [Task movement documentation](https://github.com/thesamim/TickTickSync/wiki/Documentation#moving-tasks).
+- Moving Tasks between Parents is now supported.
 
 ## Notes
+> :warning: 
+> # CAUTION!
+> Please see the [New Date Handling caution in documentation.](https://github.com/thesamim/TickTickSync/wiki/Documentation#new-date-handling)
+> 
+> :warning:
+
+
 
 1. TickTickSyn [back ups](https://github.com/thesamim/TickTickSync/wiki/Documentation#backup-ticktick-data) are now CSV files that are compatible with TickTick's "Import Backups."
 2. **All Task Deletion operations must be confirmed.** In the fullness of time, when we get out of Beta, this might be a preference item. For now it's compulsory.
-2. TickTick lists are referred to as Projects in the plugin, and throughout documentation.
-3. TickTick only has four priorities (High, Medium, Low, None). Please see Priority in [Task Format](https://github.com/thesamim/TickTickSync/wiki/Documentation#task-format) for Task mapping of priority
-4. **Warning:** TickTickSync automatically creates .md files corresponding with the lists/projects created in TickTick and downloads all tasks to them.  
+3. TickTick lists are referred to as Projects in the plugin, and throughout documentation.
+4. TickTick only has four priorities (High, Medium, Low, None). Please see Priority in [Task Format](https://github.com/thesamim/TickTickSync/wiki/Documentation#task-format) for Task mapping of priority
+5. **Warning:** TickTickSync automatically creates .md files corresponding with the lists/projects created in TickTick and downloads all tasks to them.  
    If the files are deleted in Obsidian while the TickTickSync plugin is active, those tasks will be deleted. If you accidentally confirm that deletion: 
    To recover those tasks, go to the "[Trash](https://ticktick.com/webapp/#q/all/trash)" menu item on the TickTick interface and recover deleted tasks from there.
-5. TickTickSync now supports Task Items and will **NOT** delete Task Content. However, as of now, it will not allow management of Task Content.
-6. A link to the containing file in Obsidian is added to the Task Title in TickTick, but the content field is not mangled. In the fullness of time content will be manageable in TickTickSync. Please watch this [issue](https://github.com/thesamim/TickTickSync/issues/10) for progress. 
-7. Relatively confident that Time Zone difference issues are resolved. If not: Please open an issue with details.
-8. It is now possible control synchronization. Please see [details here](https://github.com/thesamim/TickTickSync/wiki/Documentation#limit-synchronization).
-9. TickTick has changed sign in procedures. You will have to login manually from settings.
+6. TickTickSync now supports Task Items and will **NOT** delete Task Content. However, as of now, it will not allow management of Task Content.
+7. A link to the containing file in Obsidian is added to the Task Title in TickTick, but the content field is not mangled. In the fullness of time content will be manageable in TickTickSync. Please watch this [issue](https://github.com/thesamim/TickTickSync/issues/10) for progress. 
+8. Relatively confident that Time Zone difference issues are resolved. If not: Please open an issue with details.
+9. It is now possible control synchronization. Please see [details here](https://github.com/thesamim/TickTickSync/wiki/Documentation#limit-synchronization).
+10. TickTick has changed sign in procedures. You will have to login manually from settings.
 
 ## Known Issues
 
@@ -37,7 +46,7 @@ The plugin works best when the [Tasks](https://github.com/obsidian-tasks-group/o
 3. Parent/Child tasks are supported bi-directionally. However, changes to the parent/child relationship are not handled. Yet.
 4. Moving tasks between Projects/Lists is **NOT** supported at this time.
 5. Because Tags can't have spaces, at this time it is not possible to add a task to a project with name that contains spaces. In the fullness of time, will implement some kind of workaround (eg: `#folder_with_a_space` will be converted to `folder with a space`)
-6. If a file has a default project association (see [settings](https://github.com/thesamim/TickTickSync/wiki/Documentation#sync-control)), it is possible to create a task with a project tag other than the default project. The Task will be correctly synched to TickTick in the correct project. However, if the Task is then updated with subtasks, from TickTick, the subtasks will be synched to the project's default file rather than the file where the original parent task was created.
+6. If a file has a default project association (see [settings](https://github.com/thesamim/TickTickSync/wiki/Documentation#sync-control)), it is possible to create a task with a project tag other than the default project. The Task will be correctly synched to TickTick in the correct project. However, if the Task is then updated with subtasks, from TickTick, the subtasks will be synched to the project's default file rather than the file where the original parent task was created. **Additionally, the subtask will become the child of the last Task in that file.**
 
 ## Installation
 
