@@ -147,7 +147,9 @@ export class SyncMan {
 		// if (this.plugin.settings.debugMode) {
 		// 	console.log("Adding to: ", filePath)
 		// }
-		if ((!this.plugin.taskParser?.hasTickTickId(lineTxt) && this.plugin.taskParser?.hasTickTickTag(lineTxt))) { //Whether #ticktick is included
+
+		if ((!this.plugin.taskParser?.hasTickTickId(lineTxt) && this.plugin.taskParser?.hasTickTickTag(lineTxt))) {
+			//Whether #ticktick is included, but not ticktickid: Task just added.
 			try {
 				const currentTask = await this.plugin.taskParser?.convertTextToTickTickTaskObject(lineTxt, filePath, line, fileContent)
 				const newTask = await this.plugin.tickTickRestAPI?.AddTask(currentTask)
@@ -171,9 +173,10 @@ export class SyncMan {
 
 				}
 				await this.plugin.saveSettings()
+				//May seem redundant, but puts task line formatting in one place.
+				const text = await this.plugin.taskParser?.convertTaskObjectToTaskLine(newTask);
 
-				const text_with_out_link = `${lineTxt} %%[ticktick_id:: ${ticktick_id}]%%`;
-				const text = this.plugin.taskParser?.addTickTickLink(text_with_out_link, newTask.id, ticktick_projectId)
+
 				if (editor && cursor) {
 					const from = {line: cursor.line, ch: 0};
 					const to = {line: cursor.line, ch: lineTxt.length};
@@ -250,7 +253,8 @@ export class SyncMan {
 	}
 
 
-	async lineModifiedTaskCheck(filepath: string, lineText: string, lineNumber: number, fileContent: string): Promise<void> {
+	async lineModifiedTaskCheck(filepath: string, lineText: string, lineNumber: number, fileContent: string): Promise<boolean> {
+		let modified = false;
 		if (this.plugin.settings.enableFullVaultSync) {
 			//new empty metadata
 			const metadata = await this.plugin.cacheOperation?.getFileMetadata(filepath)
@@ -391,6 +395,8 @@ export class SyncMan {
 					savedTask.modifiedTime = this.plugin.taskParser?.formatDateToISO(new Date());
 					const result = await this.plugin.tickTickRestAPI?.UpdateTask(savedTask)
 					await this.plugin.cacheOperation?.updateTaskToCacheByID(savedTask);
+
+					modified = true;
 				}
 				// console.log(result)
 
@@ -458,129 +464,129 @@ export class SyncMan {
 
 
 		} else { //Not a task, check Items.
-			await this.handleTaskItem(lineText, filepath, fileContent, lineNumber);
+			modified = await this.handleTaskItem(lineText, filepath, fileContent, lineNumber);
 		}
+		return modified
 	}
 
-	private async handleTaskItem(lineText: string, filepath: string, fileContent: string, lineNumber: number) {
-		{
-			let modified = false;
-			let added = false;
-			//it's a task. Is it a task item?
-			//is it a task at all?
-			if (!this.plugin.taskParser?.isMarkdownTask(lineText)) {
-				//Nah Brah. Bail.
-				return;
+	private async handleTaskItem(lineText: string, filepath: string, fileContent: string, lineNumber: number): Promise<boolean> {
+		let modified = false;
+		let added = false;
+		//it's a task. Is it a task item?
+		//is it a task at all?
+		if (!this.plugin.taskParser?.isMarkdownTask(lineText)) {
+			//Nah Brah. Bail.
+			return;
+		}
+		let parsedItem = await this.plugin.taskParser?.taskFromLine(lineText, filepath);
+		if (this.plugin.settings.debugMode) {
+			if (!parsedItem) {
+				console.error(`Task construction failed in line: ${lineText}`)
 			}
-			let parsedItem = await this.plugin.taskParser?.taskFromLine(lineText, filepath);
-			if (this.plugin.settings.debugMode) {
-				if (!parsedItem) {
-					console.error(`Task construction failed in line: ${lineText}`)
-				}
+		}
+		if (!parsedItem.description || !(parsedItem.status)) {
+			//empty item. Bail.
+			return;
+		}
+		let tabs = parsedItem?.indentation;
+		let content = parsedItem?.description;
+		if (content?.trim().length == 0) {
+			//they hit enter, but haven't typed anything yet.
+			// it will get added when they actually type something
+			modified = false
+			return modified;
+		}
+		const thisLineStatus = parsedItem.status.isCompleted();
+		let parentTask: ITask = null;
+		if (tabs.length > 0) {//must be indented at least once.
+			const lines = fileContent.split('\n');
+			let itemId = "";
+			let regex = /%%(.*)%%/;
+			let match = regex.exec(content);
+			if (match) {
+				itemId = match[1];
 			}
-			if (!parsedItem.description || !(parsedItem.status)) {
-				//empty item. Bail.
-				return;
-			}
-			let tabs = parsedItem?.indentation;
-			let content = parsedItem?.description;
-			if (content?.trim().length == 0) {
-				//they hit enter, but haven't typed anything yet.
-				// it will get added when they actually type something
-				return;
-			}
-			const thisLineStatus = parsedItem.status.isCompleted();
-			let parentTask: ITask = null;
-			if (tabs.length > 0) {//must be indented at least once.
-				const lines = fileContent.split('\n');
-				let itemId = "";
-				let regex = /%%(.*)%%/;
-				let match = regex.exec(content);
-				if (match) {
-					itemId = match[1];
-				}
 
-				for (let i = lineNumber - 1; i >= 0; i--) {
-					const line = lines[i];
-					if (this.plugin.taskParser?.hasTickTickId(line) && this.plugin.taskParser?.hasTickTickTag(line)) {
-						const ticktickid = this.plugin.taskParser.getTickTickIdFromLineText(line);
-						parentTask = await this.plugin.cacheOperation?.loadTaskFromCacheID(ticktickid);
-						if (parentTask && parentTask.items) { //we have some items.
-							if (itemId) {
-								const oldItem = parentTask.items.find((item) => item.id === itemId);
-								if (oldItem) {
-									content = content.replace(regex, ""); //We just want content now.
-									//TODO deal with "Won't do" which is -1
-									const oldItemStatus = oldItem.status == 0 ? false : true;
-									if (content.trim() != oldItem.title.trim()) {
-										// console.log(`[${content}] vs [${oldItem.title}] and ${thisLineStatus} vs ${oldItemStatus}`)
-										oldItem.title = content;
-										modified = true;
-									}
-									if (thisLineStatus != oldItemStatus) {
-										// console.log(`[${content}] vs [${oldItem.title}] and ${thisLineStatus} vs ${oldItemStatus}`)
-										oldItem.status = thisLineStatus ? 2 : 0;
-										modified = true;
-									}
-									break;
-								} else {
-									//TODO: Should ought to do something about this. Like either delete it from TT or
-									//      delete it from OBS. Or something.
-									console.log("item ID", itemId, " not found in", parentTask.items)
-									break;
+			for (let i = lineNumber - 1; i >= 0; i--) {
+				const line = lines[i];
+				if (this.plugin.taskParser?.hasTickTickId(line) && this.plugin.taskParser?.hasTickTickTag(line)) {
+					const ticktickid = this.plugin.taskParser.getTickTickIdFromLineText(line);
+					parentTask = await this.plugin.cacheOperation?.loadTaskFromCacheID(ticktickid);
+					if (parentTask && parentTask.items) { //we have some items.
+						if (itemId) {
+							const oldItem = parentTask.items.find((item) => item.id === itemId);
+							if (oldItem) {
+								content = content.replace(regex, ""); //We just want content now.
+								//TODO deal with "Won't do" which is -1
+								const oldItemStatus = oldItem.status == 0 ? false : true;
+								if (content.trim() != oldItem.title.trim()) {
+									// console.log(`[${content}] vs [${oldItem.title}] and ${thisLineStatus} vs ${oldItemStatus}`)
+									oldItem.title = content;
+									modified = true;
 								}
+								if (thisLineStatus != oldItemStatus) {
+									// console.log(`[${content}] vs [${oldItem.title}] and ${thisLineStatus} vs ${oldItemStatus}`)
+									oldItem.status = thisLineStatus ? 2 : 0;
+									modified = true;
+								}
+								break;
 							} else {
-								const Oid = ObjectID();
-								const OidHexString = Oid.toHexString();
-								parentTask.items.push({
-									id: OidHexString,
-									title: content,
-									status: thisLineStatus ? 2 : 0
-								})
-								const updatedItemContent = `${lineText} %%${OidHexString}%%`
-								//Update the line in the file.
-								try {
-									const markDownView = this.app.workspace.getActiveViewOfType(MarkdownView);
-									const editor = markDownView?.app.workspace.activeEditor?.editor;
-									const from = {line: lineNumber, ch: 0};
-									const to = {line: lineNumber, ch: updatedItemContent.length};
-									editor?.setLine(lineNumber, updatedItemContent);
-								} catch (error) {
-									console.error(`Error updating item: ${error}`)
-								}
-								added = true;
+								//TODO: Should ought to do something about this. Like either delete it from TT or
+								//      delete it from OBS. Or something.
+								console.log("item ID", itemId, " not found in", parentTask.items)
 								break;
 							}
-
 						} else {
-							if (this.plugin.settings.debugMode) {
-								console.log(`parent didn't have items.`)
+							const Oid = ObjectID();
+							const OidHexString = Oid.toHexString();
+							parentTask.items.push({
+								id: OidHexString,
+								title: content,
+								status: thisLineStatus ? 2 : 0
+							})
+							const updatedItemContent = `${lineText} %%${OidHexString}%%`
+							//Update the line in the file.
+							try {
+								const markDownView = this.app.workspace.getActiveViewOfType(MarkdownView);
+								const editor = markDownView?.app.workspace.activeEditor?.editor;
+								const from = {line: lineNumber, ch: 0};
+								const to = {line: lineNumber, ch: updatedItemContent.length};
+								editor?.setLine(lineNumber, updatedItemContent);
+							} catch (error) {
+								console.error(`Error updating item: ${error}`)
 							}
+							added = true;
 							break;
+						}
+
+					} else {
+						if (this.plugin.settings.debugMode) {
+							console.log(`parent didn't have items.`)
 						}
 						break;
 					}
+					break;
 				}
-				if (modified || added) {
-					//do the update mambo. cache and api.
-					if (parentTask) {
-						parentTask.modifiedTime = this.plugin.taskParser?.formatDateToISO(new Date());
-						await this.plugin.cacheOperation?.updateTaskToCacheByID(parentTask);
-						let taskURL = this.plugin.taskParser?.getObsidianUrlFromFilepath(filepath)
-						if (taskURL) {
-							parentTask.title = parentTask.title + " " + taskURL;
-						}
-						const result = await this.plugin.tickTickRestAPI?.UpdateTask(parentTask)
-						const action = added ? "added" : "modified";
-						new Notice(`new Item ${content} ${action}`)
-					}
-				}
-
 			}
-
-
+			if (modified || added) {
+				//do the update mambo. cache and api.
+				if (parentTask) {
+					parentTask.modifiedTime = this.plugin.taskParser?.formatDateToISO(new Date());
+					await this.plugin.cacheOperation?.updateTaskToCacheByID(parentTask);
+					let taskURL = this.plugin.taskParser?.getObsidianUrlFromFilepath(filepath)
+					if (taskURL) {
+						parentTask.title = parentTask.title + " " + taskURL;
+					}
+					const result = await this.plugin.tickTickRestAPI?.UpdateTask(parentTask)
+					const action = added ? "added" : "modified";
+					new Notice(`new Item ${content} ${action}`)
+					modified = true;
+				}
+			}
 		}
+		return modified;
 	}
+
 
 	async deleteTaskItemCheck(filepath: string, lineText: string, lineNumber: number, fileContent: string): Promise<void> {
 
@@ -858,6 +864,16 @@ export class SyncMan {
 			let bModifiedFileSystem = false;
 			let allTaskDetails = await this.plugin.tickTickSyncAPI?.getAllTasks();
 			// console.log(this.plugin.tickTickRestAPI?.api?.apiUrl)
+			//TODO: Kludge: There's going to be folks out there without default SyncTags or projects. Until we straighten that out...
+			if (!this.plugin.settings.SyncTag) {
+				this.plugin.settings.SyncTag = "";
+				await  this.plugin.saveSettings();
+			}
+			if (!this.plugin.settings.SyncProject) {
+				this.plugin.settings.SyncProject = "";
+				await  this.plugin.saveSettings();
+			}
+
 
 			let tasksFromTickTic = allTaskDetails.update;
 			let deletedTasks = allTaskDetails.delete;

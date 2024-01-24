@@ -7,6 +7,8 @@ import * as electron from "electron";
 
 
 export interface TickTickSyncSettings {
+	inboxName: any;
+	inboxID: any;
 	SyncProject: any;
 	SyncTag: any;
 	baseURL: string;
@@ -26,17 +28,23 @@ export interface TickTickSyncSettings {
 
 
 export const DEFAULT_SETTINGS: TickTickSyncSettings = {
+	defaultProjectId: "",
+	token: "",
 	initialized: false,
 	apiInitialized: false,
 	defaultProjectName: "Inbox",
+	baseURL: 'ticktick.com',
 	automaticSynchronizationInterval: 300, //default aync interval 300s
 	TickTickTasksData: {"projects": [], "tasks": []},
 	fileMetadata: {},
 	enableFullVaultSync: false,
 	statistics: {},
 	debugMode: false,
-	TickTickTasksFilePath: "/"
-
+	TickTickTasksFilePath: "/",
+	inboxName: "",
+	inboxID: "",
+	SyncProject: "",
+	SyncTag: ""
 }
 
 
@@ -145,7 +153,7 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 					.addOptions(myProjectsOptions)
 					.setValue(this.plugin.settings.SyncProject)
 					.onChange(async (value) => {
-						console.log("chose: " ,value)
+
 						this.plugin.settings.SyncProject = value;
 						await this.plugin.saveSettings()
 					})
@@ -500,9 +508,10 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 				cb.onClick(async () => {
 					let new_folder = folderSearch?.getValue();
 					const updatedFolder = await  this.validateNewFolder(new_folder);
-					if (new_folder) {
-						folderSearch?.setValue(new_folder)
-						this.plugin.settings.TickTickTasksFilePath = new_folder
+					console.log("updated folder: ", updatedFolder)
+					if (updatedFolder) {
+						folderSearch?.setValue(updatedFolder)
+						this.plugin.settings.TickTickTasksFilePath = updatedFolder
 						await this.plugin.saveSettings();
 					}
 
@@ -527,7 +536,7 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 				return null;
 			}
 		} else {
-			console.log(typeof newFolderFile)
+
 			if (newFolderFile instanceof TFolder) {
 				//they picked right, and the folder exists.
 				new Notice(`Default folder is now ${newFolderFile.path}.`)

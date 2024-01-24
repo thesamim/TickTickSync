@@ -13,19 +13,45 @@ The plugin works best when the [Tasks](https://github.com/obsidian-tasks-group/o
 - Tasks added or updated from TickTick are synched on a configurable time interval.
 
 ## Notes
+> :warning: 
+> # CAUTION!
+> Issues [16](https://github.com/thesamim/TickTickSync/issues/16) and [31](https://github.com/thesamim/TickTickSync/issues/31) 
+> referring to the inability to use the Tasks plugin query functionality have been resolved. **BUT** the Tasks plugin does **not** 
+> handle time in due date. 
+> 
+> Please see the following issues in Tasks for details: 
+> - https://github.com/obsidian-tasks-group/obsidian-tasks/issues/1505 
+> - https://github.com/obsidian-tasks-group/obsidian-tasks/issues/2444 
+> - https://github.com/obsidian-tasks-group/obsidian-tasks/issues/1505 
+> 
+> As of now: 
+> 1. If you add a time element to a due date (eg: 📅 2024-01-25 15:00) from Obsidian, the due date and time will 
+> be set correctly in TickTick, but they will be stripped from Obsidian on task add.
+> 2. If you add a due date with a time element from TickTick, it will not appear in Obsidian. But the task will still have the time set correctly. 
+> 3. If you then update that task, the time should be preserved. I say **should** because I have not tested all timezone difference variants.
+> 4. If you wish existing tasks to be query compatible, update them from **TickTick**. When they are synced back in, they will be in the correct format.
+> 
+> If this is not desirable behavior: Please let me know and I can make this a setting (eg: "Time is important to me, Task Queries aren't", 
+> "Time is not important to me, Task queries are") to determine the TickTickSync behavior.
+> 
+> Of course, if Tasks is updated to deal with this issue, TickTickSync will be updated to not mess with the time element anymore.
+> 
+> :warning:
+
+
 
 1. TickTickSyn [back ups](https://github.com/thesamim/TickTickSync/wiki/Documentation#backup-ticktick-data) are now CSV files that are compatible with TickTick's "Import Backups."
 2. **All Task Deletion operations must be confirmed.** In the fullness of time, when we get out of Beta, this might be a preference item. For now it's compulsory.
-2. TickTick lists are referred to as Projects in the plugin, and throughout documentation.
-3. TickTick only has four priorities (High, Medium, Low, None). Please see Priority in [Task Format](https://github.com/thesamim/TickTickSync/wiki/Documentation#task-format) for Task mapping of priority
-4. **Warning:** TickTickSync automatically creates .md files corresponding with the lists/projects created in TickTick and downloads all tasks to them.  
+3. TickTick lists are referred to as Projects in the plugin, and throughout documentation.
+4. TickTick only has four priorities (High, Medium, Low, None). Please see Priority in [Task Format](https://github.com/thesamim/TickTickSync/wiki/Documentation#task-format) for Task mapping of priority
+5. **Warning:** TickTickSync automatically creates .md files corresponding with the lists/projects created in TickTick and downloads all tasks to them.  
    If the files are deleted in Obsidian while the TickTickSync plugin is active, those tasks will be deleted. If you accidentally confirm that deletion: 
    To recover those tasks, go to the "[Trash](https://ticktick.com/webapp/#q/all/trash)" menu item on the TickTick interface and recover deleted tasks from there.
-5. TickTickSync now supports Task Items and will **NOT** delete Task Content. However, as of now, it will not allow management of Task Content.
-6. A link to the containing file in Obsidian is added to the Task Title in TickTick, but the content field is not mangled. In the fullness of time content will be manageable in TickTickSync. Please watch this [issue](https://github.com/thesamim/TickTickSync/issues/10) for progress. 
-7. Relatively confident that Time Zone difference issues are resolved. If not: Please open an issue with details.
-8. It is now possible control synchronization. Please see [details here](https://github.com/thesamim/TickTickSync/wiki/Documentation#limit-synchronization).
-9. TickTick has changed sign in procedures. You will have to login manually from settings.
+6. TickTickSync now supports Task Items and will **NOT** delete Task Content. However, as of now, it will not allow management of Task Content.
+7. A link to the containing file in Obsidian is added to the Task Title in TickTick, but the content field is not mangled. In the fullness of time content will be manageable in TickTickSync. Please watch this [issue](https://github.com/thesamim/TickTickSync/issues/10) for progress. 
+8. Relatively confident that Time Zone difference issues are resolved. If not: Please open an issue with details.
+9. It is now possible control synchronization. Please see [details here](https://github.com/thesamim/TickTickSync/wiki/Documentation#limit-synchronization).
+10. TickTick has changed sign in procedures. You will have to login manually from settings.
 
 ## Known Issues
 

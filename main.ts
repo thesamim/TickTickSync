@@ -74,20 +74,21 @@ export default class TickTickSync extends Plugin {
 				};
 				fileMetataDataStructure[file] = newTasksHolder;
 			}
-			this.settings.version = this.manifest.version
-			await this.saveSettings();
 			//Force a sync
 			await this.scheduledSynchronization();
 		}
 		if ((!this.settings.version) || (this.isOlder(this.settings.version ,"1.0.10"))) {
 			//get rid of user name and password. we don't need them no more.
-
 			delete this.settings.username;
 			delete this.settings.password
+		}
+
+		//Update the version number. It will save me headaches later.
+		if ((!this.settings.version) || (this.isOlder(this.settings.version ,this.manifest.version)))
+		{
 			this.settings.version = this.manifest.version
 			await this.saveSettings();
 		}
-
 
 
 		// This adds a settings tab so the user can configure various aspects of the plugin
@@ -188,6 +189,9 @@ export default class TickTickSync extends Plugin {
 					return
 				}
 
+				//TODO: lineNumberCheck also triggers a line modified check. I suspect this is redundant and
+				//      inefficient when a new task is being added. I've added returns out of there, but I need for find if the last line check
+				//      is needed for an add.
 				await this.lineNumberCheck()
 				if (!(this.checkModuleClass())) {
 					return
@@ -435,6 +439,7 @@ export default class TickTickSync extends Plugin {
 	}
 
 	async lineNumberCheck() {
+		let modified = false;
 		const markDownView = this.app.workspace.getActiveViewOfType(MarkdownView);
 		if (markDownView) {
 			const cursor = markDownView?.editor.getCursor()
@@ -469,21 +474,18 @@ export default class TickTickSync extends Plugin {
 				this.lastLines.set(fileName as string, line as number);
 				// try{
 				if (!await this.checkAndHandleSyncLock()) return;
-				await this.tickTickSync?.lineModifiedTaskCheck(filepath as string, lastLineText, lastLine as number, fileContent)
+				modified = await this.tickTickSync?.lineModifiedTaskCheck(filepath as string, lastLineText, lastLine as number, fileContent)
 				this.syncLock = false;
 				// }catch(error){
 				//     console.error(`An error occurred while check modified task in line text: ${error}`);
 				//     this.syncLock = false
 				// }
-
-
 			} else {
 				//console.log('Line not changed');
 			}
 
 		}
-
-
+		return modified
 	}
 
 	async checkboxEventhandle(evt: MouseEvent) {
