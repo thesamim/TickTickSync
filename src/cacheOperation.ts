@@ -556,8 +556,8 @@ export class CacheOperation {
 
 
             let inboxProject = {
-				id: this.plugin.settings.defaultProjectId,
-				name: this.plugin.settings.defaultProjectName
+				id: this.plugin.settings.inboxID,
+				name: this.plugin.settings.inboxName
 			};
 
             projects.push(inboxProject);

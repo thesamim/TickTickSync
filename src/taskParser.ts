@@ -144,23 +144,22 @@ export class TaskParser {
         if (task.tags) {
             resultLine = this.addTagsToLine(resultLine, task.tags);
         }
-
         resultLine = this.addTickTickTag(resultLine);
 
-        //add due date
-        if (task.dueDate) {
-            resultLine = this.addDueDateToLine(resultLine, task);
-        }
-        //add priority
-        resultLine = this.addPriorityToLine(resultLine, task);
-        
         resultLine = this.addTickTickLink(resultLine, task.id, task.projectId);
         resultLine = this.addTickTickId(resultLine, task.id);
 
-        if (task.items && task.items.length > 0) {
+		//add priority
+		resultLine = this.addPriorityToLine(resultLine, task);
+
+		//add due date
+		if (task.dueDate) {
+			resultLine = this.addDueDateToLine(resultLine, task);
+		}
+
+		if (task.items && task.items.length > 0) {
             resultLine = this.addItems(resultLine, task.items)
         }
-
 
         return resultLine;
 
@@ -196,7 +195,8 @@ export class TaskParser {
     }
 
     private addDueDateToLine(resultLine: string, task: ITask) {
-        resultLine = resultLine + ' 🗓️ ' + this.utcToLocal(task.dueDate);
+		let dueDate = this.utcToLocalNoTime(task.dueDate)
+        resultLine = resultLine + ' 📅 ' + dueDate;
         return resultLine;
     }
 
@@ -605,7 +605,13 @@ export class TaskParser {
         const minutes = String(date.getMinutes()).padStart(2, "0");
         return `${year}-${month}-${day} ${hours}:${minutes}`;
     }
-
+	utcToLocalNoTime(utcDateString: string) {
+		const date = new Date(utcDateString);
+		const year = date.getUTCFullYear();
+		const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+		const day = String(date.getUTCDate()).padStart(2, '0');
+		return `${year}-${month}-${day}`;
+	}
     //Format date to TickTick Accepted date. 
     formatDateToISO(dateTime: Date) {
         // Create a new Date object from the input string
@@ -647,7 +653,8 @@ export class TaskParser {
     }
 
     addTickTickTag(str: string): string {
-        return (str + ` ${keywords.TickTick_TAG}`);
+		//TODO: assumption that there is at least one space before. validate.
+        return (str + `${keywords.TickTick_TAG}`);
     }
 
     getObsidianUrlFromFilepath(filepath: string) {
