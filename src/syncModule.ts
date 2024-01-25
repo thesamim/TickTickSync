@@ -130,7 +130,7 @@ export class SyncMan {
 		return missingTaskIds;
 	}
 
-	async lineContentNewTaskCheck(editor: Editor, view: MarkdownView): Promise<void> {
+	async lineContentNewTaskCheck(editor: Editor, view: MarkdownView): Promise<boolean> {
 		//const editor = this.app.workspace.activeEditor?.editor
 		//const view =this.app.workspace.getActiveViewOfType(MarkdownView)
 		const filepath = view.file?.path
@@ -138,8 +138,11 @@ export class SyncMan {
 		const cursor = editor.getCursor()
 		const line = cursor.line
 		const linetxt = editor.getLine(line)
-
+		let before = fileContent?.length
 		await this.addTask(linetxt, filepath, line, fileContent, editor, cursor);
+		let after = fileContent?.length
+		console.log(" : ", before, after, (before != after))
+		return   (before != after);
 	}
 
 	async addTask(lineTxt: string, filePath: string, line: number, fileContent: string, editor: Editor | null, cursor: EditorPosition | null) {
@@ -276,10 +279,10 @@ export class SyncMan {
 			if (!savedTask) {
 				//Task in note, but not in cache. Assuming this would only happen in testing, delete the task from the note
 				console.error(`There is no task ${lineTask.id}, ${lineTask.title} in the local cache. It will be deleted`)
-				//TODO add modal that allows user the choice of deleting or adding.
+
 				new Notice(`There is no task ${lineTask.id}, ${lineTask.title} in the local cache. It will be deleted`)
 				await this.plugin.fileOperation?.deleteTaskFromSpecificFile(filepath, lineTask.id, lineTask.title, true);
-				return
+				return false
 			}
 			//console.log(savedTask)
 

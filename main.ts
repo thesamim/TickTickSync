@@ -201,9 +201,8 @@ export default class TickTickSync extends Plugin {
 				}
 				if (!await this.checkAndHandleSyncLock()) return;
 				await this.tickTickSync?.lineContentNewTaskCheck(editor, view)
-				this.syncLock = false
 				await this.saveSettings()
-
+				this.syncLock = false
 			} catch (error) {
 				console.error(`An error occurred while check new task in line: ${error.message}`);
 				this.syncLock = false
@@ -454,7 +453,7 @@ export default class TickTickSync extends Plugin {
 			const filepath = file?.path
 			if (typeof this.lastLines === 'undefined' || typeof this.lastLines.get(fileName as string) === 'undefined') {
 				this.lastLines.set(fileName as string, line as number);
-				return
+				return false;
 			}
 
 			//console.log(`filename is ${fileName}`)
@@ -469,11 +468,13 @@ export default class TickTickSync extends Plugin {
 				const lastLineText = markDownView.editor.getLine(lastLine as number)
 				// console.log(lastLineText)
 				if (!(this.checkModuleClass())) {
-					return
+					return false
 				}
 				this.lastLines.set(fileName as string, line as number);
 				// try{
-				if (!await this.checkAndHandleSyncLock()) return;
+				if (!await this.checkAndHandleSyncLock()) {
+					return false
+				};
 				modified = await this.tickTickSync?.lineModifiedTaskCheck(filepath as string, lastLineText, lastLine as number, fileContent)
 				this.syncLock = false;
 				// }catch(error){
