@@ -273,11 +273,15 @@ export class TaskParser {
         //const projectId = await this.plugin.cacheOperation?.getProjectIdByNameFromCache(projectName)
         //use tag as project name
 
+		//TODO: If we are here and the ProjectID for this task is not the same as the project ID for it's
+		//      Parent, bad things will happen. Need to figure out how often this happens.
         let projectId = await this.plugin.cacheOperation?.getDefaultProjectIdForFilepath(filepath as string)
         let projectName = await this.plugin.cacheOperation?.getProjectNameByIdFromCache(projectId)
-        if (hasParent) {
-            projectId = parentTaskObject.projectId
-            projectName = await this.plugin.cacheOperation?.getProjectNameByIdFromCache(projectId)
+        if (hasParent ) {
+			if (parentTaskObject) {
+				projectId = parentTaskObject.projectId
+				projectName = await this.plugin.cacheOperation?.getProjectNameByIdFromCache(projectId)
+			}
         } else {
             if (tags) {
                 for (const tag of tags) {
@@ -294,6 +298,10 @@ export class TaskParser {
         }
 
         const title = this.getTaskContentFromLineText(textWithoutIndentation)
+		if ((this.plugin.settings.debugMode) && (!projectId)) {
+			console.error("Converting line to Object, could not find project Id: ", title );
+		}
+
         const isCompleted = this.isTaskCheckboxChecked(textWithoutIndentation)
         let description = ""
         const TickTick_id = this.getTickTickIdFromLineText(textWithoutIndentation)

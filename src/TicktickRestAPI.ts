@@ -243,6 +243,11 @@ export class TickTickRestAPI {
 		try {
 			const result = await this.api.getProjectGroups()
 
+			if ((result.length == 0) && (this.api?.lastError)) {
+				if (this.api.lastError.statusCode != 200) {
+					throw new Error(this.api.lastError)
+				}
+			}
 			return (result)
 
 		} catch (error) {

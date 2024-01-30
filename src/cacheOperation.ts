@@ -2,6 +2,7 @@ import { App } from 'obsidian';
 import TickTickSync from "../main";
 import { ITask } from 'ticktick-api-lvt/dist/types/Task';
 import { IProject } from 'ticktick-api-lvt/dist/types/Project';
+import {FoundDuplicatesModal} from "./modals/FoundDuplicatesModal";
 
 // type TaskDetail = {
 //     taskId: string,
@@ -67,6 +68,9 @@ export class CacheOperation {
             if (taskIndex !== -1) {
                 const updatedMetaDataTask = fileMetaData.TickTickTasks[taskIndex];
                 let task = await this.loadTaskFromCacheID(taskId)
+				if (!task.items) {
+					return
+				}
                 let taskItems = task.items;
                 taskItemIds.forEach(taskItemId => {
                     //delete from Task
@@ -139,28 +143,29 @@ export class CacheOperation {
     }
 
     async deleteTaskIdFromMetadata(filepath: string, taskId: string) {
-        // console.log(filepath)
-        const metadata: FileMetadata = await this.getFileMetadata(filepath, null)
-        // console.log(metadata)
-        const newTickTickTasks = metadata.TickTickTasks.filter(function (element) {
-            return element.taskId !== taskId
-        })
+         console.log(filepath, taskId)
+        const metadata = await this.getFileMetadata(filepath, null)
+		const oldTickTickTasks = metadata.TickTickTasks;
+		console.log("Before" , oldTickTickTasks)
+        const newTickTickTasks = oldTickTickTasks.filter(obj => obj.taskId !== taskId);
+		console.log("What?? ", newTickTickTasks)
         const newTickTickCount = newTickTickTasks.length;
-        let newMetadata: FileMetadata = {}
-        newMetadata.TickTickTasks = newTickTickTasks
-        newMetadata.TickTickCount = newTickTickCount
-        await this.updateFileMetadata(filepath, newMetadata);
-        // console.log(`new metadata ${newMetadata}`)
+		metadata.TickTickTasks = newTickTickTasks
+		metadata.TickTickCount = newTickTickCount
+        await this.updateFileMetadata(filepath, metadata);
+        console.log("after metadata", metadata)
     }
 
     async deleteTaskIdFromMetadataByTaskId(taskId: string) {
+		console.log(taskId)
         const metadatas = await this.getFileMetadatas()
         for (var file in metadatas) {
             var tasks = metadatas[file].TickTickTasks;
             var count = metadatas[file].TickTickCount;
 
             if (tasks && tasks.find((task: TaskDetail) => task.taskId === taskId)) {
-                this.deleteTaskIdFromMetadata(file, taskId)
+				console.log("gonna delete")
+                await this.deleteTaskIdFromMetadata(file, taskId)
                 break;
             }
         }
@@ -261,6 +266,7 @@ export class CacheOperation {
     }
 
     async getFilepathForProjectId(projectId: string) {
+		console.log("Looking for: ", projectId)
         const metadatas = this.plugin.settings.fileMetadata
 
 
@@ -278,7 +284,10 @@ export class CacheOperation {
         if (!filePath) {
             filePath = this.plugin.settings.defaultProjectName + ".md"
         }
-		console.warn(`File path not found for ${projectId}, returning ${filePath} instead. `)
+		let errmsg = `File path not found for ${projectId}, returning ${filePath} instead. `
+		console.warn(errmsg)
+		throw new Error(errmsg);
+
         return filePath;
     }
 
@@ -491,7 +500,7 @@ export class CacheOperation {
             const newSavedTasks = savedTasks.filter((t) => t.id !== taskId);
             this.plugin.settings.TickTickTasksData.tasks = newSavedTasks
             //Also clean up meta data
-            this.deleteTaskIdFromMetadataByTaskId(taskId);
+            await this.deleteTaskIdFromMetadataByTaskId(taskId);
         } catch (error) {
             console.error(`Error deleting task from Cache file: ${error}`);
         }
@@ -553,6 +562,26 @@ export class CacheOperation {
 			// Inbox ID is got on API initialization. Don't have to do it here any more.
             const projectGroups = await this.plugin.tickTickRestAPI?.GetProjectGroups();
             const projects: IProject[] = await this.plugin.tickTickRestAPI?.GetAllProjects();
+			const duplicates = projects.reduce((acc, obj, index, arr) => {
+				const duplicateIndex = arr.findIndex(item => item.name === obj.name && item.id !== obj.id);
+				if (duplicateIndex !== -1 && !acc.includes(obj)) {
+					acc.push(obj);
+				}
+				return acc;
+			}, []);
+			// @ts-ignore
+			const sortedDuplicates = duplicates.sort((a, b) => a.name.localeCompare(b.name));
+			// @ts-ignore
+
+			if (sortedDuplicates.length > 0) {
+				// @ts-ignore
+				if (this.plugin.settings.debugMode) {
+					console.log("Found dupes:")
+					sortedDuplicates.forEach(thing => console.log(thing.id, thing.name))
+				}
+				await this.showFoundDuplicatesModal(this.app, this.plugin, sortedDuplicates)
+				return false;
+			}
 
 
             let inboxProject = {
@@ -639,5 +668,12 @@ export class CacheOperation {
 
 
     }
+	private async showFoundDuplicatesModal(app, plugin, projects: []) {
+		const myModal = new FoundDuplicatesModal(app, plugin,  projects, (result) => {
+			this.ret = result;
+		});
+		const bConfirmation = await myModal.showModal();
 
+		return bConfirmation;
+	}
 }

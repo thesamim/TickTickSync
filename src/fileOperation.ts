@@ -1,7 +1,7 @@
 import {App, Notice, TFile, TFolder} from 'obsidian';
 import TickTickSync from "../main";
-import { ITask } from 'ticktick-api-lvt/dist/types/Task';
-import {TaskDeletionModal} from "./TaskDeletionModal";
+import {ITask} from 'ticktick-api-lvt/dist/types/Task';
+import {TaskDeletionModal} from "./modals/TaskDeletionModal";
 
 export class FileOperation {
     app: App;
@@ -216,6 +216,7 @@ export class FileOperation {
             }
             let projectTasks = tasks.filter(task => task.projectId === projectId);
             //make sure top level tasks are first
+			console.log("Before Sor: ", projectTasks)
             projectTasks.sort((left, right) => {
                 if (!left.parentId && right.parentId) {
                     return -1;
@@ -225,6 +226,7 @@ export class FileOperation {
                     return 0;
                 }
             });
+			console.log("after Sor: ", projectTasks)
 
             let result = await this.addProjectTasksToFile(file, projectTasks, metaData);
             // Sleep for 1 second
@@ -374,7 +376,17 @@ export class FileOperation {
         const taskId = task.id
         // Get the task file path
         const currentTask = await this.plugin.cacheOperation?.loadTaskFromCacheID(taskId)
-        let filepath = await this.plugin.cacheOperation?.getFilepathForTask(taskId)
+
+
+		if ((currentTask.projectId != task.projectId) || (currentTask.parentId != task.parentId)) {
+			await this.handleTickTickStructureMove(task, currentTask.id, currentTask.projectId, currentTask.items.length)
+			return;
+		}
+		// if (currentTask.parentId != task.parentId) {
+		// 	this.handleTickTickParentMove(taskId, currentTask.parentId, task.parentId, task.projectId)
+		// }
+
+		let filepath = await this.plugin.cacheOperation?.getFilepathForTask(taskId)
 		if(!filepath) {
 			filepath = await this.plugin.cacheOperation?.getFilepathForProjectId(task.projectId);
 			if(!filepath) {
@@ -420,7 +432,7 @@ export class FileOperation {
 
     }
     // delete task from file
-    async deleteTaskFromSpecificFile(filePath: string, taskId: string, taskTitle: string, bConfirmDialog: boolean) {
+    async deleteTaskFromSpecificFile(filePath: string, taskId: string, taskTitle: string, numItems: number, bConfirmDialog: boolean) {
         // Get the file object and update the content
 	if (bConfirmDialog) {
 			const bConfirm = await this.confirmDeletion(taskTitle);
@@ -439,7 +451,8 @@ export class FileOperation {
         for (let i = 0; i < lines.length; i++) {
             const line = lines[i]
             if (line.includes(taskId) && this.plugin.taskParser?.hasTickTickTag(line)) {
-                lines.splice(i, 1);
+
+                lines.splice(i, numItems + 1);
                 modified = true
                 break
             }
@@ -461,7 +474,7 @@ export class FileOperation {
 
 		const filepath = await  this.plugin.cacheOperation?.getFilepathForTask(taskId)
 		if (filepath) {
-			await this.deleteTaskFromSpecificFile(filepath, task.id, task.title, false)
+			await this.deleteTaskFromSpecificFile(filepath, task.id, task.title, currentTask.items.length, false)
 		} else {
 			throw new Error(`File not found for ${task.title}. File path found is ${filepath}`)
 		}
@@ -581,6 +594,44 @@ export class FileOperation {
 		return bConfirmation;
 	}
 
+
+	/*
+	*Task has been moved in TickTick. Or it's parentage has changed.
+	* Need to delete it from the old file.
+	* Add it to the new project file.
+	* This magically handles parentage as well.
+	*/
+	private async handleTickTickStructureMove(task: ITask, oldTaskId: string, oldProjectId: string, oldtaskItemNum: number) {
+		let filepath = await this.plugin.cacheOperation?.getFilepathForProjectId(oldProjectId);
+		if (!filepath) {
+			let errmsg = `File not found for moved task:  ${task.id}, ${task.title}`
+			throw new Error(errmsg)
+		}
+
+
+		await this.deleteTaskFromSpecificFile(filepath, task.id, task.title,oldtaskItemNum, false);
+		await this.plugin.cacheOperation?.deleteTaskFromCache(oldTaskId);
+		// await this.plugin.cacheOperation?.appendTaskToCache(task, filepath)
+		//Task will be added to cahce in addtaskstofile.
+		await this.addTasksToFile([task])
+		const cleanTitle = this.plugin.taskParser?.stripOBSUrl(task.title);
+		let message = "";
+		if (task.projectId != oldProjectId) {
+			const newProjectName = await this.plugin.cacheOperation?.getProjectNameByIdFromCache(task.projectId)
+			const oldProjectName = await this.plugin.cacheOperation?.getProjectNameByIdFromCache(oldProjectId)
+			message = "Task Moved.\nTask: " + cleanTitle + "\nwas moved from\n " + oldProjectName + "\nto\n" + newProjectName;
+		} else {
+			if (task.parentId) {
+				const parentTask = await this.plugin.cacheOperation?.loadTaskFromCacheID(task.parentId);
+				const cleanParentTaskTitle = this.plugin.taskParser?.stripOBSUrl(parentTask.title)
+				message = "Task has new Parent.\nTask: " + cleanTitle + "\nis now a child of\n " + cleanParentTaskTitle
+			}
+			message = "Task is now a top level task.\nTask: " + cleanTitle;
+		}
+
+		new Notice(message, 0)
+
+	}
 
 
 }

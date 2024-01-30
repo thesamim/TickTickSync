@@ -4,7 +4,7 @@ import {ITask} from "ticktick-api-lvt/dist/types/Task";
 import ObjectID from 'bson-objectid';
 import {TaskDetail} from "./cacheOperation"
 import {RegExpMatchArray} from 'typescript';
-import {TaskDeletionModal} from "./TaskDeletionModal";
+import {TaskDeletionModal} from "./modals/TaskDeletionModal";
 import fs from "fs";
 
 type deletedTask = {
@@ -281,7 +281,8 @@ export class SyncMan {
 				console.error(`There is no task ${lineTask.id}, ${lineTask.title} in the local cache. It will be deleted`)
 
 				new Notice(`There is no task ${lineTask.id}, ${lineTask.title} in the local cache. It will be deleted`)
-				await this.plugin.fileOperation?.deleteTaskFromSpecificFile(filepath, lineTask.id, lineTask.title, true);
+				//TODO: If there is no task in cache, we can't tell how many items there are. How did the task drom from cache in the first place?
+				await this.plugin.fileOperation?.deleteTaskFromSpecificFile(filepath, lineTask.id, lineTask.title, 0,true);
 				return false
 			}
 			//console.log(savedTask)
@@ -1016,6 +1017,19 @@ export class SyncMan {
 
 
 			//this.dumpArray('== Update in  Obsidian:', recentUpdates);
+			console.log("on update Before Sor: ", recentUpdates)
+
+			//Need to have updates in parentage order else everything goes Tango Uniform
+			recentUpdates.sort((left, right) => {
+				if (!left.parentId && right.parentId) {
+					return -1;
+				} else if (left.parentId && !right.parentId) {
+					return 1;
+				} else {
+					return 0;
+				}
+			});
+			console.log("on update after Sor: ", recentUpdates)
 			for (const task of recentUpdates) {
 				await this.plugin.fileOperation?.updateTaskInFile(task);
 				await this.plugin.cacheOperation?.updateTaskToCacheByID(task);

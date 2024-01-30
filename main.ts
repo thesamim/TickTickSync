@@ -23,7 +23,7 @@ import {SyncMan} from './src/syncModule';
 import ObjectID from 'bson-objectid';
 
 //import modals
-import {SetDefaultProjectForFileModal} from 'src/defaultProjectModal';
+import {SetDefaultProjectForFileModal} from 'src/modals/DefaultProjectModal';
 
 
 
