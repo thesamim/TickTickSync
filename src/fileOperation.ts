@@ -372,19 +372,18 @@ export class FileOperation {
     }
 
     // update task content to file
-    async updateTaskInFile(task: ITask) {
+    async updateTaskInFile(task: ITask, toBeProcessed: string[]) {
         const taskId = task.id
         // Get the task file path
         const currentTask = await this.plugin.cacheOperation?.loadTaskFromCacheID(taskId)
 
 
+		const hasChildren = currentTask.childIds?.length > 0
 		if ((currentTask.projectId != task.projectId) || (currentTask.parentId != task.parentId)) {
-			await this.handleTickTickStructureMove(task, currentTask.id, currentTask.projectId, currentTask.items.length)
+			await this.handleTickTickStructureMove(task, currentTask, toBeProcessed)
 			return;
 		}
-		// if (currentTask.parentId != task.parentId) {
-		// 	this.handleTickTickParentMove(taskId, currentTask.parentId, task.parentId, task.projectId)
-		// }
+
 
 		let filepath = await this.plugin.cacheOperation?.getFilepathForTask(taskId)
 		if(!filepath) {
@@ -601,15 +600,81 @@ export class FileOperation {
 	* Add it to the new project file.
 	* This magically handles parentage as well.
 	*/
-	private async handleTickTickStructureMove(task: ITask, oldTaskId: string, oldProjectId: string, oldtaskItemNum: number) {
-		let filepath = await this.plugin.cacheOperation?.getFilepathForProjectId(oldProjectId);
+	private async handleTickTickStructureMove(newTask: ITask, oldTask: ITask, toBeProcessed: string[]) {
+
+		//TODO: this is Kludgy as hell. In the fulness of time, I want to get rid of all this and have something
+		// like: if there are updates, and there's parent/child or project changes; build a linked list of the
+		// parent child hierarchy, delete the old one and add the new one.
+		console.log("Hanlding: ", newTask.title, newTask.childIds?.length)
+		let filepath = await this.plugin.cacheOperation?.getFilepathForProjectId(oldTask.projectId);
 		if (!filepath) {
-			let errmsg = `File not found for moved task:  ${task.id}, ${task.title}`
+			let errmsg = `File not found for moved newTask:  ${newTask.id}, ${newTask.title}`
 			throw new Error(errmsg)
 		}
 
+		const oldProjectId: string = oldTask.projectId;
+		const oldtaskItemNum: number = oldTask.items?.length;
+		const oldTaskHasChildren: boolean = oldTask.childIds?.length > 0;
+		const newTaskHasChildren = newTask.childIds?.length > 0;
+		const oldTaskId =oldTask.id;
 
-		await this.deleteTaskFromSpecificFile(filepath, task.id, task.title,oldtaskItemNum, false);
+
+		await this.moveTask(filepath, newTask, oldtaskItemNum, oldTaskId, oldProjectId);
+
+		let saveTheChildren = false;
+		//This was a child. It is now top level, don't delete it's children
+		if (oldTask.parentId && !newTask.parentId) {
+			saveTheChildren = true;
+		}
+		if (oldTaskHasChildren && !saveTheChildren){
+			//get rid of the old children from file, but not from cache. we'll add them in later.
+			for (const childId of oldTask.childIds) {
+				const child = await this.plugin.cacheOperation?.loadTaskFromCacheID(childId);
+				const numChildTaskItems = child.items?.length
+				console.log("Deleting: ", child.title)
+				await this.deleteTaskFromSpecificFile(filepath, child.id, child.title, numChildTaskItems, false);
+			}
+		}
+
+		if (newTask.parentId || saveTheChildren) {
+			//it's a child task. or new parent task. does it have children?
+			const hasChildren = newTask.childIds?.length > 0;
+			if (hasChildren) {
+				await this.moveChildTasks(newTask, toBeProcessed, filepath);
+			}
+		}
+	}
+
+
+	private async moveChildTasks(newTask: ITask, toBeProcessed: string[], filepath: Promise<string | string>) {
+		for (const childId of newTask.childIds) {
+			//Are they going to be processed later?
+			if (toBeProcessed.includes(childId)) {
+				//We'll deal with it in the downloaded list.
+				continue;
+			}
+			//get it from cache
+			const currentChild = await this.plugin.cacheOperation?.loadTaskFromCacheID(childId);
+			console.log("currentChild: ", await this.plugin.cacheOperation?.getTaskTitles([currentChild.id]),
+				"\ncurrentChild parent:", await this.plugin.cacheOperation?.getTaskTitles([currentChild.parentId]),
+				"\nnewTask parent:", await this.plugin.cacheOperation?.getTaskTitles([newTask.id]))
+			currentChild.parentId = newTask.id;
+			currentChild.projectId = newTask.projectId;
+			const numChildTaskItems = currentChild.items?.length
+
+			await this.moveTask(filepath, currentChild, numChildTaskItems, currentChild.id, currentChild.projectId);
+			const currentChildHasChildren = currentChild.childIds?.length > 0;
+			if (currentChildHasChildren) {
+				const currentChild = await this.plugin.cacheOperation?.loadTaskFromCacheID(childId);
+				await this.moveChildTasks(currentChild, toBeProcessed, filepath);
+			}
+
+		}
+	}
+
+	private async moveTask(filepath: Promise<string | string>, task: ITask, oldtaskItemNum: number, oldTaskId: string, oldProjectId: string) {
+		console.log("Moving: ", task.title)
+		await this.deleteTaskFromSpecificFile(filepath, task.id, task.title, oldtaskItemNum, false);
 		await this.plugin.cacheOperation?.deleteTaskFromCache(oldTaskId);
 		// await this.plugin.cacheOperation?.appendTaskToCache(task, filepath)
 		//Task will be added to cahce in addtaskstofile.
@@ -625,13 +690,11 @@ export class FileOperation {
 				const parentTask = await this.plugin.cacheOperation?.loadTaskFromCacheID(task.parentId);
 				const cleanParentTaskTitle = this.plugin.taskParser?.stripOBSUrl(parentTask.title)
 				message = "Task has new Parent.\nTask: " + cleanTitle + "\nis now a child of\n " + cleanParentTaskTitle
+			} else {
+				message = "Task is now a top level task.\nTask: " + cleanTitle;
 			}
-			message = "Task is now a top level task.\nTask: " + cleanTitle;
 		}
 
 		new Notice(message, 0)
-
 	}
-
-
 }

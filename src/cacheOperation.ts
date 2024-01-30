@@ -143,28 +143,27 @@ export class CacheOperation {
     }
 
     async deleteTaskIdFromMetadata(filepath: string, taskId: string) {
-         console.log(filepath, taskId)
+
         const metadata = await this.getFileMetadata(filepath, null)
 		const oldTickTickTasks = metadata.TickTickTasks;
-		console.log("Before" , oldTickTickTasks)
+
         const newTickTickTasks = oldTickTickTasks.filter(obj => obj.taskId !== taskId);
-		console.log("What?? ", newTickTickTasks)
+
         const newTickTickCount = newTickTickTasks.length;
 		metadata.TickTickTasks = newTickTickTasks
 		metadata.TickTickCount = newTickTickCount
         await this.updateFileMetadata(filepath, metadata);
-        console.log("after metadata", metadata)
+
     }
 
     async deleteTaskIdFromMetadataByTaskId(taskId: string) {
-		console.log(taskId)
+
         const metadatas = await this.getFileMetadatas()
         for (var file in metadatas) {
             var tasks = metadatas[file].TickTickTasks;
             var count = metadatas[file].TickTickCount;
 
             if (tasks && tasks.find((task: TaskDetail) => task.taskId === taskId)) {
-				console.log("gonna delete")
                 await this.deleteTaskIdFromMetadata(file, taskId)
                 break;
             }
@@ -266,7 +265,7 @@ export class CacheOperation {
     }
 
     async getFilepathForProjectId(projectId: string) {
-		console.log("Looking for: ", projectId)
+
         const metadatas = this.plugin.settings.fileMetadata
 
 

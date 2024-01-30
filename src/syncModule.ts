@@ -899,7 +899,7 @@ export class SyncMan {
 
 			} else if (this.plugin.settings.SyncTag || this.plugin.settings.SyncProject) {
 				tasksFromTickTic = tasksFromTickTic.filter(task => {
-					const hasTag = task.tags.includes(this.plugin.settings.SyncTag.toLowerCase());//because TickTick only stores lowercase tags.
+					const hasTag = task.tags?.includes(this.plugin.settings.SyncTag.toLowerCase());//because TickTick only stores lowercase tags.
 					const hasProjectId = task.projectId === this.plugin.settings.SyncProject;
 					return hasTag || hasProjectId;
 				});
@@ -1016,8 +1016,6 @@ export class SyncMan {
 			});
 
 
-			//this.dumpArray('== Update in  Obsidian:', recentUpdates);
-			console.log("on update Before Sor: ", recentUpdates)
 
 			//Need to have updates in parentage order else everything goes Tango Uniform
 			recentUpdates.sort((left, right) => {
@@ -1029,12 +1027,21 @@ export class SyncMan {
 					return 0;
 				}
 			});
-			console.log("on update after Sor: ", recentUpdates)
+
+
+			this.dumpArray('== Update in  Obsidian:', recentUpdates);
+
+			const toBeProcessed = recentUpdates.map(task => task.id)
 			for (const task of recentUpdates) {
-				await this.plugin.fileOperation?.updateTaskInFile(task);
+				await this.plugin.fileOperation?.updateTaskInFile(task, toBeProcessed );
 				await this.plugin.cacheOperation?.updateTaskToCacheByID(task);
 				bModifiedFileSystem = true;
 			}
+			if (bModifiedFileSystem) {
+				// Sleep for 5 second
+				await new Promise(resolve => setTimeout(resolve, 5000));
+			}
+
 
 			await this.plugin.saveSettings();
 			//If we just farckled the file system, stop Syncing to avoid race conditions.
@@ -1050,7 +1057,7 @@ export class SyncMan {
 
 	dumpArray(which: string, arrayIn: ITask[]) {
 		console.log(which)
-		arrayIn.forEach(item => console.log(" ", item.id, "--", item.title, "modification time: ", item.modifiedTime))
+		arrayIn.forEach(item => console.log(" ", item.id, "--", item.title, item.parentId, item.childIds, "modification time: ", item.modifiedTime))
 	}
 
 	///End of Test
