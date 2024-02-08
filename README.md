@@ -19,6 +19,8 @@ The plugin works best when the [Tasks](https://github.com/obsidian-tasks-group/o
 > # CAUTION!
 > Please see the [New Date Handling caution in documentation.](https://github.com/thesamim/TickTickSync/wiki/Documentation#new-date-handling)
 > 
+> It is possible to create duplicate projects/lists in TickTick. TickTickSync will show a warning and ask you to rename/move one of the duplicates because duplicate lists mess up synchronization. All synchronization will stop until the issue is handled.
+> 
 > :warning:
 
 
