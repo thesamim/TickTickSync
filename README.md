@@ -11,30 +11,13 @@ The plugin works best when the [Tasks](https://github.com/obsidian-tasks-group/o
 - Updates are bi-directional
 - Tasks added or updated from Obsidian are synched to TickTick immediately.
 - Tasks added or updated from TickTick are synched on a configurable time interval.
+- Moving Tasks between Projects is now supported. Please see [Task movement documentation](https://github.com/thesamim/TickTickSync/wiki/Documentation#moving-tasks).
+- Moving Tasks between Parents is now supported.
 
 ## Notes
 > :warning: 
 > # CAUTION!
-> Issues [16](https://github.com/thesamim/TickTickSync/issues/16) and [31](https://github.com/thesamim/TickTickSync/issues/31) 
-> referring to the inability to use the Tasks plugin query functionality have been resolved. **BUT** the Tasks plugin does **not** 
-> handle time in due date. 
-> 
-> Please see the following issues in Tasks for details: 
-> - https://github.com/obsidian-tasks-group/obsidian-tasks/issues/1505 
-> - https://github.com/obsidian-tasks-group/obsidian-tasks/issues/2444 
-> - https://github.com/obsidian-tasks-group/obsidian-tasks/issues/1505 
-> 
-> As of now: 
-> 1. If you add a time element to a due date (eg: 📅 2024-01-25 15:00) from Obsidian, the due date and time will 
-> be set correctly in TickTick, but they will be stripped from Obsidian on task add.
-> 2. If you add a due date with a time element from TickTick, it will not appear in Obsidian. But the task will still have the time set correctly. 
-> 3. If you then update that task, the time should be preserved. I say **should** because I have not tested all timezone difference variants.
-> 4. If you wish existing tasks to be query compatible, update them from **TickTick**. When they are synced back in, they will be in the correct format.
-> 
-> If this is not desirable behavior: Please let me know and I can make this a setting (eg: "Time is important to me, Task Queries aren't", 
-> "Time is not important to me, Task queries are") to determine the TickTickSync behavior.
-> 
-> Of course, if Tasks is updated to deal with this issue, TickTickSync will be updated to not mess with the time element anymore.
+> Please see the [New Date Handling caution in documentation.](https://github.com/thesamim/TickTickSync/wiki/Documentation#new-date-handling)
 > 
 > :warning:
 
@@ -63,7 +46,7 @@ The plugin works best when the [Tasks](https://github.com/obsidian-tasks-group/o
 3. Parent/Child tasks are supported bi-directionally. However, changes to the parent/child relationship are not handled. Yet.
 4. Moving tasks between Projects/Lists is **NOT** supported at this time.
 5. Because Tags can't have spaces, at this time it is not possible to add a task to a project with name that contains spaces. In the fullness of time, will implement some kind of workaround (eg: `#folder_with_a_space` will be converted to `folder with a space`)
-6. If a file has a default project association (see [settings](https://github.com/thesamim/TickTickSync/wiki/Documentation#sync-control)), it is possible to create a task with a project tag other than the default project. The Task will be correctly synched to TickTick in the correct project. However, if the Task is then updated with subtasks, from TickTick, the subtasks will be synched to the project's default file rather than the file where the original parent task was created.
+6. If a file has a default project association (see [settings](https://github.com/thesamim/TickTickSync/wiki/Documentation#sync-control)), it is possible to create a task with a project tag other than the default project. The Task will be correctly synched to TickTick in the correct project. However, if the Task is then updated with subtasks, from TickTick, the subtasks will be synched to the project's default file rather than the file where the original parent task was created. **Additionally, the subtask will become the child of the last Task in that file.**
 
 ## Installation
 
