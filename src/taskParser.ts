@@ -3,8 +3,9 @@ import TickTickSync from "../main";
 import { Tick } from 'ticktick-api-lvt'
 import { ITask } from "ticktick-api-lvt/dist/types/Task"
 import { ITag } from 'ticktick-api-lvt/dist/types/Tag';
-import {Task, TaskRegularExpressions} from "obsidian-task/src/Task"
-import { TaskLocation } from 'obsidian-task/src/TaskLocation';
+import {Task} from "obsidian-task/src/Task/Task"
+import {TaskRegularExpressions} from "obsidian-task/src/Task/TaskRegularExpressions"
+import { TaskLocation } from 'obsidian-task/src/Task/TaskLocation';
 
 
 
