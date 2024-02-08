@@ -114,11 +114,11 @@ export class FileOperation {
             //console.log(newContent)
             await this.app.vault.modify(file, newContent)
 
-            //update filemetadate
-            const metadata = await this.plugin.cacheOperation?.getFileMetadata(filepath)
-            if (!metadata) {
-                throw new Error(`File Metadata creation failed for file ${filepath}`);
-            }
+            // //update filemetadate
+            // const metadata = await this.plugin.cacheOperation?.getFileMetadata(filepath)
+            // if (!metadata) {
+            //     throw new Error(`File Metadata creation failed for file ${filepath}`);
+            // }
 
         }
     }
@@ -176,13 +176,8 @@ export class FileOperation {
         const projectIds = [...new Set(tasks.map(task => task.projectId))];
         for (const projectId of projectIds) {
             let taskFile = await this.plugin.cacheOperation?.getFilepathForProjectId(projectId);
-            let metaData;
-            if (taskFile) {
-                metaData = await this.plugin.cacheOperation?.getFileMetadata(taskFile, projectId);
-                if (!metaData) {
-                    throw new Error(`File Metadata creation failed for project Id: ${projectId} and file ${taskFile}`);
-                }
 
+            if (taskFile) {
                 var file = this.app.vault.getAbstractFileByPath(taskFile);
                 if (!(file instanceof TFile)) {
                     //the file doesn't exist. Create it.
@@ -206,17 +201,17 @@ export class FileOperation {
 							//this has happened when we've had duplicated lists in TickTick.
 							//Until they fix it....
 							file = this.app.vault.getAbstractFileByPath(taskFile);
-							if (file instanceof TFile) {
-								const projectName = await this.plugin.cacheOperation?.getProjectNameByIdFromCache(projectId);
-								await this.app.vault.append(file, `\n====== Project **${projectName}** is probably duplicated in TickTick Adding tasks from other project here.  `)
-							}
+							// if (file instanceof TFile) {
+							// 	const projectName = await this.plugin.cacheOperation?.getProjectNameByIdFromCache(projectId);
+							// 	// await this.app.vault.append(file, `\n====== Project **${projectName}** is probably duplicated in TickTick Adding tasks from other project here.  `)
+							// }
 						}
 					}
                 }
             }
             let projectTasks = tasks.filter(task => task.projectId === projectId);
             //make sure top level tasks are first
-			console.log("Before Sor: ", projectTasks)
+
             projectTasks.sort((left, right) => {
                 if (!left.parentId && right.parentId) {
                     return -1;
@@ -226,21 +221,19 @@ export class FileOperation {
                     return 0;
                 }
             });
-			console.log("after Sor: ", projectTasks)
 
-            let result = await this.addProjectTasksToFile(file, projectTasks, metaData);
+            let result = await this.addProjectTasksToFile(file, projectTasks);
             // Sleep for 1 second
             await new Promise(resolve => setTimeout(resolve, 1000));
             if (this.plugin.settings.debugMode) {
-                console.log(result ? "Completed add task." : "Failed add task")
+                console.log("===", projectTasks, result ? "Completed add task." : "Failed add task")
             }
         }
 		return true;
     }
 
 
-    private async addProjectTasksToFile(file: TFile, tasks: ITask[],
-        metaData: any): Promise<boolean> {
+    private async addProjectTasksToFile(file: TFile, tasks: ITask[]): Promise<boolean> {
         try {
             const content = await this.app.vault.read(file);
 
@@ -375,11 +368,12 @@ export class FileOperation {
     async updateTaskInFile(task: ITask, toBeProcessed: string[]) {
         const taskId = task.id
         // Get the task file path
-        const currentTask = await this.plugin.cacheOperation?.loadTaskFromCacheID(taskId)
+        const currentTask: ITask = await this.plugin.cacheOperation?.loadTaskFromCacheID(taskId)
 
 
 		const hasChildren = currentTask.childIds?.length > 0
-		if ((currentTask.projectId != task.projectId) || (currentTask.parentId != task.parentId)) {
+
+		if ((this.plugin.taskParser?.isProjectIdChanged(currentTask, task)) || this.plugin.taskParser?.isParentIdChanged(currentTask, task)) {
 			await this.handleTickTickStructureMove(task, currentTask, toBeProcessed)
 			return;
 		}
@@ -424,17 +418,18 @@ export class FileOperation {
             }
         }
 
+
         if (modified) {
             const newContent = lines.join('\n')
             await this.app.vault.modify(file, newContent)
-        }
+		}
 
     }
     // delete task from file
     async deleteTaskFromSpecificFile(filePath: string, taskId: string, taskTitle: string, numItems: number, bConfirmDialog: boolean) {
         // Get the file object and update the content
 	if (bConfirmDialog) {
-			const bConfirm = await this.confirmDeletion(taskTitle);
+			const bConfirm = await this.confirmDeletion(taskTitle + "in File: " + filePath);
 			if (!bConfirm) {
 				new Notice("Tasks will not be deleted. Please rectify the issue before the next sync.", 0)
 				return [];
@@ -480,38 +475,7 @@ export class FileOperation {
 
 	}
 
-	// sync updated task content to file
-    async syncUpdatedTaskContentToTheFile(evt: Object) {
-        const taskId = evt.object_id
-        // Get the task file path
-        const currentTask = await this.plugin.cacheOperation?.loadTaskFromCacheID(taskId)
-        const filepath = await this.plugin.cacheOperation?.getFilepathForTask(taskId)
 
-        // Get the file object and update the content
-        const file = this.app.vault.getAbstractFileByPath(filepath)
-        const content = await this.app.vault.read(file)
-
-        const lines = content.split('\n')
-        let modified = false
-
-        for (let i = 0; i < lines.length; i++) {
-            const line = lines[i]
-            if (line.includes(taskId) && this.plugin.taskParser?.hasTickTickTag(line)) {
-                const oldTaskContent = this.plugin.taskParser?.getTaskContentFromLineText(line)
-                const newTaskContent = evt.extra_data.content
-
-                lines[i] = line.replace(oldTaskContent, newTaskContent)
-                modified = true
-                break
-            }
-        }
-
-        if (modified) {
-            const newContent = lines.join('\n')
-            await this.app.vault.modify(file, newContent)
-        }
-
-    }
 
 
     //search TickTick_id by content
@@ -544,6 +508,7 @@ export class FileOperation {
         return (files)
     }
 
+	//TODO: I think there are three versions of this!
     //search filepath by taskid in vault
     async searchFilepathsByTaskidInVault(taskId: string) {
         // console.log(`preprare to search task ${taskId}`)
@@ -605,8 +570,9 @@ export class FileOperation {
 		//TODO: this is Kludgy as hell. In the fulness of time, I want to get rid of all this and have something
 		// like: if there are updates, and there's parent/child or project changes; build a linked list of the
 		// parent child hierarchy, delete the old one and add the new one.
-		console.log("Hanlding: ", newTask.title, newTask.childIds?.length)
-		let filepath = await this.plugin.cacheOperation?.getFilepathForProjectId(oldTask.projectId);
+
+		// let filepath = await this.plugin.cacheOperation?.getFilepathForProjectId(oldTask.projectId);
+		let filepath = await this.plugin.cacheOperation?.getFilepathForTask(oldTask.id);
 		if (!filepath) {
 			let errmsg = `File not found for moved newTask:  ${newTask.id}, ${newTask.title}`
 			throw new Error(errmsg)
@@ -615,8 +581,7 @@ export class FileOperation {
 		const oldProjectId: string = oldTask.projectId;
 		const oldtaskItemNum: number = oldTask.items?.length;
 		const oldTaskHasChildren: boolean = oldTask.childIds?.length > 0;
-		const newTaskHasChildren = newTask.childIds?.length > 0;
-		const oldTaskId =oldTask.id;
+		const oldTaskId = oldTask.id;
 
 
 		await this.moveTask(filepath, newTask, oldtaskItemNum, oldTaskId, oldProjectId);
@@ -655,9 +620,6 @@ export class FileOperation {
 			}
 			//get it from cache
 			const currentChild = await this.plugin.cacheOperation?.loadTaskFromCacheID(childId);
-			console.log("currentChild: ", await this.plugin.cacheOperation?.getTaskTitles([currentChild.id]),
-				"\ncurrentChild parent:", await this.plugin.cacheOperation?.getTaskTitles([currentChild.parentId]),
-				"\nnewTask parent:", await this.plugin.cacheOperation?.getTaskTitles([newTask.id]))
 			currentChild.parentId = newTask.id;
 			currentChild.projectId = newTask.projectId;
 			const numChildTaskItems = currentChild.items?.length
@@ -676,8 +638,7 @@ export class FileOperation {
 		console.log("Moving: ", task.title)
 		await this.deleteTaskFromSpecificFile(filepath, task.id, task.title, oldtaskItemNum, false);
 		await this.plugin.cacheOperation?.deleteTaskFromCache(oldTaskId);
-		// await this.plugin.cacheOperation?.appendTaskToCache(task, filepath)
-		//Task will be added to cahce in addtaskstofile.
+
 		await this.addTasksToFile([task])
 		const cleanTitle = this.plugin.taskParser?.stripOBSUrl(task.title);
 		let message = "";

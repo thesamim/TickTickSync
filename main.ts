@@ -1,4 +1,4 @@
-import {MarkdownView, Notice, Plugin, Editor, WorkspaceLeaf} from 'obsidian';
+import {MarkdownView, Notice, Plugin, Editor, WorkspaceLeaf, TFolder, ListItemCache} from 'obsidian';
 import {BrowserWindow, session} from "@electron/remote";
 import { WebRequest } from 'electron'
 
@@ -112,6 +112,7 @@ export default class TickTickSync extends Plugin {
 			// 	// Nothing to see here right now.
 			// });
 		}
+
 		//Key event monitoring, judging line breaks and deletions
 		this.registerDomEvent(document, 'keyup', async (evt: KeyboardEvent) => {
 			if (!this.settings.apiInitialized) {
@@ -135,6 +136,7 @@ export default class TickTickSync extends Plugin {
 				}
 				await this.lineNumberCheck()
 			}
+
 			if (evt.key === "Delete" || evt.key === "Backspace") {
 				try {
 					//console.log(`${evt.key} key is released`);
@@ -210,6 +212,37 @@ export default class TickTickSync extends Plugin {
 
 		}))
 
+		//Listen to the rename event and update the path in task data
+		this.registerEvent(this.app.vault.on('delete', async (file) => {
+			if (file instanceof TFolder) {
+				//individual file deletes will be handled. I hope.
+				return
+			}
+			if (!this.settings.apiInitialized) {
+				console.error("API Not intialized!")
+				return
+			}
+			const fileMetadata = await this.cacheOperation?.getFileMetadata(file.path, null)
+			if (!fileMetadata || !fileMetadata.TickTickTasks) {
+				//console.log('There is no task in the deleted file')
+				return
+			}
+			if (!(this.checkModuleClass())) {
+				return
+			}
+			await this.cacheOperation?.updateRenamedFilePath(oldpath, file.path)
+			await this.saveSettings()
+
+			//update task description
+			if (!await this.checkAndHandleSyncLock()) return;
+			try {
+				await this.tickTickSync?.updateTaskContent(file.path)
+			} catch (error) {
+				console.error('An error occurred in updateTaskDescription:', error);
+			}
+			this.syncLock = false;
+
+		}));
 
 		//Listen to the rename event and update the path in task data
 		this.registerEvent(this.app.vault.on('rename', async (file, oldpath) => {
@@ -261,6 +294,7 @@ export default class TickTickSync extends Plugin {
 
 				//To avoid conflicts, Do not check files being edited
 				if (activateFile?.path == filepath) {
+					//TODO: find out if they cut or pasted task(s) in here.
 					return
 				}
 
@@ -621,19 +655,20 @@ export default class TickTickSync extends Plugin {
 
 				if (!await this.checkAndHandleSyncLock()) return;
 				try {
+					await this.tickTickSync?.fullTextModifiedTaskCheck(fileKey);
+				} catch (error) {
+					console.error('An error occurred in fullTextModifiedTaskCheck:', error);
+				}
+				this.syncLock = false;
+
+				if (!await this.checkAndHandleSyncLock()) return;
+				try {
 					await this.tickTickSync?.deletedTaskCheck(fileKey);
 				} catch (error) {
 					console.error('An error occurred in deletedTaskCheck:', error);
 				}
 				this.syncLock = false;
 
-				if (!await this.checkAndHandleSyncLock()) return;
-				try {
-					await this.tickTickSync?.fullTextModifiedTaskCheck(fileKey);
-				} catch (error) {
-					console.error('An error occurred in fullTextModifiedTaskCheck:', error);
-				}
-				this.syncLock = false;
 			}
 
 		} catch (error) {

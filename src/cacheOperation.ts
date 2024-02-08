@@ -1,4 +1,4 @@
-import { App } from 'obsidian';
+import {App, ListItemCache, TFile} from 'obsidian';
 import TickTickSync from "../main";
 import { ITask } from 'ticktick-api-lvt/dist/types/Task';
 import { IProject } from 'ticktick-api-lvt/dist/types/Project';
@@ -156,6 +156,10 @@ export class CacheOperation {
 
     }
 
+	async updateTaskMetadata(task: ITask, filePath: string) {
+		await this.deleteTaskIdFromMetadataByTaskId(task.id);
+		await this.addTaskToMetadata(filePath, task);
+	}
     async deleteTaskIdFromMetadataByTaskId(taskId: string) {
 
         const metadatas = await this.getFileMetadatas()
@@ -277,15 +281,27 @@ export class CacheOperation {
             }
         }
 
+		let filePath = "";
+
+		if ((projectId === this.plugin.settings.inboxID) ||
+			(projectId === this.plugin.settings.defaultProjectId)){ //highly unlikely, but just in case
+			//They don't have a file for the Inbox. If they have a default project, return that.
+			if (this.plugin.settings.defaultProjectName) {
+				filePath = this.plugin.settings?.TickTickTasksFilePath +"/"+ this.plugin.settings.defaultProjectName + ".md"
+				return filePath
+			}
+		}
         //otherwise, return the project name as a md file and hope for the best.
-        let filePath = await this.getProjectNameByIdFromCache(projectId) + ".md"
+        filePath = await this.getProjectNameByIdFromCache(projectId) + ".md"
 
         if (!filePath) {
-            filePath = this.plugin.settings.defaultProjectName + ".md"
-        }
+			//Not a file that's in fileMetaData, not the inbox no default project set
+			let errmsg = `File path not found for ${projectId}, returning ${filePath} instead. `
+			console.warn(errmsg)
+			throw new Error(errmsg);
+		}
 		let errmsg = `File path not found for ${projectId}, returning ${filePath} instead. `
 		console.warn(errmsg)
-		throw new Error(errmsg);
 
         return filePath;
     }
@@ -342,6 +358,7 @@ export class CacheOperation {
             this.plugin.settings.TickTickTasksData.tasks.push(task);
             await this.addTaskToMetadata(filePath, task)
 
+			await this.plugin.saveSettings();
 
         } catch (error) {
             console.error(`Error appending task to Cache: ${error}`);
@@ -375,14 +392,26 @@ export class CacheOperation {
 
 	}
 
-    //Overwrite the task with the specified id in update
-    async updateTaskToCacheByID(task) {
-        try {
-            //Delete the existing task
-            await this.deleteTaskFromCache(task.id)
-            //Add new task
-			const filePath = await this.getFilepathForProjectId(task.projectId);
 
+    //Overwrite the task with the specified id in update
+    async updateTaskToCacheByID(task: ITask, movedPath: string | null) {
+        try {
+			let filePath: string | null = ""
+			if (!movedPath) {
+				filePath = await this.getFilepathForTask(task.id)
+				if (!filePath) {
+					filePath = await this.getFilepathForProjectId(task.projectId);
+				}
+				if (!filePath) {
+					//we're not likely to get here, but just in case
+					throw new Error(`File not found for ${task.id} - ${task.title}`)
+				}
+			} else {
+				filePath = movedPath;
+			}
+			//Delete the existing task
+			await this.deleteTaskFromCache(task.id)
+			//Add new task
 			await this.appendTaskToCache(task, filePath);
             return task;
         } catch (error) {
@@ -667,6 +696,84 @@ export class CacheOperation {
 
 
     }
+	// TODO: why did I think I needed this?
+	findTaskInMetada(taskId: string, filePath: string) {
+		const fileMetadata = this.plugin.settings.fileMetadata;
+		for (const file in fileMetadata) {
+			console.log("in file: :", file)
+			if (file == filePath) {
+				console.log("breaking")
+				continue;
+			}
+			const tasks = fileMetadata[file].TickTickTasks;
+			for (const task of tasks) {
+				if (task.taskId === taskId) {
+					console.log("found")
+					return true
+				}
+			}
+		}
+		console.log("not found")
+		return false;
+	}
+
+	async isProjectMoved(lineTask: ITask, filePath: string) {
+		const currentLocation = await this.getFilepathForTask(lineTask.id)
+
+		if (currentLocation != filePath) {
+			return currentLocation;
+		}else {
+			return null;
+		}
+	}
+
+	isTaskInCache(taskId) {
+		try {
+			const savedTasks = this.plugin.settings.TickTickTasksData.tasks
+			const savedTask = savedTasks.find((task: ITask) => task.id === taskId);
+			if (savedTask) {
+				return  true;
+			}
+		} catch (error) {
+			console.error(`Error finding task from Cache: ${error}`);
+			return false;
+		}
+		return false;
+	}
+
+	async findTaskInFiles(taskId: string): Promise<string|null> {
+		const markdownFiles = this.app.vault.getMarkdownFiles();
+		for (const file of markdownFiles) {
+			console.log(file.path)
+			const listItemsCache: ListItemCache[] = this.app.metadataCache.getFileCache(file)?.listItems ?? [];
+
+			const taskList= await this.findInFile(file, listItemsCache);
+			//returning the first file we find.
+			if (taskList.includes(taskId)) {
+				return file.path;
+			}
+		}
+		return null;
+	}
+
+	private async findInFile(file: TFile, listItemsCache: ListItemCache[]) {
+		const fileCachedContent: string = await this.app.vault.cachedRead(file);
+		const lines: string[] = fileCachedContent.split('\n');
+
+		const tasks: (string | null | undefined)[] = listItemsCache
+			// Get the position of each list item
+			.map((listItemCache: ListItemCache) => listItemCache.position.start.line)
+			// Get the line
+			.map((idx) => lines[idx])
+			// Create a Task from the line
+			.map((line: string) => this.plugin.taskParser?.getTickTickIdFromLineText(line))
+			// Filter out the nulls
+			.filter((taskId: string | null) => taskId !== null)
+		;
+
+		return tasks;
+	}
+
 	private async showFoundDuplicatesModal(app, plugin, projects: []) {
 		const myModal = new FoundDuplicatesModal(app, plugin,  projects, (result) => {
 			this.ret = result;
