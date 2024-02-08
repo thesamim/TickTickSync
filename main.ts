@@ -506,9 +506,11 @@ export default class TickTickSync extends Plugin {
 				}
 				this.lastLines.set(fileName as string, line as number);
 				// try{
+
 				if (!await this.checkAndHandleSyncLock()) {
 					return false
 				};
+
 				modified = await this.tickTickSync?.lineModifiedTaskCheck(filepath as string, lastLineText, lastLine as number, fileContent)
 				this.syncLock = false;
 				// }catch(error){

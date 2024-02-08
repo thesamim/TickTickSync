@@ -198,9 +198,11 @@ export class SyncMan {
 				}
 				await this.plugin.saveSettings()
 				//May seem redundant, but puts task line formatting in one place.
+
 				let text = await this.plugin.taskParser?.convertTaskObjectToTaskLine(newTask);
 				const tabs = this.plugin.taskParser?.getTabs(lineTxt);
 				text = tabs + text;
+
 
 				if (editor && cursor) {
 					const from = {line: cursor.line, ch: 0};
@@ -441,12 +443,14 @@ export class SyncMan {
 					//console.log(updatedContent)
 					//TODO: Breaking SOC here.
 					savedTask.modifiedTime = this.plugin.taskParser?.formatDateToISO(new Date());
+
 					const result = await this.plugin.tickTickRestAPI?.UpdateTask(lineTask)
 					if (!projectChanged) {
 						await this.plugin.cacheOperation?.updateTaskToCacheByID(lineTask, null);
 					} else {
 						await this.plugin.cacheOperation?.updateTaskToCacheByID(lineTask, filepath);
 					}
+
 					modified = true;
 				}
 				// console.log(result)
