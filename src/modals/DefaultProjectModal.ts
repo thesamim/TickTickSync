@@ -1,5 +1,5 @@
 import { App, Modal, Setting } from "obsidian";
-import TickTickSync from "../main"
+import TickTickSync from "../../main"
 
 
 interface MyProject {
@@ -49,16 +49,12 @@ export class SetDefaultProjectForFileModal extends Modal {
             .addDropdown(component =>
                 component
                     .addOption(this.defaultProjectId, this.defaultProjectName)
+					.addOption("","")
                     .addOptions(myProjectsOptions)
                     .onChange(async (value) => {
-                        // console.log(`project id is ${value}`)
-                        //this.plugin.settings.defaultProjectId = this.result
-                        //this.plugin.settings.defaultProjectName = this.plugin.cacheOperation?.getProjectNameByIdFromCache(this.result)
-                        //this.plugin.saveSettings()
                         await this.plugin.cacheOperation?.setDefaultProjectIdForFilepath(this.filepath, value)
                         this.plugin.setStatusBarText()
                         this.close();
-
                     })
 
             )

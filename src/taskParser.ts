@@ -119,7 +119,8 @@ const REGEX = {
     TASK_PRIORITY: new RegExp(keywords.priority),
     priorityRegex: /^.*([🔺⏫🔼🔽⏬]).*$/u,
     BLANK_LINE: /^\s*$/,
-    TickTick_EVENT_DATE: /(\d{4})-(\d{2})-(\d{2})/
+    TickTick_EVENT_DATE: /(\d{4})-(\d{2})-(\d{2})/,
+	ITEM_LINE: /\[(.*?)\]\s*(.*?)\s*%%(.*?)%%/
 };
 
 export class TaskParser {
@@ -165,9 +166,26 @@ export class TaskParser {
 
     }
     stripOBSUrl(title: string): string {
-        title = title.replace(/\[.*?\]\(obsidian:\/\/open\?vault=.*?&file=.*?\)/g, "");
-        return title;
-    }
+		//TODO: this is ugly but I can't find a clean regex to make it happen.
+		let result = title;
+		if (result) {
+			let eoURL = title.lastIndexOf(".md)");
+			let boURL = 0
+			if (eoURL > 0) {
+				for (let i = eoURL; i > 0; i--) {
+					if (title[i] === '[') {
+						boURL = i;
+						break;
+					}
+				}
+				if (boURL > 0) {
+					result = title.substring(0, boURL);
+					result = result + title.substring(eoURL + 4); //magic number is len of .md + 1
+				}
+			}
+		}
+		return result;
+	}
 
     private addItems(resultLine: string, items: any[]): string {
         //TODO count indentations?
@@ -177,6 +195,28 @@ export class TaskParser {
         });
         return resultLine;
     }
+
+	private getItemFromLine(itemLine: string) {
+
+		const matches = REGEX.ITEM_LINE.exec(itemLine);
+		let item = {};
+		if (matches) {
+
+			const status = matches[1];
+			const text = matches[2];
+			const id = matches[3];
+
+			const itemStatus = " "? 0: 2
+
+			item = {
+				id: id,
+				title: text,
+				status: itemStatus
+			}
+		}
+		return item
+
+	}
 
 
 
@@ -218,19 +258,15 @@ export class TaskParser {
         let hasParent = false
         let parentId = null
         let parentTaskObject = null
-        //Detect parentID
-        let textWithoutIndentation = lineText
+		let taskItems = []
+		const lines = fileContent.split('\n')
 		const lineTextTabIndentation = this.getTabIndentation(lineText);
+		let textWithoutIndentation = this.removeTaskIndentation(lineText)
+
+		const TickTick_id = this.getTickTickIdFromLineText(textWithoutIndentation)
+
+		//Detect parentID
 		if (lineTextTabIndentation > 0) {
-            //console.log(`Indentation is ${this.getTabIndentation(lineText)}`)
-            textWithoutIndentation = this.removeTaskIndentation(lineText)
-            //console.log(textWithoutIndentation)
-            //console.log(`This is a subtask`)
-            //Read filepath
-            //const fileContent = await this.plugin.fileOperation.readContentFromFilePath(filepath)
-            //Traverse line
-            const lines = fileContent.split('\n')
-            //console.log(lines)
             for (let i = (lineNumber - 1); i >= 0; i--) {
                 //console.log(`Checking the indentation of line ${i}`)
                 const line = lines[i]
@@ -258,9 +294,32 @@ export class TaskParser {
                     }
                 }
             }
-
-
         }
+
+		//find task items
+		for (let i = (lineNumber + 1); i <= lines.length; i++) {
+			const line = lines[i]
+			//console.log(line)
+			//If it is a blank line, it means there is no parent
+			if (this.isLineBlank(line)) {
+				break
+			}
+			//If the number of tabs is greater than or equal to the current line, it's an item
+			if (this.getTabIndentation(line) > lineTextTabIndentation) {
+				//console.log(`Indentation is ${this.getTabIndentation(line)}`)
+				if (this.hasTickTickId(line)) {
+					//it's another task bail
+					break;
+				}
+				const item = this.getItemFromLine(line)
+				taskItems.push(item);
+			} else {
+				//we're either done with items, or onto the next task or blank line.
+				//we're done.
+				break;
+			}
+
+		}
 
         var dueDate = this.getDueDateFromLineText(textWithoutIndentation)
         var timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -268,16 +327,15 @@ export class TaskParser {
 
         const tags = this.getAllTagsFromLineText(textWithoutIndentation)
 
-        //dataview format metadata
-        //const projectName = this.getProjectNameFromLineText(textWithoutIndentation) ?? this.plugin.settings.defaultProjectName
-        //const projectId = await this.plugin.cacheOperation?.getProjectIdByNameFromCache(projectName)
-        //use tag as project name
-
         let projectId = await this.plugin.cacheOperation?.getDefaultProjectIdForFilepath(filepath as string)
+		// let projectIdByTask = await this.plugin.cacheOperation?.getProjectIdForTask(TickTick_id);
+
         let projectName = await this.plugin.cacheOperation?.getProjectNameByIdFromCache(projectId)
-        if (hasParent) {
-            projectId = parentTaskObject.projectId
-            projectName = await this.plugin.cacheOperation?.getProjectNameByIdFromCache(projectId)
+        if (hasParent ) {
+			if (parentTaskObject) {
+				projectId = parentTaskObject.projectId
+				projectName = await this.plugin.cacheOperation?.getProjectNameByIdFromCache(projectId)
+			}
         } else {
             if (tags) {
                 for (const tag of tags) {
@@ -294,9 +352,12 @@ export class TaskParser {
         }
 
         const title = this.getTaskContentFromLineText(textWithoutIndentation)
+		if ((this.plugin.settings.debugMode) && (!projectId)) {
+			console.error("Converting line to Object, could not find project Id: ", title );
+		}
+
         const isCompleted = this.isTaskCheckboxChecked(textWithoutIndentation)
         let description = ""
-        const TickTick_id = this.getTickTickIdFromLineText(textWithoutIndentation)
         const priority = this.getTaskPriority(textWithoutIndentation)
         if (filepath) {
             let taskURL = this.plugin.taskParser?.getObsidianUrlFromFilepath(filepath)
@@ -312,6 +373,7 @@ export class TaskParser {
             //todo: Not cloberring the content field, what should we do?
             //content: ??
             // content: description,
+			items: taskItems || [],
             parentId: parentId || "",
             dueDate: dueDate || '',
             //TickTick, for some reason, will derive a start date from due date, and eff up the date displayed. 
@@ -323,6 +385,7 @@ export class TaskParser {
             status: isCompleted ? 2 : 0, //Status: 0 is no completed. Anything else is completed.
             timeZone: timeZone
         }
+
         return task;
     }
 
@@ -393,8 +456,7 @@ export class TaskParser {
     }
 
     getTaskContentFromLineText(lineText: string) {
-		// console.log("Before: ", lineText, REGEX.TASK_CONTENT.REMOVE_TAGS)
-        const TaskContent = lineText.replace(REGEX.TASK_CONTENT.REMOVE_INLINE_METADATA, "")
+        let TaskContent = lineText.replace(REGEX.TASK_CONTENT.REMOVE_INLINE_METADATA, "")
             .replace(REGEX.TASK_CONTENT.REMOVE_TickTick_LINK, "")
             .replace(REGEX.TASK_CONTENT.REMOVE_PRIORITY, " ") //There must be spaces before and after priority.
             .replace(REGEX.TASK_CONTENT.REMOVE_TAGS, "")
@@ -403,6 +465,7 @@ export class TaskParser {
             .replace(REGEX.TASK_CONTENT.REMOVE_CHECKBOX_WITH_INDENTATION, "")
             .replace(REGEX.TASK_CONTENT.REMOVE_SPACE, "")
 		// console.log("AfteR: ", TaskContent)
+		TaskContent = this.stripOBSUrl(TaskContent);
         return (TaskContent)
     }
 
@@ -433,6 +496,7 @@ export class TaskParser {
         //TODO: This is ugly, but I'm tired of chasing it. There's still a place where 
         //      we're adding the OBSUrl to the tile when we don't need to. Everything else
         //      works, so just kludge it for now.
+
         const lineTaskTitle = this.stripOBSUrl(lineTask.title)
         const TickTickTaskTitle = this.stripOBSUrl(TickTickTask.title)
         //Whether content is modified?
@@ -465,13 +529,10 @@ export class TaskParser {
     }
 
     isParentIdChanged(lineTask: ITask, TickTickTask: ITask): boolean {
-        let lineParentId = lineTask.parentId;
-        let cacheParentId = TickTickTask.parentId;
-        if (typeof lineParentId === 'undefined' || typeof cacheParentId === 'undefined' || (lineParentId === null && cacheParentId === undefined) || (lineParentId === undefined && cacheParentId === null)) {
-            return false;
-        } else if (lineParentId !== cacheParentId) {
-            return true;
-        }
+        let lineParentId = lineTask.parentId? lineTask.parentId: "";
+        let cacheParentId = TickTickTask.parentId? TickTickTask.parentId: "";
+
+		return (lineParentId != cacheParentId)
     }
     //task due date compare
     isDueDateChanged(lineTask: ITask, TickTickTask: ITask): boolean {
@@ -544,6 +605,15 @@ export class TaskParser {
         const match = REGEX.TAB_INDENTATION.exec(lineText)
         return match ? match[1].length : 0;
     }
+
+	getTabs(lineText: string) {
+		const numTabs = this.getTabIndentation(lineText)
+		let tabs = ""
+		for (let i = 0; i < numTabs; i++) {
+			tabs = tabs + '\t';
+		}
+		return tabs
+	}
 
 
     // Task priority from 0 (none) to 4 (urgent).
@@ -670,7 +740,7 @@ export class TaskParser {
     addTickTickLink(linetext: string, taskId: string, projecId: string): string {
         let url = this.createURL(taskId, projecId)
         const regex = new RegExp(`${keywords.TickTick_TAG}`, "gi");
-        const link = `[link](${url})`
+        const link = ` [link](${url})`
         return linetext.replace(regex, link + ' ' + '$&');
     }
 

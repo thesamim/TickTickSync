@@ -1,8 +1,8 @@
 import {App, Notice, PluginSettingTab, SearchComponent, Setting, TAbstractFile, TFolder} from 'obsidian';
 import TickTickSync from "../main";
-import {ConfirmFullSyncModal} from "./ConfirmFullSyncModal"
+import {ConfirmFullSyncModal} from "./modals/ConfirmFullSyncModal"
 import {BrowserWindow, session} from "@electron/remote";
-import {FolderSuggest} from "./FolderSuggester";
+import {FolderSuggest} from "./utils/FolderSuggester";
 import * as electron from "electron";
 
 

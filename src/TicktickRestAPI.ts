@@ -3,9 +3,6 @@ import {ITask} from "ticktick-api-lvt/dist/types/Task"
 import {App, Notice} from 'obsidian';
 import TickTickSync from "../main";
 import {IProject} from 'ticktick-api-lvt/dist/types/Project';
-import {session} from 'electron';
-import CookiesGetFilter = Electron.CookiesGetFilter;
-import {log} from "obsidian-task/src/lib/logging";
 
 export class TickTickRestAPI {
 	[x: string]: any;
@@ -46,23 +43,25 @@ export class TickTickRestAPI {
 		let apiInitialized = this.plugin.settings.apiInitialized;
 		if (!apiInitialized)
 			try {
-				const userSettings  = await this.api.getUserSettings();
+				const userSettings = await this.api?.getUserSettings();
 				if (userSettings) {
 					apiInitialized = true;
-					await this.api.getInboxProperties()
-					// console.log("InobxID: ", this.api.inboxId)
-					this.plugin.settings.inboxID = this.api.inboxId;
+
+					await this.api?.getInboxProperties()
+					// console.log("InobxID: ", this.api?.inboxId)
+					this.plugin.settings.inboxID = this.api?.inboxId;
+
 					//TickTick doesn't allow default Inbox to be renamed. This is safe to do.
 					this.plugin.settings.inboxName = "Inbox"
 					if (!this.plugin.settings.defaultProjectId) {
-						this.plugin.settings.defaultProjectId = this.api.inboxId;
+						this.plugin.settings.defaultProjectId = this.api?.inboxId;
 						this.plugin.settings.defaultProjectName = "Inbox";
 					}
 				} else {
 					if (this.plugin.settings.debugMode) {
 						console.log(userSettings)
 					}
-					console.error(this.api.lastError);
+					console.error(this.api?.lastError);
 				}
 				this.plugin.settings.apiInitialized = apiInitialized;
 
@@ -89,7 +88,7 @@ export class TickTickRestAPI {
 	async AddTask(taskToAdd: ITask) {
 		await this.initializeAPI();
 		try {
-			const newTask = await this.api.addTask(taskToAdd);
+			const newTask = await this.api?.addTask(taskToAdd);
 			return newTask;
 		} catch (error) {
 			throw new Error(`Error adding task: ${error.message}`);
@@ -99,7 +98,7 @@ export class TickTickRestAPI {
 	async deleteTask(deletedTaskId: string, deletedTaskProjectId: string) {
 		await this.initializeAPI();
 		try {
-			const response = await this.api.deleteTask(deletedTaskId, deletedTaskProjectId);
+			const response = await this.api?.deleteTask(deletedTaskId, deletedTaskProjectId);
 			return response;
 		} catch (error) {
 			throw new Error(`Error deleting task: ${error.message}`);
@@ -109,7 +108,7 @@ export class TickTickRestAPI {
 	async getProjectSections(projectId: string) {
 		await this.initializeAPI();
 		try {
-			const response = await this.api.getProjectSections(projectId);
+			const response = await this.api?.getProjectSections(projectId);
 			return response;
 		} catch (error) {
 			throw new Error(`Error getting Sections: ${error.message}`);
@@ -123,7 +122,7 @@ export class TickTickRestAPI {
 		try {
 			//TODO: ALL Tasks are fetched. Evaluate filtering.
 			// console.log("getting all tasks, look into filtering.")
-			const result = await this.api.getTasks();
+			const result = await this.api?.getTasks();
 			return result;
 		} catch (error) {
 			throw new Error(`Error get active tasks: ${error.message}`);
@@ -138,7 +137,7 @@ export class TickTickRestAPI {
 		await this.initializeAPI();
 
 		try {
-			const updatedTask = await this.api.updateTask(taskToUpdate);
+			const updatedTask = await this.api?.updateTask(taskToUpdate);
 			return updatedTask;
 		} catch (error) {
 			throw new Error(`Error updating task: ${error.message}`);
@@ -149,12 +148,12 @@ export class TickTickRestAPI {
 	async modifyTaskStatus(taskId: string, projectId: string, taskStatus: number) {
 		await this.initializeAPI();
 		try {
-			let thisTask = await this.api.getTask(taskId, projectId);
+			let thisTask = await this.api?.getTask(taskId, projectId);
 			// console.log("Got task: ", thisTask)
 			thisTask.status = taskStatus;
 
 
-			const isSuccess = await this.api.updateTask(thisTask);
+			const isSuccess = await this.api?.updateTask(thisTask);
 			// console.log(`Task ${taskId} is reopened`)
 			return (isSuccess)
 		} catch (error) {
@@ -196,7 +195,7 @@ export class TickTickRestAPI {
 		}
 
 		try {
-			const task = await this.api.getTask(taskId, projectId);
+			const task = await this.api?.getTask(taskId, projectId);
 			return task;
 		} catch (error) {
 			if (error.response && error.response.status) {
@@ -215,7 +214,7 @@ export class TickTickRestAPI {
 			throw new Error('taskId is required');
 		}
 		try {
-			const task = await this.api.getTask(taskId);
+			const task = await this.api?.getTask(taskId, null);
 			const due = task[0]?.dueDate ?? null
 			return due;
 		} catch (error) {
@@ -228,7 +227,7 @@ export class TickTickRestAPI {
 	async GetAllProjects(): Promise<IProject[]> {
 		await this.initializeAPI();
 		try {
-			const result = await this.api.getProjects();
+			const result = await this.api?.getProjects();
 			return (result)
 
 		} catch (error) {
@@ -241,8 +240,13 @@ export class TickTickRestAPI {
 	async GetProjectGroups() {
 		await this.initializeAPI();
 		try {
-			const result = await this.api.getProjectGroups()
+			const result = await this.api?.getProjectGroups()
 
+			if ((result?.length == 0) && (this.api?.lastError)) {
+				if (this.api?.lastError.statusCode != 200) {
+					throw new Error(this.api?.lastError)
+				}
+			}
 			return (result)
 
 		} catch (error) {
@@ -255,7 +259,7 @@ export class TickTickRestAPI {
 	async getUserResources(): Promise<any[]> {
 		await this.initializeAPI();
 		try {
-			const result = await this.api.getUserSettings();
+			const result = await this.api?.getUserSettings();
 
 			return (result)
 
@@ -269,7 +273,7 @@ export class TickTickRestAPI {
 	async getAllCompletedItems(): Promise<any[]> {
 		await this.initializeAPI();
 		try {
-			const result = await this.api.getAllCompletedItems();
+			const result = await this.api?.getAllCompletedItems();
 
 			return (result)
 
@@ -283,7 +287,7 @@ export class TickTickRestAPI {
 	async getAllResources(): Promise<any[]> {
 		await this.initializeAPI();
 		try {
-			const result = await this.api.getAllResources();
+			const result = await this.api?.getAllResources();
 
 			return (result)
 
@@ -298,8 +302,8 @@ export class TickTickRestAPI {
 		await this.initializeAPI();
 		try {
 			//This returns the SyncBean object, which has ALL the task details
-			const result = await this.api.getTasksStatus();
-			if  (result.length === 0) {
+			const result = await this.api?.getTasksStatus();
+			if (!result || result.length === 0 && this.api?.lastError.statusCode!= 200) {
 				throw new Error("No Results.")
 			}
 			return (result)
@@ -312,7 +316,7 @@ export class TickTickRestAPI {
 	async exportData(): Promise<string> {
 		await this.initializeAPI();
 		//This is a CSV backup.
-		const result = await this.api.exportData();
+		const result = await this.api?.exportData();
 		if (!result) {
 			let error = this.api?.lastError;
 			let bodyParts = JSON.parse(error.body)
@@ -322,5 +326,32 @@ export class TickTickRestAPI {
 		return (result)
 	}
 
+	async moveTaskProject(task: ITask, fromProject: string, toProject: string) {
+		await this.initializeAPI();
+
+		let result = await this.api?.projectMove(task.id, fromProject, toProject);
+		if (!result) {
+			console.error("Project Moved Failed: ", this.api?.lastError)
+		}
+
+		//Near as I can tell, this is redundant, but TickTick does it. I think it may be a
+		// sortorder thing, Just do it.
+		await this.api?.updateTask(task)
+
+	}
+
+	async moveTaskParent(taskId: string, newParentId: string, projectId: string ) {
+
+		const task = await this.api?.getTask(taskId, projectId);
+
+		//For some reason, ticktick updates the task with the new parent id first, then do the parentMove. Seems
+		//redundant to me, but there must be a reason. Right?
+		(task as unknown as ITask).parentId = newParentId;
+		let result = await this.api?.updateTask(task);
+
+		result = await this.api?.parentMove(taskId, newParentId, projectId);
+
+
+	}
 
 }
