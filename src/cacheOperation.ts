@@ -287,7 +287,8 @@ export class CacheOperation {
 			(projectId === this.plugin.settings.defaultProjectId)){ //highly unlikely, but just in case
 			//They don't have a file for the Inbox. If they have a default project, return that.
 			if (this.plugin.settings.defaultProjectName) {
-				filePath = this.plugin.settings?.TickTickTasksFilePath +"/"+ this.plugin.settings.defaultProjectName + ".md"
+				// filePath = this.plugin.settings?.TickTickTasksFilePath +"/"+ this.plugin.settings.defaultProjectName + ".md"
+				filePath = this.plugin.settings.defaultProjectName + ".md"
 				return filePath
 			}
 		}

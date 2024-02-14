@@ -6,6 +6,7 @@ import { ITag } from 'ticktick-api-lvt/dist/types/Tag';
 import {Task} from "obsidian-task/src/Task/Task"
 import {TaskRegularExpressions} from "obsidian-task/src/Task/TaskRegularExpressions"
 import { TaskLocation } from 'obsidian-task/src/Task/TaskLocation';
+import { log } from 'obsidian-task/src/lib/logging';
 
 
 
@@ -71,7 +72,7 @@ enum Priority {
 
 const keywords = {
     TickTick_TAG: "#ticktick",
-    DUE_DATE: "🗓️|📅|📆|🗓",
+    DUE_DATE: "⏳|🗓️|📅|📆|🗓",
     // priorityIcons: "⏬|🔽|🔼|⏫|🔺",
     // priority: `\s([${priorityEmojis.toString()}])\s`
     priority: `\\s([\u{23EC}\u{1F53D}\u{1F53C}\u{23EB}\u{1F53A}])\\s`
@@ -90,6 +91,13 @@ const priorityMapping = [
 ];
 
 
+
+const tag_regex = /(?<=\s)#[\w\d\u4e00-\u9fff\u0600-\u06ff\uac00-\ud7af-_/]+/g //Add -,_,/ as valid seperators.
+// const due_date_regex = `(${keywords.DUE_DATE})\\s(\\d{4}-\\d{2}-\\d{2})(\\s\\d{1,}:\\d{2})?`
+const due_date_regex = `(${keywords.DUE_DATE})\\s(\\d{4}-\\d{2}-\\d{2})\\s*(\\d{1,}:\\d{2})*`
+const due_date_strip_regex = `[${keywords.DUE_DATE}]\\s\\d{4}-\\d{2}-\\d{2}(\\s\\d{1,}:\\d{2}|)`
+
+
 const REGEX = {
 	//hopefully tighter find.
     TickTick_TAG: new RegExp(`(?<=[ ;])${keywords.TickTick_TAG}+`, 'i'),
@@ -98,21 +106,21 @@ const REGEX = {
     TickTick_LINK: /\[link\]\(.*?\)/,
     DUE_DATE_WITH_EMOJ: new RegExp(`(${keywords.DUE_DATE})\\s?\\d{4}-\\d{2}-\\d{2}`),
     // DUE_DATE : new RegExp(`(?:${keywords.DUE_DATE})\\s?(\\d{4}-\\d{2}-\\d{2})`),
-    DUE_DATE: new RegExp(`(?<=(${keywords.DUE_DATE})\\s)(\\d{4}-\\d{2}-\\d{2})(\\s\\d{1,}:\\d{2})?`, 'g'),
+    DUE_DATE: new RegExp(due_date_regex, 'gmu'),
     PROJECT_NAME: /\[project::\s*(.*?)\]/,
     TASK_CONTENT: {
         REMOVE_PRIORITY: /[🔺⏫🔼🔽⏬]/ug,
 		//accommodate UTF-16 languages.
-        REMOVE_TAGS: /(?<=\s)#[\w\d\u4e00-\u9fff\u0600-\u06ff\uac00-\ud7af]+/g,
+        REMOVE_TAGS: tag_regex,
         REMOVE_SPACE: /^\s+|\s+$/g,
-        REMOVE_DATE: new RegExp(`(${keywords.DUE_DATE})\\s?\\d{4}-\\d{2}-\\d{2}\\s(\\d{1,}:\\d{2})?`),
+        REMOVE_DATE: new RegExp(due_date_strip_regex, 'gmu'),
         REMOVE_INLINE_METADATA: /%%\[\w+::\s*\w+\]%%/,
         REMOVE_CHECKBOX: /^(-|\*)\s+\[(x|X| )\]\s/,
         REMOVE_CHECKBOX_WITH_INDENTATION: /^([ \t]*)?(-|\*)\s+\[(x|X| )\]\s/,
         REMOVE_TickTick_LINK: /\[link\]\(.*?\)/,
     },
 	//todo: this and remove_tags are redundant. Probably some of the other stuff to. Rationalize this lot.
-    ALL_TAGS: /(?<=\s)#[\w\d\u4e00-\u9fff\u0600-\u06ff\uac00-\ud7af]+/g,
+    ALL_TAGS: tag_regex,
     TASK_CHECKBOX_CHECKED: /- \[(x|X)\] /,
     TASK_INDENTATION: /^(\s{2,}|\t)(-|\*)\s+\[(x|X| )\]/,
     TAB_INDENTATION: /^(\t+)/,
@@ -236,7 +244,12 @@ export class TaskParser {
     }
 
     private addDueDateToLine(resultLine: string, task: ITask) {
-		let dueDate = this.utcToLocalNoTime(task.dueDate)
+		let dueDate = "";
+		if (task.isAllDay) {
+			dueDate = this.utcToLocalNoTime(task.dueDate)
+		} else {
+			dueDate = this.utcToLocal(task.dueDate)
+		}
         resultLine = resultLine + ' 📅 ' + dueDate;
         return resultLine;
     }
@@ -322,7 +335,8 @@ export class TaskParser {
 
 		}
 
-        var dueDate = this.getDueDateFromLineText(textWithoutIndentation)
+        let dueDateStruct = this.getDueDateFromLineText(textWithoutIndentation)
+		console.log("on build: ", dueDateStruct);
         var timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
 
@@ -376,10 +390,11 @@ export class TaskParser {
             // content: description,
 			items: taskItems || [],
             parentId: parentId || "",
-            dueDate: dueDate || '',
-            //TickTick, for some reason, will derive a start date from due date, and eff up the date displayed. 
-            //Force the startdate to be the same....
-            startDate: dueDate || '',
+			//TickTick, will use the start date for due date, and eff up the date displayed.
+			//emulate what they do on the web interface and send null for due date.
+            dueDate: dueDateStruct.returnDate || '',
+            startDate: dueDateStruct.returnDate || '',
+			isAllDay: dueDateStruct.isAllDay,
             tags: tags || [],
             priority: Number(priority),
             modifiedTime: this.formatDateToISO(new Date()),
@@ -428,24 +443,54 @@ export class TaskParser {
     }
 
 
-    getDueDateFromLineText(text: string) {
-        const regEx = REGEX.DUE_DATE;
-        const result = text.match(regEx)
-        let returnDate = null;
-        if (result) {
-            const dateParts = result.toString().split(" ");
-            if (!dateParts[1]) {
-                dateParts[1] = "08:00"
-            }
-            returnDate = `${dateParts[0]} ${dateParts[1]}`
-            returnDate = this.formatDateToISO(new Date(returnDate));
-        }
-        return returnDate;
-    }
+	getDueDateFromLineText(text: string) {
+		console.log(text);
+		// console.log('@@@ gddfl in: ', text);
+		let isAllDay = true;
+		const regEx = REGEX.DUE_DATE;
+		let results = [...text.matchAll(regEx)];
+		// console.log('@@@ Date parts from Regex: ', results);
+		if (results.length == 0) {
+			const nullDate = '';
+			const nullVal = '';
+			return { isAllDay, nullDate, nullVal };
+		}
+
+		let result;
+		if (results.length > 1) {
+			//arbitrarily take the last one
+			result = results[results.length - 1];
+		} else {
+			result = results[0];
+		}
+		// for (const resultKey in result) {
+		// 	console.log("@@@ ---", resultKey, result[resultKey]);
+		// }
+		let returnDate = null;
+		if (result) {
+			// console.log("String Date parts: ", result);
+			if (!result[3]) {
+				returnDate = `${result[2]}T00:00:00.000`;
+				isAllDay = true;
+			} else {
+				if (result[3].includes("24:")) {
+					result[3] = result[3].replace("24:","00:")
+				}
+				returnDate = `${result[2]}T${result[3]}`;
+				isAllDay = false;
+			}
+			// console.log("@@@ ReturnDate: ", isAllDay, result[2], returnDate);
+			// console.log("@@@ date from date: ", new Date(returnDate))
+			returnDate = this.formatDateToISO(new Date(returnDate));
+			console.log('@@@@ ISO ReturnDate: ', returnDate);
+		}
+		const emoji = result[1];
+		// console.log("@@@ Returning ", {isAllDay,returnDate, emoji});
+		return { isAllDay, returnDate, emoji };
+	}
 
 
-
-    getProjectNameFromLineText(text: string) {
+	getProjectNameFromLineText(text: string) {
         const result = REGEX.PROJECT_NAME.exec(text);
         return result ? result[1] : null;
     }
@@ -467,6 +512,7 @@ export class TaskParser {
             .replace(REGEX.TASK_CONTENT.REMOVE_SPACE, "")
 		// console.log("AfteR: ", TaskContent)
 		TaskContent = this.stripOBSUrl(TaskContent);
+		console.log("Stripping results: ", TaskContent);
         return (TaskContent)
     }
 
@@ -556,15 +602,26 @@ export class TaskParser {
             // console.log('invalid date')
             return false;
         } else {
-			const date1 = new Date(lineTaskDue);
-			const date2 = new Date(TickTickTaskDue);
+			const date1 = this.cleanDate(lineTaskDue);
+			const date2 = this.cleanDate(TickTickTaskDue);
+			const date1TZ = date1.getTimezoneOffset();
+			const date2TZ = date2.getTimezoneOffset();
+			console.log('@@@ timeZones: ', date1TZ, date2TZ);
+			console.log("@@@@ ", date1.getTime(), date2.getTime());
+			const diff = (date1.getTime() - date2.getTime()) /3600000;
+			console.log("@@@ Diff", diff);
 
-			const utcDate1 = new Date(date1.getUTCFullYear(), date1.getUTCMonth(), date1.getUTCDate(),date1.getUTCHours(), date1.getUTCMinutes(), date1.getUTCSeconds());
-			const utcDate2 = new Date(date2.getUTCFullYear(), date2.getUTCMonth(), date2.getUTCDate(),date2.getUTCHours(), date2.getUTCMinutes(), date2.getUTCSeconds());
+			const utcDate1 = date1;
+			const utcDate2 = date2;
+
+			console.log('@@@\nDate 1:\n', lineTaskDue, '\n', utcDate1, '\nDate 2: \n', TickTickTaskDue, '\n', utcDate2);
+
 
 			if (utcDate1.getTime() === utcDate2.getTime()) {
 				return false;
 			} else {
+
+
 				if (this.plugin.settings.debugMode) {
 					// Calculate the difference in minutes
 					const timeDifferenceInMilliseconds = Math.abs(utcDate2.getTime() - utcDate1.getTime());
@@ -576,13 +633,15 @@ export class TaskParser {
 						console.log(`The timestamps are ${days} days, ${hours} hours, and ${minutes} minutes apart.`);
 					} else if (hours > 0) {
 						console.log(`The timestamps are ${hours} hours and ${minutes} minutes apart.`);
-					} else {
+					} else if (minutes > 0) {
 						console.log(`The timestamps are ${minutes} minutes apart.`);
+					} else {
+						console.log(`The timestamps are different, but not calculatable..`);
 					}
 				}
 				return true;
 			}
-        }
+		}
     }
 
 
@@ -668,48 +727,54 @@ export class TaskParser {
 
 
     utcToLocal(utcDateString: string) {
-        const date = new Date(utcDateString);
-        const year = date.getUTCFullYear();
-        const month = String(date.getUTCMonth() + 1).padStart(2, '0');
-        const day = String(date.getUTCDate()).padStart(2, '0');
-        const hours = String(date.getHours()).padStart(2, "0");
-        const minutes = String(date.getMinutes()).padStart(2, "0");
-        return `${year}-${month}-${day} ${hours}:${minutes}`;
+		console.log("@@@ in date: ", utcDateString, Intl.DateTimeFormat().resolvedOptions().locale, Intl.DateTimeFormat().resolvedOptions().timeZone);
+		const date = new Date(utcDateString);
+		const localDate = date.toLocaleString();
+		console.log("@@@ local date[", localDate,"]");
+		const [datePart, timePart] = localDate.split(', ');
+		let [month, day, year] = datePart.split('/')
+		month = String(month).padStart(2, '0')
+		day = String(day).padStart(2, '0')
+		let [hours, minutes] = timePart.split(':');
+		if (localDate.includes("PM")) {
+			console.log("@@@@ adding 12");
+			hours = (Number(hours) + 12).toString();
+		} else if ((localDate.includes("AM") && hours === "12")) {
+			hours = "24";
+		}
+		hours = String(hours).padStart(2, '0');
+		minutes = String(minutes).padStart(2, '0')
+		console.log("@@@ out date", `${year}-${month}-${day} ${hours}:${minutes}` );
+		return `${year}-${month}-${day} ${hours}:${minutes}`;
+
     }
 	utcToLocalNoTime(utcDateString: string) {
+		console.log("@@@ in date noTime: ", utcDateString, Intl.DateTimeFormat().resolvedOptions().locale, Intl.DateTimeFormat().resolvedOptions().timeZone);
 		const date = new Date(utcDateString);
-		const year = date.getUTCFullYear();
-		const month = String(date.getUTCMonth() + 1).padStart(2, '0');
-		const day = String(date.getUTCDate()).padStart(2, '0');
+		const localDate = date.toLocaleString();
+		console.log("@@@ local date noTime", localDate);
+		const [datePart, timePart] = localDate.split(', ');
+		let [month, day, year] = datePart.split('/')
+		month = String(month).padStart(2, '0')
+		day = String(day).padStart(2, '0')
+		console.log("@@@ out date noTime", `${year}-${month}-${day}` );
 		return `${year}-${month}-${day}`;
 	}
     //Format date to TickTick Accepted date. 
     formatDateToISO(dateTime: Date) {
-        // Create a new Date object from the input string
-        const inputDate = new Date(dateTime);
-
+      	console.log("+++ inputdate: ", dateTime);
         // Check if the input is a valid date
-        if (isNaN(inputDate.getTime())) {
+        if (isNaN(dateTime.getTime())) {
             return "Invalid Date";
         }
+		const tzoffset = dateTime.getTimezoneOffset()
+		console.log("+++ tz offset: ", tzoffset, tzoffset * 60000)
+	const convertedDate = new Date(dateTime.getTime());
+		console.log("+++ convertedDate: ", convertedDate);
+		const result = convertedDate.toISOString().replace(/Z$/, '+0000');
+		console.log("+++ ISO Date: ", result)
 
-        // Get the date and time components
-        const year = inputDate.getFullYear();
-        const month = String(inputDate.getMonth() + 1).padStart(2, "0");
-        const day = String(inputDate.getDate()).padStart(2, "0");
-        const hours = String(inputDate.getHours()).padStart(2, "0");
-        const minutes = String(inputDate.getMinutes()).padStart(2, "0");
-        const tzOffSetH = inputDate.getTimezoneOffset() / 60
-        const tzOffSetM = inputDate.getTimezoneOffset() % 60
-        const tzOffSetHours = String(tzOffSetH).padStart(2, "0")
-        const tzOffSetMins = String(tzOffSetM).padStart(2, "0")
-        const tzOffSetSign = inputDate.getTimezoneOffset() < 0 ? "+" : "-" //this is relative to UTC, so it ony seems backwards.
-
-        // Format the date and time in the "YYYY-MM-DDTHH:MM" format
-        const formattedDate = `${year}-${month}-${day}T${hours}:${minutes}:00.000${tzOffSetSign}${tzOffSetHours}${tzOffSetMins}`;
-        // const formattedDate = `${year}-${month}-${day}T${hours}:${minutes}${tzOffSetSign}${tzOffSetHours}${tzOffSetMins}`;
-
-        return formattedDate;
+        return result;
     }
 
     //TODO fix this.
@@ -781,4 +846,19 @@ export class TaskParser {
         });
         return task;
     }
+	cleanDate(dateString: string) {
+
+		if (dateString.includes('+-')) {
+			dateString = dateString.replace('+-', '-');
+
+			let regex = /(.*)([+-])(\d*)/;
+			const matchTime = dateString.match(regex);
+			if (matchTime[3].length < 4) {
+				dateString = matchTime[1]+ '-0' + matchTime[3];
+			}
+		}
+		const cleanedDate = new Date(dateString);
+		return cleanedDate;
+	}
+
 }
