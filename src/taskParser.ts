@@ -90,6 +90,8 @@ const priorityMapping = [
 ];
 
 
+const tag_regex = /(?<=\s)#[\w\d\u4e00-\u9fff\u0600-\u06ff\uac00-\ud7af-_/]+/g //Add -,_,/ as valid seperators.
+
 const REGEX = {
 	//hopefully tighter find.
     TickTick_TAG: new RegExp(`(?<=[ ;])${keywords.TickTick_TAG}+`, 'i'),
@@ -103,7 +105,7 @@ const REGEX = {
     TASK_CONTENT: {
         REMOVE_PRIORITY: /[🔺⏫🔼🔽⏬]/ug,
 		//accommodate UTF-16 languages.
-        REMOVE_TAGS: /(?<=\s)#[\w\d\u4e00-\u9fff\u0600-\u06ff\uac00-\ud7af]+/g,
+        REMOVE_TAGS: tag_regex,
         REMOVE_SPACE: /^\s+|\s+$/g,
         REMOVE_DATE: new RegExp(`(${keywords.DUE_DATE})\\s?\\d{4}-\\d{2}-\\d{2}\\s(\\d{1,}:\\d{2})?`),
         REMOVE_INLINE_METADATA: /%%\[\w+::\s*\w+\]%%/,
@@ -112,7 +114,7 @@ const REGEX = {
         REMOVE_TickTick_LINK: /\[link\]\(.*?\)/,
     },
 	//todo: this and remove_tags are redundant. Probably some of the other stuff to. Rationalize this lot.
-    ALL_TAGS: /(?<=\s)#[\w\d\u4e00-\u9fff\u0600-\u06ff\uac00-\ud7af]+/g,
+    ALL_TAGS: tag_regex,
     TASK_CHECKBOX_CHECKED: /- \[(x|X)\] /,
     TASK_INDENTATION: /^(\s{2,}|\t)(-|\*)\s+\[(x|X| )\]/,
     TAB_INDENTATION: /^(\t+)/,
