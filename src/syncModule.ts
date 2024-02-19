@@ -180,8 +180,8 @@ export class SyncMan {
 				if (currentTask.parentId) {
 					let parentTask = await this.plugin.cacheOperation?.loadTaskFromCacheID(currentTask.parentId);
 					parentTask = this.plugin.taskParser?.addChildToParent(parentTask, currentTask.parentId);
+					parentTask = await this.plugin.tickTickRestAPI?.UpdateTask(parentTask);
 					await this.plugin.cacheOperation?.updateTaskToCacheByID(parentTask);
-					await this.plugin.tickTickRestAPI?.UpdateTask(parentTask);
 				}
 				const {id: ticktick_id, projectId: ticktick_projectId, url: ticktick_url} = newTask;
 				//console.log(newTask);
@@ -198,29 +198,7 @@ export class SyncMan {
 				}
 				await this.plugin.saveSettings()
 				//May seem redundant, but puts task line formatting in one place.
-
-				let text = await this.plugin.taskParser?.convertTaskObjectToTaskLine(newTask);
-				const tabs = this.plugin.taskParser?.getTabs(lineTxt);
-				text = tabs + text;
-
-
-				if (editor && cursor) {
-					const from = {line: cursor.line, ch: 0};
-					const to = {line: cursor.line, ch: lineTxt.length};
-					editor?.replaceRange(text, from, to)
-				} else {
-					try {
-						// save file
-						const lines = fileContent.split("\n");
-						lines[line] = text;
-						const file = this.app.vault.getAbstractFileByPath(filePath)
-						const newContent = lines.join('\n')
-						await this.app.vault.modify(file, newContent)
-						return newContent;
-					} catch (error) {
-						console.error(error);
-					}
-				}
+				return await this.updateTaskLine(newTask, lineTxt, editor, cursor, fileContent, line, filePath);
 			} catch (error) {
 				console.error('Error adding task:', error);
 				console.error(`The error occurred in the file: ${filePath}`)
@@ -229,6 +207,34 @@ export class SyncMan {
 
 		}
 		return fileContent;
+	}
+
+	private async updateTaskLine(newTask: ITask, lineTxt: string, editor: Editor | null, cursor: EditorPosition | null, fileContent: string, line: number| null, filePath: string) {
+		console.log("updateTaskLine");
+		let text = await this.plugin.taskParser?.convertTaskObjectToTaskLine(newTask);
+		const tabs = this.plugin.taskParser?.getTabs(lineTxt);
+		text = tabs + text;
+
+
+		if (editor && cursor) {
+			const from = { line: cursor.line, ch: 0 };
+			const to = { line: cursor.line, ch: lineTxt.length };
+			editor?.replaceRange(text, from, to);
+			return text;
+		} else {
+			try {
+				// save file
+				const lines = fileContent.split('\n');
+				lines[line] = text;
+				const file = this.app.vault.getAbstractFileByPath(filePath);
+				const newContent = lines.join('\n');
+				await this.app.vault.modify(file, newContent);
+				return newContent;
+			} catch (error) {
+				console.error(error);
+				return text;
+			}
+		}
 	}
 
 	async fullTextNewTaskCheck(file_path: string): Promise<boolean> {
@@ -294,6 +300,8 @@ export class SyncMan {
 		//check task
 		if (this.plugin.taskParser?.hasTickTickId(lineText) && this.plugin.taskParser?.hasTickTickTag(lineText)) {
 			const lineTask = await this.plugin.taskParser?.convertTextToTickTickTaskObject(lineText, filepath, lineNumber, fileContent)
+
+			console.log("TaskDate: ", lineTask.isAllDay, lineTask.dueDate);
 			const lineTask_ticktick_id = lineTask.id
 			const savedTask = await this.plugin.cacheOperation?.loadTaskFromCacheID(lineTask_ticktick_id)
 
@@ -377,6 +385,8 @@ export class SyncMan {
 					dueDateChanged = true;
 				}
 
+				//let's not lose the time zone!
+				lineTask.timeZone = savedTask.timeZone;
 
 				if (projectModified || projectMoved) {
 
@@ -444,12 +454,16 @@ export class SyncMan {
 					//TODO: Breaking SOC here.
 					savedTask.modifiedTime = this.plugin.taskParser?.formatDateToISO(new Date());
 
-					const result = await this.plugin.tickTickRestAPI?.UpdateTask(lineTask)
+					console.log("TaskDate before update: ", lineTask.isAllDay, lineTask.dueDate);
+					const updatedTask = await this.plugin.tickTickRestAPI?.UpdateTask(lineTask)
 					if (!projectChanged) {
-						await this.plugin.cacheOperation?.updateTaskToCacheByID(lineTask, null);
+						await this.plugin.cacheOperation?.updateTaskToCacheByID(updatedTask, null);
 					} else {
-						await this.plugin.cacheOperation?.updateTaskToCacheByID(lineTask, filepath);
+						await this.plugin.cacheOperation?.updateTaskToCacheByID(updatedTask, filepath);
 					}
+					//May seem redundant, but puts task line formatting in one place.
+					console.log("TaskDate after update: ", updatedTask.isAllDay, updatedTask.dueDate);
+					await this.updateTaskLine(updatedTask, lineText, null, null, fileContent, lineNumber, filepath);
 
 					modified = true;
 				}
@@ -1158,10 +1172,13 @@ export class SyncMan {
 			for (const taskDetail of metadata.TickTickTasks) {
 				const task = await this.plugin.cacheOperation?.loadTaskFromCacheID(taskDetail.taskId);
 				if (task) {
-					//Cache the title without the URL because that's what we're going to do content compares on.
-					await this.plugin.cacheOperation?.updateTaskToCacheByID(task);
+
+
 					task.title = task.title + " " + taskURL;
 					const updatedTask = await this.plugin.tickTickRestAPI?.UpdateTask(task)
+					//Cache the title without the URL because that's what we're going to do content compares on.
+					updatedTask.title = await this.plugin.taskParser?.stripOBSUrl(updatedTask.title)
+					await this.plugin.cacheOperation?.updateTaskToCacheByID(updatedTask);
 				} else {
 					const error = "Task: " +  taskDetail +  "from file: " +  filepath +  "not found.";
 					throw new Error(error);
