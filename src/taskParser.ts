@@ -443,51 +443,54 @@ export class TaskParser {
     }
 
 
-    getDueDateFromLineText(text: string) {
+	getDueDateFromLineText(text: string) {
 		console.log(text);
-		console.log('@@@ gddfl in: ', text);
+		// console.log('@@@ gddfl in: ', text);
 		let isAllDay = true;
-        const regEx = REGEX.DUE_DATE;
+		const regEx = REGEX.DUE_DATE;
 		let results = [...text.matchAll(regEx)];
-		console.log('@@@ Date parts from Regex: ', results);
-		if (results.length == 0){
-			const nullDate = "";
-			const nullVal = ""
-			return {isAllDay,nullDate, nullVal};
+		// console.log('@@@ Date parts from Regex: ', results);
+		if (results.length == 0) {
+			const nullDate = '';
+			const nullVal = '';
+			return { isAllDay, nullDate, nullVal };
 		}
 
 		let result;
 		if (results.length > 1) {
 			//arbitrarily take the last one
-			result = results[results.length -1]
+			result = results[results.length - 1];
 		} else {
 			result = results[0];
 		}
-		for (const resultKey in result) {
-			console.log("@@@ ---", resultKey, result[resultKey]);
-		}
-        let returnDate = null;
-        if (result) {
-			console.log("String Date parts: ", result);
-            if (!result[3]) {
-				returnDate = `${result[2]} 00:00:00.000`
-				isAllDay = true
-            } else {
-				returnDate = `${result[2]} ${result[3]}`
-				isAllDay = false
+		// for (const resultKey in result) {
+		// 	console.log("@@@ ---", resultKey, result[resultKey]);
+		// }
+		let returnDate = null;
+		if (result) {
+			// console.log("String Date parts: ", result);
+			if (!result[3]) {
+				returnDate = `${result[2]}T00:00:00.000`;
+				isAllDay = true;
+			} else {
+				if (result[3].includes("24:")) {
+					result[3] = result[3].replace("24:","00:")
+				}
+				returnDate = `${result[2]}T${result[3]}`;
+				isAllDay = false;
 			}
-			console.log("@@@ ReturnDate: ", isAllDay, result[2], returnDate);
-            returnDate = this.formatDateToISO(new Date(returnDate));
-			console.log("@@@@ ISO ReturnDate: ", returnDate);
-        }
+			// console.log("@@@ ReturnDate: ", isAllDay, result[2], returnDate);
+			// console.log("@@@ date from date: ", new Date(returnDate))
+			returnDate = this.formatDateToISO(new Date(returnDate));
+			console.log('@@@@ ISO ReturnDate: ', returnDate);
+		}
 		const emoji = result[1];
-		console.log("@@@ Returning ", {isAllDay,returnDate, emoji});
-        return {isAllDay,returnDate, emoji};
-    }
+		// console.log("@@@ Returning ", {isAllDay,returnDate, emoji});
+		return { isAllDay, returnDate, emoji };
+	}
 
 
-
-    getProjectNameFromLineText(text: string) {
+	getProjectNameFromLineText(text: string) {
         const result = REGEX.PROJECT_NAME.exec(text);
         return result ? result[1] : null;
     }
@@ -736,6 +739,8 @@ export class TaskParser {
 		if (localDate.includes("PM")) {
 			console.log("@@@@ adding 12");
 			hours = (Number(hours) + 12).toString();
+		} else if ((localDate.includes("AM") && hours === "12")) {
+			hours = "24";
 		}
 		hours = String(hours).padStart(2, '0');
 		minutes = String(minutes).padStart(2, '0')
@@ -762,8 +767,9 @@ export class TaskParser {
         if (isNaN(dateTime.getTime())) {
             return "Invalid Date";
         }
-		// const convertedDate = new Date(dateTime.getTime() + (dateTime.getTimezoneOffset() * 60000));
-		const convertedDate = new Date(dateTime.getTime());
+		const tzoffset = dateTime.getTimezoneOffset()
+		console.log("+++ tz offset: ", tzoffset, tzoffset * 60000)
+	const convertedDate = new Date(dateTime.getTime());
 		console.log("+++ convertedDate: ", convertedDate);
 		const result = convertedDate.toISOString().replace(/Z$/, '+0000');
 		console.log("+++ ISO Date: ", result)

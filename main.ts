@@ -47,6 +47,7 @@ export default class TickTickSync extends Plugin {
 			new Notice('Settings failed to load. Please reload the TickTickSync plugin.');
 			return;
 		}
+
 		//We're going to handle data structure conversions here.
 		if (!this.settings.version) {
 			//First Conversion. From 1.0.6 to 1.0.8
@@ -75,7 +76,9 @@ export default class TickTickSync extends Plugin {
 				fileMetataDataStructure[file] = newTasksHolder;
 			}
 			//Force a sync
-			await this.scheduledSynchronization();
+			if (this.settings && this.settings.apiInitialized) {
+				await this.scheduledSynchronization();
+			}
 		}
 		if ((!this.settings.version) || (this.isOlder(this.settings.version ,"1.0.10"))) {
 			//get rid of user name and password. we don't need them no more.
@@ -108,9 +111,11 @@ export default class TickTickSync extends Plugin {
 				new Notice(`Sync completed..`)
 			});
 			//Used for testing adhoc code.
-			// const ribbonIconEl1 = this.addRibbonIcon('check', 'TickTickSync', async (evt: MouseEvent) => {
-			// 	// Nothing to see here right now.
-			// });
+			const ribbonIconEl1 = this.addRibbonIcon('check', 'TickTickSync', async (evt: MouseEvent) => {
+				// Nothing to see here right now.
+				let timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+				new Notice("Time Zone: " + timeZone, 0)
+			});
 		}
 
 		//Key event monitoring, judging line breaks and deletions
@@ -629,14 +634,25 @@ export default class TickTickSync extends Plugin {
 			}
 
 			const filesToSync = this.settings.fileMetadata;
+			let newFilesToSync = filesToSync;
+			//If one project is to be synced, don't look at it's other files.
+			//TODO: I might kill this later
+
+			if (this.settings.SyncProject) {
+				newFilesToSync =
+					Object.fromEntries(
+						Object.entries(filesToSync).filter(([key, value]) => value.defaultProjectId == this.settings.SyncProject)
+					);
+			}
 			if (this.settings.debugMode) {
-				console.log(filesToSync)
+				console.log(newFilesToSync)
 			}
 
-			let newFilesToSync = filesToSync;
+
+
 
 			//let's see if any files got killed while we weren't watching
-			for (const fileKey in filesToSync) {
+			for (const fileKey in newFilesToSync) {
 				const file = this.app.vault.getAbstractFileByPath(fileKey)
 				if (!file) {
 					newFilesToSync = await this.cacheOperation?.deleteFilepathFromMetadata(fileKey);
