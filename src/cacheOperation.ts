@@ -287,7 +287,8 @@ export class CacheOperation {
 			(projectId === this.plugin.settings.defaultProjectId)){ //highly unlikely, but just in case
 			//They don't have a file for the Inbox. If they have a default project, return that.
 			if (this.plugin.settings.defaultProjectName) {
-				filePath = this.plugin.settings?.TickTickTasksFilePath +"/"+ this.plugin.settings.defaultProjectName + ".md"
+				// filePath = this.plugin.settings?.TickTickTasksFilePath +"/"+ this.plugin.settings.defaultProjectName + ".md"
+				filePath = this.plugin.settings.defaultProjectName + ".md"
 				return filePath
 			}
 		}
@@ -744,7 +745,6 @@ export class CacheOperation {
 	async findTaskInFiles(taskId: string): Promise<string|null> {
 		const markdownFiles = this.app.vault.getMarkdownFiles();
 		for (const file of markdownFiles) {
-			console.log(file.path)
 			const listItemsCache: ListItemCache[] = this.app.metadataCache.getFileCache(file)?.listItems ?? [];
 
 			const taskList= await this.findInFile(file, listItemsCache);

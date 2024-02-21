@@ -13,11 +13,16 @@ The plugin works best when the [Tasks](https://github.com/obsidian-tasks-group/o
 - Tasks added or updated from TickTick are synched on a configurable time interval.
 - Moving Tasks between Projects is now supported. Please see [Task movement documentation](https://github.com/thesamim/TickTickSync/wiki/Documentation#moving-tasks).
 - Moving Tasks between Parents is now supported.
+- Due dates accommodate times, times are no longer stripped in Obsidian.  
 
 ## Notes
 > :warning: 
 > # CAUTION!
-
+> Please note: In addition to the date handling improvements, it is now possible to use the Scheduled date emoji as the 
+> due date. As a side effect: If there are multiple dates on the task that can be interpreted as a due date, only the 
+> last date will be used. The others will be deleted. If you prefer different handling of dates, please either open an
+> [issue](https://github.com/thesamim/TickTickSync/issues) or start a [discussion](https://github.com/thesamim/TickTickSync/discussions) with your thoughts.
+> 
 > Please see the [New Date Handling caution in documentation.](https://github.com/thesamim/TickTickSync/wiki/Documentation#new-date-handling)
 > 
 > It is possible to create duplicate projects/lists in TickTick. TickTickSync will show a warning and ask you to rename/move one of the duplicates because duplicate lists mess up synchronization. All synchronization will stop until the issue is handled.
@@ -38,16 +43,14 @@ The plugin works best when the [Tasks](https://github.com/obsidian-tasks-group/o
 8. Relatively confident that Time Zone difference issues are resolved. If not: Please open an issue with details.
 9. It is now possible control synchronization. Please see [details here](https://github.com/thesamim/TickTickSync/wiki/Documentation#limit-synchronization).
 10. TickTick has changed sign in procedures. You will have to login manually from settings.
+11. Tag handling now conforms to Obsidian tag handling.
 
 ## Known Issues
 
 1. The plugin only works with the [Tasks emoji formats](https://publish.obsidian.md/tasks/Reference/Task+Formats/About+Task+Formats). It will **not** work with the Dataview format. In the fullness of time, this plugin will be refactored to use Tasks functionality to support both.
-2. Due Date:
-   1. On the Obsidian side: if no time is provided, the start time will default to 08:00
-   2. On the TickTick side: if not time is provided, the start time will be 00:00 
-3. Because Tags can't have spaces, at this time it is not possible to add a task to a project with name that contains spaces. In the fullness of time, will implement some kind of workaround (eg: `#folder_with_a_space` will be converted to `folder with a space`)
-4. If a file has a default project association (see [settings](https://github.com/thesamim/TickTickSync/wiki/Documentation#sync-control)), it is possible to create a task with a project tag other than the default project. The Task will be correctly synched to TickTick in the correct project. However, if the Task is then updated with subtasks, from TickTick, the subtasks will be synched to the project's default file rather than the file where the original parent task was created. **Additionally, the subtask will become the child of the last Task in that file.**
-5. Tags with "-" in them get seperated [Please see issue #57](https://github.com/thesamim/TickTickSync/issues/57) to track progress.
+2. Because Tags can't have spaces, at this time it is not possible to add a task to a project with name that contains spaces. In the fullness of time, will implement some kind of workaround (eg: `#folder_with_a_space` will be converted to `folder with a space`)
+3. If a file has a default project association (see [settings](https://github.com/thesamim/TickTickSync/wiki/Documentation#sync-control)), it is possible to create a task with a project tag other than the default project. The Task will be correctly synched to TickTick in the correct project. However, if the Task is then updated with subtasks, from TickTick, the subtasks will be synched to the project's default file rather than the file where the original parent task was created. **Additionally, the subtask will become the child of the last Task in that file.**
+
 
 ## Installation
 
@@ -95,6 +98,8 @@ The [TickTick api wrapper](https://github.com/thesamim/ticktick-api-lvt) used he
 Thanks to [quanru](https://github.com/quanru) for his work in enabling Dida support in [TickTick api wrapper](https://github.com/thesamim/ticktick-api-lvt) and for helping with Dida testing.
 
 Thanks to [anschein](https://github.com/anschein) for helping with Dida testing.
+
+Thanks to [Yusuf](https://github.com/akseron) for help debugging timezone issues.
 
 ## Disclaimer
 

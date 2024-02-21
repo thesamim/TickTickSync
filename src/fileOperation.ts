@@ -173,6 +173,10 @@ export class FileOperation {
         tasks.sort((taskA, taskB) => (taskA.projectId.localeCompare(taskB.projectId) ||
             taskA.id.localeCompare(taskB.id)));
         //try not overwrite files while downloading a whole bunch of tasks. Create them first, then do the addtask mambo
+		if (!tasks) {
+			console.error("No tasks to add.")
+			return false;
+		}
         const projectIds = [...new Set(tasks.map(task => task.projectId))];
         for (const projectId of projectIds) {
             let taskFile = await this.plugin.cacheOperation?.getFilepathForProjectId(projectId);
@@ -185,11 +189,11 @@ export class FileOperation {
 					const folderPath = this.plugin.settings.TickTickTasksFilePath;
 					let folder = this.app.vault.getAbstractFileByPath(folderPath)
 					if (!(folder instanceof TFolder)) {
-						console.error(`Folder ${folderPath} does not exit. It will be created`)
+						console.warn(`Folder ${folderPath} does not exit. It will be created`)
 						folder = await this.app.vault.createFolder(folderPath);
 					}
                     new Notice(`Creating new file: ${folder.path}/${taskFile}`);
-					console.error(`Creating new file: ${folder.path}/${taskFile}`);
+					console.warn(`Creating new file: ${folder.path}/${taskFile}`);
 					taskFile = `${folder.path}/${taskFile}`;
                     let whoAdded = `${this.plugin.manifest.name} -- ${this.plugin.manifest.version}`;
 					try {
@@ -345,7 +349,7 @@ export class FileOperation {
                 lines.splice(lineToInsert, 0, lineText);
             }
 
-            await this.plugin.cacheOperation?.appendTaskToCache(task, file.path);
+
             //We just add the ticktick tag, update it on ticktick now.
             let tags = this.plugin.taskParser?.getAllTagsFromLineText(lineText);
             if (tags) {
@@ -356,6 +360,7 @@ export class FileOperation {
                 task.title = task.title + " " + taskURL;
             }
             let updatedTask = await this.plugin.tickTickRestAPI?.UpdateTask(task)
+			await this.plugin.cacheOperation?.appendTaskToCache(updatedTask, file.path);
 			//keep track of added Tasks because item count is affected
 
 			addedTask.push(task.id);

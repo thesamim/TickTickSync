@@ -153,8 +153,15 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 					.addOptions(myProjectsOptions)
 					.setValue(this.plugin.settings.SyncProject)
 					.onChange(async (value) => {
-
 						this.plugin.settings.SyncProject = value;
+						const fileMetaData = this.plugin.settings.fileMetadata;
+						const defaultProjectFileEntry = Object.values(fileMetaData).find(obj => obj.defaultProjectId === this.plugin.settings.SyncProject );
+						if(!defaultProjectFileEntry) {
+							const noticeMsg = "Did not find a default Project File for Project " +
+								myProjectsOptions?.[value] +
+								". Please create a file and set it's default to this project, or select a file to be the default for this project."
+							new Notice(noticeMsg, 0)
+						}
 						await this.plugin.saveSettings()
 					})
 			)
@@ -508,7 +515,10 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 				cb.onClick(async () => {
 					let new_folder = folderSearch?.getValue();
 					const updatedFolder = await  this.validateNewFolder(new_folder);
-					console.log("updated folder: ", updatedFolder)
+					if (this.plugin.settings.debugMode)
+					{
+						console.log('updated folder: ', updatedFolder);
+					}
 					if (updatedFolder) {
 						folderSearch?.setValue(updatedFolder)
 						this.plugin.settings.TickTickTasksFilePath = updatedFolder

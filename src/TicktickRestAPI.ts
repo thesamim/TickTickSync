@@ -88,7 +88,11 @@ export class TickTickRestAPI {
 	async AddTask(taskToAdd: ITask) {
 		await this.initializeAPI();
 		try {
+			//This hurts my feelings. But TickTick looks at startdate before duedate.
+			//For now, just null out the due date.
+			taskToAdd.dueDate = '';
 			const newTask = await this.api?.addTask(taskToAdd);
+			console.log(newTask);
 			return newTask;
 		} catch (error) {
 			throw new Error(`Error adding task: ${error.message}`);
@@ -137,7 +141,12 @@ export class TickTickRestAPI {
 		await this.initializeAPI();
 
 		try {
-			const updatedTask = await this.api?.updateTask(taskToUpdate);
+			//This hurts my feelings. But TickTick looks at startdate before duedate.
+			//For now, just null out the due date.
+			taskToUpdate.dueDate = '';
+			let updatedTask = {};
+			const updateResult = await this.api?.updateTask(taskToUpdate);
+			// console.log("update result: ", updateResult.id2error);
 			return updatedTask;
 		} catch (error) {
 			throw new Error(`Error updating task: ${error.message}`);
