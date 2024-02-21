@@ -111,11 +111,11 @@ export default class TickTickSync extends Plugin {
 				new Notice(`Sync completed..`)
 			});
 			//Used for testing adhoc code.
-			const ribbonIconEl1 = this.addRibbonIcon('check', 'TickTickSync', async (evt: MouseEvent) => {
-				// Nothing to see here right now.
-				let timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-				new Notice("Time Zone: " + timeZone, 0)
-			});
+			// const ribbonIconEl1 = this.addRibbonIcon('check', 'TickTickSync', async (evt: MouseEvent) => {
+			// 	// Nothing to see here right now.
+			// 	let timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+			// 	new Notice("Time Zone: " + timeZone, 0)
+			// });
 		}
 
 		//Key event monitoring, judging line breaks and deletions
@@ -644,9 +644,9 @@ export default class TickTickSync extends Plugin {
 						Object.entries(filesToSync).filter(([key, value]) => value.defaultProjectId == this.settings.SyncProject)
 					);
 			}
-			if (this.settings.debugMode) {
-				console.log(newFilesToSync)
-			}
+			// if (this.settings.debugMode) {
+			// 	console.log(newFilesToSync)
+			// }
 
 
 
