@@ -745,7 +745,6 @@ export class CacheOperation {
 	async findTaskInFiles(taskId: string): Promise<string|null> {
 		const markdownFiles = this.app.vault.getMarkdownFiles();
 		for (const file of markdownFiles) {
-			console.log(file.path)
 			const listItemsCache: ListItemCache[] = this.app.metadataCache.getFileCache(file)?.listItems ?? [];
 
 			const taskList= await this.findInFile(file, listItemsCache);

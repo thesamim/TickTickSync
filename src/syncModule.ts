@@ -300,8 +300,6 @@ export class SyncMan {
 		//check task
 		if (this.plugin.taskParser?.hasTickTickId(lineText) && this.plugin.taskParser?.hasTickTickTag(lineText)) {
 			const lineTask = await this.plugin.taskParser?.convertTextToTickTickTaskObject(lineText, filepath, lineNumber, fileContent)
-
-			console.log("TaskDate: ", lineTask.isAllDay, lineTask.dueDate);
 			const lineTask_ticktick_id = lineTask.id
 			const savedTask = await this.plugin.cacheOperation?.loadTaskFromCacheID(lineTask_ticktick_id)
 

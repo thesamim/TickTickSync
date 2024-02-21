@@ -515,7 +515,10 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 				cb.onClick(async () => {
 					let new_folder = folderSearch?.getValue();
 					const updatedFolder = await  this.validateNewFolder(new_folder);
-					console.log("updated folder: ", updatedFolder)
+					if (this.plugin.settings.debugMode)
+					{
+						console.log('updated folder: ', updatedFolder);
+					}
 					if (updatedFolder) {
 						folderSearch?.setValue(updatedFolder)
 						this.plugin.settings.TickTickTasksFilePath = updatedFolder

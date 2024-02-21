@@ -1,16 +1,9 @@
 import { App } from 'obsidian';
-import TickTickSync from "../main";
-import { Tick } from 'ticktick-api-lvt'
-import { ITask } from "ticktick-api-lvt/dist/types/Task"
-import { ITag } from 'ticktick-api-lvt/dist/types/Tag';
-import {Task} from "obsidian-task/src/Task/Task"
-import {TaskRegularExpressions} from "obsidian-task/src/Task/TaskRegularExpressions"
+import TickTickSync from '../main';
+import { ITask } from 'ticktick-api-lvt/dist/types/Task';
+import { Task } from 'obsidian-task/src/Task/Task';
+import { TaskRegularExpressions } from 'obsidian-task/src/Task/TaskRegularExpressions';
 import { TaskLocation } from 'obsidian-task/src/Task/TaskLocation';
-import { log } from 'obsidian-task/src/lib/logging';
-
-
-
-
 
 
 interface dataviewTaskObject {
@@ -243,15 +236,18 @@ export class TaskParser {
         return resultLine;
     }
 
-    private addDueDateToLine(resultLine: string, task: ITask) {
-		let dueDate = "";
-		if (task.isAllDay) {
-			dueDate = this.utcToLocalNoTime(task.dueDate)
-		} else {
-			dueDate = this.utcToLocal(task.dueDate)
-		}
-        resultLine = resultLine + ' 📅 ' + dueDate;
-        return resultLine;
+    getTaskContentFromLineText(lineText: string) {
+        let TaskContent = lineText.replace(REGEX.TASK_CONTENT.REMOVE_INLINE_METADATA, "")
+            .replace(REGEX.TASK_CONTENT.REMOVE_TickTick_LINK, "")
+            .replace(REGEX.TASK_CONTENT.REMOVE_PRIORITY, " ") //There must be spaces before and after priority.
+            .replace(REGEX.TASK_CONTENT.REMOVE_TAGS, "")
+            .replace(REGEX.TASK_CONTENT.REMOVE_DATE, "")
+            .replace(REGEX.TASK_CONTENT.REMOVE_CHECKBOX, "")
+            .replace(REGEX.TASK_CONTENT.REMOVE_CHECKBOX_WITH_INDENTATION, "")
+            .replace(REGEX.TASK_CONTENT.REMOVE_SPACE, "")
+
+		TaskContent = this.stripOBSUrl(TaskContent);
+        return (TaskContent)
     }
 
     addTagsToLine(resultLine: string, tags: ITask.tags) {
@@ -336,7 +332,6 @@ export class TaskParser {
 		}
 
         let dueDateStruct = this.getDueDateFromLineText(textWithoutIndentation)
-		console.log("on build: ", dueDateStruct);
         var timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
 
@@ -444,8 +439,6 @@ export class TaskParser {
 
 
 	getDueDateFromLineText(text: string) {
-		console.log(text);
-		// console.log('@@@ gddfl in: ', text);
 		let isAllDay = true;
 		const regEx = REGEX.DUE_DATE;
 		let results = [...text.matchAll(regEx)];
@@ -479,10 +472,7 @@ export class TaskParser {
 				returnDate = `${result[2]}T${result[3]}`;
 				isAllDay = false;
 			}
-			// console.log("@@@ ReturnDate: ", isAllDay, result[2], returnDate);
-			// console.log("@@@ date from date: ", new Date(returnDate))
 			returnDate = this.formatDateToISO(new Date(returnDate));
-			console.log('@@@@ ISO ReturnDate: ', returnDate);
 		}
 		const emoji = result[1];
 		// console.log("@@@ Returning ", {isAllDay,returnDate, emoji});
@@ -501,19 +491,27 @@ export class TaskParser {
         return result ? result[1] : null;
     }
 
-    getTaskContentFromLineText(lineText: string) {
-        let TaskContent = lineText.replace(REGEX.TASK_CONTENT.REMOVE_INLINE_METADATA, "")
-            .replace(REGEX.TASK_CONTENT.REMOVE_TickTick_LINK, "")
-            .replace(REGEX.TASK_CONTENT.REMOVE_PRIORITY, " ") //There must be spaces before and after priority.
-            .replace(REGEX.TASK_CONTENT.REMOVE_TAGS, "")
-            .replace(REGEX.TASK_CONTENT.REMOVE_DATE, "")
-            .replace(REGEX.TASK_CONTENT.REMOVE_CHECKBOX, "")
-            .replace(REGEX.TASK_CONTENT.REMOVE_CHECKBOX_WITH_INDENTATION, "")
-            .replace(REGEX.TASK_CONTENT.REMOVE_SPACE, "")
-		// console.log("AfteR: ", TaskContent)
-		TaskContent = this.stripOBSUrl(TaskContent);
-		console.log("Stripping results: ", TaskContent);
-        return (TaskContent)
+	utcToLocal(utcDateString: string, bIsAllDay: boolean) {
+		const date = new Date(utcDateString);
+		const localDate = date.toLocaleString();
+		const [datePart, timePart] = localDate.split(', ');
+		let [month, day, year] = datePart.split('/')
+		month = String(month).padStart(2, '0')
+		day = String(day).padStart(2, '0')
+		let [hours, minutes] = timePart.split(':');
+		if (localDate.includes("PM")) {
+			hours = (Number(hours) + 12).toString();
+		} else if ((localDate.includes("AM") && hours === "12")) {
+			hours = "24";
+		}
+		hours = String(hours).padStart(2, '0');
+		minutes = String(minutes).padStart(2, '0')
+		if (!bIsAllDay) {
+			return `${year}-${month}-${day} ${hours}:${minutes}`;
+		} else {
+			return `${year}-${month}-${day}`;
+		}
+
     }
 
 
@@ -606,16 +604,10 @@ export class TaskParser {
 			const date2 = this.cleanDate(TickTickTaskDue);
 			const date1TZ = date1.getTimezoneOffset();
 			const date2TZ = date2.getTimezoneOffset();
-			console.log('@@@ timeZones: ', date1TZ, date2TZ);
-			console.log("@@@@ ", date1.getTime(), date2.getTime());
 			const diff = (date1.getTime() - date2.getTime()) /3600000;
-			console.log("@@@ Diff", diff);
 
 			const utcDate1 = date1;
 			const utcDate2 = date2;
-
-			console.log('@@@\nDate 1:\n', lineTaskDue, '\n', utcDate1, '\nDate 2: \n', TickTickTaskDue, '\n', utcDate2);
-
 
 			if (utcDate1.getTime() === utcDate2.getTime()) {
 				return false;
@@ -717,64 +709,22 @@ export class TaskParser {
         return (REGEX.BLANK_LINE.test(lineText))
     }
 
-
-    //Insert date in linetext
-    insertDueDateBeforeTickTick(text, dueDate) {
-        // console.log("Inserting: ", dueDate)
-        const regex = new RegExp(`(${keywords.TickTick_TAG})`)
-        return text.replace(regex, `📅 ${dueDate} $1`);
-    }
-
-
-    utcToLocal(utcDateString: string) {
-		console.log("@@@ in date: ", utcDateString, Intl.DateTimeFormat().resolvedOptions().locale, Intl.DateTimeFormat().resolvedOptions().timeZone);
-		const date = new Date(utcDateString);
-		const localDate = date.toLocaleString();
-		console.log("@@@ local date[", localDate,"]");
-		const [datePart, timePart] = localDate.split(', ');
-		let [month, day, year] = datePart.split('/')
-		month = String(month).padStart(2, '0')
-		day = String(day).padStart(2, '0')
-		let [hours, minutes] = timePart.split(':');
-		if (localDate.includes("PM")) {
-			console.log("@@@@ adding 12");
-			hours = (Number(hours) + 12).toString();
-		} else if ((localDate.includes("AM") && hours === "12")) {
-			hours = "24";
-		}
-		hours = String(hours).padStart(2, '0');
-		minutes = String(minutes).padStart(2, '0')
-		console.log("@@@ out date", `${year}-${month}-${day} ${hours}:${minutes}` );
-		return `${year}-${month}-${day} ${hours}:${minutes}`;
-
-    }
-	utcToLocalNoTime(utcDateString: string) {
-		console.log("@@@ in date noTime: ", utcDateString, Intl.DateTimeFormat().resolvedOptions().locale, Intl.DateTimeFormat().resolvedOptions().timeZone);
-		const date = new Date(utcDateString);
-		const localDate = date.toLocaleString();
-		console.log("@@@ local date noTime", localDate);
-		const [datePart, timePart] = localDate.split(', ');
-		let [month, day, year] = datePart.split('/')
-		month = String(month).padStart(2, '0')
-		day = String(day).padStart(2, '0')
-		console.log("@@@ out date noTime", `${year}-${month}-${day}` );
-		return `${year}-${month}-${day}`;
-	}
-    //Format date to TickTick Accepted date. 
+	//Format date to TickTick Accepted date.
     formatDateToISO(dateTime: Date) {
-      	console.log("+++ inputdate: ", dateTime);
-        // Check if the input is a valid date
-        if (isNaN(dateTime.getTime())) {
-            return "Invalid Date";
-        }
-		const tzoffset = dateTime.getTimezoneOffset()
-		console.log("+++ tz offset: ", tzoffset, tzoffset * 60000)
-	const convertedDate = new Date(dateTime.getTime());
-		console.log("+++ convertedDate: ", convertedDate);
+		// Check if the input is a valid date
+		if (isNaN(dateTime.getTime())) {
+			return 'Invalid Date';
+		}
+		const tzoffset = dateTime.getTimezoneOffset();
+		const convertedDate = new Date(dateTime.getTime());
 		const result = convertedDate.toISOString().replace(/Z$/, '+0000');
-		console.log("+++ ISO Date: ", result)
+		return result;
+	}
 
-        return result;
+    private addDueDateToLine(resultLine: string, task: ITask) {
+		const dueDate = this.utcToLocal(task.dueDate, task.isAllDay);
+        resultLine = resultLine + ' 📅 ' + dueDate;
+        return resultLine;
     }
 
     //TODO fix this.
