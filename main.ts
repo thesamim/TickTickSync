@@ -97,7 +97,11 @@ export default class TickTickSync extends Plugin {
 		// This adds a settings tab so the user can configure various aspects of the plugin
 		this.addSettingTab(new TickTickSyncSettingTab(this.app, this));
 		this.settings.apiInitialized = false;
-		await this.initializePlugin();
+		try {
+			await this.initializePlugin();
+		} catch (Error) {
+			console.error("API Initialization Failed.");
+		}
 
 		//lastLine object {path:line} is saved in lastLines map
 		this.lastLines = new Map();

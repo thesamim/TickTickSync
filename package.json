@@ -25,7 +25,7 @@
 		"@popperjs/core": "^2.11.6",
 		"bson-objectid": "^2.0.4",
 		"dependency-tree": "^10.0.9",
-		"electron": "29.0.0-beta.8",
+		"electron": "^29.0.0",
 		"obsidian-task": "github:obsidian-tasks-group/obsidian-tasks",
 		"ticktick-api-lvt": "github:thesamim/ticktick-api-lvt"
 	},
