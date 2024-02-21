@@ -66,6 +66,7 @@ enum Priority {
 const keywords = {
     TickTick_TAG: "#ticktick",
     DUE_DATE: "⏳|🗓️|📅|📆|🗓",
+	TASK_COMPLETE: "✅",
     // priorityIcons: "⏬|🔽|🔼|⏫|🔺",
     // priority: `\s([${priorityEmojis.toString()}])\s`
     priority: `\\s([\u{23EC}\u{1F53D}\u{1F53C}\u{23EB}\u{1F53A}])\\s`
@@ -89,6 +90,7 @@ const tag_regex = /(?<=\s)#[\w\d\u4e00-\u9fff\u0600-\u06ff\uac00-\ud7af-_/]+/g /
 // const due_date_regex = `(${keywords.DUE_DATE})\\s(\\d{4}-\\d{2}-\\d{2})(\\s\\d{1,}:\\d{2})?`
 const due_date_regex = `(${keywords.DUE_DATE})\\s(\\d{4}-\\d{2}-\\d{2})\\s*(\\d{1,}:\\d{2})*`
 const due_date_strip_regex = `[${keywords.DUE_DATE}]\\s\\d{4}-\\d{2}-\\d{2}(\\s\\d{1,}:\\d{2}|)`
+const completion_date_regex = `(${keywords.TASK_COMPLETE})\\s(\\d{4}-\\d{2}-\\d{2})\\s*(\\d{1,}:\\d{2})*`
 
 
 const REGEX = {
@@ -100,6 +102,7 @@ const REGEX = {
     DUE_DATE_WITH_EMOJ: new RegExp(`(${keywords.DUE_DATE})\\s?\\d{4}-\\d{2}-\\d{2}`),
     // DUE_DATE : new RegExp(`(?:${keywords.DUE_DATE})\\s?(\\d{4}-\\d{2}-\\d{2})`),
     DUE_DATE: new RegExp(due_date_regex, 'gmu'),
+	COMPLETION_DATE: new RegExp(completion_date_regex, 'gmu'),
     PROJECT_NAME: /\[project::\s*(.*?)\]/,
     TASK_CONTENT: {
         REMOVE_PRIORITY: /[🔺⏫🔼🔽⏬]/ug,
@@ -154,6 +157,9 @@ export class TaskParser {
 
 		//add priority
 		resultLine = this.addPriorityToLine(resultLine, task);
+
+		//TODO: This is a kludge. need to do a better job of handling completion dates...
+		resultLine = this.removeMultipleCompletionDates(resultLine, task);
 
 		//add due date
 		if (task.dueDate) {
@@ -811,4 +817,25 @@ export class TaskParser {
 		return cleanedDate;
 	}
 
+	private removeMultipleCompletionDates(text: string, task: ITask) {
+		console.log("### Strip completion dates");
+		const regEx = REGEX.COMPLETION_DATE;
+		let results = [...text.matchAll(regEx)];
+		console.log("### Found: ", results);
+		if (results.length == 0) {
+			const nullDate = '';
+			const nullVal = '';
+			return text;
+		}
+
+		let result;
+		if (results.length > 1) {
+			//arbitrarily take the last one
+			for (let i = 0; i < results.length; i++) {
+				console.log("### Replacing ", `${results[i][1]} ${results[i][2]}`);
+				text = text.replace(`${results[i][1]} ${results[i][2]}`, '');
+			}
+		}
+		return text;
+	}
 }

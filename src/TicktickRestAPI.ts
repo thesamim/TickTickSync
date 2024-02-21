@@ -24,6 +24,7 @@ export class TickTickRestAPI {
 			new Notice("Please login from Settings.", 0)
 			this.api = null;
 			console.error("No Token")
+			throw new Error("API Not Initialized.")
 		} else {
 			if (this.plugin.settings.debugMode) {
 				console.log(JSON.stringify({
@@ -147,6 +148,12 @@ export class TickTickRestAPI {
 			let updatedTask = {};
 			const updateResult = await this.api?.updateTask(taskToUpdate);
 			// console.log("update result: ", updateResult.id2error);
+			if (JSON.stringify(updateResult.id2error) === '{}')
+			{
+				// console.log('it is fine');
+				//because of the due date BS, we need it back.
+				updatedTask = this.getTaskById(taskToUpdate.id, taskToUpdate.projectId);
+			}
 			return updatedTask;
 		} catch (error) {
 			throw new Error(`Error updating task: ${error.message}`);
