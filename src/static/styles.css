@@ -1,8 +1,7 @@
 
-.cm-line:not(:hover):not(.cm-active) span.cm-comment {
-    display: none;
+.cm-line:not(:hover):not(.cm-active) span.cm-comment:not(.cm-hmd-codeblock) {
+	display: none;
 }
-
 
 
 .ts_button {

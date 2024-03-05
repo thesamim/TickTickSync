@@ -1,7 +1,7 @@
 import {App, ListItemCache, TFile} from 'obsidian';
 import TickTickSync from "../main";
-import { ITask } from 'ticktick-api-lvt/dist/types/Task';
-import { IProject } from 'ticktick-api-lvt/dist/types/Project';
+import { ITask } from './api/types/Task';
+import { IProject } from 'src/api/types//Project';
 import {FoundDuplicatesModal} from "./modals/FoundDuplicatesModal";
 
 // type TaskDetail = {
@@ -662,7 +662,7 @@ export class CacheOperation {
 
         } catch (error) {
             console.error(`error downloading projects: ${error}`)
-            this.plugin.syncLock = false;
+            await this.plugin.unlockSynclock();;
             return false
         }
 

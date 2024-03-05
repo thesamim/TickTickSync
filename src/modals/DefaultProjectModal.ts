@@ -53,7 +53,7 @@ export class SetDefaultProjectForFileModal extends Modal {
                     .addOptions(myProjectsOptions)
                     .onChange(async (value) => {
                         await this.plugin.cacheOperation?.setDefaultProjectIdForFilepath(this.filepath, value)
-                        this.plugin.setStatusBarText()
+                        await this.plugin.setStatusBarText()
                         this.close();
                     })
 

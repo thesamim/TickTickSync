@@ -1,8 +1,4 @@
-import {MarkdownView, Notice, Plugin, Editor, WorkspaceLeaf, TFolder, ListItemCache} from 'obsidian';
-import {BrowserWindow, session} from "@electron/remote";
-import { WebRequest } from 'electron'
-
-
+import { MarkdownView, Notice, Plugin, Editor, WorkspaceLeaf, TFolder, ListItemCache, TFile } from 'obsidian';
 
 //settings
 import {TickTickSyncSettings, DEFAULT_SETTINGS, TickTickSyncSettingTab} from './src/settings';
@@ -24,12 +20,14 @@ import ObjectID from 'bson-objectid';
 
 //import modals
 import {SetDefaultProjectForFileModal} from 'src/modals/DefaultProjectModal';
+import { Tick } from './src/api';
+import { start } from '@popperjs/core';
 
 
 
 export default class TickTickSync extends Plugin {
 	settings: TickTickSyncSettings;
-	tickTickRestAPI: TickTickRestAPI | undefined;
+	tickTickRestAPI: TickTickRestAPI | undefined | null;
 	tickTickSyncAPI: TickTickSyncAPI | undefined;
 	taskParser: TaskParser | undefined;
 	cacheOperation: CacheOperation | undefined;
@@ -111,14 +109,12 @@ export default class TickTickSync extends Plugin {
 			const ribbonIconEl = this.addRibbonIcon('sync', 'TickTickSync', async (evt: MouseEvent) => {
 				// Called when the user clicks the icon.
 				await this.scheduledSynchronization();
-				this.syncLock = false
+				await this.unlockSynclock();
 				new Notice(`Sync completed..`)
 			});
 			//Used for testing adhoc code.
 			// const ribbonIconEl1 = this.addRibbonIcon('check', 'TickTickSync', async (evt: MouseEvent) => {
 			// 	// Nothing to see here right now.
-			// 	let timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-			// 	new Notice("Time Zone: " + timeZone, 0)
 			// });
 		}
 
@@ -154,11 +150,11 @@ export default class TickTickSync extends Plugin {
 					}
 					if (!await this.checkAndHandleSyncLock()) return;
 					await this.tickTickSync?.deletedTaskCheck(null);
-					this.syncLock = false;
+					await this.unlockSynclock();;
 					await this.saveSettings()
 				} catch (error) {
 					console.error(`An error occurred while deleting tasks: ${error}`);
-					this.syncLock = false
+					await this.unlockSynclock();
 				}
 
 			}
@@ -176,7 +172,6 @@ export default class TickTickSync extends Plugin {
 
 			//console.log('click', evt);
 			if (this.app.workspace.activeEditor?.editor?.hasFocus()) {
-				//console.log('Click event: editor is focused');
 				await this.lineNumberCheck()
 			} else {
 				//
@@ -186,9 +181,10 @@ export default class TickTickSync extends Plugin {
 
 			if (target && target.type === "checkbox") {
 				await this.checkboxEventhandle(evt)
-				//this.tickTickSync?.fullTextModifiedTaskCheck()
-
 			}
+			// 	// this.tickTickSync?.fullTextModifiedTaskCheck()
+			//
+			// }
 
 		});
 
@@ -213,15 +209,15 @@ export default class TickTickSync extends Plugin {
 				if (!await this.checkAndHandleSyncLock()) return;
 				await this.tickTickSync?.lineContentNewTaskCheck(editor, view)
 				await this.saveSettings()
-				this.syncLock = false
+				await this.unlockSynclock();
 			} catch (error) {
 				console.error(`An error occurred while check new task in line: ${error.message}`);
-				this.syncLock = false
+				await this.unlockSynclock();
 			}
 
 		}))
 
-		//Listen to the rename event and update the path in task data
+		//Listen to the delete event
 		this.registerEvent(this.app.vault.on('delete', async (file) => {
 			if (file instanceof TFolder) {
 				//individual file deletes will be handled. I hope.
@@ -239,17 +235,12 @@ export default class TickTickSync extends Plugin {
 			if (!(this.checkModuleClass())) {
 				return
 			}
-			await this.cacheOperation?.updateRenamedFilePath(oldpath, file.path)
+			// @ts-ignore
+			await this.tickTickSync.deletedTaskCheck(file.path);
+			await this.cacheOperation?.deleteFilepathFromMetadata(file.path)
 			await this.saveSettings()
 
-			//update task description
-			if (!await this.checkAndHandleSyncLock()) return;
-			try {
-				await this.tickTickSync?.updateTaskContent(file.path)
-			} catch (error) {
-				console.error('An error occurred in updateTaskDescription:', error);
-			}
-			this.syncLock = false;
+			await this.unlockSynclock();;
 
 		}));
 
@@ -281,7 +272,7 @@ export default class TickTickSync extends Plugin {
 			} catch (error) {
 				console.error('An error occurred in updateTaskDescription:', error);
 			}
-			this.syncLock = false;
+			await this.unlockSynclock();;
 
 		}));
 
@@ -310,10 +301,10 @@ export default class TickTickSync extends Plugin {
 				if (!await this.checkAndHandleSyncLock()) return;
 				// console.log("go check.")
 				await this.tickTickSync?.fullTextNewTaskCheck(filepath)
-				this.syncLock = false;
+				await this.unlockSynclock();;
 			} catch (error) {
 				console.error(`An error occurred while modifying the file: ${error.message}`);
-				this.syncLock = false
+				await this.unlockSynclock();
 				// You can add further error handling logic here. For example, you may want to
 				// revert certain operations, or alert the user about the error.
 			}
@@ -321,8 +312,8 @@ export default class TickTickSync extends Plugin {
 
 		this.registerInterval(window.setInterval(async () => await this.scheduledSynchronization(), this.settings.automaticSynchronizationInterval * 1000));
 
-		this.registerEvent(this.app.workspace.on('active-leaf-change', (leaf) => {
-			this.setStatusBarText()
+		this.registerEvent(this.app.workspace.on('active-leaf-change', async (leaf) => {
+			await this.setStatusBarText()
 		}));
 
 
@@ -381,7 +372,6 @@ export default class TickTickSync extends Plugin {
 	// return true of false
 	async initializePlugin() {
 
-		// console.log("new api")
 		//initialize TickTick restapi
 		this.tickTickRestAPI = new TickTickRestAPI(this.app, this)
 		await this.tickTickRestAPI.initializeAPI();
@@ -411,6 +401,17 @@ export default class TickTickSync extends Plugin {
 
 			//Create a backup folder to back up TickTick data
 			try {
+
+				//TODO: this should not be necessary. Check why it was at some point.
+				if (!this.settings.SyncTag) {
+					this.settings.SyncTag = "";
+					await  this.saveSettings();
+				}
+				if (!this.settings.SyncProject) {
+					this.settings.SyncProject = "";
+					await  this.saveSettings();
+				}
+
 				//Start the plug-in for the first time and back up TickTick data
 				this.taskParser = new TaskParser(this.app, this)
 
@@ -448,7 +449,7 @@ export default class TickTickSync extends Plugin {
 		//get user plan resources
 		//const rsp = await this.TickTickSyncAPI.getUserResource()
 		// this.settings.apiInitialized = true
-		this.syncLock = false
+		await this.unlockSynclock();
 		new Notice(`TickTickSync loaded successfully.`)
 		return true
 
@@ -521,10 +522,10 @@ export default class TickTickSync extends Plugin {
 				};
 
 				modified = await this.tickTickSync?.lineModifiedTaskCheck(filepath as string, lastLineText, lastLine as number, fileContent)
-				this.syncLock = false;
+				await this.unlockSynclock();;
 				// }catch(error){
 				//     console.error(`An error occurred while check modified task in line text: ${error}`);
-				//     this.syncLock = false
+				//     await this.unlockSynclock();
 				// }
 			} else {
 				//console.log('Line not changed');
@@ -535,48 +536,99 @@ export default class TickTickSync extends Plugin {
 	}
 
 	async checkboxEventhandle(evt: MouseEvent) {
+		console.log("### CheckBoxHandler");
 		if (!(this.checkModuleClass())) {
-			return
+			return;
 		}
-		const target = evt.target as HTMLInputElement;
 
-		const taskElement = target.closest("div"); //Use the evt.target.closest() method to find a specific parent element instead of directly accessing a specific index in the event path
-		//console.log(taskElement)
-		if (!taskElement) return;
-		const match = this.taskParser?.hasTickTickId(taskElement.textContent);
-		if (match) {
-			const taskId = this.taskParser?.getTickTickIdFromLineText(taskElement.textContent);
-			//console.log(taskId)
-			if (target.checked) {
-				this.tickTickSync?.closeTask(taskId);
-			} else {
-				this.tickTickSync?.reopenTask(taskId);
+		const target = evt.target as HTMLInputElement;
+		const bOpenTask = target.checked;
+		console.log('### Check Mark state: ', bOpenTask);
+
+		console.log("### Clicked on Element: ", target);
+		//This breaks for subtasks if Tasks is installed. See: https://github.com/obsidian-tasks-group/obsidian-tasks/discussions/2685
+		//hence the else.
+		const taskElement = target.closest('div');
+		if (taskElement) {
+			console.log("### Found Parent Div Task Element: ", taskElement);
+			console.log("### Parent of clicked Element: ", target.parentElement);
+			const taskLine = taskElement.textContent
+			console.log("### Task Text: ", taskLine);
+		} else {
+			console.log("### no parent Div for clicked Element!");
+			console.log("### Parent of clicked Element: ", target.parentElement);
+			let startHere = target.parentElement;
+			while (startHere) {
+				startHere = startHere.parentElement;
+				console.log("### Next Ancestor: ", startHere);
+			}
+		}
+		console.log("### --------");
+	}
+
+
+	async oldCheckboxEventhandle(evt: MouseEvent) {
+		if (!(this.checkModuleClass())) {
+			return;
+		}
+
+		const target = evt.target as HTMLInputElement;
+		const bOpenTask = target.checked;
+		console.log('Second: Checked: ', bOpenTask);
+
+		//This breaks for subtasks if Tasks is installed. See: https://github.com/obsidian-tasks-group/obsidian-tasks/discussions/2685
+		//hence the else.
+		const taskElement = target.closest('div');
+		if (taskElement) {
+			const taskLine = taskElement.textContent
+			const taskId = this.taskParser?.getTickTickIdFromLineText(taskLine);
+			if (taskId) {
+				// let task = this.taskParser?.convertTextToTickTickTaskObject(tas)
+				if (bOpenTask) {
+					console.log('it\'s open, close it.');
+					this.tickTickSync?.closeTask(taskId);
+				} else {
+					console.log('it\'s closed, open it.');
+					this.tickTickSync?.reopenTask(taskId);
+				}
 			}
 		} else {
-			//console.log('TickTick_id not found');
+			console.log('#### TickTick_id not found -- do it the hard way.');
 			//Start full-text search and check status updates
 			try {
+				console.log('#### Full text modified??');
+				let file = this.app.workspace.getActiveFile();
+				let filePath = null;
+				if (file instanceof TFile) {
+					filePath = file.path;
+				}
+
 				if (!await this.checkAndHandleSyncLock()) return;
-				await this.tickTickSync?.fullTextModifiedTaskCheck(null)
-				this.syncLock = false;
+				await this.tickTickSync?.fullTextModifiedTaskCheck(filePath);
+				await this.unlockSynclock();
 			} catch (error) {
 				console.error(`An error occurred while check modified tasks in the file: ${error}`);
-				this.syncLock = false;
+				await this.unlockSynclock();
+				;
 			}
-
 		}
 	}
 
 	//return true
 	checkModuleClass() {
 		if (this.settings.apiInitialized === true) {
-			if (this.tickTickRestAPI === undefined || this.tickTickSyncAPI === undefined || this.cacheOperation === undefined || this.fileOperation === undefined || this.tickTickSync === undefined || this.taskParser === undefined) {
-				this.initializeModuleClass()
+			if (this.tickTickRestAPI === undefined ||
+				this.tickTickSyncAPI === undefined ||
+				this.cacheOperation === undefined ||
+				this.fileOperation === undefined ||
+				this.tickTickSync === undefined ||
+				this.taskParser === undefined) {
+				this.initializeModuleClass();
 			}
-			return true
+			return true;
 		} else {
 			new Notice(`Please login from settings.`);
-			return (false)
+			return (false);
 		}
 
 
@@ -620,17 +672,17 @@ export default class TickTickSync extends Plugin {
 				let bChanged = await this.tickTickSync?.syncTickTickToObsidian();
 				if (bChanged) {
 					//the file system is farckled. Wait until next sync to avoid race conditions.
-					this.syncLock = false;
+					await this.unlockSynclock();;
 					console.log("TickTick scheduled synchronization task completed at", new Date().toLocaleString());
 					return;
 				}
 			} catch (error) {
 				console.error('An error occurred in syncTickTickToObsidian:', error);
 				console.error("TickTick terminated synchronization task at", new Date().toLocaleString());
-				this.syncLock = false;
+				await this.unlockSynclock();;
 				return;
 			}
-			this.syncLock = false;
+			await this.unlockSynclock();;
 			try {
 				await this.saveSettings();
 			} catch (error) {
@@ -673,7 +725,7 @@ export default class TickTickSync extends Plugin {
 				} catch (error) {
 					console.error('An error occurred in fullTextNewTaskCheck:', error);
 				}
-				this.syncLock = false;
+				await this.unlockSynclock();;
 
 				if (!await this.checkAndHandleSyncLock()) return;
 				try {
@@ -681,7 +733,7 @@ export default class TickTickSync extends Plugin {
 				} catch (error) {
 					console.error('An error occurred in fullTextModifiedTaskCheck:', error);
 				}
-				this.syncLock = false;
+				await this.unlockSynclock();;
 
 				if (!await this.checkAndHandleSyncLock()) return;
 				try {
@@ -689,32 +741,36 @@ export default class TickTickSync extends Plugin {
 				} catch (error) {
 					console.error('An error occurred in deletedTaskCheck:', error);
 				}
-				this.syncLock = false;
+				await this.unlockSynclock();;
 
 			}
 
 		} catch (error) {
 			console.error('An error occurred:', error);
 			new Notice('An error occurred:', error);
-			this.syncLock = false;
+			await this.unlockSynclock();;
 		}
 		console.log("TickTick scheduled synchronization task completed at", new Date().toLocaleString());
 	}
 
 	async checkSyncLock() {
 		let checkCount = 0;
-		while (this.syncLock == true && checkCount < 10) {
+		while (this.settings.syncLock == true && checkCount < 10) {
 			await new Promise(resolve => setTimeout(resolve, 1000));
 			checkCount++;
 		}
-		if (this.syncLock == true) {
+		if (this.settings.syncLock == true) {
 			return false;
 		}
 		return true;
 	}
+	async unlockSynclock() {
+		this.settings.syncLock = false;
+		await this.saveSettings();
+	}
 
 	async checkAndHandleSyncLock() {
-		if (this.syncLock) {
+		if (this.settings.syncLock) {
 			// console.log('sync locked.');
 			const isSyncLockChecked = await this.checkSyncLock();
 			if (!isSyncLockChecked) {
@@ -722,7 +778,8 @@ export default class TickTickSync extends Plugin {
 			}
 			// console.log('sync unlocked.')
 		}
-		this.syncLock = true;
+		this.settings.syncLock = true;
+		await this.saveSettings();
 		return true;
 	}
 

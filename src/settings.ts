@@ -1,9 +1,9 @@
 import {App, Notice, PluginSettingTab, SearchComponent, Setting, TAbstractFile, TFolder} from 'obsidian';
 import TickTickSync from "../main";
 import {ConfirmFullSyncModal} from "./modals/ConfirmFullSyncModal"
-import {BrowserWindow, session} from "@electron/remote";
 import {FolderSuggest} from "./utils/FolderSuggester";
-import * as electron from "electron";
+import { Tick } from './api';
+import { TickTickRestAPI } from './TicktickRestAPI';
 
 
 export interface TickTickSyncSettings {
@@ -24,6 +24,7 @@ export interface TickTickSyncSettings {
 	statistics: any;
 	debugMode: boolean;
 	token:string;
+	syncLock: boolean
 }
 
 
@@ -44,7 +45,8 @@ export const DEFAULT_SETTINGS: TickTickSyncSettings = {
 	inboxName: "",
 	inboxID: "",
 	SyncProject: "",
-	SyncTag: ""
+	SyncTag: "",
+	syncLock: false
 }
 
 
@@ -77,7 +79,9 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 
 		containerEl.createEl('hr');
 		containerEl.createEl('h1', {text: 'Access Control'});
-
+		let userName: string;
+		let userPassword: string;
+		let bDisplayLogin = (!userName) && (!userPassword)
 
 		new Setting(containerEl)
 			.setName("TickTick/Dida")
@@ -92,8 +96,31 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 						await this.plugin.saveSettings();
 					})
 			);
+		//Re-instate userid, password login because I can't be shagged to figure out putting up a browser window on
+		// mobile.
+		new Setting(containerEl)
+			.setName('Username')
+			.setDesc('...')
+			.addText(text => text
+				.setPlaceholder('User Name')
+				.setValue("")
+				.onChange(async (value) => {
+					userName = value;
+				})
+			);
 
 		new Setting(containerEl)
+			.setName('Password')
+			.setDesc('...')
+			.addText(text => text
+				.setPlaceholder('Password')
+				.setValue("")
+				.onChange(async (value) => {
+			userPassword = value;
+		})
+	)
+
+	new Setting(containerEl)
 			.setName("Login")
 			.setDesc("Please login here.")
 			.setHeading()
@@ -101,21 +128,44 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 				loginBtn.setClass('ts_login_button');
 				loginBtn.setButtonText("Login");
 				loginBtn.setTooltip("Click To Login")
-				loginBtn.onClick(() => {
-					const url = `https://${this.plugin.settings.baseURL}/signin`;
+				loginBtn.onClick(async () => {
 
-					this.loadLoginWindow(url).then(async (token: string) => {
-						if (token) {
-							this.plugin.settings.token = token;
-							await this.plugin.initializePlugin()
+					if ((!userName) || (!userPassword)) {
+						new Notice("Please fill in both User Name and Password")
+					} else {
+						const api = new Tick({
+							username: userName,
+							password: userPassword,
+							baseUrl: this.plugin.settings.baseURL,
+							token: ""
+						});
+						const loggedIn = await api.login();
+						if (loggedIn) {
+							this.plugin.settings.token = api.token
+							if (this.plugin.tickTickRestAPI) {
+								this.plugin.tickTickRestAPI.token = api.token;
+								this.plugin.settings.apiInitialized = true;
+								await this.plugin.saveSettings();
+							} else  {
+								console.log("API Not Initialized");
+								this.plugin.tickTickRestAPI = new TickTickRestAPI(this.app, this.plugin)
+								await this.plugin.tickTickRestAPI.initializeAPI();
+							}
+							new Notice("Logged in!")
 						} else {
-							console.error("No Token received.")
-						}
-					});
-					this.display()
+							this.plugin.settings.token = "";
+							this.plugin.settings.apiInitialized = false;
+							this.plugin.tickTickRestAPI = null;
 
-				});
-			});
+							let errMsg = "Login Failed."
+							errMsg = errMsg + JSON.stringify(api.lastError)
+							errMsg = errMsg.replace(/{/g, '\n').replace(/,/g, '\n')
+							new Notice(errMsg, 0)
+						}
+					}
+				})
+			})
+
 
 		containerEl.createEl('hr');
 		containerEl.createEl('h1', {text: 'Sync control'});
@@ -249,16 +299,16 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 				.onClick(async () => {
 					// Add code here to handle exporting TickTick data
 					if (!this.plugin.settings.apiInitialized) {
-						new Notice(`Please set the TickTick api first`)
+						new Notice(`Please log in from settings first`)
 						return
 					}
 					try {
 						await this.plugin.scheduledSynchronization()
-						this.plugin.syncLock = false
+						await this.plugin.unlockSynclock();
 						new Notice(`Sync completed..`)
 					} catch (error) {
 						new Notice(`An error occurred while syncing.:${error}`)
-						this.plugin.syncLock = false
+						await this.plugin.unlockSynclock();
 					}
 
 				})
@@ -295,7 +345,7 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 				.onClick(() => {
 					// Add code here to handle exporting TickTick data
 					if (!this.plugin.settings.apiInitialized) {
-						new Notice(`Please set the TickTick api first`)
+						new Notice(`Please log in from settings first`)
 						return
 					}
 					this.plugin.tickTickSync.backupTickTickAllResources()
@@ -316,7 +366,7 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 	private async checkDataBase() {
 		// Add code here to handle exporting TickTick data
 		if (!this.plugin.settings.apiInitialized) {
-			new Notice(`Please set the TickTick credentials first`)
+			new Notice(`Please log in from settings first`)
 			return
 		}
 
@@ -449,51 +499,13 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 
 				}
 			}
-			this.plugin.syncLock = false
+			await this.plugin.unlockSynclock();
 			new Notice(`All files have been scanned.`)
 		} catch (error) {
 			console.error(`An error occurred while scanning the vault.:${error}`)
-			this.plugin.syncLock = false
+			await this.plugin.unlockSynclock();
 		}
 	}
-
-	private async loadLoginWindow(url: string) {
-
-		return new Promise((resolve) => {
-			//Get a cookie!
-			//TODO: If plugin is reloaded. This will fail. Probably missing something in clean up
-			//      investigate later.
-			const window = new BrowserWindow({ show: false,
-				width: 600,
-				height: 800,
-				webPreferences: {
-					nodeIntegration: false, // We recommend disabling nodeIntegration for security.
-					contextIsolation: true, // We recommend enabling contextIsolation for security.
-					// see https://github.com/electron/electron/blob/master/docs/tutorial/security.md
-				},
-			});
-			window.loadURL(url);
-			window.once('ready-to-show', () => {
-				window.show()
-			})
-
-			let token = "";
-			window.on('closed', () => {
-				const domain = "." + this.plugin.settings.baseURL
-				session.defaultSession.cookies.get({domain: domain, name: "t"})
-					.then((cookies) => {
-						token = cookies[0].value
-						resolve(token);
-						window.destroy();
-					}).catch((error) => {
-					console.error(error)
-				})
-
-			});
-		});
-
-	}
-
 
 	add_default_folder_path(): void {
 		let folderSearch: SearchComponent | undefined;
