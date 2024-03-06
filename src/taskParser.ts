@@ -127,9 +127,6 @@ export class TaskParser {
 
 	//convert a task object to a task line.
 	async convertTaskToLine(task: ITask): Promise<string> {
-		if ((task.id == "65e6391801de1e5bd84c7f09")) {
-			console.log("in Task.", task);
-		}
 		let resultLine = '';
 
 		task.title = this.stripOBSUrl(task.title);
@@ -159,10 +156,6 @@ export class TaskParser {
 		if (task.items && task.items.length > 0) {
 			resultLine = this.addItems(resultLine, task.items);
 		}
-		if ((task.id == "65e6391801de1e5bd84c7f09")) {
-			console.log("result line.", resultLine);
-		}
-
 		return resultLine;
 
 	}
@@ -351,9 +344,6 @@ export class TaskParser {
 			status: isCompleted ? 2 : 0, //Status: 0 is no completed. Anything else is completed.
 			timeZone: timeZone
 		};
-		if ((TickTick_id == "65e6391801de1e5bd84c7f09") ) {
-			console.log("Task is. :", task);
-		}
 		return task;
 	}
 
@@ -821,13 +811,11 @@ export class TaskParser {
 	}
 
 	private removeMultipleCompletionDates(text: string, task: ITask) {
-		console.log("### Strip completion dates");
 		const regEx = REGEX.COMPLETION_DATE;
 		let results = [...text.matchAll(regEx)];
 		if (results.length == 0) {
 			const nullDate = '';
 			const nullVal = '';
-			console.log("bailed on: ", task.id);
 			return text;
 		}
 
@@ -843,7 +831,6 @@ export class TaskParser {
 		if (results.length > keepNum) {
 			//arbitrarily take the last one
 			for (let i = 0; i < results.length; i++) {
-				console.log("stripoing ", i);
 				text = text.replace(`${results[i][1]} ${results[i][2]}`, '');
 			}
 		}

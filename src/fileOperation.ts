@@ -312,7 +312,6 @@ export class FileOperation {
 
 			if (task.status != 0) {
 				//closed task, add completion time
-				console.log("Adding Completion Date. on add");
 				lineText = this.plugin.taskParser?.addCompletionDate(lineText, task.completedTime);
 			}
 
@@ -441,9 +440,7 @@ export class FileOperation {
 					lines.splice(i+1,currentTask.items.length)
 				}
                 lines[i] = parentTabs + line.replace(line, newTaskContent)
-				console.log("old status is: ", bOldTaskOpen? "open": "closed");
 				if ((bOldTaskOpen) && (task.status != 0)) {
-					console.log("Adding Completion Date. on update");
 					//in an ideal world, we would triger Tasks to complete the task for us.
 					//but we're not there. Slap a completion date on the end of the line and be done
 					lines[i] = this.plugin.taskParser?.addCompletionDate(lines[i], task.completedTime);
@@ -469,7 +466,6 @@ export class FileOperation {
 	private hasChildren(currentTask: ITask) {
 
 		if (currentTask.childIds) {
-			console.log("Checking", currentTask.childIds);
 			return currentTask.childIds?.length > 0;
 		} else {
 			return false;

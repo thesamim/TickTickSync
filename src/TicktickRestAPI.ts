@@ -53,7 +53,6 @@ export class TickTickRestAPI {
 					await this.api?.getInboxProperties()
 
 					this.plugin.settings.inboxID = this.api?.inboxId;
-					console.log("Inbox ID :", this.api.inboxId );
 
 					//TickTick doesn't allow default Inbox to be renamed. This is safe to do.
 					this.plugin.settings.inboxName = "Inbox"

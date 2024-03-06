@@ -139,11 +139,10 @@ export class Tick {
 				if (!response.inboxId) {
 					//WTF? Force the other url
 					url = `${this.apiUrl}/${allTasksEndPoint}`;
+					// @ts-ignore
 					response = await this.makeRequest('Get Inbox Properties', url, 'GET');
 				}
 				this.inboxProperties.id = response.inboxId;
-				console.log("response inboxid: ", response.inboxId);
-				console.log("settings inbox id: ", this.inboxProperties.id)
 				response['syncTaskBean'].update.forEach((task: any) => {
 					if (task.projectId == this.inboxProperties.id && task.sortOrder < this.inboxProperties.sortOrder) {
 						this.inboxProperties.sortOrder = task.sortOrder;

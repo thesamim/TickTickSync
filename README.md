@@ -2,6 +2,8 @@
 
 The TickTickSync plugin automatically creates tasks in ticktick and synchronizes task state between Obsidian and ticktick.
 
+**TickTickSync is now Mobile Compatible!**
+
 The plugin works best when the [Tasks](https://github.com/obsidian-tasks-group/obsidian-tasks) plugin is installed.
 
 ## Features
@@ -18,10 +20,9 @@ The plugin works best when the [Tasks](https://github.com/obsidian-tasks-group/o
 ## Notes
 > :warning: 
 > # CAUTION!
-> Please note: In addition to the date handling improvements, it is now possible to use the Scheduled date emoji as the 
-> due date. As a side effect: If there are multiple dates on the task that can be interpreted as a due date, only the 
-> last date will be used. The others will be deleted. If you prefer different handling of dates, please either open an
-> [issue](https://github.com/thesamim/TickTickSync/issues) or start a [discussion](https://github.com/thesamim/TickTickSync/discussions) with your thoughts.
+> The previous method of handling task status handling was in competition with the Tasks plugin handling of 
+> task status. For now: task status handling is deferred to the Tasks plugin. Which means updates to task status
+> are handled on update, or during Synchronization rather than immediately.
 > 
 > Please see the [New Date Handling caution in documentation.](https://github.com/thesamim/TickTickSync/wiki/Documentation#new-date-handling)
 > 
@@ -50,6 +51,7 @@ The plugin works best when the [Tasks](https://github.com/obsidian-tasks-group/o
 1. The plugin only works with the [Tasks emoji formats](https://publish.obsidian.md/tasks/Reference/Task+Formats/About+Task+Formats). It will **not** work with the Dataview format. In the fullness of time, this plugin will be refactored to use Tasks functionality to support both.
 2. Because Tags can't have spaces, at this time it is not possible to add a task to a project with name that contains spaces. In the fullness of time, will implement some kind of workaround (eg: `#folder_with_a_space` will be converted to `folder with a space`)
 3. If a file has a default project association (see [settings](https://github.com/thesamim/TickTickSync/wiki/Documentation#sync-control)), it is possible to create a task with a project tag other than the default project. The Task will be correctly synched to TickTick in the correct project. However, if the Task is then updated with subtasks, from TickTick, the subtasks will be synched to the project's default file rather than the file where the original parent task was created. **Additionally, the subtask will become the child of the last Task in that file.**
+4. TickTickSync has been updated to check for duplicate task creation. However, there are still scenarios where duplicate tasks can exist. If this is a significant enough problem, please open an [issue](https://github.com/thesamim/TickTickSync/issues/)
 
 
 ## Installation

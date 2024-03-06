@@ -374,12 +374,15 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 
 
 		//check file metadata
-		// console.log('checking file metadata')
-		let fileNum = await this.plugin.cacheOperation?.checkFileMetadata()
-		// console.log("Number of files: ", fileNum)
+		console.log('checking file metadata')
 
+		let fileNum = await this.plugin.cacheOperation?.checkFileMetadata()
+		console.log("Number of files: ", fileNum)
 		if (fileNum < 1) //nothing? really?
 		{
+			if (this.plugin.settings.debugMode) {
+				console.log("File Metadata rebuild.");
+			}
 			const allMDFiles = this.app.vault.getMarkdownFiles();
 			allMDFiles.forEach(file => {
 				// console.log("File: ", file);
@@ -387,6 +390,7 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 			});
 		}
 		this.plugin.saveSettings()
+
 		const metadatas = await this.plugin.cacheOperation?.getFileMetadatas()
 
 		if (!await this.plugin.checkAndHandleSyncLock()) return;
@@ -435,7 +439,7 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 		await this.plugin.saveSettings()
 
 
-		// console.log('checking renamed files')
+		console.log('checking renamed files -- This operation takes a while, please be patient.')
 		try {
 			//check renamed files
 			for (const key in metadatas) {
@@ -443,7 +447,6 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 				//console.log(value)
 				const obsidianURL = this.plugin.taskParser?.getObsidianUrlFromFilepath(key)
 				for (const taskDetail of value.TickTickTasks) {
-
 					//console.log(`${taskId}`)
 					let taskObject
 					try {
@@ -465,42 +468,52 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 						} catch (error) {
 							console.error(`An error occurred while updating task discription: ${error.message}`);
 						}
-
 					}
-
 				}
-				;
-
 			}
 
-			//check empty file metadata
-
-			//check calendar format
-
-
-			//check omitted tasks
-			console.log('checking unsynced tasks')
-			const files = this.app.vault.getFiles()
-			for (const v of files) {
-				const i = files.indexOf(v);
-				if (v.extension == "md") {
-					try {
-						//console.log(`Scanning file ${v.path}`)
-						await this.plugin.fileOperation.addTickTickLinkToFile(v.path)
-						if (this.plugin.settings.enableFullVaultSync) {
-							await this.plugin.fileOperation.addTickTickTagToFile(v.path)
+			try {
+				if (this.plugin.settings.debugMode) {
+					console.log('checking unsynced tasks');
+				}
+				const files = this.app.vault.getFiles();
+				for (const v of files) {
+					const i = files.indexOf(v);
+					if (v.extension == 'md') {
+						try {
+							//console.log(`Scanning file ${v.path}`)
+							await this.plugin.fileOperation.addTickTickLinkToFile(v.path);
+							if (this.plugin.settings.enableFullVaultSync) {
+								await this.plugin.fileOperation.addTickTickTagToFile(v.path);
+							}
+						} catch (error) {
+							console.error(`An error occurred while check new tasks in the file: ${v.path}, ${error.message}`);
 						}
 
-
-					} catch (error) {
-						console.error(`An error occurred while check new tasks in the file: ${v.path}, ${error.message}`);
-
 					}
-
 				}
+				await this.plugin.unlockSynclock();
+			} catch (Error) {
+				console.error(`An error occurred while checking for unsynced tasks.:${Error}`)
+				await this.plugin.unlockSynclock();
+				return;
 			}
-			await this.plugin.unlockSynclock();
+
+			//Check for duplicates.
+			//Tasks in multiple files
+			// const allTheTasks;
+			// for (const key in metadatas) {
+			// 	const value = metadatas[key];
+			// 	//console.log(value)
+			// 	const obsidianURL = this.plugin.taskParser?.getObsidianUrlFromFilepath(key)
+			// 	for (const taskDetail of value.TickTickTasks) {
+			//
+			// 	}
+			// }
+			//Tasks duplicated in same file
 			new Notice(`All files have been scanned.`)
+
+
 		} catch (error) {
 			console.error(`An error occurred while scanning the vault.:${error}`)
 			await this.plugin.unlockSynclock();
