@@ -108,9 +108,13 @@ export class SyncMan {
 			//We had a file. There is no content. User deleted ALL tasks, all items will be deleted as a side effect.
 			const deletedTaskIDs = fileMetadata_TickTickTasks.map((taskDetail) => taskDetail.taskId);
 			if (deletedTaskIDs.length > 0) {
+				//TODO: Assuming that if they for real deleted everything, it will get caught on the next sync
 				console.error("All tasks will be deleted.", file, currentFileValue, filepath);
-				new Notice(`All content from ${file} APPEARS to have been removed. \n If this is correct, please confirm task deletion.`, 0)
-				await this.deleteTasksByIds(deletedTaskIDs);
+
+				// new Notice(`All content from ${file} APPEARS to have been removed.\n` +
+				// 	"If this is correct, please confirm task deletion.", 0)
+				//
+				// await this.deleteTasksByIds(deletedTaskIDs);
 			}
 		}
 
