@@ -27,6 +27,9 @@ The plugin works best when the [Tasks](https://github.com/obsidian-tasks-group/o
 > 
 > If you share a vault between Desktop and Mobile, it is critical that you use the same vault structure and TickTickSync settings everywhere you use your TickTick account. Differences
 > (eg: different folders, different default files, different default projects, etc) will cause unpredictable results.
+> 
+> If you share your files between Desktop and Mobile using an application that creates duplicate files when it encounters a conflict (eg: Syncthing), it is possible to trigger the duplication issue (see below.)
+> Strongly recommend handling those conflicts ASAP.
 >
 > 🚩
 > 
