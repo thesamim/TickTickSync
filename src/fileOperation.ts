@@ -43,6 +43,7 @@ export class FileOperation {
         if (modified) {
             const newContent = lines.join('\n')
             await this.app.vault.modify(file, newContent)
+			// console.error("Modified: ", file?.path, new Date().toISOString());
         }
     }
 
@@ -71,6 +72,7 @@ export class FileOperation {
         if (modified) {
             const newContent = lines.join('\n')
             await this.app.vault.modify(file, newContent)
+			// console.error("Modified: ", file?.path, new Date().toISOString());
         }
     }
 
@@ -115,6 +117,7 @@ export class FileOperation {
             const newContent = lines.join('\n')
             //console.log(newContent)
             await this.app.vault.modify(file, newContent)
+			// console.error("Modified: ", file?.path, new Date().toISOString());
 
             // //update filemetadate
             // const metadata = await this.plugin.cacheOperation?.getFileMetadata(filepath)
@@ -163,6 +166,7 @@ export class FileOperation {
             const newContent = lines.join('\n')
             //console.log(newContent)
             await this.app.vault.modify(file, newContent)
+			// console.error("Modified: ", file?.path, new Date().toISOString());
 
 
 
@@ -288,6 +292,7 @@ export class FileOperation {
             if (oldLineCount < newLineCount) {
                 const newContent = lines.join('\n');
                 await this.app.vault.modify(file, newContent);
+				// console.error("Modified: ", file?.path, new Date().toISOString());
                 this.plugin.lastLines.set(file.path, lines.length);
             }
             return true;
@@ -307,6 +312,7 @@ export class FileOperation {
 				await this.updateTaskInFile(task, lines)
 				await this.plugin.cacheOperation?.updateTaskToCacheByID(task, file.path)
 				addedTask.push(task.id);
+				continue;
 			}
             let lineText = await this.plugin.taskParser?.convertTaskToLine(task);
 
@@ -319,7 +325,7 @@ export class FileOperation {
                 let parentIndex = lines.indexOf(lines.find(line => line.includes(task.parentId)))
                 if (parentIndex < 0) {
                     //TODO: Determine how to handle
-                    console.error("Parent ID Not found in file.")
+                    console.error("Parent ID of" + task.title + "Not found in file.")
                 }
                 let parentLine = lines[parentIndex];
                 if (parentLine) {
@@ -458,9 +464,35 @@ export class FileOperation {
         if (modified) {
             const newContent = lines.join('\n')
             await this.app.vault.modify(file, newContent)
+			// console.error("Modified: ", file?.path, new Date().toISOString());
 		}
 
     }
+
+	async checkForDuplicates(fileMetadata, taskList: {} | undefined) {
+		let taskIds = {};
+		let duplicates = {};
+
+		for (const file in fileMetadata) {
+			const currentFile = this.app.vault.getAbstractFileByPath(file)
+			const content = await this.app.vault.read(currentFile)
+			for (let taskListKey in taskList) {
+				if (content.includes(taskListKey)) {
+					if (taskIds[taskListKey]) {
+						if (!duplicates[taskListKey]) {
+							duplicates[taskListKey] = [taskIds[taskListKey]];
+						}
+						duplicates[taskListKey].push(file);
+					} else {
+						taskIds[taskListKey] = file;
+					}
+
+				}
+
+			}
+		}
+		return duplicates;
+	}
 
 	//Yes, I know this belongs in taskParser, but I don't feel like messing with it right now.
 	private hasChildren(currentTask: ITask) {
@@ -503,6 +535,7 @@ export class FileOperation {
             const newContent = lines.join('\n')
             //console.log(newContent)
             await this.app.vault.modify(file, newContent)
+			// console.error("Modified: ", file?.path, new Date().toISOString());
         }
 
 

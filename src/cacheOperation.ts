@@ -192,6 +192,27 @@ export class CacheOperation {
     }
 
 
+	//Check for duplicates
+	checkForDuplicates(fileMetadata) {
+		let taskIds = {};
+		let duplicates = {};
+
+		for (const file in fileMetadata) {
+			fileMetadata[file].TickTickTasks.forEach(task => {
+				if (taskIds[task.taskId]) {
+					if (!duplicates[task.taskId]) {
+						duplicates[task.taskId] = [taskIds[task.taskId]];
+					}
+					duplicates[task.taskId].push(file);
+				} else {
+					taskIds[task.taskId] = file;
+				}
+			});
+		}
+		//Some day, may want to do something with all the taskids?
+		return {taskIds,duplicates};
+	}
+
     //Check errors in filemata where the filepath is incorrect.
     async checkFileMetadata(): Promise<number> {
         const metadatas = await this.getFileMetadatas()
@@ -484,7 +505,7 @@ export class CacheOperation {
 
 
             const taskIndex = savedTasks.findIndex((task) => task.id === taskId);
-            if (taskIndex > 0) {
+            if (taskIndex > -1 ) {
                 savedTasks[taskIndex].status = 0;
                 projectId = savedTasks[taskIndex].projectId;
             }
@@ -507,7 +528,7 @@ export class CacheOperation {
             const savedTasks = this.plugin.settings.TickTickTasksData.tasks
 
             const taskIndex = savedTasks.findIndex((task) => task.id === taskId);
-            if (taskIndex > 0) {
+            if (taskIndex > -1)  {
                 savedTasks[taskIndex].status = 2;
                 projectId = savedTasks[taskIndex].projectId;
             }
@@ -605,7 +626,7 @@ export class CacheOperation {
 			if (sortedDuplicates.length > 0) {
 				// @ts-ignore
 				if (this.plugin.settings.debugMode) {
-					console.log("Found dupes:")
+					console.log("Found duplicate lists:")
 					sortedDuplicates.forEach(thing => console.log(thing.id, thing.name))
 				}
 				await this.showFoundDuplicatesModal(this.app, this.plugin, sortedDuplicates)

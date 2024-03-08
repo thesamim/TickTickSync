@@ -220,11 +220,6 @@ export class TaskParser {
 		let textWithoutIndentation = this.removeTaskIndentation(lineText);
 
 		const TickTick_id = this.getTickTickIdFromLineText(textWithoutIndentation);
-		if ((TickTick_id == "65e6391801de1e5bd84c7f09") ) {
-			console.log("In Line. :", lineText);
-		}
-
-
 
 		//Detect parentID
 		if (lineTextTabIndentation > 0) {
@@ -826,7 +821,6 @@ export class TaskParser {
 		} else {
 			keepNum = 1
 		}
-		console.log("here we go: ", task.id, task.status, keepNum);
 		let result;
 		if (results.length > keepNum) {
 			//arbitrarily take the last one

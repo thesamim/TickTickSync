@@ -147,7 +147,6 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 								this.plugin.settings.apiInitialized = true;
 								await this.plugin.saveSettings();
 							} else  {
-								console.log("API Not Initialized");
 								this.plugin.tickTickRestAPI = new TickTickRestAPI(this.app, this.plugin)
 								await this.plugin.tickTickRestAPI.initializeAPI();
 							}
@@ -380,9 +379,7 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 		console.log("Number of files: ", fileNum)
 		if (fileNum < 1) //nothing? really?
 		{
-			if (this.plugin.settings.debugMode) {
-				console.log("File Metadata rebuild.");
-			}
+			console.log("File Metadata rebuild.");
 			const allMDFiles = this.app.vault.getMarkdownFiles();
 			allMDFiles.forEach(file => {
 				// console.log("File: ", file);
@@ -473,9 +470,7 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 			}
 
 			try {
-				if (this.plugin.settings.debugMode) {
-					console.log('checking unsynced tasks');
-				}
+				console.log('checking unsynced tasks');
 				const files = this.app.vault.getFiles();
 				for (const v of files) {
 					const i = files.indexOf(v);
@@ -499,18 +494,7 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 				return;
 			}
 
-			//Check for duplicates.
-			//Tasks in multiple files
-			// const allTheTasks;
-			// for (const key in metadatas) {
-			// 	const value = metadatas[key];
-			// 	//console.log(value)
-			// 	const obsidianURL = this.plugin.taskParser?.getObsidianUrlFromFilepath(key)
-			// 	for (const taskDetail of value.TickTickTasks) {
-			//
-			// 	}
-			// }
-			//Tasks duplicated in same file
+
 			new Notice(`All files have been scanned.`)
 
 

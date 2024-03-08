@@ -2,9 +2,12 @@
 
 The TickTickSync plugin automatically creates tasks in ticktick and synchronizes task state between Obsidian and ticktick.
 
-**TickTickSync is now Mobile Compatible!**
+** **TickTickSync is now Mobile Compatible! [1]** **
 
 The plugin works best when the [Tasks](https://github.com/obsidian-tasks-group/obsidian-tasks) plugin is installed.
+
+[1] I have tested reasonably well on Android. I only have limited access to IPhone, please proceed with caution.
+
 
 ## Features
 
@@ -16,22 +19,39 @@ The plugin works best when the [Tasks](https://github.com/obsidian-tasks-group/o
 - Moving Tasks between Projects is now supported. Please see [Task movement documentation](https://github.com/thesamim/TickTickSync/wiki/Documentation#moving-tasks).
 - Moving Tasks between Parents is now supported.
 - Due dates accommodate times, times are no longer stripped in Obsidian.  
+- Mobile Compatible.
 
-## Notes
-> :warning: 
-> # CAUTION!
-> The previous method of handling task status handling was in competition with the Tasks plugin handling of 
-> task status. For now: task status handling is deferred to the Tasks plugin. Which means updates to task status
+
+> 🚩
+>## **Very Important**
+> 
+> If you share a vault between Desktop and Mobile, it is critical that you use the same vault structure and TickTickSync settings everywhere you use your TickTick account. Differences
+> (eg: different folders, different default files, different default projects, etc) will cause unpredictable results.
+>
+> 🚩
+> 
+> ⚠️ 
+>## CAUTION!
+>
+> Logging in: Because of the changes for Mobile, the login method has changed. You will now be required to enter your UserId and Password.
+> The credentials are **NOT** saved, they are only used to get a login token. You will only be asked to login again if the
+> token expires.
+> 
+> The previous method of handling task status was in competition with the Tasks plugin status handling. For now: task status handling is deferred to the Tasks plugin. Which means updates to task status
 > are handled on update, or during Synchronization rather than immediately.
 > 
 > Please see the [New Date Handling caution in documentation.](https://github.com/thesamim/TickTickSync/wiki/Documentation#new-date-handling)
 > 
 > It is possible to create duplicate projects/lists in TickTick. TickTickSync will show a warning and ask you to rename/move one of the duplicates because duplicate lists mess up synchronization. All synchronization will stop until the issue is handled.
 > 
-> :warning:
+> I **believe** I have taken care of the bugs that have been causing duplicate tasks, or unwanted task moves between files. Because of the tremendous data loss this was causing, 
+> TickTickSync will now warn you if duplicate tasks are found and will prevent further Syncing until the issue is resolved. If you keep seeing duplicate warning **PLEASE** open an [issue](https://github.com/thesamim/TickTickSync/issues) with as much detail as possible.
+> 
+> 
+> ⚠️
 
 
-
+## Notes
 1. TickTickSyn [back ups](https://github.com/thesamim/TickTickSync/wiki/Documentation#backup-ticktick-data) are now CSV files that are compatible with TickTick's "Import Backups."
 2. **All Task Deletion operations must be confirmed.** In the fullness of time, when we get out of Beta, this might be a preference item. For now it's compulsory.
 3. TickTick lists are referred to as Projects in the plugin, and throughout documentation.

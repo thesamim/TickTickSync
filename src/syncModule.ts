@@ -109,7 +109,7 @@ export class SyncMan {
 			const deletedTaskIDs = fileMetadata_TickTickTasks.map((taskDetail) => taskDetail.taskId);
 			if (deletedTaskIDs.length > 0) {
 				console.error("All tasks will be deleted.", file, currentFileValue, filepath);
-				new Notice(`All content from ${file} appears to have been removed. \n If this is correct, please confirm task deletion.`, 0)
+				new Notice(`All content from ${file} APPEARS to have been removed. \n If this is correct, please confirm task deletion.`, 0)
 				await this.deleteTasksByIds(deletedTaskIDs);
 			}
 		}
@@ -201,7 +201,7 @@ export class SyncMan {
 				return await this.updateTaskLine(newTask, lineTxt, editor, cursor, fileContent, line, filePath);
 			} catch (error) {
 				console.error('Error adding task:', error);
-				console.error(`The error occurred in the file: ${filePath}`)
+				console.error(`The error occurred in file: ${filePath}`)
 				return fileContent;
 			}
 
@@ -209,12 +209,16 @@ export class SyncMan {
 		return fileContent;
 	}
 
+	//This method was added at some point to handle the date moving logic that happens in converTaskToLine.
+	// an unfortunate side effect: it farckles up the items. For now only update the task and not the items.
+	// The assumption being that when this is called Items will be handled elsewhere.
 	private async updateTaskLine(newTask: ITask, lineTxt: string, editor: Editor | null, cursor: EditorPosition | null, fileContent: string, line: number| null, filePath: string) {
-		let text = await this.plugin.taskParser?.convertTaskToLine(newTask);
-		console.log(text);
+		//TODO: Validate this is ok.
+		let newTaskCopy = {...newTask}
+		newTaskCopy.items = []
+		let text = await this.plugin.taskParser?.convertTaskToLine(newTaskCopy);
 		const tabs = this.plugin.taskParser?.getTabs(lineTxt);
 		text = tabs + text;
-
 
 		if (editor && cursor) {
 			const from = { line: cursor.line, ch: 0 };
@@ -229,6 +233,7 @@ export class SyncMan {
 				const file = this.app.vault.getAbstractFileByPath(filePath);
 				const newContent = lines.join('\n');
 				await this.app.vault.modify(file, newContent);
+				// console.error("Modified: ", file?.path, new Date().toISOString());
 				return newContent;
 			} catch (error) {
 				console.error(error);
@@ -303,7 +308,6 @@ export class SyncMan {
 			const lineTask_ticktick_id = lineTask.id
 			const savedTask = await this.plugin.cacheOperation?.loadTaskFromCacheID(lineTask_ticktick_id)
 
-
 			if (!savedTask) {
 				//Task in note, but not in cache. Assuming this would only happen in testing, delete the task from the note
 				console.error(`There is no task ${lineTask.id}, ${lineTask.title} in the local cache. It will be deleted`)
@@ -325,7 +329,6 @@ export class SyncMan {
 			//project whether to modify
 
 			const projectModified = this.plugin.taskParser?.isProjectIdChanged(lineTask, savedTask)
-
 			//Check if task has been in moved inside Obsidian
 			const oldFilePath = await  this.plugin.cacheOperation?.isProjectMoved(lineTask, filepath);
 			let projectMoved = false;
@@ -393,11 +396,17 @@ export class SyncMan {
 
 					let noticeMessage = "";
 					if (projectModified) {
+						if (this.plugin.settings.debugMode) {
+							console.log("Project Modified");
+						}
 						noticeMessage = `Task ${lineTask_ticktick_id}: ${lineTaskTitle} has moved from ` +
 							`${await this.plugin.cacheOperation?.getProjectNameByIdFromCache(savedTask.projectId)} to ` +
 							`${await this.plugin.cacheOperation?.getProjectNameByIdFromCache(lineTask.projectId)} \n` +
 							`If any children were moved, they will be updated to ${this.plugin.settings.baseURL} on the next Sync event`
 					} else if (projectMoved) {
+						if (this.plugin.settings.debugMode) {
+							console.log("Project Moved");
+						}
 						noticeMessage = `Task ${lineTask_ticktick_id}: ${lineTaskTitle} has moved from ` +
 							`${oldFilePath} to ` +
 							`${filepath} \n` +
@@ -966,10 +975,11 @@ export class SyncMan {
 					return;
 				}
 			}
+			let tasksInCache = await this.plugin.cacheOperation?.loadTasksFromCache()
 			if (this.plugin.settings.debugMode) {
 				console.log("We have: ", tasksFromTickTic.length, " tasks on " + this.plugin.tickTickRestAPI?.api?.apiUrl)
+				console.log("There are: ", tasksInCache.length, " tasks in Cache.");
 			}
-			let tasksInCache = await this.plugin.cacheOperation?.loadTasksFromCache()
 
 
 			tasksFromTickTic = tasksFromTickTic.sort((a, b) => (a.id > b.id) ? 1 : ((b.id > a.id) ? -1 : 0))

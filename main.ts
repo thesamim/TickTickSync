@@ -116,7 +116,7 @@ export default class TickTickSync extends Plugin {
 			//console.log(`key pressed`)
 			const markDownView = this.app.workspace.getActiveViewOfType(MarkdownView);
 			const editor = markDownView?.app.workspace.activeEditor?.editor;
-			//Determine the area where the click event occurs. If it is not in the editor, return
+
 
 			if ((editor) && !(editor.hasFocus())) {
 				// (console.log(`editor is not focused`))
@@ -150,9 +150,28 @@ export default class TickTickSync extends Plugin {
 			}
 		});
 
+		function traverseDOMBackwards(element, callback) {
+			while (element) {
+				callback(element);
+				element = element.previousElementSibling;
+
+			}
+		}
+
 		// If the plugin hooks up any global DOM events (on parts of the app that doesn't belong to this plugin)
 		// Using this function will automatically remove the event listener when this plugin is disabled.
 		this.registerDomEvent(document, 'click', async (evt: MouseEvent) => {
+			const { target } = evt;
+			const markDownView = this.app.workspace.getActiveViewOfType(MarkdownView);
+			const file = markDownView?.app.workspace.activeEditor?.file;
+			const fileName = file?.name;
+			const filepath = file?.path;
+
+			//Here for future debugging.
+			// traverseDOMBackwards(target, (element) => {
+			// 	console.log(element);
+			// });
+
 			if (!this.settings.apiInitialized) {
 				return;
 			}
@@ -160,14 +179,14 @@ export default class TickTickSync extends Plugin {
 				return;
 			}
 
-			//console.log('click', evt);
+
 			if (this.app.workspace.activeEditor?.editor?.hasFocus()) {
 				await this.lineNumberCheck();
 			} else {
-				//
+				return;
 			}
-
-			const target = evt.target as HTMLInputElement;
+			//Here for future debugging.
+			// const target = evt.target as HTMLInputElement;
 
 			if (target && target.type === 'checkbox') {
 				await this.checkboxEventhandle(evt);
@@ -475,6 +494,10 @@ export default class TickTickSync extends Plugin {
 	}
 
 	async lineNumberCheck() {
+		if (!await this.checkAndHandleSyncLock()) {
+			console.log("We're locked. Returning.");
+			return;
+		}
 		let modified = false;
 		const markDownView = this.app.workspace.getActiveViewOfType(MarkdownView);
 		if (markDownView) {
@@ -488,8 +511,10 @@ export default class TickTickSync extends Plugin {
 			const file = markDownView?.app.workspace.activeEditor?.file;
 			const fileName = file?.name;
 			const filepath = file?.path;
+
 			if (typeof this.lastLines === 'undefined' || typeof this.lastLines.get(fileName as string) === 'undefined') {
 				this.lastLines.set(fileName as string, line as number);
+				await this.unlockSynclock();
 				return false;
 			}
 
@@ -505,18 +530,14 @@ export default class TickTickSync extends Plugin {
 				const lastLineText = markDownView.editor.getLine(lastLine as number);
 				// console.log(lastLineText)
 				if (!(this.checkModuleClass())) {
+					await this.unlockSynclock();
 					return false;
 				}
 				this.lastLines.set(fileName as string, line as number);
 				// try{
 
-				if (!await this.checkAndHandleSyncLock()) {
-					return false;
-				}
-
-
 				modified = await this.tickTickSync?.lineModifiedTaskCheck(filepath as string, lastLineText, lastLine as number, fileContent);
-				await this.unlockSynclock();
+
 
 				// }catch(error){
 				//     console.error(`An error occurred while check modified task in line text: ${error}`);
@@ -527,6 +548,7 @@ export default class TickTickSync extends Plugin {
 			}
 
 		}
+		await this.unlockSynclock();
 		return modified;
 	}
 
@@ -661,14 +683,51 @@ export default class TickTickSync extends Plugin {
 			const filesToSync = this.settings.fileMetadata;
 			let newFilesToSync = filesToSync;
 			//If one project is to be synced, don't look at it's other files.
-			//TODO: I might kill this later
+
 
 			if (this.settings.SyncProject) {
-				newFilesToSync = Object.fromEntries(Object.entries(filesToSync).filter(([key, value]) => value.defaultProjectId == this.settings.SyncProject));
+				newFilesToSync = Object.fromEntries(Object.entries(filesToSync).filter(([key, value]) =>
+					value.defaultProjectId == this.settings.SyncProject));
 			}
-			// if (this.settings.debugMode) {
-			// 	console.log(newFilesToSync)
-			// }
+
+
+			//Check for duplicates before we do anything
+
+			const result = this.cacheOperation?.checkForDuplicates(newFilesToSync);
+			if (result?.duplicates  && (JSON.stringify(result.duplicates) != "{}") ) {
+				let dupText = '';
+				for (let duplicatesKey in result.duplicates) {
+					dupText += "Task: " + duplicatesKey + '\nin files: \n';
+					result.duplicates[duplicatesKey].forEach( file => {dupText += file + "\n"})
+				}
+				const msg =
+					"Found duplicates in MetaData.\n\n" +
+					`${dupText}` +
+					"\nPlease fix manually. This causes unpredictable results" +
+					"\nPlease open an issue in the TickTickSync repository if you continue to see this issue." +
+					"\n\nTo prevent data corruption. Sync is aborted."
+				console.log("Metadata Duplicates: ", result.duplicates);
+				new Notice(msg, 0);
+				return;
+			}
+
+
+			const duplicateTasksInFiles = await this.fileOperation?.checkForDuplicates(filesToSync, result?.taskIds)
+			if (duplicateTasksInFiles && (JSON.stringify(duplicateTasksInFiles) != "{}")) {
+				let dupText = ""
+				for (let duplicateTasksInFilesKey in duplicateTasksInFiles) {
+					dupText += "Task: " + duplicateTasksInFilesKey + "\nFound in Files: \n"
+					duplicateTasksInFiles[duplicateTasksInFilesKey].forEach(file => {dupText += file + "\n"})
+				}
+				const msg =
+					"Found duplicates in Files.\n\n" +
+					`${dupText}` +
+					"\nPlease fix manually. This causes unpredictable results" +
+					"\nPlease open an issue in the TickTickSync repository if you continue to see this issue." +
+					"\n\nTo prevent data corruption. Sync is aborted."
+				new Notice(msg, 0)
+				return;
+			}
 
 
 			//let's see if any files got killed while we weren't watching
@@ -723,14 +782,11 @@ export default class TickTickSync extends Plugin {
 
 	async checkSyncLock() {
 		let checkCount = 0;
-		while (this.settings.syncLock == true && checkCount < 10) {
+		while (this.settings.syncLock && checkCount < 10) {
 			await new Promise(resolve => setTimeout(resolve, 1000));
 			checkCount++;
 		}
-		if (this.settings.syncLock == true) {
-			return false;
-		}
-		return true;
+		return !this.settings.syncLock;
 	}
 
 	async unlockSynclock() {
