@@ -1,7 +1,7 @@
 import {App, ListItemCache, TFile} from 'obsidian';
 import TickTickSync from "../main";
-import { ITask } from 'ticktick-api-lvt/dist/types/Task';
-import { IProject } from 'ticktick-api-lvt/dist/types/Project';
+import { ITask } from './api/types/Task';
+import { IProject } from 'src/api/types//Project';
 import {FoundDuplicatesModal} from "./modals/FoundDuplicatesModal";
 
 // type TaskDetail = {
@@ -191,6 +191,27 @@ export class CacheOperation {
         // console.log(`${filepath} is deleted from file metadatas.`)
     }
 
+
+	//Check for duplicates
+	checkForDuplicates(fileMetadata) {
+		let taskIds = {};
+		let duplicates = {};
+
+		for (const file in fileMetadata) {
+			fileMetadata[file].TickTickTasks.forEach(task => {
+				if (taskIds[task.taskId]) {
+					if (!duplicates[task.taskId]) {
+						duplicates[task.taskId] = [taskIds[task.taskId]];
+					}
+					duplicates[task.taskId].push(file);
+				} else {
+					taskIds[task.taskId] = file;
+				}
+			});
+		}
+		//Some day, may want to do something with all the taskids?
+		return {taskIds,duplicates};
+	}
 
     //Check errors in filemata where the filepath is incorrect.
     async checkFileMetadata(): Promise<number> {
@@ -484,7 +505,7 @@ export class CacheOperation {
 
 
             const taskIndex = savedTasks.findIndex((task) => task.id === taskId);
-            if (taskIndex > 0) {
+            if (taskIndex > -1 ) {
                 savedTasks[taskIndex].status = 0;
                 projectId = savedTasks[taskIndex].projectId;
             }
@@ -507,7 +528,7 @@ export class CacheOperation {
             const savedTasks = this.plugin.settings.TickTickTasksData.tasks
 
             const taskIndex = savedTasks.findIndex((task) => task.id === taskId);
-            if (taskIndex > 0) {
+            if (taskIndex > -1)  {
                 savedTasks[taskIndex].status = 2;
                 projectId = savedTasks[taskIndex].projectId;
             }
@@ -605,7 +626,7 @@ export class CacheOperation {
 			if (sortedDuplicates.length > 0) {
 				// @ts-ignore
 				if (this.plugin.settings.debugMode) {
-					console.log("Found dupes:")
+					console.log("Found duplicate lists:")
 					sortedDuplicates.forEach(thing => console.log(thing.id, thing.name))
 				}
 				await this.showFoundDuplicatesModal(this.app, this.plugin, sortedDuplicates)
@@ -662,7 +683,7 @@ export class CacheOperation {
 
         } catch (error) {
             console.error(`error downloading projects: ${error}`)
-            this.plugin.syncLock = false;
+            await this.plugin.unlockSynclock();;
             return false
         }
 

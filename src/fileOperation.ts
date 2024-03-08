@@ -1,7 +1,9 @@
 import {App, Notice, TFile, TFolder} from 'obsidian';
 import TickTickSync from "../main";
-import {ITask} from 'ticktick-api-lvt/dist/types/Task';
+import { ITask } from './api/types/Task';
 import {TaskDeletionModal} from "./modals/TaskDeletionModal";
+import { Status } from 'obsidian-task/src/Statuses/Status';
+import { StatusType } from 'obsidian-task/src/Statuses/StatusConfiguration';
 
 export class FileOperation {
     app: App;
@@ -41,6 +43,7 @@ export class FileOperation {
         if (modified) {
             const newContent = lines.join('\n')
             await this.app.vault.modify(file, newContent)
+			// console.error("Modified: ", file?.path, new Date().toISOString());
         }
     }
 
@@ -69,6 +72,7 @@ export class FileOperation {
         if (modified) {
             const newContent = lines.join('\n')
             await this.app.vault.modify(file, newContent)
+			// console.error("Modified: ", file?.path, new Date().toISOString());
         }
     }
 
@@ -113,6 +117,7 @@ export class FileOperation {
             const newContent = lines.join('\n')
             //console.log(newContent)
             await this.app.vault.modify(file, newContent)
+			// console.error("Modified: ", file?.path, new Date().toISOString());
 
             // //update filemetadate
             // const metadata = await this.plugin.cacheOperation?.getFileMetadata(filepath)
@@ -161,6 +166,7 @@ export class FileOperation {
             const newContent = lines.join('\n')
             //console.log(newContent)
             await this.app.vault.modify(file, newContent)
+			// console.error("Modified: ", file?.path, new Date().toISOString());
 
 
 
@@ -248,6 +254,7 @@ export class FileOperation {
 
             let lastTaskLine = 0;
 
+
             let lastLineInFile = lines.length;
             let lastLineId = "";
             for (let i = 0; i < lines.length; i++) {
@@ -285,6 +292,7 @@ export class FileOperation {
             if (oldLineCount < newLineCount) {
                 const newContent = lines.join('\n');
                 await this.app.vault.modify(file, newContent);
+				// console.error("Modified: ", file?.path, new Date().toISOString());
                 this.plugin.lastLines.set(file.path, lines.length);
             }
             return true;
@@ -298,13 +306,26 @@ export class FileOperation {
 		const addedTask: string[] = [];
         for (const task of tasks) {
             let itemCount = 0;
+			//Tired of seeing duplicates because of Sync conflicts.
+			if (lines.find(line => (line.includes(task.id)))) {
+				//it's in the file, but not in cache. Just update it.
+				await this.updateTaskInFile(task, lines)
+				await this.plugin.cacheOperation?.updateTaskToCacheByID(task, file.path)
+				addedTask.push(task.id);
+				continue;
+			}
+            let lineText = await this.plugin.taskParser?.convertTaskToLine(task);
 
-            let lineText = await this.plugin.taskParser?.convertTaskObjectToTaskLine(task);
-            if (task.parentId) {
+			if (task.status != 0) {
+				//closed task, add completion time
+				lineText = this.plugin.taskParser?.addCompletionDate(lineText, task.completedTime);
+			}
+
+			if (task.parentId) {
                 let parentIndex = lines.indexOf(lines.find(line => line.includes(task.parentId)))
                 if (parentIndex < 0) {
                     //TODO: Determine how to handle
-                    console.error("Parent ID Not found in file.")
+                    console.error("Parent ID of" + task.title + "Not found in file.")
                 }
                 let parentLine = lines[parentIndex];
                 if (parentLine) {
@@ -359,7 +380,8 @@ export class FileOperation {
             if (taskURL) {
                 task.title = task.title + " " + taskURL;
             }
-            let updatedTask = await this.plugin.tickTickRestAPI?.UpdateTask(task)
+
+			let updatedTask = await this.plugin.tickTickRestAPI?.UpdateTask(task)
 			await this.plugin.cacheOperation?.appendTaskToCache(updatedTask, file.path);
 			//keep track of added Tasks because item count is affected
 
@@ -376,11 +398,17 @@ export class FileOperation {
         const currentTask: ITask = await this.plugin.cacheOperation?.loadTaskFromCacheID(taskId)
 
 
-		const hasChildren = currentTask.childIds?.length > 0
+		if (currentTask) {
+			//Only check for Project/Parent change if task is in cache.
+			const hasChildren = this.hasChildren(currentTask);
 
-		if ((this.plugin.taskParser?.isProjectIdChanged(currentTask, task)) || this.plugin.taskParser?.isParentIdChanged(currentTask, task)) {
-			await this.handleTickTickStructureMove(task, currentTask, toBeProcessed)
-			return;
+			if ((this.plugin.taskParser?.isProjectIdChanged(currentTask, task)) || this.plugin.taskParser?.isParentIdChanged(currentTask, task)) {
+				//todo: if a task is moved, AND it's status is changed, then the completion date is going to be wrong.
+				//      wait to see how big a deal this is before making a bunch of changes. Chances are it will be handled
+				//      on the next sync anyway.
+				await this.handleTickTickStructureMove(task, currentTask, toBeProcessed);
+				return;
+			}
 		}
 
 
@@ -401,21 +429,30 @@ export class FileOperation {
         for (let i = 0; i < lines.length; i++) {
             let line = lines[i]
             if (line.includes(taskId) && this.plugin.taskParser?.hasTickTickTag(line)) {
-                let newTaskContent = await this.plugin.taskParser?.convertTaskObjectToTaskLine(task);
+                let newTaskContent = await this.plugin.taskParser?.convertTaskToLine(task);
+
+				//TODO: Possibly redundant.
+				let bOldTaskOpen = this.plugin.taskParser?.isTaskOpen(line)
+
 				//get tabs for current task
-                let taskToBeReplaced = await this.plugin.taskParser?.taskFromLine(line, filepath);
-                let parentTabs = taskToBeReplaced?.indentation;
+                let parentTabs = this.plugin.taskParser?.getTabs(line);
 				let itemCount = 0;
                 if (newTaskContent.includes("\n")) { // are there items?
                     newTaskContent = newTaskContent.replace(/\n/g, "\n" + parentTabs + '\t');
 					itemCount = (newTaskContent.match(/\n/g) || []).length;
                 }
-				if (currentTask.items && currentTask.items.length > 0 ) {
+				//TODO: Is this even valid?
+				if (currentTask && currentTask.items && currentTask.items.length > 0 ) {
 					lines.splice(i+1,currentTask.items.length)
 				}
                 lines[i] = parentTabs + line.replace(line, newTaskContent)
+				if ((bOldTaskOpen) && (task.status != 0)) {
+					//in an ideal world, we would triger Tasks to complete the task for us.
+					//but we're not there. Slap a completion date on the end of the line and be done
+					lines[i] = this.plugin.taskParser?.addCompletionDate(lines[i], task.completedTime);
+				}
 
-                // if (task.items && task.items.length > 0 ) {
+				// if (task.items && task.items.length > 0 ) {
                 //     console.log(`new Task has ${currentTask.items.length}`)
                 // }
                 modified = true
@@ -427,10 +464,47 @@ export class FileOperation {
         if (modified) {
             const newContent = lines.join('\n')
             await this.app.vault.modify(file, newContent)
+			// console.error("Modified: ", file?.path, new Date().toISOString());
 		}
 
     }
-    // delete task from file
+
+	async checkForDuplicates(fileMetadata, taskList: {} | undefined) {
+		let taskIds = {};
+		let duplicates = {};
+
+		for (const file in fileMetadata) {
+			const currentFile = this.app.vault.getAbstractFileByPath(file)
+			const content = await this.app.vault.read(currentFile)
+			for (let taskListKey in taskList) {
+				if (content.includes(taskListKey)) {
+					if (taskIds[taskListKey]) {
+						if (!duplicates[taskListKey]) {
+							duplicates[taskListKey] = [taskIds[taskListKey]];
+						}
+						duplicates[taskListKey].push(file);
+					} else {
+						taskIds[taskListKey] = file;
+					}
+
+				}
+
+			}
+		}
+		return duplicates;
+	}
+
+	//Yes, I know this belongs in taskParser, but I don't feel like messing with it right now.
+	private hasChildren(currentTask: ITask) {
+
+		if (currentTask.childIds) {
+			return currentTask.childIds?.length > 0;
+		} else {
+			return false;
+		}
+	}
+
+// delete task from file
     async deleteTaskFromSpecificFile(filePath: string, taskId: string, taskTitle: string, numItems: number, bConfirmDialog: boolean) {
         // Get the file object and update the content
 	if (bConfirmDialog) {
@@ -461,6 +535,7 @@ export class FileOperation {
             const newContent = lines.join('\n')
             //console.log(newContent)
             await this.app.vault.modify(file, newContent)
+			// console.error("Modified: ", file?.path, new Date().toISOString());
         }
 
 
@@ -585,7 +660,7 @@ export class FileOperation {
 
 		const oldProjectId: string = oldTask.projectId;
 		const oldtaskItemNum: number = oldTask.items?.length;
-		const oldTaskHasChildren: boolean = oldTask.childIds?.length > 0;
+		const oldTaskHasChildren: boolean = this.hasChildren(oldTask);
 		const oldTaskId = oldTask.id;
 
 
@@ -600,15 +675,17 @@ export class FileOperation {
 			//get rid of the old children from file, but not from cache. we'll add them in later.
 			for (const childId of oldTask.childIds) {
 				const child = await this.plugin.cacheOperation?.loadTaskFromCacheID(childId);
-				const numChildTaskItems = child.items?.length
-				console.log("Deleting: ", child.title)
+				let numChildTaskItems = 0;
+				if (child && child.items) {
+					numChildTaskItems = child.items.length;
+				}
 				await this.deleteTaskFromSpecificFile(filepath, child.id, child.title, numChildTaskItems, false);
 			}
 		}
 
 		if (newTask.parentId || saveTheChildren) {
 			//it's a child task. or new parent task. does it have children?
-			const hasChildren = newTask.childIds?.length > 0;
+			const hasChildren = this.hasChildren(newTask);
 			if (hasChildren) {
 				await this.moveChildTasks(newTask, toBeProcessed, filepath);
 			}
@@ -630,7 +707,7 @@ export class FileOperation {
 			const numChildTaskItems = currentChild.items?.length
 
 			await this.moveTask(filepath, currentChild, numChildTaskItems, currentChild.id, currentChild.projectId);
-			const currentChildHasChildren = currentChild.childIds?.length > 0;
+			const currentChildHasChildren = this.hasChildren(currentChild);
 			if (currentChildHasChildren) {
 				const currentChild = await this.plugin.cacheOperation?.loadTaskFromCacheID(childId);
 				await this.moveChildTasks(currentChild, toBeProcessed, filepath);
@@ -640,7 +717,6 @@ export class FileOperation {
 	}
 
 	private async moveTask(filepath: Promise<string | string>, task: ITask, oldtaskItemNum: number, oldTaskId: string, oldProjectId: string) {
-		console.log("Moving: ", task.title)
 		await this.deleteTaskFromSpecificFile(filepath, task.id, task.title, oldtaskItemNum, false);
 		await this.plugin.cacheOperation?.deleteTaskFromCache(oldTaskId);
 

@@ -1,6 +1,6 @@
 import TickTickSync from "../main";
 import {App, Editor, EditorPosition, MarkdownView, Notice, TFile, TFolder} from 'obsidian';
-import {ITask} from "ticktick-api-lvt/dist/types/Task";
+import { ITask } from './api/types/Task';
 import ObjectID from 'bson-objectid';
 import {TaskDetail} from "./cacheOperation"
 import {RegExpMatchArray} from 'typescript';
@@ -108,9 +108,13 @@ export class SyncMan {
 			//We had a file. There is no content. User deleted ALL tasks, all items will be deleted as a side effect.
 			const deletedTaskIDs = fileMetadata_TickTickTasks.map((taskDetail) => taskDetail.taskId);
 			if (deletedTaskIDs.length > 0) {
+				//TODO: Assuming that if they for real deleted everything, it will get caught on the next sync
 				console.error("All tasks will be deleted.", file, currentFileValue, filepath);
-				new Notice(`All content from ${file.path} appears to have been removed. \n If this is correct, please confirm task deletion.`, 0)
-				await this.deleteTasksByIds(deletedTaskIDs);
+
+				// new Notice(`All content from ${file} APPEARS to have been removed.\n` +
+				// 	"If this is correct, please confirm task deletion.", 0)
+				//
+				// await this.deleteTasksByIds(deletedTaskIDs);
 			}
 		}
 
@@ -175,7 +179,7 @@ export class SyncMan {
 		if ((!this.plugin.taskParser?.hasTickTickId(lineTxt) && this.plugin.taskParser?.hasTickTickTag(lineTxt))) {
 			//Whether #ticktick is included, but not ticktickid: Task just added.
 			try {
-				const currentTask = await this.plugin.taskParser?.convertTextToTickTickTaskObject(lineTxt, filePath, line, fileContent)
+				const currentTask = await this.plugin.taskParser?.convertLineToTask(lineTxt, filePath, line, fileContent)
 				const newTask = await this.plugin.tickTickRestAPI?.AddTask(currentTask)
 				if (currentTask.parentId) {
 					let parentTask = await this.plugin.cacheOperation?.loadTaskFromCacheID(currentTask.parentId);
@@ -201,7 +205,7 @@ export class SyncMan {
 				return await this.updateTaskLine(newTask, lineTxt, editor, cursor, fileContent, line, filePath);
 			} catch (error) {
 				console.error('Error adding task:', error);
-				console.error(`The error occurred in the file: ${filePath}`)
+				console.error(`The error occurred in file: ${filePath}`)
 				return fileContent;
 			}
 
@@ -209,12 +213,16 @@ export class SyncMan {
 		return fileContent;
 	}
 
+	//This method was added at some point to handle the date moving logic that happens in converTaskToLine.
+	// an unfortunate side effect: it farckles up the items. For now only update the task and not the items.
+	// The assumption being that when this is called Items will be handled elsewhere.
 	private async updateTaskLine(newTask: ITask, lineTxt: string, editor: Editor | null, cursor: EditorPosition | null, fileContent: string, line: number| null, filePath: string) {
-		console.log("updateTaskLine");
-		let text = await this.plugin.taskParser?.convertTaskObjectToTaskLine(newTask);
+		//TODO: Validate this is ok.
+		let newTaskCopy = {...newTask}
+		newTaskCopy.items = []
+		let text = await this.plugin.taskParser?.convertTaskToLine(newTaskCopy);
 		const tabs = this.plugin.taskParser?.getTabs(lineTxt);
 		text = tabs + text;
-
 
 		if (editor && cursor) {
 			const from = { line: cursor.line, ch: 0 };
@@ -229,6 +237,7 @@ export class SyncMan {
 				const file = this.app.vault.getAbstractFileByPath(filePath);
 				const newContent = lines.join('\n');
 				await this.app.vault.modify(file, newContent);
+				// console.error("Modified: ", file?.path, new Date().toISOString());
 				return newContent;
 			} catch (error) {
 				console.error(error);
@@ -286,7 +295,7 @@ export class SyncMan {
 	}
 
 
-	async lineModifiedTaskCheck(filepath: string, lineText: string, lineNumber: number, fileContent: string): Promise<boolean> {
+	async lineModifiedTaskCheck(filepath: string | undefined, lineText: string, lineNumber: number | undefined, fileContent: string): Promise<boolean> {
 		let modified = false;
 		if (this.plugin.settings.enableFullVaultSync) {
 			//new empty metadata
@@ -299,10 +308,9 @@ export class SyncMan {
 
 		//check task
 		if (this.plugin.taskParser?.hasTickTickId(lineText) && this.plugin.taskParser?.hasTickTickTag(lineText)) {
-			const lineTask = await this.plugin.taskParser?.convertTextToTickTickTaskObject(lineText, filepath, lineNumber, fileContent)
+			const lineTask = await this.plugin.taskParser?.convertLineToTask(lineText, filepath, lineNumber, fileContent)
 			const lineTask_ticktick_id = lineTask.id
 			const savedTask = await this.plugin.cacheOperation?.loadTaskFromCacheID(lineTask_ticktick_id)
-
 
 			if (!savedTask) {
 				//Task in note, but not in cache. Assuming this would only happen in testing, delete the task from the note
@@ -325,7 +333,6 @@ export class SyncMan {
 			//project whether to modify
 
 			const projectModified = this.plugin.taskParser?.isProjectIdChanged(lineTask, savedTask)
-
 			//Check if task has been in moved inside Obsidian
 			const oldFilePath = await  this.plugin.cacheOperation?.isProjectMoved(lineTask, filepath);
 			let projectMoved = false;
@@ -393,11 +400,17 @@ export class SyncMan {
 
 					let noticeMessage = "";
 					if (projectModified) {
+						if (this.plugin.settings.debugMode) {
+							console.log("Project Modified");
+						}
 						noticeMessage = `Task ${lineTask_ticktick_id}: ${lineTaskTitle} has moved from ` +
 							`${await this.plugin.cacheOperation?.getProjectNameByIdFromCache(savedTask.projectId)} to ` +
 							`${await this.plugin.cacheOperation?.getProjectNameByIdFromCache(lineTask.projectId)} \n` +
 							`If any children were moved, they will be updated to ${this.plugin.settings.baseURL} on the next Sync event`
 					} else if (projectMoved) {
+						if (this.plugin.settings.debugMode) {
+							console.log("Project Moved");
+						}
 						noticeMessage = `Task ${lineTask_ticktick_id}: ${lineTaskTitle} has moved from ` +
 							`${oldFilePath} to ` +
 							`${filepath} \n` +
@@ -452,7 +465,6 @@ export class SyncMan {
 					//TODO: Breaking SOC here.
 					savedTask.modifiedTime = this.plugin.taskParser?.formatDateToISO(new Date());
 
-					console.log("TaskDate before update: ", lineTask.isAllDay, lineTask.dueDate);
 					const updatedTask = await this.plugin.tickTickRestAPI?.UpdateTask(lineTask)
 					if (!projectChanged) {
 						await this.plugin.cacheOperation?.updateTaskToCacheByID(updatedTask, null);
@@ -460,7 +472,6 @@ export class SyncMan {
 						await this.plugin.cacheOperation?.updateTaskToCacheByID(updatedTask, filepath);
 					}
 					//May seem redundant, but puts task line formatting in one place.
-					console.log("TaskDate after update: ", updatedTask.isAllDay, updatedTask.dueDate);
 					await this.updateTaskLine(updatedTask, lineText, null, null, fileContent, lineNumber, filepath);
 
 					modified = true;
@@ -484,8 +495,8 @@ export class SyncMan {
 						this.plugin.tickTickRestAPI?.OpenTask(lineTask.id, lineTask.projectId);
 						await this.plugin.cacheOperation?.reopenTaskToCacheByID(lineTask.id);
 					}
-
 					statusChanged = true;
+					new Notice(`Task Status for ${lineTask_ticktick_id} updated `);
 				}
 
 
@@ -608,7 +619,7 @@ export class SyncMan {
 							} else {
 								//TODO: Should ought to do something about this. Like either delete it from TT or
 								//      delete it from OBS. Or something.
-								console.log("item ID", itemId, " not found in", parentTask.items)
+								console.error("item ID", itemId," ", content.trim(), " not found in", parentTask.title)
 								break;
 							}
 						} else {
@@ -939,18 +950,6 @@ export class SyncMan {
 			let bModifiedFileSystem = false;
 			let allTaskDetails = await this.plugin.tickTickRestAPI?.getAllTasks();
 
-			// console.log(this.plugin.tickTickRestAPI?.api?.apiUrl)
-			//TODO: Kludge: There's going to be folks out there without default SyncTags or projects. Until we straighten that out...
-			if (!this.plugin.settings.SyncTag) {
-				this.plugin.settings.SyncTag = "";
-				await  this.plugin.saveSettings();
-			}
-			if (!this.plugin.settings.SyncProject) {
-				this.plugin.settings.SyncProject = "";
-				await  this.plugin.saveSettings();
-			}
-
-
 			let tasksFromTickTic = allTaskDetails.update;
 			let deletedTasks = allTaskDetails.delete;
 			//TODO: Filtering deleted tasks would take an act of congress. Just warn the user in Readme.
@@ -980,10 +979,11 @@ export class SyncMan {
 					return;
 				}
 			}
+			let tasksInCache = await this.plugin.cacheOperation?.loadTasksFromCache()
 			if (this.plugin.settings.debugMode) {
 				console.log("We have: ", tasksFromTickTic.length, " tasks on " + this.plugin.tickTickRestAPI?.api?.apiUrl)
+				console.log("There are: ", tasksInCache.length, " tasks in Cache.");
 			}
-			let tasksInCache = await this.plugin.cacheOperation?.loadTasksFromCache()
 
 
 			tasksFromTickTic = tasksFromTickTic.sort((a, b) => (a.id > b.id) ? 1 : ((b.id > a.id) ? -1 : 0))
@@ -996,11 +996,16 @@ export class SyncMan {
 			} else {
 				tasksInCache = [];
 			}
-
-			// this.syncTasks(tasksFromTickTic, tasksInCache, deletedTasks);
+			if (tasksFromTickTic) {
+				tasksFromTickTic = tasksFromTickTic.sort((a, b) => (a.id > b.id) ? 1 : ((b.id > a.id) ? -1 : 0))
+				// console.log("local tasks: ", tasksInCache.length);
+			} else {
+				tasksFromTickTic = [];
+			}
 			// Check for new tasks in TickTick
+
 			const newTickTickTasks = tasksFromTickTic.filter(task => !tasksInCache.some(t => t.id === task.id));
-			//this.dumpArray('== Add to Obsidian:', newTickTickTasks);
+			// this.dumpArray('== Add to Obsidian:', newTickTickTasks);
 			//download remote only tasks to Obsidian
 			if (newTickTickTasks.length > 0) {
 				let result = await this.plugin.fileOperation?.addTasksToFile(newTickTickTasks)
