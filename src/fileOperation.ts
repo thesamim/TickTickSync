@@ -2,8 +2,7 @@ import {App, Notice, TFile, TFolder} from 'obsidian';
 import TickTickSync from "../main";
 import { ITask } from './api/types/Task';
 import {TaskDeletionModal} from "./modals/TaskDeletionModal";
-import { Status } from 'obsidian-task/src/Statuses/Status';
-import { StatusType } from 'obsidian-task/src/Statuses/StatusConfiguration';
+
 
 export class FileOperation {
     app: App;
@@ -431,9 +430,6 @@ export class FileOperation {
             if (line.includes(taskId) && this.plugin.taskParser?.hasTickTickTag(line)) {
                 let newTaskContent = await this.plugin.taskParser?.convertTaskToLine(task);
 
-				//TODO: Possibly redundant.
-				let bOldTaskOpen = this.plugin.taskParser?.isTaskOpen(line)
-
 				//get tabs for current task
                 let parentTabs = this.plugin.taskParser?.getTabs(line);
 				let itemCount = 0;
@@ -446,7 +442,8 @@ export class FileOperation {
 					lines.splice(i+1,currentTask.items.length)
 				}
                 lines[i] = parentTabs + line.replace(line, newTaskContent)
-				if ((bOldTaskOpen) && (task.status != 0)) {
+				//always add completion date at end if the task is closed.
+				if (task.status != 0) {
 					//in an ideal world, we would triger Tasks to complete the task for us.
 					//but we're not there. Slap a completion date on the end of the line and be done
 					lines[i] = this.plugin.taskParser?.addCompletionDate(lines[i], task.completedTime);
@@ -693,7 +690,7 @@ export class FileOperation {
 	}
 
 
-	private async moveChildTasks(newTask: ITask, toBeProcessed: string[], filepath: Promise<string | string>) {
+	private async moveChildTasks(newTask: ITask, toBeProcessed: string[], filepath: string) {
 		for (const childId of newTask.childIds) {
 			//Are they going to be processed later?
 			if (toBeProcessed.includes(childId)) {
@@ -716,7 +713,7 @@ export class FileOperation {
 		}
 	}
 
-	private async moveTask(filepath: Promise<string | string>, task: ITask, oldtaskItemNum: number, oldTaskId: string, oldProjectId: string) {
+	private async moveTask(filepath: string, task: ITask, oldtaskItemNum: number, oldTaskId: string, oldProjectId: string) {
 		await this.deleteTaskFromSpecificFile(filepath, task.id, task.title, oldtaskItemNum, false);
 		await this.plugin.cacheOperation?.deleteTaskFromCache(oldTaskId);
 
