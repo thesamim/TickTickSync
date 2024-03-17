@@ -1,5 +1,6 @@
 ## CHANGELOG
 
+
 ### Beta six \[1.0.20\]
 
 1. Fix API headers in requests per TickTick protocol change.
