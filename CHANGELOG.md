@@ -1,6 +1,12 @@
 ## CHANGELOG
 
-### Beta five \[1.0.18\] -- \[1.0.19]
+
+### Beta six \[1.0.20\]
+
+1. Fix API headers in requests per TickTick protocol change.
+2. Improve first login experience to prevent default folder/project issues
+
+### Beta five \[1.0.18\] -- \[1.0.19\]
 
 1. TickTickSync is now mobile compatible
 2. Remove dependency on ticktick-api-lvt, migrate all API code to TickTickSync source tree

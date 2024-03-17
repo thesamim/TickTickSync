@@ -612,6 +612,15 @@ export class CacheOperation {
 			// Inbox ID is got on API initialization. Don't have to do it here any more.
             const projectGroups = await this.plugin.tickTickRestAPI?.GetProjectGroups();
             const projects: IProject[] = await this.plugin.tickTickRestAPI?.GetAllProjects();
+
+			//Moving this here because if they have a list named Inbox, bad shit will happen.
+			let inboxProject = {
+				id: this.plugin.settings.inboxID,
+				name: this.plugin.settings.inboxName
+			};
+
+			projects.push(inboxProject);
+
 			const duplicates = projects.reduce((acc, obj, index, arr) => {
 				const duplicateIndex = arr.findIndex(item => item.name === obj.name && item.id !== obj.id);
 				if (duplicateIndex !== -1 && !acc.includes(obj)) {
@@ -634,12 +643,7 @@ export class CacheOperation {
 			}
 
 
-            let inboxProject = {
-				id: this.plugin.settings.inboxID,
-				name: this.plugin.settings.inboxName
-			};
 
-            projects.push(inboxProject);
 
             // if (this.plugin.settings.debugMode) {
             //     if (projectGroups !== undefined && projectGroups !== null) {

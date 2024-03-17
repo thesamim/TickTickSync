@@ -443,7 +443,11 @@ export class TaskParser {
 
 	utcToLocal(utcDateString: string, bIsAllDay: boolean) {
 		const date = new Date(utcDateString);
-		const localDate = date.toLocaleString();
+		//Regardless of host date/time format, we want to parse for "en-US" format
+		const locale = "en-US";
+		const hostTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone
+		const localDate = date.toLocaleString(locale, {timeZone: hostTimeZone});
+		//console.log("@@@@ local date string: ", localDate);
 		const [datePart, timePart] = localDate.split(', ');
 		let [month, day, year] = datePart.split('/');
 		month = String(month).padStart(2, '0');

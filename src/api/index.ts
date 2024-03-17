@@ -545,7 +545,12 @@ async makeRequest(operation: string, url: string, method: string, body: any|unde
 
 		let error = '';
 		try {
-			const requestOptions = this.createRequestOptions(method, url, body);
+			let requestOptions = {}
+			if (operation == "Login" ) {
+				requestOptions = this.createLoginRequestOptions(url, body);
+			} else {
+				requestOptions = this.createRequestOptions(method, url, body);
+			}
 			const result = await requestUrl(requestOptions);
 			//TODO: Assumes that we ALWAYS get a result of some kind. Verify.
 			if (result.status != 200) {
@@ -560,15 +565,29 @@ async makeRequest(operation: string, url: string, method: string, body: any|unde
 		}
 
 	}
-
-	private createRequestOptions(method: string, url: string, body: JSON | undefined) {
-		const headers = {
+private createLoginRequestOptions(url: string, body: JSON) {
+		const 			headers = {
 			// 'origin': 'http://ticktick.com',
 			'Content-Type': 'application/json',
 			'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/117.0',
-			'x-device': '{"platform":"web","os":"Windows 10","device":"Firefox 117.0","name":"","version":4576,"id":"64f9effe6edff918986b5f71","channel":"website","campaign":"","websocket":""}',
-			'Cookie': 'AWSALB=WMtutBBo/NJ3/7lRMEGbqSN1hQcnRohspAN70w1r/KaC9MXwTI7CnNZbtjbtlkMlndvxno48Jd63nxVjCWHyyHK+jFtL3fXKLMRqw/clImsemFejFva5AIM9cZ6t;' + ' AWSALBCORS=WMtutBBo/NJ3/7lRMEGbqSN1hQcnRohspAN70w1r/KaC9MXwTI7CnNZbtjbtlkMlndvxno48Jd63nxVjCWHyyHK+jFtL3fXKLMRqw/clImsemFejFva5AIM9cZ6t; ' + `t=${this.token}`
+			'x-device': '{"platform":"web","os":"Windows 10","device":"Firefox 117.0","name":"","version":4576,"id":"64f9effe6edff918986b5f71","channel":"website","campaign":"","websocket":""}'
 		};
+	const options: RequestUrlParam = {
+		method: "POST",
+		url: url,
+		headers: headers,
+		contentType: 'application/json',
+		body: body ? JSON.stringify(body) : undefined,
+		throw: false
+	};
+	return options;
+}
+	private createRequestOptions(method: string, url: string, body: JSON | undefined) {
+		let headers = {
+				//For the record, the bloody rules keep changin and we might have to the _csrf_token
+				'Cookie': `t=${this.token}`,
+				't' : `${this.token}`
+			};
 		const options: RequestUrlParam = {
 			method: method,
 			url: url,

@@ -185,38 +185,12 @@ export class FileOperation {
         const projectIds = [...new Set(tasks.map(task => task.projectId))];
         for (const projectId of projectIds) {
             let taskFile = await this.plugin.cacheOperation?.getFilepathForProjectId(projectId);
-
+			let file;
             if (taskFile) {
-                var file = this.app.vault.getAbstractFileByPath(taskFile);
+                file = this.app.vault.getAbstractFileByPath(taskFile);
                 if (!(file instanceof TFile)) {
-                    //the file doesn't exist. Create it.
-                    //TODO: Deal with Folders and sections in the fullness of time.
-					const folderPath = this.plugin.settings.TickTickTasksFilePath;
-					let folder = this.app.vault.getAbstractFileByPath(folderPath)
-					if (!(folder instanceof TFolder)) {
-						console.warn(`Folder ${folderPath} does not exit. It will be created`)
-						folder = await this.app.vault.createFolder(folderPath);
-					}
-                    new Notice(`Creating new file: ${folder.path}/${taskFile}`);
-					console.warn(`Creating new file: ${folder.path}/${taskFile}`);
-					taskFile = `${folder.path}/${taskFile}`;
-                    let whoAdded = `${this.plugin.manifest.name} -- ${this.plugin.manifest.version}`;
-					try {
-						file = await this.app.vault.create(taskFile, `== Added by ${whoAdded} == `)
-					} catch (error) {
-						console.error("File creation failed: ", error)
-						if (error.message.includes("File already exists")) {
-							console.error("Attempting to find existing file")
-							//this has happened when we've had duplicated lists in TickTick.
-							//Until they fix it....
-							file = this.app.vault.getAbstractFileByPath(taskFile);
-							// if (file instanceof TFile) {
-							// 	const projectName = await this.plugin.cacheOperation?.getProjectNameByIdFromCache(projectId);
-							// 	// await this.app.vault.append(file, `\n====== Project **${projectName}** is probably duplicated in TickTick Adding tasks from other project here.  `)
-							// }
-						}
-					}
-                }
+					file = await this.getOrCreateDefaultFile(taskFile);
+				}
             }
             let projectTasks = tasks.filter(task => task.projectId === projectId);
             //make sure top level tasks are first
@@ -241,6 +215,43 @@ export class FileOperation {
 		return true;
     }
 
+
+	async getOrCreateDefaultFile(taskFile: string) {
+		let file;
+		//the file doesn't exist. Create it.
+		try {
+			//TODO: Deal with Folders and sections in the fullness of time.
+			const folderPath = this.plugin.settings.TickTickTasksFilePath;
+			let folder = this.app.vault.getAbstractFileByPath(folderPath);
+			if (!(folder instanceof TFolder)) {
+				console.warn(`Folder ${folderPath} does not exit. It will be created`);
+				folder = await this.app.vault.createFolder(folderPath);
+			}
+			new Notice(`Creating new file: ${folder.path}/${taskFile}`);
+			console.warn(`Creating new file: ${folder.path}/${taskFile}`);
+			taskFile = `${folder.path}/${taskFile}`;
+			let whoAdded = `${this.plugin.manifest.name} -- ${this.plugin.manifest.version}`;
+			try {
+				file = await this.app.vault.create(taskFile, `== Added by ${whoAdded} == `);
+			} catch (error) {
+				console.error('File creation failed: ', error);
+				if (error.message.includes('File already exists')) {
+					console.error('Attempting to find existing file');
+					//this has happened when we've had duplicated lists in TickTick.
+					//Until they fix it....
+					file = this.app.vault.getAbstractFileByPath(taskFile);
+					// if (file instanceof TFile) {
+					// 	const projectName = await this.plugin.cacheOperation?.getProjectNameByIdFromCache(projectId);
+					// 	// await this.app.vault.append(file, `\n====== Project **${projectName}** is probably duplicated in TickTick Adding tasks from other project here.  `)
+					// }
+				}
+			}
+			return file;
+		} catch (error) {
+			console.error('Error on create file: ', error);
+			throw new Error(error);
+		}
+	}
 
     private async addProjectTasksToFile(file: TFile, tasks: ITask[]): Promise<boolean> {
         try {
