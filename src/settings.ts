@@ -59,19 +59,22 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 	}
 
 	async display(): void {
-		const {containerEl} = this;
+		let bProjectsLoaded = false;
+		const { containerEl } = this;
 
 		containerEl.empty();
 
 		containerEl.createEl('h2', {text: 'Settings'});
 
+		if (this.plugin.settings.TickTickTasksData?.projects) {
+			bProjectsLoaded = true;
+		}
 		const myProjectsOptions: Record<string, string> | undefined = this.plugin.settings.TickTickTasksData?.projects?.reduce((obj, item) => {
 			try {
 				obj[(item.id).toString()] = item.name;
 				return obj;
 			} catch {
-				obj[0] = "load fail"
-				return obj;
+				console.error("Failed to Load", item.name);
 			}
 		}, {});
 		const providerOptions: Record<string, string> = {"1": "ticktick.com", "2": "dida365.com"}
@@ -146,11 +149,21 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 								this.plugin.tickTickRestAPI.token = api.token;
 								this.plugin.settings.apiInitialized = true;
 								await this.plugin.saveSettings();
-							} else  {
-								this.plugin.tickTickRestAPI = new TickTickRestAPI(this.app, this.plugin)
-								await this.plugin.tickTickRestAPI.initializeAPI();
+							} else {
+								//TODO: this does result in double construction of the API.
+								//      until I can be shagged to do overloaded constructors, it'll have to do. (no pun intended)
+								await this.plugin.initializeModuleClass();
 							}
-							new Notice("Logged in!")
+							//it's first login right? Cache the projects for to get the rest of set up done.
+							new Notice("Logged in! Fetching projects", 0)
+							const bGotProjects = await this.plugin.cacheOperation?.saveProjectsToCache();
+							if (bGotProjects) {
+								new Notice("Fetching projects complete", 0)
+							} else {
+								new Notice("Project fetch failed.", 0)
+							}
+
+
 						} else {
 							this.plugin.settings.token = "";
 							this.plugin.settings.apiInitialized = false;
@@ -166,9 +179,11 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 			})
 
 
-		containerEl.createEl('hr');
-		containerEl.createEl('h1', {text: 'Sync control'});
-		this.add_default_folder_path();
+		if (this.plugin.settings.apiInitialized && bProjectsLoaded) {
+			containerEl.createEl('hr');
+			containerEl.createEl('h1', { text: 'Sync control' });
+
+			this.add_default_folder_path();
 
 		new Setting(containerEl)
 			.setName('Default project')
@@ -180,18 +195,24 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 					.onChange(async (value) => {
 						this.plugin.settings.defaultProjectId = value
 						this.plugin.settings.defaultProjectName = await this.plugin.cacheOperation?.getProjectNameByIdFromCache(value)
-						await this.plugin.saveSettings()
-
-
-					})
-			)
-		containerEl.createEl('hr');
-		containerEl.createEl('h2', {text: 'Limit synchronization'});
-		new Setting(containerEl)
-			.setDesc("To limit the tasks TickTickSync will synchronize from TickTick to " +
-				"Obsidian select a tag or project(list) below. If a tag is entered, only tasks with that tag will be " +
-				"synchronized. If a project(list) is selected, only tasks in that project will be synchronized. If " +
-				"both are chosen only tasks with that tag in that project will be synchronized.")
+							const defaultProjectFileName = this.plugin.settings.defaultProjectName + ".md"
+							//make sure the file exists.
+							const defaultProjectFile = await this.plugin.fileOperation?.getOrCreateDefaultFile(defaultProjectFileName);
+							if (defaultProjectFile) {
+								this.plugin.cacheOperation?.setDefaultProjectIdForFilepath(defaultProjectFile.path, this.plugin.settings.defaultProjectId)
+							} else {
+								new Notice("Unable to create file for selected default project " + this.plugin.settings.defaultProjectName )
+							}
+							await this.plugin.saveSettings()
+						})
+				)
+			containerEl.createEl('hr');
+			containerEl.createEl('h2', { text: 'Limit synchronization' });
+			new Setting(containerEl)
+				.setDesc("To limit the tasks TickTickSync will synchronize from TickTick to " +
+					"Obsidian select a tag or project(list) below. If a tag is entered, only tasks with that tag will be " +
+					"synchronized. If a project(list) is selected, only tasks in that project will be synchronized. If " +
+					"both are chosen only tasks with that tag in that project will be synchronized.")
 
 		new Setting(containerEl)
 			.setName('Project')
@@ -215,16 +236,18 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 					})
 			)
 
-		new Setting(containerEl)
-			.setName('Tag')
-			.setDesc('Tag value, no "#"')
-			.addText(text => text
-				.setValue(this.plugin.settings.SyncTag)
-				.onChange(async (value) => {
-					this.plugin.settings.SyncTag = value;
-					await this.plugin.saveSettings();
-				})
-			)
+			new Setting(containerEl)
+				.setName('Tag')
+				.setDesc('Tag value, no "#"')
+				.addText(text => text
+					.setValue(this.plugin.settings.SyncTag)
+					.onChange(async (value) => {
+						this.plugin.settings.SyncTag = value;
+						await this.plugin.saveSettings();
+					})
+				)
+		}
+
 
 		containerEl.createEl('hr');
 		new Setting(containerEl)
@@ -286,9 +309,10 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 					})
 			)
 
-		containerEl.createEl('hr');
-		containerEl.createEl('h1', {text: 'Manual operations'});
 
+		if (this.plugin.settings.apiInitialized) {
+			containerEl.createEl('hr');
+			containerEl.createEl('h1', { text: 'Manual operations' });
 
 		new Setting(containerEl)
 			.setName('Manual sync')
@@ -314,15 +338,17 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 			);
 
 
-		new Setting(containerEl)
-			.setName('Check database')
-			.setDesc('Check for possible issues: sync error, file renaming not updated, or missed tasks not synchronized.')
-			.addButton(button => button
-				.setButtonText('Check Database')
-				.onClick(async () => {
-					await this.checkDataBase();
-				})
-			);
+			new Setting(containerEl)
+				.setName('Check database')
+				.setDesc('Check for possible issues: sync error, file renaming not updated, or missed tasks not synchronized.')
+				.addButton(button => button
+					.setButtonText('Check Database')
+					.onClick(async () => {
+						await this.checkDataBase();
+					})
+				);
+		}
+
 
 		new Setting(containerEl)
 			.setName('Debug mode')
@@ -335,21 +361,22 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 						this.plugin.saveSettings()
 					})
 			)
-
-		new Setting(containerEl)
-			.setName('Backup TickTick data')
-			.setDesc('Click to backup TickTick data, The backed-up files will be stored in the root directory of the Obsidian vault.')
-			.addButton(button => button
-				.setButtonText('Backup')
-				.onClick(() => {
-					// Add code here to handle exporting TickTick data
-					if (!this.plugin.settings.apiInitialized) {
-						new Notice(`Please log in from settings first`)
-						return
-					}
-					this.plugin.tickTickSync.backupTickTickAllResources()
-				})
-			);
+		if (this.plugin.settings.apiInitialized) {
+			new Setting(containerEl)
+				.setName('Backup TickTick data')
+				.setDesc('Click to backup TickTick data, The backed-up files will be stored in the root directory of the Obsidian vault.')
+				.addButton(button => button
+					.setButtonText('Backup')
+					.onClick(() => {
+						// Add code here to handle exporting TickTick data
+						if (!this.plugin.settings.apiInitialized) {
+							new Notice(`Please log in from settings first`)
+							return
+						}
+						this.plugin.tickTickSync?.backupTickTickAllResources()
+					})
+				);
+		}
 	}
 
 	private async confirmFullSync() {
