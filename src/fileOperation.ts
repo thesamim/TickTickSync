@@ -481,6 +481,9 @@ export class FileOperation {
 		let taskIds = {};
 		let duplicates = {};
 
+		if (!fileMetadata) {
+			return;
+		}
 		for (const file in fileMetadata) {
 			const currentFile = this.app.vault.getAbstractFileByPath(file)
 			const content = await this.app.vault.read(currentFile)

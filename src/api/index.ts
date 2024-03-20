@@ -19,7 +19,6 @@ const {
 	TaskEndPoint,
 	updateTaskEndPoint,
 	allTagsEndPoint,
-	generalDetailsEndPoint,
 	allHabitsEndPoint,
 	allProjectsEndPoint,
 	allTasksEndPoint,
@@ -51,6 +50,7 @@ export class Tick {
 	apiUrl: string;
 	loginUrl: string;
 	private originUrl: string;
+	private checkpoint: number;
 
 	constructor({ username, password, baseUrl, token }: IoptionsProps) {
 		this.username = username;
@@ -68,7 +68,9 @@ export class Tick {
 			this.loginUrl = `${protocol}${ticktickServer}${apiVersion}`;
 			this.originUrl = `${protocol}${ticktickServer}`;
 		}
+		this.checkpoint = 0;
 	}
+
 
 	get inboxId(): string {
 		return this.inboxProperties.id;
@@ -91,7 +93,7 @@ export class Tick {
 			};
 
 			const response = await this.makeRequest('Login', url, 'POST', body);
-
+			// console.log("Signed in Response: ", response)
 			if (response) {
 				this.token = response.token;
 				ret = await this.getInboxProperties();
@@ -126,34 +128,29 @@ export class Tick {
 
 	async getInboxProperties(): Promise<boolean> {
 		try {
-			let url;
-			//Dida does not return inbox in the general details. It does in the all task.
-			if (this.originUrl.includes('ticktick') && (this.token) && (this.token.length > 0)) {
-				url = `${this.apiUrl}/${generalDetailsEndPoint}`;
-			} else {
-				url = `${this.apiUrl}/${allTasksEndPoint}`;
-			}
-			// @ts-ignore
-			let response = await this.makeRequest('Get Inbox Properties', url, 'GET');
-			if (response) {
-				if (!response.inboxId) {
-					//WTF? Force the other url
-					url = `${this.apiUrl}/${allTasksEndPoint}`;
-					// @ts-ignore
-					response = await this.makeRequest('Get Inbox Properties', url, 'GET');
-				}
-				this.inboxProperties.id = response.inboxId;
-				response['syncTaskBean'].update.forEach((task: any) => {
-					if (task.projectId == this.inboxProperties.id && task.sortOrder < this.inboxProperties.sortOrder) {
-						this.inboxProperties.sortOrder = task.sortOrder;
+			for (let i = 0; i < 10; i++) {
+				const url = `${this.apiUrl}/${allTasksEndPoint}` + this.getNextCheckPoint();
+				// console.log("url ", url)
+				// @ts-ignore
+				let response = await this.makeRequest('Get Inbox Properties', url, 'GET');
+				if (response) {
+					if (!response.inboxId) {
+						// console.log("Inbox ID not found ", response)
+						continue;
 					}
-				});
-				this.inboxProperties.sortOrder--;
-				return true;
+					this.inboxProperties.id = response.inboxId;
+					response['syncTaskBean'].update.forEach((task: any) => {
+						if (task.projectId == this.inboxProperties.id && task.sortOrder < this.inboxProperties.sortOrder) {
+							this.inboxProperties.sortOrder = task.sortOrder;
+						}
+					});
+					this.inboxProperties.sortOrder--;
+					return true;
+				}
+				this.inboxProperties.id = '';
+				this.inboxProperties.sortOrder = 0;
+				return false;
 			}
-			this.inboxProperties.id = '';
-			this.inboxProperties.sortOrder = 0;
-			return false;
 		} catch (e) {
 			console.error('Get Inbox Properties failed: ', e);
 			this.setError('Get Inbox Properties', null, e);
@@ -163,7 +160,7 @@ export class Tick {
 
 	// FILTERS ===================================================================
 
-	// TODO: If Filters required at some point, they come from generalDetailsEndPoint
+	// TODO: If Filters required at some point, they come from allTasksEndPoint
 
 	// TAGS ======================================================================
 
@@ -177,7 +174,7 @@ export class Tick {
 
 	async getProjectGroups(): Promise<IProjectGroup[]> {
 		try {
-			const url = `${this.apiUrl}/${generalDetailsEndPoint}`;
+			const url = `${this.apiUrl}/${allTasksEndPoint}`   + this.checkpoint;
 			const response = await this.makeRequest('Get Project Groups', url, 'GET', undefined);
 			if (response) {
 				return response['projectGroups'];
@@ -227,7 +224,7 @@ export class Tick {
 	// RESOURCES =================================================================
 	async getAllResources(): Promise<ITask[]> {
 		try {
-			const url = `${this.apiUrl}/${allTasksEndPoint}`;
+			const url = `${this.apiUrl}/${allTasksEndPoint}` + this.checkpoint;
 			const response = await this.makeRequest('Get All Resources', url, 'GET', undefined);
 			if (response) {
 				return response;
@@ -244,7 +241,7 @@ export class Tick {
 	// TASKS =====================================================================
 	async getTaskDetails(): Promise<ITask[]> {
 		try {
-			const url = `${this.apiUrl}/${allTasksEndPoint}`;
+			const url = `${this.apiUrl}/${allTasksEndPoint}` + this.checkpoint;
 			const response = await this.makeRequest('Get Task Details', url, 'GET', undefined);
 			if (response) {
 				return response['syncTaskBean'];
@@ -261,7 +258,7 @@ export class Tick {
 
 	async getTasks(): Promise<ITask[]> {
 		try {
-			const url = `${this.apiUrl}/${generalDetailsEndPoint}`;
+			const url = `${this.apiUrl}/${allTasksEndPoint}`  + this.checkpoint;;
 			const response = await this.makeRequest('Get Tasks', url, 'GET', undefined);
 			if (response) {
 				return response['syncTaskBean'].update;
@@ -551,8 +548,9 @@ async makeRequest(operation: string, url: string, method: string, body: any|unde
 			} else {
 				requestOptions = this.createRequestOptions(method, url, body);
 			}
+			// console.log(requestOptions)
 			const result = await requestUrl(requestOptions);
-			//TODO: Assumes that we ALWAYS get a result of some kind. Verify.
+			// console.log(operation, result)
 			if (result.status != 200) {
 				this.setError(operation, result, null );
 				return null
@@ -625,5 +623,9 @@ private createLoginRequestOptions(url: string, body: JSON) {
 			console.error(operation, errorMessage);
 			this._lastError = { operation, statusCode, errorMessage };
 		}
+	}
+	private getNextCheckPoint() {
+		this.checkpoint += 1;
+		return this.checkpoint
 	}
 }

@@ -591,6 +591,9 @@ export class TaskParser {
 	//task project id compare
 	isProjectIdChanged(lineTask: ITask, TickTickTask: ITask) {
 		//project whether to modify
+		// if (!(lineTask.projectId === TickTickTask.projectId)) {
+		// 	console.log("line: ", lineTask.projectId, "saved; ", TickTickTask.projectId)
+		// }
 		return !(lineTask.projectId === TickTickTask.projectId);
 	}
 

@@ -136,6 +136,9 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 					if ((!userName) || (!userPassword)) {
 						new Notice("Please fill in both User Name and Password")
 					} else {
+						if (this.plugin.tickTickRestAPI) {
+							delete  this.plugin.tickTickRestAPI
+						}
 						const api = new Tick({
 							username: userName,
 							password: userPassword,
@@ -146,7 +149,8 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 						if (loggedIn) {
 							this.plugin.settings.token = api.token
 							if (this.plugin.tickTickRestAPI) {
-								this.plugin.tickTickRestAPI.token = api.token;
+								this.plugin.tickTickRestAPI.token = this.plugin.settings.token = api.token;
+								this.plugin.settings.inboxID = api.inboxId
 								this.plugin.settings.apiInitialized = true;
 								await this.plugin.saveSettings();
 							} else {

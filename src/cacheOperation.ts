@@ -197,6 +197,9 @@ export class CacheOperation {
 		let taskIds = {};
 		let duplicates = {};
 
+		if (!fileMetadata) {
+			return;
+		}
 		for (const file in fileMetadata) {
 			fileMetadata[file].TickTickTasks.forEach(task => {
 				if (taskIds[task.taskId]) {
@@ -745,6 +748,11 @@ export class CacheOperation {
 
 	async isProjectMoved(lineTask: ITask, filePath: string) {
 		const currentLocation = await this.getFilepathForTask(lineTask.id)
+		if (!currentLocation) {
+			//we're checking the filepath, presumably before file metadata is updated.
+			//don't trigger a project move until things settle down.
+			return false;
+		}
 
 		if (currentLocation != filePath) {
 			return currentLocation;
