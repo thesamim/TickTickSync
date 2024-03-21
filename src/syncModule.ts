@@ -299,9 +299,14 @@ export class SyncMan {
 		let modified = false;
 		if (this.plugin.settings.enableFullVaultSync) {
 			//new empty metadata
-			const metadata = await this.plugin.cacheOperation?.getFileMetadata(filepath)
+			let metadata = await this.plugin.cacheOperation?.getFileMetadata(filepath)
+			//TODO: I'm pretty sure this is redundant. Don't feel like taking it out now because it's been here forever and it works.
 			if (!metadata) {
-				await this.plugin.cacheOperation?.newEmptyFileMetadata(filepath)
+				metadata = await this.plugin.cacheOperation?.newEmptyFileMetadata(filepath)
+				//But if we still don't have anything bail the F out.
+				if  (!metadata) {
+					return false;
+				}
 			}
 			await this.plugin.saveSettings()
 		}
