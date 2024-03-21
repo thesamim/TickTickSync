@@ -104,7 +104,13 @@ export class CacheOperation {
     }
 
 
-    async newEmptyFileMetadata(filepath: string, projectId: string | null): Promise<FileMetadata> {
+    async newEmptyFileMetadata(filepath: string, projectId: string | null): Promise<FileMetadata|null> {
+		//There's a case where we are making an entry for an undefined file. Not sure where it's coming from
+		// this should give us a clue.
+		if (!filepath) {
+			console.error("Attempt to create undefined FileMetaData Entry: ", filepath)
+			return null;
+		}
         const metadatas = this.plugin.settings.fileMetadata
         if (metadatas[filepath]) {
             //todo: verify did doesn't break anything.
@@ -193,10 +199,13 @@ export class CacheOperation {
 
 
 	//Check for duplicates
-	checkForDuplicates(fileMetadata) {
+	checkForDuplicates(fileMetadata: FileMetadata) {
 		let taskIds = {};
 		let duplicates = {};
 
+		if (!fileMetadata) {
+			return;
+		}
 		for (const file in fileMetadata) {
 			fileMetadata[file].TickTickTasks.forEach(task => {
 				if (taskIds[task.taskId]) {
@@ -745,6 +754,11 @@ export class CacheOperation {
 
 	async isProjectMoved(lineTask: ITask, filePath: string) {
 		const currentLocation = await this.getFilepathForTask(lineTask.id)
+		if (!currentLocation) {
+			//we're checking the filepath, presumably before file metadata is updated.
+			//don't trigger a project move until things settle down.
+			return false;
+		}
 
 		if (currentLocation != filePath) {
 			return currentLocation;

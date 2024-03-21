@@ -51,14 +51,22 @@ export class TickTickRestAPI {
 					apiInitialized = true;
 
 					await this.api?.getInboxProperties()
-
+					let bSaveSettings = false;
+					if (this.plugin.settings.inboxID != this.api?.inboxId) {
+						//they've logged in with a different user id!
+						bSaveSettings = true;
+					}
 					this.plugin.settings.inboxID = this.api?.inboxId;
+					this.token = this.plugin.settings.token = this.api?.token;
 
 					//TickTick doesn't allow default Inbox to be renamed. This is safe to do.
 					this.plugin.settings.inboxName = "Inbox"
 					if (!this.plugin.settings.defaultProjectId) {
 						this.plugin.settings.defaultProjectId = this.api?.inboxId;
 						this.plugin.settings.defaultProjectName = "Inbox";
+					}
+					if (bSaveSettings) {
+						await this.plugin.saveSettings();
 					}
 				} else {
 					console.error(this.api?.lastError);

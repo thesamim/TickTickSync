@@ -195,15 +195,16 @@ export class FileOperation {
             let projectTasks = tasks.filter(task => task.projectId === projectId);
             //make sure top level tasks are first
 
-            projectTasks.sort((left, right) => {
-                if (!left.parentId && right.parentId) {
-                    return -1;
-                } else if (left.parentId && !right.parentId) {
-                    return 1;
-                } else {
-                    return 0;
-                }
-            });
+            // projectTasks.sort((left, right) => {
+            //     if (!left.parentId && right.parentId) {
+            //         return -1;
+            //     } else if (left.parentId && !right.parentId) {
+            //         return 1;
+            //     } else {
+            //         return 0;
+            //     }
+            // });
+			projectTasks.sort((a, b) => this.compareTasks(a,b, 0, projectTasks))
 
             let result = await this.addProjectTasksToFile(file, projectTasks);
             // Sleep for 1 second
@@ -335,7 +336,7 @@ export class FileOperation {
                 let parentIndex = lines.indexOf(lines.find(line => line.includes(task.parentId)))
                 if (parentIndex < 0) {
                     //TODO: Determine how to handle
-                    console.error("Parent ID of" + task.title + "Not found in file.")
+                    console.error("Parent ID: ", task.parentId, " not found for: " + task.title)
                 }
                 let parentLine = lines[parentIndex];
                 if (parentLine) {
@@ -480,6 +481,10 @@ export class FileOperation {
 	async checkForDuplicates(fileMetadata, taskList: {} | undefined) {
 		let taskIds = {};
 		let duplicates = {};
+
+		if (!fileMetadata) {
+			return;
+		}
 
 		for (const file in fileMetadata) {
 			const currentFile = this.app.vault.getAbstractFileByPath(file)
@@ -746,5 +751,47 @@ export class FileOperation {
 		}
 
 		new Notice(message, 0)
+	}
+	private compareTasks(a: ITask, b: ITask, depth = 0, tasks: ITask[]) {
+		// Check for tasks with no parentId (parent tasks)
+		if (!a.parentId && b.parentId) {
+			return -1; // Parent task comes first
+		} else if (a.parentId && !b.parentId) {
+			return 1; // Task with parentId comes after
+		} else if (!a.parentId && !b.parentId) {
+			// No parent - sort by sortOrder
+			return a.sortOrder - b.sortOrder;
+		} else {
+			// Use a set to track visited tasks to detect circular dependencies
+			const visited = new Set();
+
+			let currentA = a;
+			while (currentA.parentId && depth < 100) { // Set a maximum depth limit (adjust as needed)
+				if (visited.has(currentA.id)) {
+					// Circular dependency detected - sort based on task id as a fallback
+					return a.id.localeCompare(b.id);
+				}
+				visited.add(currentA.id);
+				currentA = this.getParent(currentA.id, tasks);
+			}
+
+			let currentB = b;
+			visited.clear(); // Clear visited set for task B
+			while (currentB.parentId && depth < 100) {
+				if (visited.has(currentB.id)) {
+					// Circular dependency detected
+					return a.id.localeCompare(b.id);
+				}
+				visited.add(currentB.id);
+				currentB = this.getParent(currentB.id, tasks);
+			}
+
+			// If one stack is empty, remaining elements in the other are higher level parents
+			return currentA ? -1 : 1;
+		}
+	}
+
+	private getParent(taskId, tasks) {
+		return tasks.find(task => task.id === taskId);
 	}
 }
