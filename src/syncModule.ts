@@ -109,7 +109,7 @@ export class SyncMan {
 			const deletedTaskIDs = fileMetadata_TickTickTasks.map((taskDetail) => taskDetail.taskId);
 			if (deletedTaskIDs.length > 0) {
 				//TODO: Assuming that if they for real deleted everything, it will get caught on the next sync
-				console.error("All tasks will be deleted.", file, currentFileValue, filepath);
+				console.error("Content not readable.", currentFileValue, filepath, " file is possibly open elsewhere?");
 
 				// new Notice(`All content from ${file} APPEARS to have been removed.\n` +
 				// 	"If this is correct, please confirm task deletion.", 0)

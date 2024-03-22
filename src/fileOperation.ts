@@ -485,26 +485,34 @@ export class FileOperation {
 		if (!fileMetadata) {
 			return;
 		}
+		let fileName;
+		try {
 
-		for (const file in fileMetadata) {
-			const currentFile = this.app.vault.getAbstractFileByPath(file)
-			const content = await this.app.vault.read(currentFile)
-			for (let taskListKey in taskList) {
-				if (content.includes(taskListKey)) {
-					if (taskIds[taskListKey]) {
-						if (!duplicates[taskListKey]) {
-							duplicates[taskListKey] = [taskIds[taskListKey]];
+			for (const file in fileMetadata) {
+				fileName = file;
+				const currentFile = this.app.vault.getAbstractFileByPath(file)
+				const content = await this.app.vault.read(currentFile)
+				for (let taskListKey in taskList) {
+					if (content.includes(taskListKey)) {
+						if (taskIds[taskListKey]) {
+							if (!duplicates[taskListKey]) {
+								duplicates[taskListKey] = [taskIds[taskListKey]];
+							}
+							duplicates[taskListKey].push(file);
+						} else {
+							taskIds[taskListKey] = file;
 						}
-						duplicates[taskListKey].push(file);
-					} else {
-						taskIds[taskListKey] = file;
+
 					}
 
 				}
-
 			}
+			return duplicates;
+		} catch (Fail) {
+			const errMsg = `File [${fileName}] not found, or is locked. If file exists, Please try again later.`
+			console.error(Fail, errMsg)
+			throw new Error(errMsg)
 		}
-		return duplicates;
 	}
 
 	//Yes, I know this belongs in taskParser, but I don't feel like messing with it right now.
@@ -692,7 +700,14 @@ export class FileOperation {
 				if (child && child.items) {
 					numChildTaskItems = child.items.length;
 				}
-				await this.deleteTaskFromSpecificFile(filepath, child.id, child.title, numChildTaskItems, false);
+				try {
+					await this.deleteTaskFromSpecificFile(filepath, child.id, child.title, numChildTaskItems, false);
+				} catch (error) {
+					//assume parent child moved, child didn't. Further assume it will be taken care of on the next sync.
+					console.log("Child ", childId," not found for parent: ", newTask.id)
+					continue;
+				}
+
 			}
 		}
 
@@ -715,15 +730,20 @@ export class FileOperation {
 			}
 			//get it from cache
 			const currentChild = await this.plugin.cacheOperation?.loadTaskFromCacheID(childId);
-			currentChild.parentId = newTask.id;
-			currentChild.projectId = newTask.projectId;
-			const numChildTaskItems = currentChild.items?.length
+			if (currentChild) {
+				currentChild.parentId = newTask.id;
+				currentChild.projectId = newTask.projectId;
+				const numChildTaskItems = currentChild.items?.length
 
-			await this.moveTask(filepath, currentChild, numChildTaskItems, currentChild.id, currentChild.projectId);
-			const currentChildHasChildren = this.hasChildren(currentChild);
-			if (currentChildHasChildren) {
-				const currentChild = await this.plugin.cacheOperation?.loadTaskFromCacheID(childId);
-				await this.moveChildTasks(currentChild, toBeProcessed, filepath);
+				await this.moveTask(filepath, currentChild, numChildTaskItems, currentChild.id, currentChild.projectId);
+				const currentChildHasChildren = this.hasChildren(currentChild);
+				if (currentChildHasChildren) {
+					const currentChild = await this.plugin.cacheOperation?.loadTaskFromCacheID(childId);
+					await this.moveChildTasks(currentChild, toBeProcessed, filepath);
+				}
+			} else {
+				//weird move. Don't break. Assume it will be taken care of on the next sync
+				console.log("Child not found: ", childId)
 			}
 
 		}

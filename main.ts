@@ -650,8 +650,10 @@ export default class TickTickSync extends Plugin {
 		if (!(this.checkModuleClass())) {
 			return;
 		}
+
 		console.log('TickTick scheduled synchronization task started at', new Date().toLocaleString());
 		try {
+
 			if (!await this.checkAndHandleSyncLock()) {
 				console.error('TickTick scheduled synchronization task terminated for sync loc at', new Date().toLocaleString());
 				return;
@@ -693,40 +695,51 @@ export default class TickTickSync extends Plugin {
 
 			//Check for duplicates before we do anything
 
-			const result = this.cacheOperation?.checkForDuplicates(newFilesToSync);
-			if (result?.duplicates  && (JSON.stringify(result.duplicates) != "{}") ) {
-				let dupText = '';
-				for (let duplicatesKey in result.duplicates) {
-					dupText += "Task: " + duplicatesKey + '\nin files: \n';
-					result.duplicates[duplicatesKey].forEach( file => {dupText += file + "\n"})
+			try {
+				const result = this.cacheOperation?.checkForDuplicates(newFilesToSync);
+
+				if (result?.duplicates && (JSON.stringify(result.duplicates) != "{}")) {
+					let dupText = '';
+					for (let duplicatesKey in result.duplicates) {
+						dupText += "Task: " + duplicatesKey + '\nin files: \n';
+						result.duplicates[duplicatesKey].forEach(file => {
+							dupText += file + "\n"
+						})
+					}
+					const msg =
+						"Found duplicates in MetaData.\n\n" +
+						`${dupText}` +
+						"\nPlease fix manually. This causes unpredictable results" +
+						"\nPlease open an issue in the TickTickSync repository if you continue to see this issue." +
+						"\n\nTo prevent data corruption. Sync is aborted."
+					console.log("Metadata Duplicates: ", result.duplicates);
+					new Notice(msg, 0);
+					return;
 				}
-				const msg =
-					"Found duplicates in MetaData.\n\n" +
-					`${dupText}` +
-					"\nPlease fix manually. This causes unpredictable results" +
-					"\nPlease open an issue in the TickTickSync repository if you continue to see this issue." +
-					"\n\nTo prevent data corruption. Sync is aborted."
-				console.log("Metadata Duplicates: ", result.duplicates);
-				new Notice(msg, 0);
-				return;
-			}
 
 
-			const duplicateTasksInFiles = await this.fileOperation?.checkForDuplicates(filesToSync, result?.taskIds)
-			if (duplicateTasksInFiles && (JSON.stringify(duplicateTasksInFiles) != "{}")) {
-				let dupText = ""
-				for (let duplicateTasksInFilesKey in duplicateTasksInFiles) {
-					dupText += "Task: " + duplicateTasksInFilesKey + "\nFound in Files: \n"
-					duplicateTasksInFiles[duplicateTasksInFilesKey].forEach(file => {dupText += file + "\n"})
+				const duplicateTasksInFiles = await this.fileOperation?.checkForDuplicates(filesToSync, result?.taskIds)
+				if (duplicateTasksInFiles && (JSON.stringify(duplicateTasksInFiles) != "{}")) {
+					let dupText = ""
+					for (let duplicateTasksInFilesKey in duplicateTasksInFiles) {
+						dupText += "Task: " + duplicateTasksInFilesKey + "\nFound in Files: \n"
+						duplicateTasksInFiles[duplicateTasksInFilesKey].forEach(file => {
+							dupText += file + "\n"
+						})
+					}
+					const msg =
+						"Found duplicates in Files.\n\n" +
+						`${dupText}` +
+						"\nPlease fix manually. This causes unpredictable results" +
+						"\nPlease open an issue in the TickTickSync repository if you continue to see this issue." +
+						"\n\nTo prevent data corruption. Sync is aborted."
+					new Notice(msg, 0)
+					return;
 				}
-				const msg =
-					"Found duplicates in Files.\n\n" +
-					`${dupText}` +
-					"\nPlease fix manually. This causes unpredictable results" +
-					"\nPlease open an issue in the TickTickSync repository if you continue to see this issue." +
-					"\n\nTo prevent data corruption. Sync is aborted."
-				new Notice(msg, 0)
-				return;
+			} catch (Error) {
+				console.error(Error)
+				new Notice(`Duplicate check failed:  ${Error}`, 0)
+				return
 			}
 
 
