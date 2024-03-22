@@ -485,6 +485,7 @@ export class FileOperation {
 		if (!fileMetadata) {
 			return;
 		}
+
 		let fileName;
 		try {
 
