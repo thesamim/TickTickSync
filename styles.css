@@ -1,5 +1,4 @@
-
-.cm-line:not(:hover):not(.cm-active) span.cm-comment:not(.cm-hmd-codeblock) {
+.cm-line:not(:hover):not(.cm-active) span.cm-comment:not(.cm-hmd-codeblock):not(.cm-templater-command) {
 	display: none;
 }
 

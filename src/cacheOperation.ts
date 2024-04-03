@@ -1,4 +1,4 @@
-import {App, ListItemCache, TFile} from 'obsidian';
+import { App, ListItemCache, TFile, TFolder } from 'obsidian';
 import TickTickSync from "../main";
 import { ITask } from './api/types/Task';
 import { IProject } from 'src/api/types//Project';
@@ -18,6 +18,7 @@ export interface FileMetadata {
 	[fileName: string]: {
 		TickTickTasks: TaskDetail[];
 		TickTickCount: number;
+		defaultProjectId: string;
 	};
 }
 
@@ -109,6 +110,11 @@ export class CacheOperation {
 		// this should give us a clue.
 		if (!filepath) {
 			console.error("Attempt to create undefined FileMetaData Entry: ", filepath)
+			return null;
+		}
+		const file = this.app.vault.getAbstractFileByPath(filepath);
+		if (file instanceof TFolder) {
+			console.error("Not adding ", filepath, " to Metadata because it's a folder.");
 			return null;
 		}
         const metadatas = this.plugin.settings.fileMetadata

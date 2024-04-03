@@ -471,6 +471,7 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 		try {
 			//check renamed files
 			for (const key in metadatas) {
+				console.log("Checking Renamed: ", key);
 				const value = metadatas[key];
 				//console.log(value)
 				const obsidianURL = this.plugin.taskParser?.getObsidianUrlFromFilepath(key)
@@ -492,25 +493,27 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 						// console.log(oldContent)
 						// console.log(newContent)
 						try {
-							await this.plugin.tickTickSync.updateTaskContent(key)
+							await this.plugin.tickTickSync?.updateTaskContent(key)
 						} catch (error) {
-							console.error(`An error occurred while updating task discription: ${error.message}`);
+							console.error(`An error occurred while updating task description: ${error.message}`);
 						}
 					}
 				}
 			}
+			console.log("Done File Rename check.");
 
 			try {
 				console.log('checking unsynced tasks');
 				const files = this.app.vault.getFiles();
 				for (const v of files) {
+					console.log("Now looking at: ", v);
 					const i = files.indexOf(v);
 					if (v.extension == 'md') {
 						try {
-							//console.log(`Scanning file ${v.path}`)
-							await this.plugin.fileOperation.addTickTickLinkToFile(v.path);
+							console.log(`Scanning file ${v.path}`)
+							await this.plugin.fileOperation?.addTickTickLinkToFile(v.path);
 							if (this.plugin.settings.enableFullVaultSync) {
-								await this.plugin.fileOperation.addTickTickTagToFile(v.path);
+								await this.plugin.fileOperation?.addTickTickTagToFile(v.path);
 							}
 						} catch (error) {
 							console.error(`An error occurred while check new tasks in the file: ${v.path}, ${error.message}`);
@@ -586,7 +589,6 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 				return null;
 			}
 		} else {
-
 			if (newFolderFile instanceof TFolder) {
 				//they picked right, and the folder exists.
 				new Notice(`Default folder is now ${newFolderFile.path}.`)
