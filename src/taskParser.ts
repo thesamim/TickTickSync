@@ -478,7 +478,7 @@ export class TaskParser {
 		// }
 		const tags = [...lineText.matchAll(REGEX.ALL_TAGS)];
 		const tagArray = tags.map(tag => tag[0].replace('#', ''));
-		// tagArray.forEach(tag => console.log(typeof tag, tag))
+		// tagArray.forEach(tag => console.log("#### get all tags", tag))
 
 		return tagArray;
 	}
@@ -511,7 +511,9 @@ export class TaskParser {
 			return true; //tasks added or deleted.
 		}
 		//Whether content is modified?
-		let areTagsSame = lineTaskTags.length === TickTickTaskTags.length && lineTaskTags.sort().every((val, index) => val === TickTickTaskTags.sort()[index]);
+		let areTagsSame = lineTaskTags.length === TickTickTaskTags.length
+									&& lineTaskTags.sort().every((val, index) =>
+										val === TickTickTaskTags.sort()[index]);
 		return !(areTagsSame);
 	}
 

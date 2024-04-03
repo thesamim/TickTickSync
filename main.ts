@@ -118,11 +118,10 @@ export default class TickTickSync extends Plugin {
 			const editor = markDownView?.app.workspace.activeEditor?.editor;
 
 
-			if ((editor) && !(editor.hasFocus())) {
+			if ((!markDownView) || !(editor) || (editor) && !(editor.hasFocus())) {
 				// (console.log(`editor is not focused`))
 				return;
 			}
-
 
 			if (evt.key === 'ArrowUp' || evt.key === 'ArrowDown' || evt.key === 'ArrowLeft' || evt.key === 'ArrowRight' || evt.key === 'PageUp' || evt.key === 'PageDown') {
 				//console.log(`${evt.key} arrow key is released`);
@@ -747,9 +746,14 @@ export default class TickTickSync extends Plugin {
 			for (const fileKey in newFilesToSync) {
 				const file = this.app.vault.getAbstractFileByPath(fileKey);
 				if (!file) {
-					newFilesToSync = await this.cacheOperation?.deleteFilepathFromMetadata(fileKey);
+					console.log("File ", fileKey, " was deleted before last sync.");
+					await this.cacheOperation?.deleteFilepathFromMetadata(fileKey);
+					const toDelete = newFilesToSync.findIndex(fileKey)
+					newFilesToSync.splice(toDelete, 1)
 				}
 			}
+
+			//Now do the task checking.
 			for (const fileKey in newFilesToSync) {
 				if (this.settings.debugMode) {
 					console.log(fileKey);

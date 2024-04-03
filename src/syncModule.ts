@@ -302,11 +302,8 @@ export class SyncMan {
 			let metadata = await this.plugin.cacheOperation?.getFileMetadata(filepath)
 			//TODO: I'm pretty sure this is redundant. Don't feel like taking it out now because it's been here forever and it works.
 			if (!metadata) {
-				metadata = await this.plugin.cacheOperation?.newEmptyFileMetadata(filepath)
 				//But if we still don't have anything bail the F out.
-				if  (!metadata) {
-					return false;
-				}
+				return false;
 			}
 			await this.plugin.saveSettings()
 		}

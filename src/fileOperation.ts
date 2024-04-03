@@ -492,21 +492,34 @@ export class FileOperation {
 			for (const file in fileMetadata) {
 				fileName = file;
 				const currentFile = this.app.vault.getAbstractFileByPath(file)
-				const content = await this.app.vault.read(currentFile)
-				for (let taskListKey in taskList) {
-					if (content.includes(taskListKey)) {
-						if (taskIds[taskListKey]) {
-							if (!duplicates[taskListKey]) {
-								duplicates[taskListKey] = [taskIds[taskListKey]];
-							}
-							duplicates[taskListKey].push(file);
-						} else {
-							taskIds[taskListKey] = file;
-						}
-
-					}
-
+				if ((!currentFile)) {
+					console.log("Duplicate check Skipping ", file, " because it's not found.");
+					continue
 				}
+				if ((currentFile) && (currentFile instanceof TFolder)) {
+					console.log("Duplicate check Skipping ", file, " because it's a folder.");
+					continue
+				}
+				try {
+					const content = await this.app.vault.read(currentFile)
+					for (let taskListKey in taskList) {
+						if (content.includes(taskListKey)) {
+							if (taskIds[taskListKey]) {
+								if (!duplicates[taskListKey]) {
+									duplicates[taskListKey] = [taskIds[taskListKey]];
+								}
+								duplicates[taskListKey].push(file);
+							} else {
+								taskIds[taskListKey] = file;
+							}
+
+						}
+					}
+				} catch {
+					console.log("Duplicate check Skipping ", file, " because it's not readable.");
+					continue
+				}
+
 			}
 			return duplicates;
 		} catch (Fail) {
