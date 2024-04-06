@@ -510,6 +510,7 @@ export class SyncMan {
 					//`Task ${lastLineTaskticktickId} was modified`
 					await this.plugin.saveSettings()
 					let message = `Task ${lineTask_ticktick_id} is updated.`;
+					console.log("#####", message);
 					new Notice(message);
 
 					if (contentChanged) {
@@ -552,7 +553,12 @@ export class SyncMan {
 
 
 		} else { //Not a task, check Items.
-			modified = await this.handleTaskItem(lineText, filepath, fileContent, lineNumber);
+			// When Full Vault Sync is enabled, we can tell the difference between items and subtasks
+			// everything is a subtask
+			// TODO: in the fullness of time, see if there's a way to differentiate.
+			if (!this.plugin.settings.enableFullVaultSync) {
+				modified = await this.handleTaskItem(lineText, filepath, fileContent, lineNumber);
+			}
 		}
 		return modified
 	}

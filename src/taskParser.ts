@@ -54,9 +54,12 @@ enum Priority {
 }
 
 const keywords = {
-	TickTick_TAG: '#ticktick', DUE_DATE: '⏳|🗓️|📅|📆|🗓',
+	TickTick_TAG: '#ticktick',
+	DUE_DATE: '⏳|🗓️|📅|📆|🗓',
+	TIME: '⌚',
 	TASK_DUE_DATE: '📅',
 	TASK_COMPLETE: '✅',
+	ALL_TASK_EMOJI: '➕|⏳|🛫|📅|✅|❌',
 	// priorityIcons: "⏬|🔽|🔼|⏫|🔺",
 	// priority: `\s([${priorityEmojis.toString()}])\s`
 	priority: `\\s([\u{23EC}\u{1F53D}\u{1F53C}\u{23EB}\u{1F53A}])\\s`
@@ -112,7 +115,8 @@ const REGEX = {
 	priorityRegex: /^.*([🔺⏫🔼🔽⏬]).*$/u,
 	BLANK_LINE: /^\s*$/,
 	TickTick_EVENT_DATE: /(\d{4})-(\d{2})-(\d{2})/,
-	ITEM_LINE: /\[(.*?)\]\s*(.*?)\s*%%(.*?)%%/
+	ITEM_LINE: /\[(.*?)\]\s*(.*?)\s*%%(.*?)%%/,
+	REMOVE_ITEM_ID: /\s%%[^\[](.*?)[^\]]%%/g
 };
 
 export class TaskParser {
@@ -131,7 +135,7 @@ export class TaskParser {
 
 		task.title = this.stripOBSUrl(task.title);
 
-		resultLine = `- [${task.status > 0 ? 'X' : ' '}] ${task.title}`;
+		resultLine = `- [${task.status > 0 ? 'x' : ' '}] ${task.title}`;
 
 
 
@@ -197,6 +201,11 @@ export class TaskParser {
 		return (TaskContent);
 	}
 
+	stripLineItemId(lineText: string) {
+		let line = lineText.replace(REGEX.REMOVE_ITEM_ID, '')
+		return line;
+	}
+
 	addTagsToLine(resultLine: string, tags: ITask.tags) {
 		//we're looking for the ticktick tag without the #
 		const regEx = new RegExp(keywords.TickTick_TAG.substring(1), 'i');
@@ -252,32 +261,37 @@ export class TaskParser {
 		}
 
 		//find task items
-		for (let i = (lineNumber + 1); i <= lines.length; i++) {
-			const line = lines[i];
-			//console.log(line)
-			//If it is a blank line, it means there is no parent
-			if (this.isLineBlank(line)) {
-				break;
-			}
-			//If the number of tabs is greater than or equal to the current line, it's an item
-			if (this.getTabIndentation(line) > lineTextTabIndentation) {
-				//console.log(`Indentation is ${this.getTabIndentation(line)}`)
-				if (this.hasTickTickId(line)) {
-					//it's another task bail
+		// When Full Vault Sync is enabled, we can tell the difference between items and subtasks
+		// everything is a subtask
+		// TODO: in the fullness of time, see if there's a way to differentiate.
+		if (!this.plugin.settings.enableFullVaultSync) {
+			for (let i = (lineNumber + 1); i <= lines.length; i++) {
+				const line = lines[i];
+				//console.log(line)
+				//If it is a blank line, it means there is no parent
+				if (this.isLineBlank(line)) {
 					break;
 				}
-				const item = this.getItemFromLine(line);
-				taskItems.push(item);
-			} else {
-				//we're either done with items, or onto the next task or blank line.
-				//we're done.
-				break;
-			}
+				//If the number of tabs is greater than or equal to the current line, it's an item
+				if (this.getTabIndentation(line) > lineTextTabIndentation) {
+					//console.log(`Indentation is ${this.getTabIndentation(line)}`)
+					if (this.hasTickTickId(line)) {
+						//it's another task bail
+						break;
+					}
+					const item = this.getItemFromLine(line);
+					taskItems.push(item);
+				} else {
+					//we're either done with items, or onto the next task or blank line.
+					//we're done.
+					break;
+				}
 
+			}
 		}
 
 		let dueDateStruct = this.getDueDateFromLineText(textWithoutIndentation);
-		var timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+		let timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
 
 		const tags = this.getAllTagsFromLineText(textWithoutIndentation);
@@ -292,6 +306,7 @@ export class TaskParser {
 				projectName = await this.plugin.cacheOperation?.getProjectNameByIdFromCache(projectId);
 			}
 		} else {
+			//Check if we need to add this to a specific project by tag.
 			if (tags) {
 				for (const tag of tags) {
 					let labelName = tag.replace(/#/g, '');
@@ -670,7 +685,14 @@ export class TaskParser {
 
 	addTickTickTag(str: string): string {
 		//TODO: assumption that there is at least one space before. validate.
-		return (str + `${keywords.TickTick_TAG}`);
+		if (str.charAt(str.length - 1) === ' ')
+		{
+			str = (str + `${keywords.TickTick_TAG}`);
+		} else {
+			str = (str + ` ${keywords.TickTick_TAG} `);
+		}
+		console.log("####", str);
+		return  str;
 	}
 
 	getObsidianUrlFromFilepath(filepath: string) {
@@ -683,6 +705,7 @@ export class TaskParser {
 	}
 
 	addTickTickLink(linetext: string, taskId: string, projecId: string): string {
+
 		let url = this.createURL(taskId, projecId);
 		const regex = new RegExp(`${keywords.TickTick_TAG}`, 'gi');
 		const link = ` [link](${url})`;
@@ -759,8 +782,15 @@ export class TaskParser {
 	private addItems(resultLine: string, items: any[]): string {
 		//TODO count indentations?
 		items.forEach(item => {
-			let completion = item.status > 0 ? '- [X]' : '- [ ]';
-			resultLine = `${resultLine} \n${completion} ${item.title} %%${item.id}%%`;
+			let completion = item.status > 0 ? '- [x]' : '- [ ]';
+			// When Full Vault Sync is enabled, we can tell the difference between items and subtasks
+			// everything is a subtask
+			// TODO: in the fullness of time, see if there's a way to differentiate.
+			if (!this.plugin.settings.enableFullVaultSync) {
+				resultLine = `${resultLine} \n${completion} ${item.title} %%${item.id}%%`;
+			} else {
+				resultLine = `${resultLine} \n${completion} ${item.title}`;
+			}
 		});
 		return resultLine;
 	}
