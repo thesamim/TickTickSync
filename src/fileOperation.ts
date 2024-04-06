@@ -104,8 +104,10 @@ export class FileOperation {
             if (!this.plugin.taskParser?.hasTickTickId(line) && !this.plugin.taskParser?.hasTickTickTag(line)) {
                 //console.log(line)
                 //console.log('prepare to add TickTick tag')
-                const newLine = this.plugin.taskParser?.addTickTickTag(line);
-                //console.log(newLine)
+                let newLine = this.plugin.taskParser?.addTickTickTag(line);
+				//strip item id in case it was an item before
+				newLine = this.plugin.taskParser?.stripLineItemId(newLine)
+				//console.log(newLine)
                 lines[i] = newLine
                 modified = true
             }
@@ -116,6 +118,7 @@ export class FileOperation {
             const newContent = lines.join('\n')
             //console.log(newContent)
             await this.app.vault.modify(file, newContent)
+			new Notice("New Tasks will be added to TickTick on next Sync.")
 			// console.error("Modified: ", file?.path, new Date().toISOString());
 
             // //update filemetadate
@@ -152,7 +155,7 @@ export class FileOperation {
                 //console.log('prepare to add TickTick link')
                 const taskID = this.plugin.taskParser?.getTickTickIdFromLineText(line)
                 const taskObject = await this.plugin.cacheOperation?.loadTaskFromCacheID(taskID)
-                const newLine = this.plugin.taskParser?.addTickTickLink(line, taskObject.id)
+                const newLine = this.plugin.taskParser?.addTickTickLink(line, taskObject.id, taskObject.projecId)
                 // console.log(newLine)
                 lines[i] = newLine
                 modified = true
