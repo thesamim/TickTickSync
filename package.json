@@ -1,6 +1,6 @@
 {
 	"name": "tickticksync",
-	"version": "1.0.24",
+	"version": "1.0.25",
 	"description": "Sync TickTick tasks to Obsidian, and Obsidian tasks to TickTick",
 	"main": "main.js",
 	"scripts": {
