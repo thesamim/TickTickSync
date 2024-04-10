@@ -93,7 +93,7 @@ export class Tick {
 			};
 
 			const response = await this.makeRequest('Login', url, 'POST', body);
-			// console.log("Signed in Response: ", response)
+			console.log("Signed in Response: ", response)
 			if (response) {
 				this.token = response.token;
 				ret = await this.getInboxProperties();
@@ -128,14 +128,16 @@ export class Tick {
 
 	async getInboxProperties(): Promise<boolean> {
 		try {
+			let checkPoint = 0;
 			for (let i = 0; i < 10; i++) {
-				const url = `${this.apiUrl}/${allTasksEndPoint}` + this.getNextCheckPoint();
+				const url = `${this.apiUrl}/${allTasksEndPoint}` + checkPoint;
 				// console.log("url ", url)
 				// @ts-ignore
 				let response = await this.makeRequest('Get Inbox Properties', url, 'GET');
 				if (response) {
 					if (!response.inboxId) {
 						// console.log("Inbox ID not found ", response)
+						checkPoint = this.getNextCheckPoint();
 						continue;
 					}
 					this.inboxProperties.id = response.inboxId;
@@ -548,9 +550,9 @@ async makeRequest(operation: string, url: string, method: string, body: any|unde
 			} else {
 				requestOptions = this.createRequestOptions(method, url, body);
 			}
-			// console.log(requestOptions)
+			//console.log(requestOptions)
 			const result = await requestUrl(requestOptions);
-			// console.log(operation, result)
+			//console.log(operation, result)
 			if (result.status != 200) {
 				this.setError(operation, result, null );
 				return null

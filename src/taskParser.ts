@@ -691,7 +691,7 @@ export class TaskParser {
 		} else {
 			str = (str + ` ${keywords.TickTick_TAG} `);
 		}
-		console.log("####", str);
+
 		return  str;
 	}
 
