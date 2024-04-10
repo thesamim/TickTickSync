@@ -510,7 +510,7 @@ export class SyncMan {
 					//`Task ${lastLineTaskticktickId} was modified`
 					await this.plugin.saveSettings()
 					let message = `Task ${lineTask_ticktick_id} is updated.`;
-					console.log("#####", message);
+					// console.log("#####", message);
 					new Notice(message);
 
 					if (contentChanged) {
