@@ -98,7 +98,7 @@ export class Tick {
 			};
 
 			const response = await this.makeRequest('Login', url, 'POST', body);
-			// console.log("Signed in Response: ", response)
+			console.log("Signed in Response: ", response)
 			if (response) {
 				this.token = response.token;
 				ret = await this.getInboxProperties();
