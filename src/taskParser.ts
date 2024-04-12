@@ -86,7 +86,9 @@ const status_regex  = "^\\s*(-|\\*)\\s+\\[(x| )\\]\\s"
 
 const REGEX = {
 	//hopefully tighter find.
-	TickTick_TAG: new RegExp(`(?<=[ ;])${keywords.TickTick_TAG}+`, 'i'),
+	//TickTick_TAG: new RegExp(`(?<=[ ;])\\s${keywords.TickTick_TAG}+`, 'i'),
+	TickTick_TAG: new RegExp(`^[\\s]*[-] \\[[x ]\\] [\\s\\S]*${keywords.TickTick_TAG}[\\s\\S]*$`, "i"),
+
 	TickTick_ID: /\[ticktick_id::\s*[\d\S]+\]/,
 	TickTick_ID_NUM: /\[ticktick_id::\s*(.*?)\]/,
 	TickTick_ID_DV_NUM: /ticktick_id(.*?)%/,
@@ -358,7 +360,11 @@ export class TaskParser {
 	}
 
 	hasTickTickTag(text: string) {
+
 		if (this.isMarkdownTask(text)) {
+			// console.log("hasTickTickTag", `${text}
+			// ${REGEX.TickTick_TAG}
+			// ${REGEX.TickTick_TAG.test(text)}`);
 			return REGEX.TickTick_TAG.test(text);
 		} else {
 			return false;

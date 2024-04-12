@@ -119,12 +119,12 @@ export default class TickTickSync extends Plugin {
 
 
 			if ((!markDownView) || !(editor) || (editor) && !(editor.hasFocus())) {
-				// (console.log(`editor is not focused`))
+				(console.log(`editor is not focused`))
 				return;
 			}
 
 			if (evt.key === 'ArrowUp' || evt.key === 'ArrowDown' || evt.key === 'ArrowLeft' || evt.key === 'ArrowRight' || evt.key === 'PageUp' || evt.key === 'PageDown') {
-				//console.log(`${evt.key} arrow key is released`);
+				// console.log(`${evt.key} arrow key is released`);
 				if (!(this.checkModuleClass())) {
 					return;
 				}
@@ -521,7 +521,7 @@ export default class TickTickSync extends Plugin {
 			if (this.lastLines.has(fileName as string) && line !== this.lastLines.get(fileName as string)) {
 				const lastLine = this.lastLines.get(fileName as string);
 				if (this.settings.debugMode) {
-					// console.log('Line changed!', `current line is ${line}`, `last line is ${lastLine}`);
+					console.log('Line changed!', `current line is ${line}`, `last line is ${lastLine}`);
 				}
 
 

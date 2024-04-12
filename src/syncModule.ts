@@ -957,6 +957,7 @@ export class SyncMan {
 			}
 			let bModifiedFileSystem = false;
 			let allTaskDetails = await this.plugin.tickTickRestAPI?.getAllTasks();
+			console.log("All task details have been saved.", allTaskDetails);
 
 			let tasksFromTickTic = allTaskDetails.update;
 			let deletedTasks = allTaskDetails.delete;
@@ -987,6 +988,7 @@ export class SyncMan {
 					return;
 				}
 			}
+			// this.dumpArray('== remote:', tasksFromTickTic);
 			let tasksInCache = await this.plugin.cacheOperation?.loadTasksFromCache()
 			if (this.plugin.settings.debugMode) {
 				console.log("We have: ", tasksFromTickTic.length, " tasks on " + this.plugin.tickTickRestAPI?.api?.apiUrl)
@@ -997,6 +999,7 @@ export class SyncMan {
 			tasksFromTickTic = tasksFromTickTic.sort((a, b) => (a.id > b.id) ? 1 : ((b.id > a.id) ? -1 : 0))
 			// console.log("num remote tasks: ", tasksFromTickTic.length)
 
+			// this.dumpArray('== local:', tasksInCache);
 
 			if (tasksInCache) {
 				tasksInCache = tasksInCache.sort((a, b) => (a.id > b.id) ? 1 : ((b.id > a.id) ? -1 : 0))
@@ -1070,7 +1073,7 @@ export class SyncMan {
 				const modifiedTask = tasksInCache.find(t => t.id === task.id);
 				return modifiedTask && (new Date(modifiedTask.modifiedTime) < new Date(task.modifiedTime));
 			});
-			//this.dumpArray('Tasks Updated in TickTick:', tasksUpdatedInTickTick);
+			// this.dumpArray('Tasks Updated in TickTick:', tasksUpdatedInTickTick);
 
 
 			// Check for updated tasks in Obsidian
@@ -1078,7 +1081,7 @@ export class SyncMan {
 				const modifiedTask = tasksFromTickTic.find(t => t.id === task.id);
 				return modifiedTask && (new Date(modifiedTask.modifiedTime) > new Date(task.modifiedTime));
 			});
-			//this.dumpArray('Tasks updated in Obsidian:', tasksUpdatedInObsidian);
+			// this.dumpArray('Tasks updated in Obsidian:', tasksUpdatedInObsidian);
 
 			//   // Check for updated tasks in Obsidian
 			//   const updatedObsidianTasks = tasksInCache.filter(task => {
@@ -1141,7 +1144,18 @@ export class SyncMan {
 
 	dumpArray(which: string, arrayIn: ITask[]) {
 		console.log(which)
-		arrayIn.forEach(item => console.log(" ", item.id, "--", item.title, item.parentId, item.childIds, "modification time: ", item.modifiedTime))
+		arrayIn.forEach(item => {
+				if (item.id == '661933d3a8876ef48c564ba4') {
+					console.log(' ',
+						item.id, '--',
+						// item.title,
+						// item.parentId,
+						// item.childIds,
+						'modification time: ', item.modifiedTime);
+				}
+			}
+		)
+
 	}
 
 	///End of Test

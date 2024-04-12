@@ -50,6 +50,11 @@ export class Tick {
 	apiUrl: string;
 	loginUrl: string;
 	private originUrl: string;
+
+//Dear Future me: the check is a checkpoint based thing. As in: give me everything after a certain checkpoint
+//                0 behavior has become non-deterministic. It appears that checkpoint is a epoch number.
+//                I **think** it indicates the time of last fetch. This could be useful.
+//TODO: in the fullness of time, figure out checkpoint processing to reduce traffic.
 	private checkpoint: number;
 
 	constructor({ username, password, baseUrl, token }: IoptionsProps) {
@@ -68,7 +73,7 @@ export class Tick {
 			this.loginUrl = `${protocol}${ticktickServer}${apiVersion}`;
 			this.originUrl = `${protocol}${ticktickServer}`;
 		}
-		this.checkpoint = 0;
+		this.checkpoint = -1;
 	}
 
 
@@ -93,7 +98,7 @@ export class Tick {
 			};
 
 			const response = await this.makeRequest('Login', url, 'POST', body);
-			console.log("Signed in Response: ", response)
+			// console.log("Signed in Response: ", response)
 			if (response) {
 				this.token = response.token;
 				ret = await this.getInboxProperties();
@@ -128,7 +133,7 @@ export class Tick {
 
 	async getInboxProperties(): Promise<boolean> {
 		try {
-			let checkPoint = 0;
+			let checkPoint = this.checkpoint;
 			for (let i = 0; i < 10; i++) {
 				const url = `${this.apiUrl}/${allTasksEndPoint}` + checkPoint;
 				// console.log("url ", url)
@@ -627,6 +632,7 @@ private createLoginRequestOptions(url: string, body: JSON) {
 		}
 	}
 	private getNextCheckPoint() {
+		console.warn("Check point has been changed.", this.checkpoint);
 		this.checkpoint += 1;
 		return this.checkpoint
 	}
