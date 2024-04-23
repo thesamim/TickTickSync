@@ -73,7 +73,7 @@ export class Tick {
 			this.loginUrl = `${protocol}${ticktickServer}${apiVersion}`;
 			this.originUrl = `${protocol}${ticktickServer}`;
 		}
-		this.checkpoint = -1;
+		this.checkpoint = 0;
 	}
 
 
