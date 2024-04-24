@@ -119,7 +119,7 @@ export default class TickTickSync extends Plugin {
 
 
 			if ((!markDownView) || !(editor) || (editor) && !(editor.hasFocus())) {
-				(console.log(`editor is not focused`))
+				// (console.log(`editor is not focused`))
 				return;
 			}
 
