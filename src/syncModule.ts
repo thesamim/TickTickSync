@@ -957,10 +957,13 @@ export class SyncMan {
 			}
 			let bModifiedFileSystem = false;
 			let allTaskDetails = await this.plugin.tickTickRestAPI?.getAllTasks();
-			console.log("All task details have been saved.", allTaskDetails);
-
+			// console.log("All task details have been saved.", allTaskDetails);
 			let tasksFromTickTic = allTaskDetails.update;
 			let deletedTasks = allTaskDetails.delete;
+			// this.dumpArray("tick Tick ", tasksFromTickTic)
+			// this.dumpArray("deleted  ", deletedTasks)
+
+
 			//TODO: Filtering deleted tasks would take an act of congress. Just warn the user in Readme.
 			if (this.plugin.settings.SyncTag && this.plugin.settings.SyncProject) {
 				let hasTag;
@@ -990,11 +993,19 @@ export class SyncMan {
 			}
 			// this.dumpArray('== remote:', tasksFromTickTic);
 			let tasksInCache = await this.plugin.cacheOperation?.loadTasksFromCache()
+			// this.dumpArray("cache", tasksInCache)
+
 			if (this.plugin.settings.debugMode) {
 				console.log("We have: ", tasksFromTickTic.length, " tasks on " + this.plugin.tickTickRestAPI?.api?.apiUrl)
 				console.log("There are: ", tasksInCache.length, " tasks in Cache.");
 			}
 
+
+			if (this.plugin.settings.debugMode) {
+				const closedTasks = tasksFromTickTic.filter(task => task.status != 0);
+				const openTasks = tasksFromTickTic.filter(task => task.status === 0);
+				console.log('openTasks', openTasks.length, 'closedTasks', closedTasks.length);
+			}
 
 			tasksFromTickTic = tasksFromTickTic.sort((a, b) => (a.id > b.id) ? 1 : ((b.id > a.id) ? -1 : 0))
 			// console.log("num remote tasks: ", tasksFromTickTic.length)
@@ -1026,6 +1037,7 @@ export class SyncMan {
 				}
 				bModifiedFileSystem = true;
 			}
+
 
 
 			// Check for deleted tasks in TickTick
@@ -1145,14 +1157,14 @@ export class SyncMan {
 	dumpArray(which: string, arrayIn: ITask[]) {
 		console.log(which)
 		arrayIn.forEach(item => {
-				if (item.id == '661933d3a8876ef48c564ba4') {
 					console.log(' ',
-						item.id, '--',
-						// item.title,
-						// item.parentId,
-						// item.childIds,
-						'modification time: ', item.modifiedTime);
-				}
+						item);
+			// console.log(' ',
+			// 	item.id, '--',
+			// 	// item.title,
+			// 	// item.parentId,
+			// 	// item.childIds,
+			// 	'modification time: ', item.modifiedTime);
 			}
 		)
 

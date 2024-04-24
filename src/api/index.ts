@@ -73,7 +73,10 @@ export class Tick {
 			this.loginUrl = `${protocol}${ticktickServer}${apiVersion}`;
 			this.originUrl = `${protocol}${ticktickServer}`;
 		}
-		this.checkpoint = 0;
+		//TickTick was launched in 2013. Hoping this catches all the task for everyone.
+		let dtDate = new Date("2013-01-01T00:00:00.000+0000")
+		console.log("Starting Checkpoint date: ", dtDate, "Checkpoint", dtDate.getTime())
+		this.checkpoint = dtDate.getTime();
 	}
 
 
@@ -632,8 +635,13 @@ private createLoginRequestOptions(url: string, body: JSON) {
 		}
 	}
 	private getNextCheckPoint() {
+		let dtDate = new Date(this.checkpoint)
+		console.log("Date: ", dtDate)
+		dtDate.setDate(dtDate.getDate() - 15);
+		console.log("Date: ", dtDate)
+		console.log("Attempted Checkpoint: ", dtDate.getTime())
+		this.checkpoint = dtDate.getTime();
 		console.warn("Check point has been changed.", this.checkpoint);
-		this.checkpoint += 1;
 		return this.checkpoint
 	}
 }
