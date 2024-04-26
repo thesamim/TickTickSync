@@ -1192,7 +1192,8 @@ export class SyncMan {
 				new Notice(`TickTick backup data is saved in the path ${name}`)
 			}
 		} catch (error) {
-			console.error("An error occurred while creating TickTick backup");
+			console.error("An error occurred while creating TickTick backup", error);
+			new Notice("An error occurred while creating TickTick backup" + error, 0);
 		}
 
 	}

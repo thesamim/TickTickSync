@@ -384,7 +384,7 @@ export default class TickTickSync extends Plugin {
 	async initializePlugin() {
 
 		//initialize TickTick restapi
-		this.tickTickRestAPI = new TickTickRestAPI(this.app, this);
+		this.tickTickRestAPI = new TickTickRestAPI(this.app, this, null);
 		await this.tickTickRestAPI.initializeAPI();
 
 		//initialize data read and write object
@@ -472,7 +472,7 @@ export default class TickTickSync extends Plugin {
 		//initialize TickTick restapi
 		if (!this.tickTickRestAPI) {
 			// console.log("API wasn't inited?")
-			this.tickTickRestAPI = new TickTickRestAPI(this.app, this);
+			this.tickTickRestAPI = new TickTickRestAPI(this.app, this, null);
 		}
 
 		//initialize data read and write object
@@ -520,10 +520,9 @@ export default class TickTickSync extends Plugin {
 			//console.log(`filename is ${fileName}`)
 			if (this.lastLines.has(fileName as string) && line !== this.lastLines.get(fileName as string)) {
 				const lastLine = this.lastLines.get(fileName as string);
-				if (this.settings.debugMode) {
-					console.log('Line changed!', `current line is ${line}`, `last line is ${lastLine}`);
-				}
-
+				// if (this.settings.debugMode) {
+				// 	console.log('Line changed!', `current line is ${line}`, `last line is ${lastLine}`);
+				// }
 
 				//Perform the operation you want
 				const lastLineText = markDownView.editor.getLine(lastLine as number);

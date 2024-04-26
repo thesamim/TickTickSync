@@ -147,35 +147,31 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 						});
 						const loggedIn = await api.login();
 						if (loggedIn) {
-							this.plugin.settings.token = api.token
-							if (this.plugin.tickTickRestAPI) {
-								this.plugin.tickTickRestAPI.token = this.plugin.settings.token = api.token;
-								this.plugin.settings.inboxID = api.inboxId
-								this.plugin.settings.apiInitialized = true;
-								await this.plugin.saveSettings();
-							} else {
-								//TODO: this does result in double construction of the API.
-								//      until I can be shagged to do overloaded constructors, it'll have to do. (no pun intended)
-								await this.plugin.initializeModuleClass();
-							}
+							this.plugin.settings.token = api.token;
+							this.plugin.tickTickRestAPI = new TickTickRestAPI(this.app, this.plugin, api);
+							this.plugin.tickTickRestAPI.token = this.plugin.settings.token = api.token;
+							this.plugin.settings.inboxID = api.inboxId;
+							this.plugin.settings.inboxName = 'Inbox';
+							this.plugin.settings.apiInitialized = true;
+							await this.plugin.saveSettings();
 							//it's first login right? Cache the projects for to get the rest of set up done.
-							new Notice("Logged in! Fetching projects", 0)
-							const bGotProjects = await this.plugin.cacheOperation?.saveProjectsToCache();
-							if (bGotProjects) {
-								new Notice("Fetching projects complete", 0)
-							} else {
-								new Notice("Project fetch failed.", 0)
-							}
-
-
+							new Notice('Logged in! Fetching projects', 0);
+							await this.plugin.cacheOperation?.saveProjectsToCache();
+							new Notice('Project Fetch complete.', 0);
+							await this.plugin.saveSettings();
+							this.display();
 						} else {
 							this.plugin.settings.token = "";
 							this.plugin.settings.apiInitialized = false;
 							this.plugin.tickTickRestAPI = null;
 
-							let errMsg = "Login Failed."
-							errMsg = errMsg + JSON.stringify(api.lastError)
-							errMsg = errMsg.replace(/{/g, '\n').replace(/,/g, '\n')
+							let errMsg = "Login Failed. "
+							if (api.lastError) {
+								errMsg = errMsg + JSON.stringify(api.lastError)
+								errMsg = errMsg.replace(/{/g, '\n').replace(/,/g, '\n')
+							} else {
+								errMsg = errMsg + "\nUnknown error occurred.";
+							}
 							new Notice(errMsg, 0)
 						}
 					}
@@ -506,9 +502,10 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 				console.log('checking unsynced tasks');
 				const files = this.app.vault.getFiles();
 				for (const v of files) {
-					console.log("Now looking at: ", v);
+
 					const i = files.indexOf(v);
 					if (v.extension == 'md') {
+						console.log("Now looking at: ", v);
 						try {
 							console.log(`Scanning file ${v.path}`)
 							await this.plugin.fileOperation?.addTickTickLinkToFile(v.path);
