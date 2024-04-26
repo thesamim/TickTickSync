@@ -1,5 +1,5 @@
 'use strict';
-import { requestUrl, RequestUrlParam, RequestUrlResponse } from 'obsidian';
+import { apiVersion, requestUrl, RequestUrlParam, RequestUrlResponse } from 'obsidian';
 import ObjectID from 'bson-objectid';
 
 import { IProjectGroup } from './types/ProjectGroup';
@@ -10,7 +10,6 @@ import { ITask } from './types/Task';
 // import { IHabit } from './types/Habit';
 
 import { API_ENDPOINTS } from './utils/get-api-endpoints';
-
 const {
 	ticktickServer,
 	protocol,
@@ -89,6 +88,9 @@ export class Tick {
 	get lastError(): any {
 		return this._lastError;
 	}
+	set lastError(value: any) {
+		this._lastError = value;
+	}
 
 	// USER ======================================================================
 	async login(): Promise<boolean> {
@@ -103,7 +105,8 @@ export class Tick {
 			const response = await this.makeRequest('Login', url, 'POST', body);
 			console.log("Signed in Response: ", response)
 			if (response) {
-				this.token = response.token;
+				this.token = response.token
+				this.inboxProperties.id = response.inboxId;
 				ret = await this.getInboxProperties();
 			}
 			return ret;
@@ -136,19 +139,13 @@ export class Tick {
 
 	async getInboxProperties(): Promise<boolean> {
 		try {
-			let checkPoint = this.checkpoint;
+
 			for (let i = 0; i < 10; i++) {
-				const url = `${this.apiUrl}/${allTasksEndPoint}` + checkPoint;
+				const url = `${this.apiUrl}/${allTasksEndPoint}` + this.checkpoint;
 				// console.log("url ", url)
 				// @ts-ignore
 				let response = await this.makeRequest('Get Inbox Properties', url, 'GET');
 				if (response) {
-					if (!response.inboxId) {
-						// console.log("Inbox ID not found ", response)
-						checkPoint = this.getNextCheckPoint();
-						continue;
-					}
-					this.inboxProperties.id = response.inboxId;
 					response['syncTaskBean'].update.forEach((task: any) => {
 						if (task.projectId == this.inboxProperties.id && task.sortOrder < this.inboxProperties.sortOrder) {
 							this.inboxProperties.sortOrder = task.sortOrder;
@@ -156,10 +153,9 @@ export class Tick {
 					});
 					this.inboxProperties.sortOrder--;
 					return true;
+				} else {
+					return false;
 				}
-				this.inboxProperties.id = '';
-				this.inboxProperties.sortOrder = 0;
-				return false;
 			}
 		} catch (e) {
 			console.error('Get Inbox Properties failed: ', e);
@@ -551,6 +547,7 @@ export class Tick {
 async makeRequest(operation: string, url: string, method: string, body: any|undefined) {
 
 		let error = '';
+		this.lastError = undefined;
 		try {
 			let requestOptions = {}
 			if (operation == "Login" ) {
@@ -634,6 +631,8 @@ private createLoginRequestOptions(url: string, body: JSON) {
 			this._lastError = { operation, statusCode, errorMessage };
 		}
 	}
+
+	//For now: we're not doing the checkpoint bump stuff. If we have more issues...
 	private getNextCheckPoint() {
 		let dtDate = new Date(this.checkpoint)
 		console.log("Date: ", dtDate)

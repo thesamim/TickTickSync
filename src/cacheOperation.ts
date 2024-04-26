@@ -1,4 +1,4 @@
-import { App, ListItemCache, TFile, TFolder } from 'obsidian';
+import { App, ListItemCache, Notice, TFile, TFolder } from 'obsidian';
 import TickTickSync from "../main";
 import { ITask } from './api/types/Task';
 import { IProject } from 'src/api/types//Project';
@@ -702,6 +702,7 @@ export class CacheOperation {
 
         } catch (error) {
             console.error(`error downloading projects: ${error}`)
+			new Notice("Error downloading projects: " + error.message);
             await this.plugin.unlockSynclock();;
             return false
         }

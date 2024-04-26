@@ -13,7 +13,7 @@ export class TickTickRestAPI {
 	token: string;
 	baseUrl: string;
 
-	constructor(app: App, plugin: TickTickSync) {
+	constructor(app: App, plugin: TickTickSync, api: Tick|null) {
 		//super(app,settings);
 		this.app = app;
 		this.plugin = plugin;
@@ -32,7 +32,12 @@ export class TickTickRestAPI {
 					token: "[" + this.token.substring(0, 10) + "...]" + " len: " + this.token.length
 				}));
 			}
-			this.api = new Tick({baseUrl: this.plugin.settings.baseURL, token: this.token});
+			if (!api) {
+				this.api = new Tick({ baseUrl: this.plugin.settings.baseURL, token: this.token });
+				this.api.inboxProperties = {id: this.plugin.settings.inboxID, sortOrder: 0 }
+			} else {
+				this.api = api;
+			}
 			this.plugin.settings.apiInitialized = false;
 		}
 	}
@@ -43,6 +48,7 @@ export class TickTickRestAPI {
 		if (this.api === null || this.api === undefined) {
 			throw new Error("API Not Initialized. Please restart Obsidian.")
 		}
+
 		let apiInitialized = this.plugin.settings.apiInitialized;
 		if (!apiInitialized)
 			try {
@@ -342,8 +348,9 @@ export class TickTickRestAPI {
 		const result = await this.api?.exportData();
 		if (!result) {
 			//TODO Assume if something bad happened, API done logged it.
-			// let error = this.api?.lastError;
-			throw new Error(`Back up failed`)
+			let error = JSON.stringify(this.api?.lastError);
+			error = error.replace(/{/g, '\n').replace(/,/g, '\n')
+			throw new Error(`Back up failed ${error}`)
 		}
 		return result;
 	}
