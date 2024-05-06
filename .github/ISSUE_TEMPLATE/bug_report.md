@@ -23,6 +23,16 @@ A clear and concise description of what you expected to happen.
 **Screenshots**
 If applicable, add screenshots to help explain your problem.
 
+**Set up questions:
+- Is this your first time using TickTickSycn?
+- Is your Vault shared across devices?
+  - If it is: What Vault synchronization method are you using (eg: Obsidan Sync, Syncthing...)? 
+- Do you have a Default Folder Location?
+- Do you have a Default project?
+- Do you have "Full Vault Sync" enabled?
+- Do you have "Debug Mode" enabled?
+- Do you have either of the "Limit Synchronization" settings set?
+
 **Desktop (please complete the following information):**
  - OS: [e.g. iOS]
  - Browser [e.g. chrome, safari]
