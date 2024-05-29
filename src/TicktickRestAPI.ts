@@ -5,8 +5,6 @@ import TickTickSync from "../main";
 import {IProject} from './api/types/Project';
 
 export class TickTickRestAPI {
-	[x: string]: any;
-
 	app: App;
 	plugin: TickTickSync;
 	api: Tick | null;
@@ -33,8 +31,12 @@ export class TickTickRestAPI {
 				}));
 			}
 			if (!api) {
-				this.api = new Tick({ baseUrl: this.plugin.settings.baseURL, token: this.token });
+				this.api = new Tick({
+					baseUrl: this.plugin.settings.baseURL,
+					token: this.token,
+					checkPoint: this.plugin.settings.checkPoint });
 				this.api.inboxProperties = {id: this.plugin.settings.inboxID, sortOrder: 0 }
+				this.plugin.settings.checkPoint = this.api.checkpoint;
 			} else {
 				this.api = api;
 			}
