@@ -24,7 +24,8 @@ export interface TickTickSyncSettings {
 	statistics: any;
 	debugMode: boolean;
 	token:string;
-	syncLock: boolean
+	syncLock: boolean;
+	checkPoint: number;
 }
 
 
@@ -46,7 +47,8 @@ export const DEFAULT_SETTINGS: TickTickSyncSettings = {
 	inboxID: "",
 	SyncProject: "",
 	SyncTag: "",
-	syncLock: false
+	syncLock: false,
+	checkPoint: 0
 }
 
 
@@ -143,7 +145,8 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 							username: userName,
 							password: userPassword,
 							baseUrl: this.plugin.settings.baseURL,
-							token: ""
+							token: "",
+							checkPoint: this.plugin.settings.checkPoint
 						});
 						const loggedIn = await api.login();
 						if (loggedIn) {
@@ -153,6 +156,7 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 							this.plugin.settings.inboxID = api.inboxId;
 							this.plugin.settings.inboxName = 'Inbox';
 							this.plugin.settings.apiInitialized = true;
+							this.plugin.settings.checkPoint = api.checkpoint;
 							await this.plugin.saveSettings();
 							//it's first login right? Cache the projects for to get the rest of set up done.
 							new Notice('Logged in! Fetching projects', 0);

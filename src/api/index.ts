@@ -10,6 +10,7 @@ import { ITask } from './types/Task';
 // import { IHabit } from './types/Habit';
 
 import { API_ENDPOINTS } from './utils/get-api-endpoints';
+
 const {
 	ticktickServer,
 	protocol,
@@ -35,7 +36,7 @@ interface IoptionsProps {
 	username?: string;
 	password?: string;
 	baseUrl?: string;
-
+	checkPoint?: number;
 }
 
 
@@ -54,9 +55,9 @@ export class Tick {
 //                0 behavior has become non-deterministic. It appears that checkpoint is a epoch number.
 //                I **think** it indicates the time of last fetch. This could be useful.
 //TODO: in the fullness of time, figure out checkpoint processing to reduce traffic.
-	private checkpoint: number;
+	private _checkpoint: number;
 
-	constructor({ username, password, baseUrl, token }: IoptionsProps) {
+	constructor({ username, password, baseUrl, token, checkPoint }: IoptionsProps) {
 		this.username = username;
 		this.password = password;
 		this.token = token;
@@ -72,10 +73,14 @@ export class Tick {
 			this.loginUrl = `${protocol}${ticktickServer}${apiVersion}`;
 			this.originUrl = `${protocol}${ticktickServer}`;
 		}
-		//TickTick was launched in 2013. Hoping this catches all the task for everyone.
-		let dtDate = new Date("2013-01-01T00:00:00.000+0000")
-		console.log("Starting Checkpoint date: ", dtDate, "Checkpoint", dtDate.getTime())
-		this.checkpoint = dtDate.getTime();
+		if (checkPoint == 0) {
+			//TickTick was launched in 2013. Hoping this catches all the task for everyone.
+			let dtDate = new Date("2013-01-01T00:00:00.000+0000")
+			console.log("Starting Checkpoint date: ", dtDate, "Checkpoint", dtDate.getTime())
+			this._checkpoint = dtDate.getTime();
+		} else {
+			this._checkpoint = checkPoint;
+		}
 	}
 
 
@@ -90,6 +95,13 @@ export class Tick {
 	}
 	set lastError(value: any) {
 		this._lastError = value;
+	}
+	get checkpoint(): number {
+		return this._checkpoint;
+	}
+
+	set checkpoint(value: number) {
+		this._checkpoint = value;
 	}
 
 	// USER ======================================================================
@@ -141,7 +153,7 @@ export class Tick {
 		try {
 
 			for (let i = 0; i < 10; i++) {
-				const url = `${this.apiUrl}/${allTasksEndPoint}` + this.checkpoint;
+				const url = `${this.apiUrl}/${allTasksEndPoint}` + this._checkpoint;
 				// console.log("url ", url)
 				// @ts-ignore
 				let response = await this.makeRequest('Get Inbox Properties', url, 'GET');
@@ -154,7 +166,11 @@ export class Tick {
 					this.inboxProperties.sortOrder--;
 					return true;
 				} else {
-					return false;
+					if (i < 10) {
+						this._checkpoint = this.getNextCheckPoint();
+					} else {
+						return false;
+					}
 				}
 			}
 		} catch (e) {
@@ -180,7 +196,7 @@ export class Tick {
 
 	async getProjectGroups(): Promise<IProjectGroup[]> {
 		try {
-			const url = `${this.apiUrl}/${allTasksEndPoint}`   + this.checkpoint;
+			const url = `${this.apiUrl}/${allTasksEndPoint}`   + this._checkpoint;
 			const response = await this.makeRequest('Get Project Groups', url, 'GET', undefined);
 			if (response) {
 				return response['projectGroups'];
@@ -230,7 +246,7 @@ export class Tick {
 	// RESOURCES =================================================================
 	async getAllResources(): Promise<ITask[]> {
 		try {
-			const url = `${this.apiUrl}/${allTasksEndPoint}` + this.checkpoint;
+			const url = `${this.apiUrl}/${allTasksEndPoint}` + this._checkpoint;
 			const response = await this.makeRequest('Get All Resources', url, 'GET', undefined);
 			if (response) {
 				return response;
@@ -247,7 +263,7 @@ export class Tick {
 	// TASKS =====================================================================
 	async getTaskDetails(): Promise<ITask[]> {
 		try {
-			const url = `${this.apiUrl}/${allTasksEndPoint}` + this.checkpoint;
+			const url = `${this.apiUrl}/${allTasksEndPoint}` + this._checkpoint;
 			const response = await this.makeRequest('Get Task Details', url, 'GET', undefined);
 			if (response) {
 				return response['syncTaskBean'];
@@ -264,7 +280,7 @@ export class Tick {
 
 	async getTasks(): Promise<ITask[]> {
 		try {
-			const url = `${this.apiUrl}/${allTasksEndPoint}`  + this.checkpoint;;
+			const url = `${this.apiUrl}/${allTasksEndPoint}`  + this._checkpoint;;
 			const response = await this.makeRequest('Get Tasks', url, 'GET', undefined);
 			if (response) {
 				return response['syncTaskBean'].update;
@@ -610,12 +626,20 @@ private createLoginRequestOptions(url: string, body: JSON) {
 		if (response) {
 			const statusCode = response.status;
 			let errorMessage;
-			//When ticktick errors out, it doesn't give us a response body.
-			// so far, have only caught 405. Might need to catch others.
-			if (!(statusCode == 405)) {
-				errorMessage = response.json;
-			} else {
-				errorMessage = "No Response."
+			//When ticktick errors out, sometimes we get a JSON response, sometimes we get
+			// a HTML response. Sometimes we get no response. Try to accommodate everything.
+			try {
+				errorMessage = response.json
+			} catch (e) {
+				console.log("Bad JSON response");
+				console.log("Trying Text.");
+				try {
+					errorMessage = response.text
+				} catch (e) {
+					console.log("Bad text response");
+					console.log("No error message.");
+					errorMessage = "No Error message received.";
+				}
 			}
 			this._lastError = { operation, statusCode, errorMessage };
 		} else {
@@ -634,13 +658,13 @@ private createLoginRequestOptions(url: string, body: JSON) {
 
 	//For now: we're not doing the checkpoint bump stuff. If we have more issues...
 	private getNextCheckPoint() {
-		let dtDate = new Date(this.checkpoint)
+		let dtDate = new Date(this._checkpoint)
 		console.log("Date: ", dtDate)
-		dtDate.setDate(dtDate.getDate() - 15);
+		dtDate.setDate(dtDate.getDate() + 15);
 		console.log("Date: ", dtDate)
 		console.log("Attempted Checkpoint: ", dtDate.getTime())
-		this.checkpoint = dtDate.getTime();
-		console.warn("Check point has been changed.", this.checkpoint);
-		return this.checkpoint
+		this._checkpoint = dtDate.getTime();
+		console.warn("Check point has been changed.", this._checkpoint);
+		return this._checkpoint
 	}
 }
