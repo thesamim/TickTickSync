@@ -571,7 +571,7 @@ async makeRequest(operation: string, url: string, method: string, body: any|unde
 			} else {
 				requestOptions = this.createRequestOptions(method, url, body);
 			}
-			console.log(requestOptions)
+			// console.log(requestOptions)
 			const result = await requestUrl(requestOptions);
 			//console.log(operation, result)
 			if (result.status != 200) {
