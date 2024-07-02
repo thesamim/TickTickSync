@@ -275,13 +275,16 @@ export class TickTickRestAPI {
 
 			if ((result?.length == 0) && (this.api?.lastError)) {
 				if (this.api?.lastError.statusCode != 200) {
-					throw new Error(this.api?.lastError)
+					let lastError = this.api?.lastError;
+					console.error("Error: ",  lastError.operation, lastError.statusCode, lastError.errorMessage);
+					throw new Error(lastError.errorMessage)
 				}
 			}
 			return (result)
 
 		} catch (error) {
 			console.error('Error get project groups', error);
+			new Notice("Unable to get Tasks: " + error, 0)
 			return false
 		}
 	}
