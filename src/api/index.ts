@@ -633,8 +633,10 @@ private createLoginRequestOptions(url: string, body: JSON) {
 			} catch (e) {
 				console.log("Bad JSON response");
 				console.log("Trying Text.");
+
 				try {
 					errorMessage = response.text
+					console.log("Error: ", errorMessage)
 				} catch (e) {
 					console.log("Bad text response");
 					console.log("No error message.");

@@ -17,6 +17,7 @@ import { SyncMan } from './src/syncModule';
 
 //import modals
 import { SetDefaultProjectForFileModal } from 'src/modals/DefaultProjectModal';
+import { DateMan } from './src/dateMan';
 
 
 export default class TickTickSync extends Plugin {
@@ -24,6 +25,7 @@ export default class TickTickSync extends Plugin {
 	tickTickRestAPI: TickTickRestAPI | undefined | null;
 	tickTickSyncAPI: TickTickSyncAPI | undefined;
 	taskParser: TaskParser | undefined;
+	dateMan : DateMan | undefined;
 	cacheOperation: CacheOperation | undefined;
 	fileOperation: FileOperation | undefined;
 	tickTickSync: SyncMan | undefined;
@@ -400,10 +402,10 @@ export default class TickTickSync extends Plugin {
 			this.tickTickRestAPI = undefined;
 			this.tickTickSyncAPI = undefined;
 			this.taskParser = undefined;
-			this.taskParser = undefined;
 			this.cacheOperation = undefined;
 			this.fileOperation = undefined;
 			this.tickTickSync = undefined;
+			this.dateMan = undefined;
 			new Notice(`TickTickSync plugin initialization failed, please check userID and password in settings.`);
 			return;
 		}
@@ -424,7 +426,12 @@ export default class TickTickSync extends Plugin {
 				}
 
 				//Start the plug-in for the first time and back up TickTick data
+
+				//init task parser
 				this.taskParser = new TaskParser(this.app, this);
+
+				//init date manager
+				this.dateMan = new DateMan();
 
 				//initialize file operation
 				this.fileOperation = new FileOperation(this.app, this);
@@ -477,7 +484,12 @@ export default class TickTickSync extends Plugin {
 
 		//initialize data read and write object
 		this.cacheOperation = new CacheOperation(this.app, this);
+
+		//init taskparser
 		this.taskParser = new TaskParser(this.app, this);
+
+		//init date manager
+		this.dateMan = new DateMan();
 
 		//initialize file operation
 		this.fileOperation = new FileOperation(this.app, this);

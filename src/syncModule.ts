@@ -465,7 +465,7 @@ export class SyncMan {
 					projectChanged ||  parentIdChanged || priorityChanged || parentIdChanged || taskItemsChanged) {
 					//console.log(updatedContent)
 					//TODO: Breaking SOC here.
-					savedTask.modifiedTime = this.plugin.taskParser?.formatDateToISO(new Date());
+					savedTask.modifiedTime = this.plugin.dateMan?.formatDateToISO(new Date());
 
 					const updatedTask = await this.plugin.tickTickRestAPI?.UpdateTask(lineTask)
 					if (!projectChanged) {
@@ -665,7 +665,7 @@ export class SyncMan {
 			if (modified || added) {
 				//do the update mambo. cache and api.
 				if (parentTask) {
-					parentTask.modifiedTime = this.plugin.taskParser?.formatDateToISO(new Date());
+					parentTask.modifiedTime = this.plugin.dateMan?.formatDateToISO(new Date());
 					await this.plugin.cacheOperation?.updateTaskToCacheByID(parentTask);
 					let taskURL = this.plugin.taskParser?.getObsidianUrlFromFilepath(filepath)
 					if (taskURL) {
@@ -737,7 +737,7 @@ export class SyncMan {
 				if (modified) {
 					//do the update mambo. cache and api.
 					//TODO: Verify that pushing an item with title and status will just matically add it.
-					parentTask.modifiedTime = this.plugin.taskParser?.formatDateToISO(new Date());
+					parentTask.modifiedTime = this.plugin.dateMan?.formatDateToISO(new Date());
 					const result = await this.plugin.tickTickRestAPI?.UpdateTask(parentTask)
 					await this.plugin.cacheOperation?.updateTaskToCacheByID(parentTask);
 				}
@@ -996,8 +996,8 @@ export class SyncMan {
 			// this.dumpArray("cache", tasksInCache)
 
 			if (this.plugin.settings.debugMode) {
-				console.log("We have: ", tasksFromTickTic.length, " tasks on " + this.plugin.tickTickRestAPI?.api?.apiUrl)
-				console.log("There are: ", tasksInCache.length, " tasks in Cache.");
+				console.log("We have: ", tasksFromTickTic? tasksFromTickTic.length: 0, " tasks on " + this.plugin.tickTickRestAPI?.api?.apiUrl)
+				console.log("There are: ", tasksInCache? tasksInCache.length: 0, " tasks in Cache.");
 			}
 
 
