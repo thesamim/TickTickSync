@@ -214,6 +214,9 @@ export class TaskParser {
 		tags.forEach((tag: string) => {
 			//TickTick tag, if present, will be added at the end.
 			if (!tag.match(regEx)) {
+				if (tag.includes("-")) {
+					tag = tag.replace(/-/g, '/');
+				}
 				resultLine = resultLine + ' #' + tag;
 			}
 		});
@@ -312,6 +315,7 @@ export class TaskParser {
 			if (tags) {
 				for (const tag of tags) {
 					let labelName = tag.replace(/#/g, '');
+
 					let hasProjectId = await this.plugin.cacheOperation?.getProjectIdByNameFromCache(labelName);
 					if (!hasProjectId) {
 						continue;
@@ -498,8 +502,11 @@ export class TaskParser {
 		//     tags = tags.map(tag => tag.replace('#', ''));
 		// }
 		const tags = [...lineText.matchAll(REGEX.ALL_TAGS)];
-		const tagArray = tags.map(tag => tag[0].replace('#', ''));
-		// tagArray.forEach(tag => console.log("#### get all tags", tag))
+		let tagArray = tags.map(tag => tag[0].replace('#', ''));
+		tagArray.forEach(tag => console.log("#### get all tags", tag))
+
+		tagArray = tagArray.map(tag => tag.replace(/\//g, '-'));
+		tagArray.forEach(tag => console.log("#### get all tags", tag))
 
 		return tagArray;
 	}
@@ -874,6 +881,12 @@ export class TaskParser {
 			}
 		}
 		return text;
+	}
+
+	getAllTags() {
+		// 	const tags = Object.keys(this.app.metadataCache.getTags())
+		// 	tags.forEach(tag => console.log(tag))
+		// 	// foo.forEach(tag => console.log(tag));
 	}
 
 }

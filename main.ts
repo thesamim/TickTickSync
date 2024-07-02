@@ -17,6 +17,7 @@ import { SyncMan } from './src/syncModule';
 
 //import modals
 import { SetDefaultProjectForFileModal } from 'src/modals/DefaultProjectModal';
+import { log } from 'obsidian-task/src/lib/logging';
 
 
 export default class TickTickSync extends Plugin {

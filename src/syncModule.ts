@@ -996,15 +996,20 @@ export class SyncMan {
 			// this.dumpArray("cache", tasksInCache)
 
 			if (this.plugin.settings.debugMode) {
-				console.log("We have: ", tasksFromTickTic.length, " tasks on " + this.plugin.tickTickRestAPI?.api?.apiUrl)
-				console.log("There are: ", tasksInCache.length, " tasks in Cache.");
-			}
+				if (tasksFromTickTic) {
+					console.log("We have: ", tasksFromTickTic.length, " tasks on " + this.plugin.tickTickRestAPI?.api?.apiUrl)
+					const closedTasks = tasksFromTickTic.filter(task => task.status != 0);
+					const openTasks = tasksFromTickTic.filter(task => task.status === 0);
+					console.log('openTasks', openTasks.length, 'closedTasks', closedTasks.length);
+				} else {
+					console.log("No tasks found.");
+				}
+				if (tasksInCache) {
+					console.log("There are: ", tasksInCache.length, " tasks in Cache.");
+				} else {
+					console.log("There are no tasks in cache.");
+				}
 
-
-			if (this.plugin.settings.debugMode) {
-				const closedTasks = tasksFromTickTic.filter(task => task.status != 0);
-				const openTasks = tasksFromTickTic.filter(task => task.status === 0);
-				console.log('openTasks', openTasks.length, 'closedTasks', closedTasks.length);
 			}
 
 			tasksFromTickTic = tasksFromTickTic.sort((a, b) => (a.id > b.id) ? 1 : ((b.id > a.id) ? -1 : 0))
