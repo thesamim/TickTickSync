@@ -40,18 +40,17 @@ button.ts_button[disabled]:hover {
 	padding: 10px;
 }
 
-
-
-
-
-/*
 .cm-line span.cm-comment {
-    display: none;
+	display: none;
 }
+
 
 .cm-line.cm-active span.cm-comment,
 .cm-line:hover span.cm-comment {
-    display: inline-block;
+	display: inline-block;
 }
 
-*/
+.dataview.inline-field-key[data-dv-key="ticktick_id"],
+.dataview.inline-field-key[data-dv-key="ticktick_id"] + span {
+	display: none;
+}

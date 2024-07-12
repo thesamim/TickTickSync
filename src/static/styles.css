@@ -1,8 +1,6 @@
-
-.cm-line:not(:hover):not(.cm-active) span.cm-comment:not(.cm-hmd-codeblock) {
+.cm-line:not(:hover):not(.cm-active) span.cm-comment:not(.cm-hmd-codeblock):not(.cm-templater-command) {
 	display: none;
 }
-
 
 .ts_button {
 	margin-top: 1rem;
@@ -26,14 +24,33 @@ button.ts_button[disabled]:hover {
 	cursor: pointer;
 }
 
-/*
-.cm-line span.cm-comment {
-    display: none;
+
+.project-table-table{
+	width: 100%;
+	margin-bottom: 10px;
+	font-size: 0.9rem;
+	border: 2px solid var(--background-secondary);
+	border-radius: 5px;
+	padding: 10px;
+	border-collapse: collapse;
 }
+
+.project-table-border{
+	border: 2px solid var(--background-secondary);
+	padding: 10px;
+}
+
+.cm-line span.cm-comment {
+	display: none;
+}
+
 
 .cm-line.cm-active span.cm-comment,
 .cm-line:hover span.cm-comment {
-    display: inline-block;
+	display: inline-block;
 }
 
-*/
+.dataview.inline-field-key[data-dv-key="ticktick_id"],
+.dataview.inline-field-key[data-dv-key="ticktick_id"] + span {
+	display: none;
+}
