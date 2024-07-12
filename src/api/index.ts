@@ -571,7 +571,7 @@ async makeRequest(operation: string, url: string, method: string, body: any|unde
 			} else {
 				requestOptions = this.createRequestOptions(method, url, body);
 			}
-			//console.log(requestOptions)
+			// console.log(requestOptions)
 			const result = await requestUrl(requestOptions);
 			//console.log(operation, result)
 			if (result.status != 200) {
@@ -591,8 +591,14 @@ private createLoginRequestOptions(url: string, body: JSON) {
 			// 'origin': 'http://ticktick.com',
 			'Content-Type': 'application/json',
 			'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/117.0',
-			'x-device': '{"platform":"web","os":"Windows 10","device":"Firefox 117.0","name":"","version":4576,"id":"64f9effe6edff918986b5f71","channel":"website","campaign":"","websocket":""}'
+			'x-device': '{"platform":"web","os":"Windows 10","device":"Firefox 117.0","name":"","version":4576,"id":"64f9effe6edff918986b5f71","channel":"website","campaign":"","websocket":""}',
+			'Cookie': 't='+`${this.token}`+'; AWSALB=pSOIrwzvoncz4ZewmeDJ7PMpbA5nOrji5o1tcb1yXSzeEDKmqlk/maPqPiqTGaXJLQk0yokDm0WtcoxmwemccVHh+sFbA59Mx1MBjBFVV9vACQO5HGpv8eO5pXYL; AWSALBCORS=pSOIrwzvoncz4ZewmeDJ7PMpbA5nOrji5o1tcb1yXSzeEDKmqlk/maPqPiqTGaXJLQk0yokDm0WtcoxmwemccVHh+sFbA59Mx1MBjBFVV9vACQO5HGpv8eO5pXYL'
 		};
+	// const myHeaders = new Headers();
+	// myHeaders.append("t", "154BB8FE9144678312B4902C7DAE506978F514D9A843DDEE10D2F3AB30342E7FEAE9646FA1A476BB047AF870E99BC87E8AF50C0EC428BDFCC4DF513F39334C5216D0A39676247F5E4A1B5F5DA273AD2D1D389B366B6AE98DFB9A84218D07E63C82BEE463B1431075BC4DD36207DCA5A81D389B366B6AE98D8379F4A2E4EC1143D5CEB4026B93FA00034645F5A647A51D69F79B085F322C972E41D3F5B95B28DE7353686E6CEE8A83");
+	// myHeaders.append("Cookie", "t=154BB8FE9144678312B4902C7DAE506978F514D9A843DDEE10D2F3AB30342E7FEAE9646FA1A476BB047AF870E99BC87E8AF50C0EC428BDFCC4DF513F39334C5216D0A39676247F5E4A1B5F5DA273AD2D1D389B366B6AE98DFB9A84218D07E63C82BEE463B1431075BC4DD36207DCA5A81D389B366B6AE98D8379F4A2E4EC1143D5CEB4026B93FA00034645F5A647A51D69F79B085F322C972E41D3F5B95B28DE7353686E6CEE8A83; AWSALB=pSOIrwzvoncz4ZewmeDJ7PMpbA5nOrji5o1tcb1yXSzeEDKmqlk/maPqPiqTGaXJLQk0yokDm0WtcoxmwemccVHh+sFbA59Mx1MBjBFVV9vACQO5HGpv8eO5pXYL; AWSALBCORS=pSOIrwzvoncz4ZewmeDJ7PMpbA5nOrji5o1tcb1yXSzeEDKmqlk/maPqPiqTGaXJLQk0yokDm0WtcoxmwemccVHh+sFbA59Mx1MBjBFVV9vACQO5HGpv8eO5pXYL");
+
+
 	const options: RequestUrlParam = {
 		method: "POST",
 		url: url,
@@ -606,7 +612,10 @@ private createLoginRequestOptions(url: string, body: JSON) {
 	private createRequestOptions(method: string, url: string, body: JSON | undefined) {
 		let headers = {
 				//For the record, the bloody rules keep changin and we might have to the _csrf_token
-				'Cookie': `t=${this.token}`,
+			'Content-Type': 'application/json',
+			'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/117.0',
+			'x-device': '{"platform":"web","os":"Windows 10","device":"Firefox 117.0","name":"","version":4576,"id":"64f9effe6edff918986b5f71","channel":"website","campaign":"","websocket":""}',
+			'Cookie': 't='+`${this.token}`+'; AWSALB=pSOIrwzvoncz4ZewmeDJ7PMpbA5nOrji5o1tcb1yXSzeEDKmqlk/maPqPiqTGaXJLQk0yokDm0WtcoxmwemccVHh+sFbA59Mx1MBjBFVV9vACQO5HGpv8eO5pXYL; AWSALBCORS=pSOIrwzvoncz4ZewmeDJ7PMpbA5nOrji5o1tcb1yXSzeEDKmqlk/maPqPiqTGaXJLQk0yokDm0WtcoxmwemccVHh+sFbA59Mx1MBjBFVV9vACQO5HGpv8eO5pXYL',
 				't' : `${this.token}`
 			};
 		const options: RequestUrlParam = {
@@ -633,10 +642,9 @@ private createLoginRequestOptions(url: string, body: JSON) {
 			} catch (e) {
 				console.log("Bad JSON response");
 				console.log("Trying Text.");
-
 				try {
-					errorMessage = response.text
-					console.log("Error: ", errorMessage)
+					errorMessage = this.extractTitleContent(response.text)
+					console.error("Error: ", errorMessage)
 				} catch (e) {
 					console.log("Bad text response");
 					console.log("No error message.");
@@ -668,5 +676,13 @@ private createLoginRequestOptions(url: string, body: JSON) {
 		this._checkpoint = dtDate.getTime();
 		console.warn("Check point has been changed.", this._checkpoint);
 		return this._checkpoint
+	}
+	private extractTitleContent(inputString) {
+		const startTag = '<title>';
+		const endTag = '</title>';
+		const startIndex = inputString.indexOf(startTag) + startTag.length;
+		const endIndex = inputString.indexOf(endTag);
+
+		return inputString.substring(startIndex, endIndex);
 	}
 }
