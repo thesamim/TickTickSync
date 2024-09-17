@@ -452,7 +452,7 @@ export class FileOperation {
                     newTaskContent = newTaskContent.replace(/\n/g, "\n" + parentTabs + '\t');
 					itemCount = (newTaskContent.match(/\n/g) || []).length;
                 }
-				//TODO: Is this even valid?
+
 				if (currentTask && currentTask.items && currentTask.items.length > 0 ) {
 					lines.splice(i+1,currentTask.items.length)
 				}

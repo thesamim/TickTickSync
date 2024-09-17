@@ -217,7 +217,6 @@ export class SyncMan {
 	// an unfortunate side effect: it farckles up the items. For now only update the task and not the items.
 	// The assumption being that when this is called Items will be handled elsewhere.
 	private async updateTaskLine(newTask: ITask, lineTxt: string, editor: Editor | null, cursor: EditorPosition | null, fileContent: string, line: number| null, filePath: string) {
-		//TODO: Validate this is ok.
 		let newTaskCopy = {...newTask}
 		newTaskCopy.items = []
 		let text = await this.plugin.taskParser?.convertTaskToLine(newTaskCopy);

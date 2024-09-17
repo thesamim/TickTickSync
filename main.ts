@@ -61,7 +61,7 @@ export default class TickTickSync extends Plugin {
 				let newTasksHolder = {};
 				newTasksHolder = {
 					TickTickTasks: oldTasksHolder.TickTickTasks.map((taskIDString) => ({
-						taskId: taskIDString, taskItems: [] //TODO: Validate that the assumption that the next sync will fill these correctly.
+						taskId: taskIDString, taskItems: []
 					})), TickTickCount: oldTasksHolder.TickTickCount, defaultProjectId: oldTasksHolder.defaultProjectId
 				};
 				fileMetataDataStructure[file] = newTasksHolder;
@@ -96,14 +96,16 @@ export default class TickTickSync extends Plugin {
 		//lastLine object {path:line} is saved in lastLines map
 		this.lastLines = new Map();
 
+		//Popular Request: Always on Sync Icon.
+		// This creates an icon in the left ribbon.
+		const ribbonIconEl = this.addRibbonIcon('sync', 'TickTickSync', async (evt: MouseEvent) => {
+			// Called when the user clicks the icon.
+			await this.scheduledSynchronization();
+			await this.unlockSynclock();
+			new Notice(`Sync completed..`);
+		});
+
 		if (this.settings.debugMode) {
-			// This creates an icon in the left ribbon.
-			const ribbonIconEl = this.addRibbonIcon('sync', 'TickTickSync', async (evt: MouseEvent) => {
-				// Called when the user clicks the icon.
-				await this.scheduledSynchronization();
-				await this.unlockSynclock();
-				new Notice(`Sync completed..`);
-			});
 			//Used for testing adhoc code.
 			// const ribbonIconEl1 = this.addRibbonIcon('check', 'TickTickSync', async (evt: MouseEvent) => {
 			// 	// Nothing to see here right now.
@@ -158,6 +160,18 @@ export default class TickTickSync extends Plugin {
 
 			}
 		}
+
+		this.registerDomEvent(document, 'dblclick', async (evt: MouseEvent) => {
+			const { target } = evt;
+			const markDownView = this.app.workspace.getActiveViewOfType(MarkdownView);
+			const file = markDownView?.app.workspace.activeEditor?.file;
+			const fileName = file?.name;
+			const filepath = file?.path;
+			let sel1 = window.getSelection && window.getSelection().getRangeAt(0).toString()
+			console.log("selection 1", sel1);
+
+
+		})
 
 		// If the plugin hooks up any global DOM events (on parts of the app that doesn't belong to this plugin)
 		// Using this function will automatically remove the event listener when this plugin is disabled.
@@ -415,7 +429,9 @@ export default class TickTickSync extends Plugin {
 			//Create a backup folder to back up TickTick data
 			try {
 
-				//TODO: this should not be necessary. Check why it was at some point.
+				//There was a point when we didn't have SyncTag or SyncProject in data.json and it was causing
+				// issues, and it wasn't getting caught in the migration code. Leaving for now because it doesn't
+				// cost that much.
 				if (!this.settings.SyncTag) {
 					this.settings.SyncTag = '';
 					await this.saveSettings();
@@ -495,7 +511,6 @@ export default class TickTickSync extends Plugin {
 		this.fileOperation = new FileOperation(this.app, this);
 
 		//initialize TickTick sync api
-		//Todo: Do we really need it?
 		this.tickTickSyncAPI = new TickTickSyncAPI(this.app, this);
 
 		//initialize TickTick sync module

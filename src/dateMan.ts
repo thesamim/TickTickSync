@@ -10,6 +10,8 @@
 // }
 //
 
+// https://forum.obsidian.md/t/task-time-editing-ux-ui-advice/86124/2?u=thesamim
+
 import { ITask } from './api/types/Task';
 
 enum date_emoji {
@@ -36,10 +38,15 @@ interface date_struct_type {
 export interface date_holder_type {
 	isAllDay: boolean,
 	lineText: string,
-	dates: date_struct_type[]
+	created_date: date_time_type|null,
+	scheduled_date:date_time_type|null,
+	start_date:date_time_type|null,
+	due_date:date_time_type|null,
+	done_date:date_time_type|null,
+	cancelled_date:date_time_type|null
 }
 
-const due_date_strip_regex = `[${date_emoji.created_date}${date_emoji.scheduled_date}${date_emoji.start_date}${date_emoji.due_date}${date_emoji.done_date}${date_emoji.cancelled_date}]\\s((\\d{4}-\\d{2}-\\d{2})|)(\\d{1,}:\\d{2}|)`;
+const date_strip_regex = `[${date_emoji.created_date}${date_emoji.scheduled_date}${date_emoji.start_date}${date_emoji.due_date}${date_emoji.done_date}${date_emoji.cancelled_date}]\\s((\\d{4}-\\d{2}-\\d{2})|)(\\d{1,}:\\d{2}|)`;
 
 //objectives:
 // 1. get the times
@@ -50,104 +57,128 @@ const due_date_strip_regex = `[${date_emoji.created_date}${date_emoji.scheduled_
 export class DateMan {
 
 	/* 	input: a task string
-		output: a task string with any non-date content first, times next, dates last.
+		output: a dateholer struct
+
+		Called when a task is being examined for changes, or ready for update.
 	*/
-	parseDates(inString: string, bAddDates: boolean = false): date_holder_type {
-		console.log('We start with: ', inString);
-		let dateArray: date_struct_type[] = [];
+	//TODO: parse for whatever the new date format is going to be.
+	parseDates(inString: string): date_holder_type {
+		console.log('parseDates: ', inString);
+		let myDateHolder: date_holder_type = {
+			cancelled_date: null,
+			created_date: null,
+			done_date: null,
+			due_date: null,
+			scheduled_date: null,
+			start_date: null,
+			isAllDay: false, lineText: inString};
 		for (const [key, value] of Object.entries(date_emoji)) {
 			console.log(`${key}: ${value}`);
 			// console.log("--", dateEmojiKey, date_emoji[dateEmojiKey]);
-			inString = this.extractDates(inString, key, value, dateArray);
-		}
-		console.log('after : ', inString);
-		// console.log("str: ", inString);
-		console.log('got: ', dateArray);
-		if (bAddDates) {
-			if (dateArray.length > 0) {
-				dateArray.forEach(dateThing => {
-					if (dateThing.time) {
-						inString = inString + ' ' + dateThing.emoji + ' ' + dateThing.time;
-					}
-				});
-				dateArray.forEach(dateThing => {
-					inString = inString + ' ' + dateThing.emoji + ' ' + dateThing.date;
-				});
+			let dateItem = this.extractDates(inString, value);
+			if (dateItem) {
+				//If ANY of the dates have an isAllDay of false (ie: there's a time element)
+				//      Then the whole task is considered to be NOT allDay.
+				myDateHolder.isAllDay = dateItem.isAllDay;
+				// @ts-ignore
+				myDateHolder[key] = dateItem;
 			}
 		}
-		//There's only one isAllDay flag in ITask. Check all dates for isAllDay. If any are all day, then
-		//set all date
-		let bIsAllDay = false;
-		dateArray.forEach((dateObjc) =>{
-			if (dateObjc.isAllDay) {
-				bIsAllDay = true;
-			}
-		})
-		let myDateHolder: date_holder_type = {
-			isAllDay: bIsAllDay,
-			lineText: inString,
-			dates: dateArray
-		};
-		console.log('returning : ', inString);
+		console.log('parseDates Result: ', myDateHolder);
+		//TODO: Adding a date logic, but should go elsewhere
+		// if (bAddDates) {
+		// 	if (dateStruct.length > 0) {
+		// 		dateStruct.forEach(dateThing => {
+		// 			if (dateThing.time) {
+		// 				inString = inString + ' ' + dateThing.emoji + ' ' + dateThing.time;
+		// 			}
+		// 		});
+		// 		dateStruct.forEach(dateThing => {
+		// 			inString = inString + ' ' + dateThing.emoji + ' ' + dateThing.date;
+		// 		});
+		// 	}
+		// }
+
+
+
 		return myDateHolder;
 
 	}
 
-	addDatesToLine(inString: string, task: ITask) : string {
+	/* 	input: a task string and a Task
+		output: a task string
 
-		//createdTime
-			//ignoring for now.
+		Called from convertTaskToLine
+	*/
+
+	//todo: Add whatever the new data representation format is going to be.
+	addDatesToLine(inString: string, task: ITask) : string {
+		console.log("addDatesToLine - in :", inString);
 		let dateStrings: string[] = []
-		let timeStrings: string[] = []
+		let startDatetimeString: string = '';
+		let dueDatetimeString: string = '';
+		let completedDatetimeString: string = '';
 		//startDate
 		//If the start date and the due date are equal, we're assuming that it's
 		// not a time duration kind of thing and the start date is irrelevant.
 		if (task.startDate && task.startDate != task.dueDate) {
-			this.buildDateLineComponent(task.startDate, date_emoji.start_date, dateStrings, timeStrings);
+			startDatetimeString = this.buildDateLineComponent(task.startDate, date_emoji.start_date, dateStrings);
 		}
 		//dueDate
 		if (task.dueDate) {
-			this.buildDateLineComponent(task.dueDate, date_emoji.due_date, dateStrings, timeStrings);
+			dueDatetimeString = this.buildDateLineComponent(task.dueDate, date_emoji.due_date,  dateStrings);
 		}
 		//completedTime
 		if (task.completedTime) {
-			this.buildDateLineComponent(task.completedTime, date_emoji.done_date, dateStrings, timeStrings);
+			completedDatetimeString = this.buildDateLineComponent(task.completedTime, date_emoji.done_date,  dateStrings);
 		}
 
-		if (timeStrings && !task.isAllDay) {
-			timeStrings.forEach(time => {
-				inString += ' ' + time;
-			})
-			inString += ' ';
+		if (!task.isAllDay) {
+			let startOfTask = inString.indexOf("]", 0) ; //assume the first ] is where we want to start adding stuff.
+			startOfTask = startOfTask + 1;
+			if (startDatetimeString != '') {
+				inString = inString.substring( 0 , startOfTask) + ' [Start Time: ' + startDatetimeString + ' ]' + inString.substring(startOfTask);
+			}
+			if (dueDatetimeString != '') {
+				let endOfStartTime = inString.indexOf("]", startOfTask + 1); // Assume that the next ] is after start time.
+				endOfStartTime = endOfStartTime + 1;
+				inString = inString.substring( 0 , endOfStartTime) + '-[End Time: ' + dueDatetimeString + ' ]' + inString.substring(endOfStartTime);
+			}
 		}
 		if (dateStrings) {
 			dateStrings.forEach(dateString => {
 				inString += ' ' + dateString;
 			})
-			inString += ' ';
 		}
-
+		console.log("addDatesToLine - out :", inString);
 		return inString;
 
 	}
 
-	stripDates(inString: string) : string | null {
-		let stripRegEx = new RegExp(due_date_strip_regex, 'gmu');
-		return inString.replace(stripRegEx, '');
+	//todo: strip whatever the new data representation format is going to be.
+	stripDatesFromLine(inString: string) : string | null {
+		console.log("stripDatesFromLine - in :", inString);
+		let stripRegEx = new RegExp(date_strip_regex, 'gmu');
+		const retString = inString.replace(stripRegEx, '');
+		console.log("stripDatesFromLine - out :", retString);
+		return retString
 	}
-	private buildDateLineComponent(date: string, emoji: string, dateStrings: string[], timeStrings: string[]) {
+
+	private buildDateLineComponent(date: string, emoji: string, dateStrings: string[]) {
 		let dateTime = this.utcToLocal(date, false);
+		let timeString: string = '';
 		let dateComponents = dateTime.split(' ');
 		let dateString = emoji + ' ' + dateComponents[0];
 		dateStrings.push(dateString);
 
-		let timeString = dateComponents[1];
-		if (timeString && timeString != '00:00') {
-			timeStrings.push(emoji + ' ' + timeString);
+		if (dateComponents[1]) {
+			console.log("Date Compent: " + dateComponents[1] + " - " + dateString);
+			timeString = dateComponents[1];
 		}
+		return timeString;
 	}
 
-//Format date to TickTick Accepted date.
+	//Format date to TickTick Accepted date.
 	formatDateToISO(dateTime: Date) {
 		// Check if the input is a valid date
 		if (isNaN(dateTime.getTime())) {
@@ -186,12 +217,13 @@ export class DateMan {
 
 	}
 
-	private extractDates(inString: string, dateEmojiKey: string, dateEmojiElement: string, dateArray: date_struct_type[]) {
-		const date_regex = `(${dateEmojiElement})\\s(\\d{4}-\\d{2}-\\d{2})\\s*(\\d{1,}:\\d{2})*`;
+	private extractDates(inString: string, dateEmoji: string) {
+		// @ts-ignore
+		let dateItem: date_time_type|null = {};
+		const date_regex = `(${dateEmoji})\\s(\\d{4}-\\d{2}-\\d{2})\\s*(\\d{1,}:\\d{2})*`;
 
 		let dateData = inString.match(date_regex);
 		if (dateData) {
-			inString = inString.replace(dateData[0], '');
 			let returnDate = null;
 			let bIsAllDay = false;
 			if (!dateData[3]) {
@@ -205,19 +237,17 @@ export class DateMan {
 				bIsAllDay = false;
 			}
 			returnDate = this.formatDateToISO(new Date(returnDate));
-			let dateObj: date_struct_type = {
-				dateEmojiKey: {
-					emoji: dateData[1],
-					date: dateData[2],
-					time: dateData[3],
-					isAllDay: bIsAllDay,
-					isoDate: returnDate
-				}
+			dateItem = {
+				isAllDay: bIsAllDay,
+				date: dateData[2],
+				time: dateData[3],
+				isoDate: returnDate,
+				emoji: dateData[1]
 			};
-			dateArray.push(dateObj);
-
+		} else {
+			dateItem = null;
 		}
-		return inString;
+		return dateItem;
 	}
 
 }

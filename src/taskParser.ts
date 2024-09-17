@@ -203,7 +203,7 @@ export class TaskParser {
 			.replace(REGEX.TASK_CONTENT.REMOVE_CHECKBOX, '')
 			.replace(REGEX.TASK_CONTENT.REMOVE_CHECKBOX_WITH_INDENTATION, '')
 			.replace(REGEX.TASK_CONTENT.REMOVE_SPACE, '');
-		taskContent = this.plugin.dateMan?.stripDates(taskContent);
+		taskContent = this.plugin.dateMan?.stripDatesFromLine(taskContent);
 	return (taskContent);
 	}
 
@@ -242,7 +242,7 @@ export class TaskParser {
 
 		//Strip dates.
 		console.log("sending: ", textWithoutIndentation, this.plugin.dateMan);
-		const dueDateStruct =  this.plugin.dateMan?.parseDates(textWithoutIndentation, false);
+		const dueDateStruct =  this.plugin.dateMan?.parseDates(textWithoutIndentation);
 		console.log("And we have: ", textWithoutIndentation);
 
 		//Detect parentID
@@ -359,8 +359,8 @@ export class TaskParser {
 			// content: description,
 			items: taskItems || [],
 			parentId: parentId || '',
-			dueDate: dueDateStruct?.dates["due_date"] || '',
-			startDate: dueDateStruct?.dates["start_date"] || '',
+			dueDate: dueDateStruct?.due_date?.isoDate || '',
+			startDate: dueDateStruct?.start_date?.isoDate || '',
 			isAllDay: dueDateStruct?.isAllDay || false,
 			tags: tags || [],
 			priority: Number(priority),
@@ -737,7 +737,7 @@ export class TaskParser {
 	}
 
 	cleanDate(dateString: string) {
-
+		console.log("Cleand Date: ", dateString);
 		if (dateString.includes('+-')) {
 			dateString = dateString.replace('+-', '-');
 

@@ -93,7 +93,6 @@ export class CacheOperation {
     async getFileMetadata(filepath: string, projectId: string | null): Promise<FileMetadata> {
         let metaData = this.plugin.settings.fileMetadata[filepath];
         if (!metaData) {
-            //TODO is this valid?
             //Always return something.
             metaData = await this.newEmptyFileMetadata(filepath, projectId);
         }
