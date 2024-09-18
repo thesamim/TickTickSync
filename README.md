@@ -128,6 +128,8 @@ Thanks to [Yusuf](https://github.com/akseron) for help debugging timezone issues
 
 Thanks to [LemurTech](https://github.com/LemurTech) and [zarb1n](https://github.com/zarb1n) for continuous support and help with debugging API moving target!
 
+Thanks to [jee-ee](https://github.com/jee-ee) for pointing out the change in Device ID processing.
+
 ## Disclaimer
 
 This plugin was built with the author's specific use cases in mind. Additional use cases can and will be considered.
