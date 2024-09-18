@@ -504,7 +504,7 @@ export class TaskParser {
 		const tags = [...lineText.matchAll(REGEX.ALL_TAGS)];
 		let tagArray = tags.map(tag => tag[0].replace('#', ''));
 		tagArray = tagArray.map(tag => tag.replace(/\//g, '-'));
-		tagArray.forEach(tag => console.log("#### get all tags", tag))
+		//tagArray.forEach(tag => console.log("#### get all tags", tag))
 
 		return tagArray;
 	}

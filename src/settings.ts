@@ -171,8 +171,9 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 
 							let errMsg = "Login Failed. "
 							if (api.lastError) {
+								console.log("Last Error: ", api.lastError);
 								errMsg = errMsg + JSON.stringify(api.lastError)
-								errMsg = errMsg.replace(/{/g, '\n').replace(/,/g, '\n')
+								errMsg = errMsg.replace(/{/g, '\n').replace(/}/g, '\n').replace(/,/g, '\n')
 							} else {
 								errMsg = errMsg + "\nUnknown error occurred.";
 							}
