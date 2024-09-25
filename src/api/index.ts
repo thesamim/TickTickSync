@@ -58,6 +58,7 @@ export class Tick {
 //                I **think** it indicates the time of last fetch. This could be useful.
 //TODO: in the fullness of time, figure out checkpoint processing to reduce traffic.
 	private _checkpoint: number;
+	private deviceVersion: string | undefined;
 
 	constructor({ username, password, baseUrl, token, checkPoint }: IoptionsProps) {
 		this.username = username;
@@ -66,7 +67,8 @@ export class Tick {
 		this.inboxProperties = {
 			id: '', sortOrder: 0
 		};
-		this.deviceID = this.generateRandomHex();
+		this.deviceID = this.generateDeviceID(true);
+		this.deviceVersion = this.generateVersion(true);
 		console.log("Device ID: ", this.deviceID);
 
 		if (baseUrl) {
@@ -173,7 +175,7 @@ export class Tick {
 					return true;
 				} else {
 					if (i < 10) {
-						this._checkpoint = this.getNextCheckPoint();
+						this.reset()
 					} else {
 						return false;
 					}
@@ -597,7 +599,7 @@ private createLoginRequestOptions(url: string, body: JSON) {
 			// 'origin': 'http://ticktick.com',
 			'Content-Type': 'application/json',
 			'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/117.0',
-			'x-device': `{"platform":"web","os":"Windows 10","device":"Firefox 117.0","name":"","version":4576,"id":"${this.deviceID}","channel":"website","campaign":"","websocket":""}`,
+			'x-device': `{"platform":"web","os":"Windows 10","device":"Firefox 117.0","name":"","version":${this.deviceVersion},"id":"${this.deviceID}","channel":"website","campaign":"","websocket":""}`,
 			'Cookie': 't='+`${this.token}`+'; AWSALB=pSOIrwzvoncz4ZewmeDJ7PMpbA5nOrji5o1tcb1yXSzeEDKmqlk/maPqPiqTGaXJLQk0yokDm0WtcoxmwemccVHh+sFbA59Mx1MBjBFVV9vACQO5HGpv8eO5pXYL; AWSALBCORS=pSOIrwzvoncz4ZewmeDJ7PMpbA5nOrji5o1tcb1yXSzeEDKmqlk/maPqPiqTGaXJLQk0yokDm0WtcoxmwemccVHh+sFbA59Mx1MBjBFVV9vACQO5HGpv8eO5pXYL'
 		};
 	// const myHeaders = new Headers();
@@ -620,10 +622,11 @@ private createLoginRequestOptions(url: string, body: JSON) {
 				//For the record, the bloody rules keep changin and we might have to the _csrf_token
 			'Content-Type': 'application/json',
 			'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/117.0',
-			'x-device': `{"platform":"web","os":"Windows 10","device":"Firefox 117.0","name":"","version":4576,"id":"${this.deviceID}","channel":"website","campaign":"","websocket":""}`,
+			'x-device': `{"platform":"web","os":"Windows 10","device":"Firefox 117.0","name":"","version":${this.deviceVersion},"id":"${this.deviceID}","channel":"website","campaign":"","websocket":""}`,
 			'Cookie': 't='+`${this.token}`+'; AWSALB=pSOIrwzvoncz4ZewmeDJ7PMpbA5nOrji5o1tcb1yXSzeEDKmqlk/maPqPiqTGaXJLQk0yokDm0WtcoxmwemccVHh+sFbA59Mx1MBjBFVV9vACQO5HGpv8eO5pXYL; AWSALBCORS=pSOIrwzvoncz4ZewmeDJ7PMpbA5nOrji5o1tcb1yXSzeEDKmqlk/maPqPiqTGaXJLQk0yokDm0WtcoxmwemccVHh+sFbA59Mx1MBjBFVV9vACQO5HGpv8eO5pXYL',
 				't' : `${this.token}`
 			};
+		// console.log("headers", headers);
 		const options: RequestUrlParam = {
 			method: method,
 			url: url,
@@ -680,9 +683,9 @@ private createLoginRequestOptions(url: string, body: JSON) {
 	//For now: we're not doing the checkpoint bump stuff. If we have more issues...
 	private getNextCheckPoint() {
 		let dtDate = new Date(this._checkpoint)
-		console.log("Date: ", dtDate)
+		// console.log("Date: ", dtDate)
 		dtDate.setDate(dtDate.getDate() + 15);
-		console.log("Date: ", dtDate)
+		// console.log("Date: ", dtDate)
 		console.log("Attempted Checkpoint: ", dtDate.getTime())
 		this._checkpoint = dtDate.getTime();
 		console.warn("Check point has been changed.", this._checkpoint);
@@ -696,11 +699,32 @@ private createLoginRequestOptions(url: string, body: JSON) {
 
 		return inputString.substring(startIndex, endIndex);
 	}
-	private generateRandomHex() {
-		let retArray = [...Array(20)]
-			.map(() => Math.floor(Math.random() * 16).toString(16))
-			.join('');
-		retArray = '66e9' + retArray;
-		return retArray;
+	private generateDeviceID(bForce: boolean) {
+		let uniqueID = localStorage.getItem("TTS_UniqueID")
+		if (bForce || !uniqueID) {
+			uniqueID = crypto.randomUUID().toString();
+			localStorage.setItem("TTS_UniqueID", uniqueID);
+		}
+		console.log("uniqueID: ", uniqueID);
+		return uniqueID;
+	}
+
+	private generateVersion(bForce: boolean) {
+		let version = localStorage.getItem("TTS_Version");
+		if (bForce || !version) {
+			version = [...Array(4)]
+				.map(() => Math.floor(Math.random() * 4).toString(4))
+				.join('');
+			localStorage.setItem("TTS_Version", version);
+		}
+		console.log("Version: ", version);
+		return version;
+	}
+
+	//Probably overkill, but just to make sure.
+	private reset() {
+		this._checkpoint = this.getNextCheckPoint();
+		this.deviceID = this.generateDeviceID(true);
+		this.deviceVersion = this.generateVersion(true);
 	}
 }
