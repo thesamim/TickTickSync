@@ -95,7 +95,7 @@ export default class TickTickSync extends Plugin {
 		//lastLine object {path:line} is saved in lastLines map
 		this.lastLines = new Map();
 
-		if (this.settings.debugMode) {
+		// if (this.settings.debugMode) {
 			// This creates an icon in the left ribbon.
 			const ribbonIconEl = this.addRibbonIcon('sync', 'TickTickSync', async (evt: MouseEvent) => {
 				// Called when the user clicks the icon.
@@ -107,7 +107,7 @@ export default class TickTickSync extends Plugin {
 			// const ribbonIconEl1 = this.addRibbonIcon('check', 'TickTickSync', async (evt: MouseEvent) => {
 			// 	// Nothing to see here right now.
 			// });
-		}
+		// }
 
 		//Key event monitoring, judging line breaks and deletions
 		this.registerDomEvent(document, 'keyup', async (evt: KeyboardEvent) => {
