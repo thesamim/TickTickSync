@@ -1,5 +1,6 @@
 'use strict';
 import { apiVersion, requestUrl, RequestUrlParam, RequestUrlResponse } from 'obsidian';
+
 import ObjectID from 'bson-objectid';
 
 import { IProjectGroup } from './types/ProjectGroup';
@@ -50,12 +51,14 @@ export class Tick {
 	apiUrl: string;
 	loginUrl: string;
 	private originUrl: string;
+	private deviceID: string | undefined;
 
 //Dear Future me: the check is a checkpoint based thing. As in: give me everything after a certain checkpoint
 //                0 behavior has become non-deterministic. It appears that checkpoint is a epoch number.
 //                I **think** it indicates the time of last fetch. This could be useful.
 //TODO: in the fullness of time, figure out checkpoint processing to reduce traffic.
 	private _checkpoint: number;
+	private deviceVersion: string | undefined;
 
 	constructor({ username, password, baseUrl, token, checkPoint }: IoptionsProps) {
 		this.username = username;
@@ -64,6 +67,10 @@ export class Tick {
 		this.inboxProperties = {
 			id: '', sortOrder: 0
 		};
+		this.deviceID = this.generateDeviceID(true);
+		this.deviceVersion = this.generateVersion(true);
+		console.log("Device ID: ", this.deviceID);
+
 		if (baseUrl) {
 			this.apiUrl = `${apiProtocol}${baseUrl}${apiVersion}`;
 			this.loginUrl = `${protocol}${baseUrl}${apiVersion}`;
@@ -81,6 +88,7 @@ export class Tick {
 		} else {
 			this._checkpoint = checkPoint;
 		}
+
 	}
 
 
@@ -167,7 +175,7 @@ export class Tick {
 					return true;
 				} else {
 					if (i < 10) {
-						this._checkpoint = this.getNextCheckPoint();
+						this.reset()
 					} else {
 						return false;
 					}
@@ -591,7 +599,7 @@ private createLoginRequestOptions(url: string, body: JSON) {
 			// 'origin': 'http://ticktick.com',
 			'Content-Type': 'application/json',
 			'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/117.0',
-			'x-device': '{"platform":"web","os":"Windows 10","device":"Firefox 117.0","name":"","version":4576,"id":"64f9effe6edff918986b5f71","channel":"website","campaign":"","websocket":""}',
+			'x-device': `{"platform":"web","os":"Windows 10","device":"Firefox 117.0","name":"","version":${this.deviceVersion},"id":"${this.deviceID}","channel":"website","campaign":"","websocket":""}`,
 			'Cookie': 't='+`${this.token}`+'; AWSALB=pSOIrwzvoncz4ZewmeDJ7PMpbA5nOrji5o1tcb1yXSzeEDKmqlk/maPqPiqTGaXJLQk0yokDm0WtcoxmwemccVHh+sFbA59Mx1MBjBFVV9vACQO5HGpv8eO5pXYL; AWSALBCORS=pSOIrwzvoncz4ZewmeDJ7PMpbA5nOrji5o1tcb1yXSzeEDKmqlk/maPqPiqTGaXJLQk0yokDm0WtcoxmwemccVHh+sFbA59Mx1MBjBFVV9vACQO5HGpv8eO5pXYL'
 		};
 	// const myHeaders = new Headers();
@@ -614,10 +622,11 @@ private createLoginRequestOptions(url: string, body: JSON) {
 				//For the record, the bloody rules keep changin and we might have to the _csrf_token
 			'Content-Type': 'application/json',
 			'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/117.0',
-			'x-device': '{"platform":"web","os":"Windows 10","device":"Firefox 117.0","name":"","version":4576,"id":"64f9effe6edff918986b5f71","channel":"website","campaign":"","websocket":""}',
+			'x-device': `{"platform":"web","os":"Windows 10","device":"Firefox 117.0","name":"","version":${this.deviceVersion},"id":"${this.deviceID}","channel":"website","campaign":"","websocket":""}`,
 			'Cookie': 't='+`${this.token}`+'; AWSALB=pSOIrwzvoncz4ZewmeDJ7PMpbA5nOrji5o1tcb1yXSzeEDKmqlk/maPqPiqTGaXJLQk0yokDm0WtcoxmwemccVHh+sFbA59Mx1MBjBFVV9vACQO5HGpv8eO5pXYL; AWSALBCORS=pSOIrwzvoncz4ZewmeDJ7PMpbA5nOrji5o1tcb1yXSzeEDKmqlk/maPqPiqTGaXJLQk0yokDm0WtcoxmwemccVHh+sFbA59Mx1MBjBFVV9vACQO5HGpv8eO5pXYL',
 				't' : `${this.token}`
 			};
+		// console.log("headers", headers);
 		const options: RequestUrlParam = {
 			method: method,
 			url: url,
@@ -635,23 +644,28 @@ private createLoginRequestOptions(url: string, body: JSON) {
 		if (response) {
 			const statusCode = response.status;
 			let errorMessage;
-			//When ticktick errors out, sometimes we get a JSON response, sometimes we get
-			// a HTML response. Sometimes we get no response. Try to accommodate everything.
-			try {
-				errorMessage = response.json
-			} catch (e) {
-				console.log("Bad JSON response");
-				console.log("Trying Text.");
+			if (statusCode == 429) { //Too many requests and we don't get anything else.
+				errorMessage = "Error: " +  statusCode + " TickTick reporting too many requests." ;
+				this._lastError = { operation, statusCode, errorMessage };
+			} else {
+				//When ticktick errors out, sometimes we get a JSON response, sometimes we get
+				// a HTML response. Sometimes we get no response. Try to accommodate everything.
 				try {
-					errorMessage = this.extractTitleContent(response.text)
-					console.error("Error: ", errorMessage)
+					errorMessage = response.json
 				} catch (e) {
-					console.log("Bad text response");
-					console.log("No error message.");
-					errorMessage = "No Error message received.";
+					console.log("Bad JSON response");
+					console.log("Trying Text.");
+					try {
+						errorMessage = this.extractTitleContent(response.text)
+						console.error("Error: ", errorMessage)
+					} catch (e) {
+						console.log("Bad text response");
+						console.log("No error message.");
+						errorMessage = "No Error message received.";
+					}
 				}
+				this._lastError = { operation, statusCode, errorMessage };
 			}
-			this._lastError = { operation, statusCode, errorMessage };
 		} else {
 			let errorMessage;
 			let statusCode = 666;
@@ -669,9 +683,9 @@ private createLoginRequestOptions(url: string, body: JSON) {
 	//For now: we're not doing the checkpoint bump stuff. If we have more issues...
 	private getNextCheckPoint() {
 		let dtDate = new Date(this._checkpoint)
-		console.log("Date: ", dtDate)
+		// console.log("Date: ", dtDate)
 		dtDate.setDate(dtDate.getDate() + 15);
-		console.log("Date: ", dtDate)
+		// console.log("Date: ", dtDate)
 		console.log("Attempted Checkpoint: ", dtDate.getTime())
 		this._checkpoint = dtDate.getTime();
 		console.warn("Check point has been changed.", this._checkpoint);
@@ -684,5 +698,33 @@ private createLoginRequestOptions(url: string, body: JSON) {
 		const endIndex = inputString.indexOf(endTag);
 
 		return inputString.substring(startIndex, endIndex);
+	}
+	private generateDeviceID(bForce: boolean) {
+		let uniqueID = localStorage.getItem("TTS_UniqueID")
+		if (bForce || !uniqueID) {
+			uniqueID = crypto.randomUUID().toString();
+			localStorage.setItem("TTS_UniqueID", uniqueID);
+		}
+		console.log("uniqueID: ", uniqueID);
+		return uniqueID;
+	}
+
+	private generateVersion(bForce: boolean) {
+		let version = localStorage.getItem("TTS_Version");
+		if (bForce || !version) {
+			version = [...Array(4)]
+				.map(() => Math.floor(Math.random() * 4).toString(4))
+				.join('');
+			localStorage.setItem("TTS_Version", version);
+		}
+		console.log("Version: ", version);
+		return version;
+	}
+
+	//Probably overkill, but just to make sure.
+	private reset() {
+		this._checkpoint = this.getNextCheckPoint();
+		this.deviceID = this.generateDeviceID(true);
+		this.deviceVersion = this.generateVersion(true);
 	}
 }

@@ -55,7 +55,7 @@ The plugin works best when the [Tasks](https://github.com/obsidian-tasks-group/o
 
 
 ## Notes
-1. TickTickSyn [back ups](https://github.com/thesamim/TickTickSync/wiki/Documentation#backup-ticktick-data) are now CSV files that are compatible with TickTick's "Import Backups."
+1. TickTickSync [back ups](https://github.com/thesamim/TickTickSync/wiki/Documentation#backup-ticktick-data) are now CSV files that are compatible with TickTick's "Import Backups."
 2. **All Task Deletion operations must be confirmed.** In the fullness of time, when we get out of Beta, this might be a preference item. For now it's compulsory.
 3. TickTick lists are referred to as Projects in the plugin, and throughout documentation.
 4. TickTick only has four priorities (High, Medium, Low, None). Please see Priority in [Task Format](https://github.com/thesamim/TickTickSync/wiki/Documentation#task-format) for Task mapping of priority
@@ -127,6 +127,8 @@ Thanks to [anschein](https://github.com/anschein) for helping with Dida testing.
 Thanks to [Yusuf](https://github.com/akseron) for help debugging timezone issues.
 
 Thanks to [LemurTech](https://github.com/LemurTech) and [zarb1n](https://github.com/zarb1n) for continuous support and help with debugging API moving target!
+
+Thanks to [jee-ee](https://github.com/jee-ee) for pointing out the change in Device ID processing.
 
 ## Disclaimer
 

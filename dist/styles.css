@@ -40,12 +40,15 @@ button.ts_button[disabled]:hover {
 	padding: 10px;
 }
 
-
-.cm-line span.cm-comment {
+.dataview.inline-field-key[data-dv-key="ticktick_id"],
+.dataview.inline-field-key[data-dv-key="ticktick_id"] + span {
 	display: none;
 }
-
-.cm-line.cm-active span.cm-comment .cm-line:hover span.cm-comment,
-{
+.cm-line.cm-active span.cm-comment,
+.cm-line.cm-active .dataview.inline-field-key[data-dv-key="ticktick_id"],
+.cm-line.cm-active .dataview.inline-field-key[data-dv-key="ticktick_id"] + span,
+.cm-line:hover span.cm-comment,
+.cm-line:hover .dataview.inline-field-key[data-dv-key="ticktick_id"],
+.cm-line:hover .dataview.inline-field-key[data-dv-key="ticktick_id"] + span {
 	display: inline-block;
 }
