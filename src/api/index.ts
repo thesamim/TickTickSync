@@ -1,8 +1,7 @@
 'use strict';
-import { apiVersion, requestUrl, RequestUrlParam, RequestUrlResponse } from 'obsidian';
-
+import { apiVersion, requestUrl, RequestUrlParam, RequestUrlResponse, Platform } from 'obsidian';
+import { UAParser } from 'ua-parser-js';
 import ObjectID from 'bson-objectid';
-
 import { IProjectGroup } from './types/ProjectGroup';
 import { IProject, ISections } from './types/Project';
 // import { ITag } from './types/Tag';
@@ -51,14 +50,14 @@ export class Tick {
 	apiUrl: string;
 	loginUrl: string;
 	private originUrl: string;
-	private deviceID: string | undefined;
 
 //Dear Future me: the check is a checkpoint based thing. As in: give me everything after a certain checkpoint
 //                0 behavior has become non-deterministic. It appears that checkpoint is a epoch number.
 //                I **think** it indicates the time of last fetch. This could be useful.
 //TODO: in the fullness of time, figure out checkpoint processing to reduce traffic.
 	private _checkpoint: number;
-	private deviceVersion: string | undefined;
+	private userAgent: string;
+	private deviceAgent: string;
 
 	constructor({ username, password, baseUrl, token, checkPoint }: IoptionsProps) {
 		this.username = username;
@@ -67,9 +66,8 @@ export class Tick {
 		this.inboxProperties = {
 			id: '', sortOrder: 0
 		};
-		this.deviceID = this.generateDeviceID(true);
-		this.deviceVersion = this.generateVersion(true);
-		console.log("Device ID: ", this.deviceID);
+		this.userAgent = this.getUserAgent();
+		this.deviceAgent = this.getXDevice();
 
 		if (baseUrl) {
 			this.apiUrl = `${apiProtocol}${baseUrl}${apiVersion}`;
@@ -598,15 +596,11 @@ private createLoginRequestOptions(url: string, body: JSON) {
 		const 			headers = {
 			// 'origin': 'http://ticktick.com',
 			'Content-Type': 'application/json',
-			'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/117.0',
-			'x-device': `{"platform":"web","os":"Windows 10","device":"Firefox 117.0","name":"","version":${this.deviceVersion},"id":"${this.deviceID}","channel":"website","campaign":"","websocket":""}`,
+			'User-Agent': `${this.userAgent}`,
+			'x-device': `${this.deviceAgent}`,
 			'Cookie': 't='+`${this.token}`+'; AWSALB=pSOIrwzvoncz4ZewmeDJ7PMpbA5nOrji5o1tcb1yXSzeEDKmqlk/maPqPiqTGaXJLQk0yokDm0WtcoxmwemccVHh+sFbA59Mx1MBjBFVV9vACQO5HGpv8eO5pXYL; AWSALBCORS=pSOIrwzvoncz4ZewmeDJ7PMpbA5nOrji5o1tcb1yXSzeEDKmqlk/maPqPiqTGaXJLQk0yokDm0WtcoxmwemccVHh+sFbA59Mx1MBjBFVV9vACQO5HGpv8eO5pXYL'
 		};
-	// const myHeaders = new Headers();
-	// myHeaders.append("t", "154BB8FE9144678312B4902C7DAE506978F514D9A843DDEE10D2F3AB30342E7FEAE9646FA1A476BB047AF870E99BC87E8AF50C0EC428BDFCC4DF513F39334C5216D0A39676247F5E4A1B5F5DA273AD2D1D389B366B6AE98DFB9A84218D07E63C82BEE463B1431075BC4DD36207DCA5A81D389B366B6AE98D8379F4A2E4EC1143D5CEB4026B93FA00034645F5A647A51D69F79B085F322C972E41D3F5B95B28DE7353686E6CEE8A83");
-	// myHeaders.append("Cookie", "t=154BB8FE9144678312B4902C7DAE506978F514D9A843DDEE10D2F3AB30342E7FEAE9646FA1A476BB047AF870E99BC87E8AF50C0EC428BDFCC4DF513F39334C5216D0A39676247F5E4A1B5F5DA273AD2D1D389B366B6AE98DFB9A84218D07E63C82BEE463B1431075BC4DD36207DCA5A81D389B366B6AE98D8379F4A2E4EC1143D5CEB4026B93FA00034645F5A647A51D69F79B085F322C972E41D3F5B95B28DE7353686E6CEE8A83; AWSALB=pSOIrwzvoncz4ZewmeDJ7PMpbA5nOrji5o1tcb1yXSzeEDKmqlk/maPqPiqTGaXJLQk0yokDm0WtcoxmwemccVHh+sFbA59Mx1MBjBFVV9vACQO5HGpv8eO5pXYL; AWSALBCORS=pSOIrwzvoncz4ZewmeDJ7PMpbA5nOrji5o1tcb1yXSzeEDKmqlk/maPqPiqTGaXJLQk0yokDm0WtcoxmwemccVHh+sFbA59Mx1MBjBFVV9vACQO5HGpv8eO5pXYL");
-
-
+	//console.log("headers", headers);
 	const options: RequestUrlParam = {
 		method: "POST",
 		url: url,
@@ -621,12 +615,12 @@ private createLoginRequestOptions(url: string, body: JSON) {
 		let headers = {
 				//For the record, the bloody rules keep changin and we might have to the _csrf_token
 			'Content-Type': 'application/json',
-			'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/117.0',
-			'x-device': `{"platform":"web","os":"Windows 10","device":"Firefox 117.0","name":"","version":${this.deviceVersion},"id":"${this.deviceID}","channel":"website","campaign":"","websocket":""}`,
+			'User-Agent': `${this.userAgent}`,
+			'x-device': `${this.deviceAgent}`,
 			'Cookie': 't='+`${this.token}`+'; AWSALB=pSOIrwzvoncz4ZewmeDJ7PMpbA5nOrji5o1tcb1yXSzeEDKmqlk/maPqPiqTGaXJLQk0yokDm0WtcoxmwemccVHh+sFbA59Mx1MBjBFVV9vACQO5HGpv8eO5pXYL; AWSALBCORS=pSOIrwzvoncz4ZewmeDJ7PMpbA5nOrji5o1tcb1yXSzeEDKmqlk/maPqPiqTGaXJLQk0yokDm0WtcoxmwemccVHh+sFbA59Mx1MBjBFVV9vACQO5HGpv8eO5pXYL',
 				't' : `${this.token}`
 			};
-		// console.log("headers", headers);
+		//console.log("headers", headers);
 		const options: RequestUrlParam = {
 			method: method,
 			url: url,
@@ -699,32 +693,52 @@ private createLoginRequestOptions(url: string, body: JSON) {
 
 		return inputString.substring(startIndex, endIndex);
 	}
-	private generateDeviceID(bForce: boolean) {
-		let uniqueID = localStorage.getItem("TTS_UniqueID")
-		if (bForce || !uniqueID) {
-			uniqueID = crypto.randomUUID().toString();
-			localStorage.setItem("TTS_UniqueID", uniqueID);
+
+	private getUserAgent() {
+		// console.log("Agent: ", navigator.userAgent);
+		// console.log("Navigator Platform: ", navigator.platform);
+		// console.log("Platform: ", Platform);
+		// console.log("ua Parser: ", UAParser(navigator.userAgent));
+		return navigator.userAgent;
+	}
+	private getXDevice(){
+		const uaObject = UAParser(navigator.userAgent);
+		let xDeviceObject = {"Platform: ": `${this.getPlatform()}`,
+		"os": `${uaObject.os.name} ${uaObject.os.version}`,
+			"device" : `${uaObject.browser.name} ${uaObject.browser.version}`,
+			"name" : `${uaObject.engine.name}`,
+			"version" : `${uaObject.engine.version}`,
+			"id" : `${uaObject.engine.version}`,
+			"channel":"website",
+			"campaign":"",
+			"websocket":""
 		}
-		console.log("uniqueID: ", uniqueID);
-		return uniqueID;
+		// console.log("xd",xDeviceObject);
+		return JSON.stringify(xDeviceObject);
 	}
 
-	private generateVersion(bForce: boolean) {
-		let version = localStorage.getItem("TTS_Version");
-		if (bForce || !version) {
-			version = [...Array(4)]
-				.map(() => Math.floor(Math.random() * 4).toString(4))
-				.join('');
-			localStorage.setItem("TTS_Version", version);
+	private getPlatform() {
+		let thisThing = Platform;
+		if (Platform.isIosApp) {
+			return "ios"
 		}
-		console.log("Version: ", version);
-		return version;
+		else if (Platform.isAndroidApp) {
+			return "android"
+		}
+		else if (Platform.isMacOS) {
+			return "macOS"
+		}
+		else if (Platform.isWin) {
+			return "windows"
+		}
+		else if (Platform.isLinux) {
+			return "linux"
+		}
+		else if (Platform.isSafari) {
+			return "safari"
+		}
 	}
-
-	//Probably overkill, but just to make sure.
 	private reset() {
 		this._checkpoint = this.getNextCheckPoint();
-		this.deviceID = this.generateDeviceID(true);
-		this.deviceVersion = this.generateVersion(true);
 	}
 }

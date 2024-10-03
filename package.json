@@ -1,6 +1,6 @@
 {
 	"name": "tickticksync",
-	"version": "1.0.34",
+	"version": "1.0.35",
 	"description": "Sync TickTick tasks to Obsidian, and Obsidian tasks to TickTick",
 	"main": "main.js",
 	"scripts": {
@@ -25,7 +25,8 @@
 		"@popperjs/core": "^2.11.6",
 		"bson-objectid": "^2.0.4",
 		"dependency-tree": "^10.0.9",
-		"obsidian-task": "github:obsidian-tasks-group/obsidian-tasks"
+		"obsidian-task": "github:obsidian-tasks-group/obsidian-tasks",
+		"ua-parser-js": "^1.0.39"
 	},
 	"repository": {
 		"type": "git",
