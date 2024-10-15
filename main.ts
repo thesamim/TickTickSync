@@ -17,7 +17,7 @@ import { SyncMan } from './src/syncModule';
 
 //import modals
 import { SetDefaultProjectForFileModal } from 'src/modals/DefaultProjectModal';
-import { log } from 'obsidian-task/src/lib/logging';
+import {ConfirmFullSyncModal} from "./src/modals/LatestChangesModal"
 
 
 export default class TickTickSync extends Plugin {
@@ -43,17 +43,6 @@ export default class TickTickSync extends Plugin {
 
 		//We're going to handle data structure conversions here.
 		if (!this.settings.version) {
-			//First Conversion. From 1.0.6 to 1.0.8
-			//oldstructure:
-			//   "fileMetadata": {            "fileMetadata": {
-			//     "filename": {              	"filename": {
-			//       "TickTickTasks": [       		"TickTickTasks": [
-			//         "tasks...",            				"taskId": "id..",
-			//       ],                       				"taskItems": [
-			//                             					   "task items...",
-			//	    	...
-			//                                              ]
-			//                                 ...
 			const fileMetataDataStructure = this.settings.fileMetadata;
 			for (let file in fileMetataDataStructure) {
 				let oldTasksHolder = fileMetataDataStructure[file]; //an array of tasks.
@@ -74,6 +63,12 @@ export default class TickTickSync extends Plugin {
 			//get rid of user name and password. we don't need them no more.
 			delete this.settings.username;
 			delete this.settings.password;
+		}
+		if ((!this.settings.version) || (this.isOlder(this.settings.version, '1.0.36'))) {
+			//default to AND because that's what we used to do:
+			this.settings.tagAndOr = 1;
+			//warn about tag changes.
+			await this.LatestChangesModal()
 		}
 
 		//Update the version number. It will save me headaches later.
@@ -844,6 +839,15 @@ export default class TickTickSync extends Plugin {
 	}
 
 
+	private async LatestChangesModal() {
+		const myModal = new ConfirmFullSyncModal(this.app, (result) => {
+			this.ret = result;
+		});
+		const bConfirmation = await myModal.showModal();
+
+		return bConfirmation;
+
+	}
 }
 
 

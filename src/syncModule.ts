@@ -963,34 +963,66 @@ export class SyncMan {
 			// this.dumpArray("tick Tick ", tasksFromTickTic)
 			// this.dumpArray("deleted  ", deletedTasks)
 
-
 			//TODO: Filtering deleted tasks would take an act of congress. Just warn the user in Readme.
-			if (this.plugin.settings.SyncTag && this.plugin.settings.SyncProject) {
-				let hasTag;
-				hasTag = tasksFromTickTic.filter(task => {
-					hasTag = task.tags?.includes(this.plugin.settings.SyncTag.toLowerCase()); //because TickTick only stores lowercase tags.
-					return hasTag;
-				});
-				if (hasTag) {
-					tasksFromTickTic = hasTag.filter(task => {
-						return task.projectId === this.plugin.settings.SyncProject;
-					});
-				} else {
-					//nothing to process
-					return;
-				}
 
-			} else if (this.plugin.settings.SyncTag || this.plugin.settings.SyncProject) {
-				tasksFromTickTic = tasksFromTickTic.filter(task => {
-					const hasTag = task.tags?.includes(this.plugin.settings.SyncTag.toLowerCase());//because TickTick only stores lowercase tags.
-					const hasProjectId = task.projectId === this.plugin.settings.SyncProject;
-					return hasTag || hasProjectId;
-				});
-				if (!tasksFromTickTic || !(tasksFromTickTic.length >0)) {
-					//nothing to process
-					return;
+			let syncTag: string = this.plugin.settings.SyncTag;
+			if (syncTag)  {
+				//TODO: In the fullness of time we need to look at Tag Labels not Tag Names.
+				//because TickTick only stores lowercase tags.;
+				syncTag.toLowerCase();
+				if (syncTag.includes("/")) {
+					syncTag = syncTag.replace(/\//g, '-');
 				}
 			}
+			//Both Tag and Project limiting present
+			if (syncTag && this.plugin.settings.SyncProject) {
+
+				//Check for AND/OR presences to determine processing.
+				const AndOrIndicator = this.plugin.settings.tagAndOr
+
+				// AND selected. They want only tasks with the tag in the project.
+				if (AndOrIndicator == 1) {
+					let tasksWithTag;
+					tasksWithTag = tasksFromTickTic.filter(task => {
+						tasksWithTag = task.tags?.includes(syncTag); //because TickTick only stores lowercase tags.
+						return tasksWithTag;
+					});
+					if (tasksWithTag) {
+						tasksFromTickTic = tasksWithTag.filter(task => {
+							return task.projectId === this.plugin.settings.SyncProject;
+						});
+					}
+				} else {
+						//OR they want tasks with either the tag or the project
+						let tasksWithTag = tasksFromTickTic.filter(task => {
+							return task.tags?.includes(syncTag);
+						});
+						let tasksInProject = tasksFromTickTic.filter(task => {
+							return task.projectId === this.plugin.settings.SyncProject;
+						});
+
+						tasksFromTickTic = [...tasksWithTag, ...tasksInProject].reduce((acc, current) => {
+							const existing = acc.find(item => item.id === current.id);
+							if (existing) {
+								Object.assign(existing, current);
+							} else {
+								acc.push(current);
+							}
+							return acc;
+						}, []);
+					}
+			} else {
+				//Either tag or project is present
+				//Will process whichever one is present.
+				if (syncTag || this.plugin.settings.SyncProject) {
+					tasksFromTickTic = tasksFromTickTic.filter(task => {
+						const hasTag = task.tags?.includes(syncTag);
+						const hasProjectId = task.projectId === this.plugin.settings.SyncProject;
+						return hasTag || hasProjectId;
+					});
+				}
+			}
+
 			// this.dumpArray('== remote:', tasksFromTickTic);
 			let tasksInCache = await this.plugin.cacheOperation?.loadTasksFromCache()
 			// this.dumpArray("cache", tasksInCache)
