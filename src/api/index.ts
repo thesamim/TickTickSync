@@ -1,5 +1,5 @@
 'use strict';
-import { apiVersion, requestUrl, RequestUrlParam, RequestUrlResponse, Platform } from 'obsidian';
+import { Platform, requestUrl, RequestUrlParam, RequestUrlResponse } from 'obsidian';
 import { UAParser } from 'ua-parser-js';
 import ObjectID from 'bson-objectid';
 import { IProjectGroup } from './types/ProjectGroup';
@@ -8,7 +8,6 @@ import { IProject, ISections } from './types/Project';
 import { ITask } from './types/Task';
 // import { IFilter } from './types/Filter';
 // import { IHabit } from './types/Habit';
-
 import { API_ENDPOINTS } from './utils/get-api-endpoints';
 
 const {
@@ -50,12 +49,13 @@ export class Tick {
 	apiUrl: string;
 	loginUrl: string;
 	private originUrl: string;
+	cookies:	string[];
+	cookieHeader: string;
+
 
 //Dear Future me: the check is a checkpoint based thing. As in: give me everything after a certain checkpoint
 //                0 behavior has become non-deterministic. It appears that checkpoint is a epoch number.
 //                I **think** it indicates the time of last fetch. This could be useful.
-//TODO: in the fullness of time, figure out checkpoint processing to reduce traffic.
-	private _checkpoint: number;
 	private userAgent: string;
 	private deviceAgent: string;
 
@@ -80,8 +80,8 @@ export class Tick {
 		}
 		if (checkPoint == 0) {
 			//TickTick was launched in 2013. Hoping this catches all the task for everyone.
-			let dtDate = new Date("2013-01-01T00:00:00.000+0000")
-			console.log("Starting Checkpoint date: ", dtDate, "Checkpoint", dtDate.getTime())
+			let dtDate = new Date('2013-01-01T00:00:00.000+0000');
+			console.log('Starting Checkpoint date: ', dtDate, 'Checkpoint', dtDate.getTime());
 			this._checkpoint = dtDate.getTime();
 		} else {
 			this._checkpoint = checkPoint;
@@ -89,6 +89,16 @@ export class Tick {
 
 	}
 
+//TODO: in the fullness of time, figure out checkpoint processing to reduce traffic.
+	private _checkpoint: number;
+
+	get checkpoint(): number {
+		return this._checkpoint;
+	}
+
+	set checkpoint(value: number) {
+		this._checkpoint = value;
+	}
 
 	get inboxId(): string {
 		return this.inboxProperties.id;
@@ -99,15 +109,9 @@ export class Tick {
 	get lastError(): any {
 		return this._lastError;
 	}
+
 	set lastError(value: any) {
 		this._lastError = value;
-	}
-	get checkpoint(): number {
-		return this._checkpoint;
-	}
-
-	set checkpoint(value: number) {
-		this._checkpoint = value;
 	}
 
 	// USER ======================================================================
@@ -121,9 +125,9 @@ export class Tick {
 			};
 
 			const response = await this.makeRequest('Login', url, 'POST', body);
-			console.log("Signed in Response: ", response)
+			console.log('Signed in Response: ', response);
 			if (response) {
-				this.token = response.token
+				this.token = response.token;
 				this.inboxProperties.id = response.inboxId;
 				ret = await this.getInboxProperties();
 			}
@@ -173,7 +177,7 @@ export class Tick {
 					return true;
 				} else {
 					if (i < 10) {
-						this.reset()
+						this.reset();
 					} else {
 						return false;
 					}
@@ -202,7 +206,7 @@ export class Tick {
 
 	async getProjectGroups(): Promise<IProjectGroup[]> {
 		try {
-			const url = `${this.apiUrl}/${allTasksEndPoint}`   + this._checkpoint;
+			const url = `${this.apiUrl}/${allTasksEndPoint}` + this._checkpoint;
 			const response = await this.makeRequest('Get Project Groups', url, 'GET', undefined);
 			if (response) {
 				return response['projectGroups'];
@@ -286,12 +290,20 @@ export class Tick {
 
 	async getTasks(): Promise<ITask[]> {
 		try {
-			const url = `${this.apiUrl}/${allTasksEndPoint}`  + this._checkpoint;;
-			const response = await this.makeRequest('Get Tasks', url, 'GET', undefined);
-			if (response) {
-				return response['syncTaskBean'].update;
-			} else {
-				return [];
+			let retry = 3;
+			while (retry > 0) {
+				const url = `${this.apiUrl}/${allTasksEndPoint}` + this._checkpoint;
+				const response = await this.makeRequest('Get Tasks', url, 'GET', undefined);
+				if (response) {
+					return response['syncTaskBean'].update;
+				} else {
+					if (retry > 0) {
+						this.getNextCheckPoint();
+						retry = retry - 1;
+					} else {
+						return [];
+					}
+				}
 			}
 		} catch (e) {
 			console.error('Get Tasks failed: ', e);
@@ -536,7 +548,7 @@ export class Tick {
 				this.inboxProperties.sortOrder = response.sortOrder - 1;
 				return response;
 			} else {
-				return null
+				return null;
 			}
 		} catch (e) {
 			console.error('Project Move failed: ', e);
@@ -566,24 +578,33 @@ export class Tick {
 		}
 	}
 
-async makeRequest(operation: string, url: string, method: string, body: any|undefined) {
+	async makeRequest(operation: string, url: string, method: string, body: any | undefined) {
 
 		let error = '';
 		this.lastError = undefined;
 		try {
-			let requestOptions = {}
-			if (operation == "Login" ) {
+			let requestOptions = {};
+			if (operation == 'Login') {
 				requestOptions = this.createLoginRequestOptions(url, body);
 			} else {
+				if (!this.cookieHeader) {
+					this.cookieHeader = localStorage.getItem("TTS_Cookies")
+				}
 				requestOptions = this.createRequestOptions(method, url, body);
 			}
 			// console.log(requestOptions)
 			const result = await requestUrl(requestOptions);
 			//console.log(operation, result)
 			if (result.status != 200) {
-				this.setError(operation, result, null );
-				return null
+				this.setError(operation, result, null);
+				return null;
 			}
+			// if (operation == 'Login') {
+				this.cookies =
+					(result.headers["set-cookie"] as unknown as string[]) ?? [];
+				this.cookieHeader = this.cookies.join("; ") + ";";
+				localStorage.setItem("TTS_Cookies", this.cookieHeader);
+			// }
 			return result.json;
 		} catch (exception) {
 			this.setError(operation, null, exception);
@@ -592,35 +613,46 @@ async makeRequest(operation: string, url: string, method: string, body: any|unde
 		}
 
 	}
-private createLoginRequestOptions(url: string, body: JSON) {
-		const 			headers = {
-			// 'origin': 'http://ticktick.com',
+
+	private createLoginRequestOptions(url: string, body: JSON) {
+		const headers = {
+			// 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:131.0) Gecko/20100101 Firefox/131.0',
+			'Accept': '*/*',
+			'Accept-Language': 'en-US,en;q=0.5',
+			'Accept-Encoding': 'gzip, deflate, br, zstd',
+			'X-Csrftoken': '',
+			'x-device': this.deviceAgent,
+			//"x-device": "{\"platform\":\"web\",\"os\":\"Windows 10\",\"device\":\"Firefox 117.0\",\"name\":\"\",\"version\":124.0.6367.243,\"id\":\"124.0.6367.243\",\"channel\":\"website\",\"campaign\":\"\",\"websocket\":\"\"}",
 			'Content-Type': 'application/json',
-			'User-Agent': `${this.userAgent}`,
-			'x-device': `${this.deviceAgent}`,
-			'Cookie': 't='+`${this.token}`+'; AWSALB=pSOIrwzvoncz4ZewmeDJ7PMpbA5nOrji5o1tcb1yXSzeEDKmqlk/maPqPiqTGaXJLQk0yokDm0WtcoxmwemccVHh+sFbA59Mx1MBjBFVV9vACQO5HGpv8eO5pXYL; AWSALBCORS=pSOIrwzvoncz4ZewmeDJ7PMpbA5nOrji5o1tcb1yXSzeEDKmqlk/maPqPiqTGaXJLQk0yokDm0WtcoxmwemccVHh+sFbA59Mx1MBjBFVV9vACQO5HGpv8eO5pXYL'
+			'X-Requested-With': 'XMLHttpRequest',
+			'Cookie' : this.cookieHeader
 		};
-	//console.log("headers", headers);
-	const options: RequestUrlParam = {
-		method: "POST",
-		url: url,
-		headers: headers,
-		contentType: 'application/json',
-		body: body ? JSON.stringify(body) : undefined,
-		throw: false
-	};
-	return options;
-}
+
+		// console.log('Login headers', headers);
+
+		const options: RequestUrlParam = {
+			method: 'POST',
+			url: url,
+			headers: headers,
+			contentType: 'application/json',
+			body: body ? JSON.stringify(body) : undefined,
+			throw: false
+		};
+		return options;
+	}
+
 	private createRequestOptions(method: string, url: string, body: JSON | undefined) {
 		let headers = {
-				//For the record, the bloody rules keep changin and we might have to the _csrf_token
+			//For the record, the bloody rules keep changin and we might have to the _csrf_token
 			'Content-Type': 'application/json',
 			'User-Agent': `${this.userAgent}`,
 			'x-device': `${this.deviceAgent}`,
-			'Cookie': 't='+`${this.token}`+'; AWSALB=pSOIrwzvoncz4ZewmeDJ7PMpbA5nOrji5o1tcb1yXSzeEDKmqlk/maPqPiqTGaXJLQk0yokDm0WtcoxmwemccVHh+sFbA59Mx1MBjBFVV9vACQO5HGpv8eO5pXYL; AWSALBCORS=pSOIrwzvoncz4ZewmeDJ7PMpbA5nOrji5o1tcb1yXSzeEDKmqlk/maPqPiqTGaXJLQk0yokDm0WtcoxmwemccVHh+sFbA59Mx1MBjBFVV9vACQO5HGpv8eO5pXYL',
-				't' : `${this.token}`
-			};
-		//console.log("headers", headers);
+			// 'Cookie': 't=' + `${this.token}` + '; AWSALB=pSOIrwzvoncz4ZewmeDJ7PMpbA5nOrji5o1tcb1yXSzeEDKmqlk/maPqPiqTGaXJLQk0yokDm0WtcoxmwemccVHh+sFbA59Mx1MBjBFVV9vACQO5HGpv8eO5pXYL; AWSALBCORS=pSOIrwzvoncz4ZewmeDJ7PMpbA5nOrji5o1tcb1yXSzeEDKmqlk/maPqPiqTGaXJLQk0yokDm0WtcoxmwemccVHh+sFbA59Mx1MBjBFVV9vACQO5HGpv8eO5pXYL',
+			'Cookie' : 't=' + `${this.token}` + ";" + this.cookieHeader,
+			't': `${this.token}`
+
+		};
+		// console.log("Regular headers\n", method, "\n", url, "\n", headers);
 		const options: RequestUrlParam = {
 			method: method,
 			url: url,
@@ -633,29 +665,29 @@ private createLoginRequestOptions(url: string, body: JSON) {
 	}
 
 	private setError(operation: string,
-					 response: RequestUrlResponse|null,
-					 error: string|null) {
+					 response: RequestUrlResponse | null,
+					 error: string | null) {
 		if (response) {
 			const statusCode = response.status;
 			let errorMessage;
 			if (statusCode == 429) { //Too many requests and we don't get anything else.
-				errorMessage = "Error: " +  statusCode + " TickTick reporting too many requests." ;
+				errorMessage = 'Error: ' + statusCode + ' TickTick reporting too many requests.';
 				this._lastError = { operation, statusCode, errorMessage };
 			} else {
 				//When ticktick errors out, sometimes we get a JSON response, sometimes we get
 				// a HTML response. Sometimes we get no response. Try to accommodate everything.
 				try {
-					errorMessage = response.json
+					errorMessage = response.json;
 				} catch (e) {
-					console.log("Bad JSON response");
-					console.log("Trying Text.");
+					console.log('Bad JSON response');
+					console.log('Trying Text.');
 					try {
-						errorMessage = this.extractTitleContent(response.text)
-						console.error("Error: ", errorMessage)
+						errorMessage = this.extractTitleContent(response.text);
+						console.error('Error: ', errorMessage);
 					} catch (e) {
-						console.log("Bad text response");
-						console.log("No error message.");
-						errorMessage = "No Error message received.";
+						console.log('Bad text response');
+						console.log('No error message.');
+						errorMessage = 'No Error message received.';
 					}
 				}
 				this._lastError = { operation, statusCode, errorMessage };
@@ -676,15 +708,16 @@ private createLoginRequestOptions(url: string, body: JSON) {
 
 	//For now: we're not doing the checkpoint bump stuff. If we have more issues...
 	private getNextCheckPoint() {
-		let dtDate = new Date(this._checkpoint)
+		let dtDate = new Date(this._checkpoint);
 		// console.log("Date: ", dtDate)
 		dtDate.setDate(dtDate.getDate() + 15);
 		// console.log("Date: ", dtDate)
-		console.log("Attempted Checkpoint: ", dtDate.getTime())
+		console.log('Attempted Checkpoint: ', dtDate.getTime());
 		this._checkpoint = dtDate.getTime();
-		console.warn("Check point has been changed.", this._checkpoint);
-		return this._checkpoint
+		console.warn('Check point has been changed.', this._checkpoint);
+		return this._checkpoint;
 	}
+
 	private extractTitleContent(inputString) {
 		const startTag = '<title>';
 		const endTag = '</title>';
@@ -701,44 +734,77 @@ private createLoginRequestOptions(url: string, body: JSON) {
 		// console.log("ua Parser: ", UAParser(navigator.userAgent));
 		return navigator.userAgent;
 	}
-	private getXDevice(){
+
+	private getXDevice() {
+		console.log("'generatedID': ", this.generateRandomID());
+		const randomID = this.generateRandomID();
+		const randomVersion = 6070 //this.generateRandomVersion();
 		const uaObject = UAParser(navigator.userAgent);
-		let xDeviceObject = {"Platform: ": `${this.getPlatform()}`,
-		"os": `${uaObject.os.name} ${uaObject.os.version}`,
-			"device" : `${uaObject.browser.name} ${uaObject.browser.version}`,
-			"name" : `${uaObject.engine.name}`,
-			"version" : `${uaObject.engine.version}`,
-			"id" : `${uaObject.engine.version}`,
-			"channel":"website",
-			"campaign":"",
-			"websocket":""
-		}
-		// console.log("xd",xDeviceObject);
+
+		let xDeviceObject = {
+			platform: 'web',//`${this.getPlatform()}`,
+			os: "Windows 10", //`${uaObject.os.name} ${uaObject.os.version}`,
+			device: "Firefox 117.0", //`${uaObject.browser.name} ${uaObject.browser.version}`,
+			name: '', //"${uaObject.engine.name}",
+			version: randomVersion,
+			id: randomID,
+			channel: 'website',
+			campaign: '',
+			websocket: ''
+		};
+
 		return JSON.stringify(xDeviceObject);
 	}
 
 	private getPlatform() {
 		let thisThing = Platform;
 		if (Platform.isIosApp) {
-			return "ios"
-		}
-		else if (Platform.isAndroidApp) {
-			return "android"
-		}
-		else if (Platform.isMacOS) {
-			return "macOS"
-		}
-		else if (Platform.isWin) {
-			return "windows"
-		}
-		else if (Platform.isLinux) {
-			return "linux"
-		}
-		else if (Platform.isSafari) {
-			return "safari"
+			return 'ios';
+		} else if (Platform.isAndroidApp) {
+			return 'android';
+		} else if (Platform.isMacOS) {
+			return 'macOS';
+		} else if (Platform.isWin) {
+			return 'windows';
+		} else if (Platform.isLinux) {
+			return 'linux';
+		} else if (Platform.isSafari) {
+			return 'safari';
 		}
 	}
+
 	private reset() {
 		this._checkpoint = this.getNextCheckPoint();
+	}
+
+	private generateRandomID() {
+
+		let result = localStorage.getItem('TTS_UniqueID');
+		if (!result) {
+			const prefix = '66';
+			const length = 24; // Total length of the string
+			const characters = '0123456789abcdef'; // Allowed characters (hexadecimal)
+
+			result = prefix; // Start with '66'
+
+			// Calculate the number of characters needed after the prefix
+			const remainingLength = length - prefix.length;
+
+			for (let i = 0; i < remainingLength; i++) {
+				const randomIndex = Math.floor(Math.random() * characters.length);
+				result += characters[randomIndex]; // Append a random character
+			}
+			localStorage.setItem('TTS_UniqueID', result);
+		}
+
+		return result;
+	}
+
+	private generateRandomVersion() {
+			let number;
+			do {
+				number = Math.floor(Math.random() * 4000) + 6000; // Generates a number between 6000 and 9999
+			} while (number < 6000 || number > 9999);
+			return number;
 	}
 }

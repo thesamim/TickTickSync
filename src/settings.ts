@@ -142,7 +142,14 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 						new Notice("Please fill in both User Name and Password")
 					} else {
 						if (this.plugin.tickTickRestAPI) {
+							this.plugin.settings.token = "";
+							this.plugin.settings.apiInitialized = false;
+							this.plugin.settings.initialized = false;
+							this.plugin.tickTickRestAPI = null;
+							await this.plugin.saveSettings();
+							// console.log("Before: ", this.plugin.tickTickRestAPI);
 							delete  this.plugin.tickTickRestAPI
+							// console.log("After: ", this.plugin.tickTickRestAPI);
 						}
 						const api = new Tick({
 							username: userName,
@@ -151,6 +158,7 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 							token: "",
 							checkPoint: this.plugin.settings.checkPoint
 						});
+						// console.log("Gonna login: ", api);
 						const loggedIn = await api.login();
 						if (loggedIn) {
 							this.plugin.settings.token = api.token;
@@ -162,15 +170,18 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 							this.plugin.settings.checkPoint = api.checkpoint;
 							await this.plugin.saveSettings();
 							//it's first login right? Cache the projects for to get the rest of set up done.
-							new Notice('Logged in! Fetching projects', 0);
+							new Notice('Logged in! Fetching projects', 5);
 							await this.plugin.cacheOperation?.saveProjectsToCache();
-							new Notice('Project Fetch complete.', 0);
+							new Notice('Project Fetch complete.', 5);
 							await this.plugin.saveSettings();
 							this.display();
 						} else {
+							// console.log("we failed!");
 							this.plugin.settings.token = "";
 							this.plugin.settings.apiInitialized = false;
+							this.plugin.settings.initialized = false;
 							this.plugin.tickTickRestAPI = null;
+							await this.plugin.saveSettings();
 
 							let errMsg = "Login Failed. "
 							if (api.lastError) {

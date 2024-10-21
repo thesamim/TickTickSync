@@ -624,10 +624,12 @@ export class CacheOperation {
         try {
             //get projects
             // console.log(`Save Projects to cache with ${this.plugin.tickTickRestAPI}`)
-			// Inbox ID is got on API initialization. Don't have to do it here any more.
-            const projectGroups = await this.plugin.tickTickRestAPI?.GetProjectGroups();
-            const projects: IProject[] = await this.plugin.tickTickRestAPI?.GetAllProjects();
+			//const projectGroups = await this.plugin.tickTickRestAPI?.GetProjectGroups();
 
+            const projects: IProject[] = await this.plugin.tickTickRestAPI?.GetAllProjects();
+			//TODO: Don't know what I thought projectGroups are but what we really need are project sections.
+			//      For Each Project call getProjectSections
+			//const projectSections = await this.plugin.tickTickRestAPI?.getProjectSections("")''
 			//Moving this here because if they have a list named Inbox, bad shit will happen.
 			let inboxProject = {
 				id: this.plugin.settings.inboxID,

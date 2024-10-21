@@ -284,7 +284,7 @@ export class TickTickRestAPI {
 
 		} catch (error) {
 			console.error('Error get project groups', error);
-			new Notice("Unable to get Tasks: " + error, 0)
+			new Notice("Unable to get Tasks: " + errorString , 0)
 			return false
 		}
 	}
