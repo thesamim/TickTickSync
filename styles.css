@@ -1,6 +1,8 @@
-.cm-line:not(:hover):not(.cm-active) span.cm-comment:not(.cm-hmd-codeblock):not(.cm-templater-command) {
+/* Note To Self: This relies on task lines we care about being decorated with the .cm-tag-ticktick class */
+.cm-line:not(:hover):not(.cm-active):has(.cm-tag-ticktick) span.cm-comment {
 	display: none;
 }
+
 
 .ts_button {
 	margin-top: 1rem;
