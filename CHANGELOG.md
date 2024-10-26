@@ -1,5 +1,8 @@
 ## CHANGELOG
 
+### 1.0.36
+Keep forgetting to update the change log. Here's everything since the last update. 
+**Full Changelog**: https://github.com/thesamim/TickTickSync/compare/1.0.20...1.0.36
 
 ### Beta six \[1.0.20\]
 

@@ -17,6 +17,7 @@ import { SyncMan } from './src/syncModule';
 
 //import modals
 import { SetDefaultProjectForFileModal } from 'src/modals/DefaultProjectModal';
+import {ConfirmFullSyncModal} from "./src/modals/LatestChangesModal"
 import { DateMan } from './src/dateMan';
 
 
@@ -25,7 +26,6 @@ export default class TickTickSync extends Plugin {
 	tickTickRestAPI: TickTickRestAPI | undefined | null;
 	tickTickSyncAPI: TickTickSyncAPI | undefined;
 	taskParser: TaskParser | undefined;
-	dateMan : DateMan | undefined;
 	cacheOperation: CacheOperation | undefined;
 	fileOperation: FileOperation | undefined;
 	tickTickSync: SyncMan | undefined;
@@ -44,17 +44,6 @@ export default class TickTickSync extends Plugin {
 
 		//We're going to handle data structure conversions here.
 		if (!this.settings.version) {
-			//First Conversion. From 1.0.6 to 1.0.8
-			//oldstructure:
-			//   "fileMetadata": {            "fileMetadata": {
-			//     "filename": {              	"filename": {
-			//       "TickTickTasks": [       		"TickTickTasks": [
-			//         "tasks...",            				"taskId": "id..",
-			//       ],                       				"taskItems": [
-			//                             					   "task items...",
-			//	    	...
-			//                                              ]
-			//                                 ...
 			const fileMetataDataStructure = this.settings.fileMetadata;
 			for (let file in fileMetataDataStructure) {
 				let oldTasksHolder = fileMetataDataStructure[file]; //an array of tasks.
@@ -160,18 +149,6 @@ export default class TickTickSync extends Plugin {
 
 			}
 		}
-
-		this.registerDomEvent(document, 'dblclick', async (evt: MouseEvent) => {
-			const { target } = evt;
-			const markDownView = this.app.workspace.getActiveViewOfType(MarkdownView);
-			const file = markDownView?.app.workspace.activeEditor?.file;
-			const fileName = file?.name;
-			const filepath = file?.path;
-			let sel1 = window.getSelection && window.getSelection().getRangeAt(0).toString()
-			console.log("selection 1", sel1);
-
-
-		})
 
 		// If the plugin hooks up any global DOM events (on parts of the app that doesn't belong to this plugin)
 		// Using this function will automatically remove the event listener when this plugin is disabled.
@@ -429,9 +406,7 @@ export default class TickTickSync extends Plugin {
 			//Create a backup folder to back up TickTick data
 			try {
 
-				//There was a point when we didn't have SyncTag or SyncProject in data.json and it was causing
-				// issues, and it wasn't getting caught in the migration code. Leaving for now because it doesn't
-				// cost that much.
+				//TODO: this should not be necessary. Check why it was at some point.
 				if (!this.settings.SyncTag) {
 					this.settings.SyncTag = '';
 					await this.saveSettings();

@@ -26,6 +26,8 @@ export interface TickTickSyncSettings {
 	token:string;
 	syncLock: boolean;
 	checkPoint: number;
+	version: string;
+	tagAndOr: number; // 1 == And ; 2 == Or
 }
 
 
@@ -81,6 +83,7 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 		}, {});
 		const providerOptions: Record<string, string> = {"1": "ticktick.com", "2": "dida365.com"}
 		const currentVal = Object.keys(providerOptions).find(key => providerOptions[key] === this.plugin.settings.baseURL)
+		const tagAndOr: Record<number, string> = {1: "AND", 2: "OR"}
 
 		containerEl.createEl('hr');
 		containerEl.createEl('h1', {text: 'Access Control'});
@@ -139,7 +142,14 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 						new Notice("Please fill in both User Name and Password")
 					} else {
 						if (this.plugin.tickTickRestAPI) {
+							this.plugin.settings.token = "";
+							this.plugin.settings.apiInitialized = false;
+							this.plugin.settings.initialized = false;
+							this.plugin.tickTickRestAPI = null;
+							await this.plugin.saveSettings();
+							// console.log("Before: ", this.plugin.tickTickRestAPI);
 							delete  this.plugin.tickTickRestAPI
+							// console.log("After: ", this.plugin.tickTickRestAPI);
 						}
 						const api = new Tick({
 							username: userName,
@@ -148,6 +158,7 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 							token: "",
 							checkPoint: this.plugin.settings.checkPoint
 						});
+						// console.log("Gonna login: ", api);
 						const loggedIn = await api.login();
 						if (loggedIn) {
 							this.plugin.settings.token = api.token;
@@ -159,15 +170,18 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 							this.plugin.settings.checkPoint = api.checkpoint;
 							await this.plugin.saveSettings();
 							//it's first login right? Cache the projects for to get the rest of set up done.
-							new Notice('Logged in! Fetching projects', 0);
+							new Notice('Logged in! Fetching projects', 5);
 							await this.plugin.cacheOperation?.saveProjectsToCache();
-							new Notice('Project Fetch complete.', 0);
+							new Notice('Project Fetch complete.', 5);
 							await this.plugin.saveSettings();
 							this.display();
 						} else {
+							// console.log("we failed!");
 							this.plugin.settings.token = "";
 							this.plugin.settings.apiInitialized = false;
+							this.plugin.settings.initialized = false;
 							this.plugin.tickTickRestAPI = null;
+							await this.plugin.saveSettings();
 
 							let errMsg = "Login Failed. "
 							if (api.lastError) {
@@ -215,9 +229,9 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 			containerEl.createEl('h2', { text: 'Limit synchronization' });
 			new Setting(containerEl)
 				.setDesc("To limit the tasks TickTickSync will synchronize from TickTick to " +
-					"Obsidian select a tag or project(list) below. If a tag is entered, only tasks with that tag will be " +
+					"Obsidian select a tag and/or project(list) below. If a tag is entered, only tasks with that tag will be " +
 					"synchronized. If a project(list) is selected, only tasks in that project will be synchronized. If " +
-					"both are chosen only tasks with that tag in that project will be synchronized.")
+					"both are chosen the behavior will be determined by your settings. See result below.")
 
 		new Setting(containerEl)
 			.setName('Project')
@@ -238,19 +252,43 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 							new Notice(noticeMsg, 0)
 						}
 						await this.plugin.saveSettings()
+						this.display();
 					})
 			)
 
+			new Setting(containerEl)
+				.setName('Tag Behavior')
+				.setDesc('Determine how Tags will be handled.')
+				.addDropdown(component =>
+					component
+						.addOptions(tagAndOr)
+						.setValue(this.plugin.settings.tagAndOr)
+						.onChange((value) => {
+							this.plugin.settings.tagAndOr = value;
+							this.plugin.saveSettings();
+							this.display();
+						}))
+
+			let saveSettingsTimeout: ReturnType<typeof setTimeout>;
 			new Setting(containerEl)
 				.setName('Tag')
 				.setDesc('Tag value, no "#"')
 				.addText(text => text
 					.setValue(this.plugin.settings.SyncTag)
 					.onChange(async (value) => {
-						this.plugin.settings.SyncTag = value;
-						await this.plugin.saveSettings();
+						clearTimeout(saveSettingsTimeout);
+						saveSettingsTimeout = setTimeout(async () => {
+							if (value.startsWith("#")) {
+								value = value.substring(1);
+							}
+							this.plugin.settings.SyncTag = value;
+							await this.plugin.saveSettings();
+							this.display();
+							}, 1000);
 					})
 				)
+			const explanationText = containerEl.createEl('p', { text: 'Project/Tag selection result.' });
+			explanationText.innerHTML = this.getProjectTagText(myProjectsOptions);
 		}
 
 
@@ -277,7 +315,7 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 							return;
 						}
 						this.plugin.settings.automaticSynchronizationInterval = intervalNum;
-						this.plugin.saveSettings()
+						await this.plugin.saveSettings()
 						new Notice('Settings have been updated.');
 						//
 					})
@@ -361,9 +399,9 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 			.addToggle(component =>
 				component
 					.setValue(this.plugin.settings.debugMode)
-					.onChange((value) => {
+					.onChange(async (value) => {
 						this.plugin.settings.debugMode = value
-						this.plugin.saveSettings()
+						await this.plugin.saveSettings()
 					})
 			)
 		if (this.plugin.settings.apiInitialized) {
@@ -418,7 +456,7 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 				this.plugin.tickTickSync?.fullTextModifiedTaskCheck(file.path)
 			});
 		}
-		this.plugin.saveSettings()
+		await this.plugin.saveSettings()
 
 		const metadatas = await this.plugin.cacheOperation?.getFileMetadatas()
 
@@ -599,6 +637,27 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 		}
 
 
+	}
+
+	private getProjectTagText(myProjectsOptions: Record<string, string>) {
+		const project = myProjectsOptions[this.plugin.settings.SyncProject];
+		const tag = this.plugin.settings.SyncTag;
+		const taskAndOr = this.plugin.settings.tagAndOr;
+
+		if (!project && !tag) {
+			return "No limitation."
+		}
+		if (project && !tag) {
+			return "Only Tasks in <b>" + project + "</b> will be synchronized"
+		}
+		if (!project && tag) {
+			return "Only Tasks tagged with <b>#" + tag + "</b> tag will be synchronized"
+		}
+		if (taskAndOr == 1 ) {
+			return "Only tasks in <b>" + project + "</b> AND tagged with <b>#" + tag + "</b> tag will be synchronized"
+		} else {
+			return "All tasks in <b>" + project + "</b> will be synchronized. All tasks tagged with <b>#" + tag + "</b> tag will be synchronized"
+		}
 	}
 }
 

@@ -81,7 +81,11 @@ const priorityMapping = [{ ticktick: 0, obsidian: null }, { ticktick: 0, obsidia
 }, { ticktick: 3, obsidian: '🔼' }, { ticktick: 5, obsidian: '⏫' }, { ticktick: 5, obsidian: '🔺' }];
 
 
-const tag_regex = /(?<=\s)#[\w\d\u4e00-\u9fff\u0600-\u06ff\uac00-\ud7af-_/]+/g; //Add -,_,/ as valid seperators.
+// const tag_regex = /(?<=\s)#[\w\d\u4e00-\u9fff\u0600-\u06ff\uac00-\ud7af-_/]+/g; //Add -,_,/ as valid seperators.
+// const tag_regex = /(?<=\s)#[\w\d\u00c4-\u00f6\u4e00-\u9fff\u0600-\u06ff\uac00-\ud7af-_/]+/gu; //Add -,_,/ as valid seperators.
+// Obsidian tag spec: https://help.obsidian.md/Editing+and+formatting/Tags#Tag+format
+//borrowed from https://github.com/moremeyou/Obsidian-Tag-Buddy
+const tag_regex = /(?<=^|\s)(#(?=[^\s#.'’,;!?:]*[^\d\s#.'’,;!?:])[^\s#.'’,;!?:]+)(?=[.,;!?:'’\s]|$)|(?<!`)```(?!`)/g; // fix for number-only and typographic apostrophy's
 // const due_date_regex = `(${keywords.DUE_DATE})\\s(\\d{4}-\\d{2}-\\d{2})(\\s\\d{1,}:\\d{2})?`
 const due_date_regex =       `(${keywords.DUE_DATE})\\s(\\d{4}-\\d{2}-\\d{2})\\s*(\\d{1,}:\\d{2})*`;
 const due_date_strip_regex =        `[${keywords.DUE_DATE}]\\s\\d{4}-\\d{2}-\\d{2}(\\s\\d{1,}:\\d{2}|)`;
@@ -94,7 +98,6 @@ const status_regex  = "^\\s*(-|\\*)\\s+\\[(x| )\\]\\s"
 
 const REGEX = {
 	//hopefully tighter find.
-	//TickTick_TAG: new RegExp(`(?<=[ ;])\\s${keywords.TickTick_TAG}+`, 'i'),
 	TickTick_TAG: new RegExp(`^[\\s]*[-] \\[[x ]\\] [\\s\\S]*${keywords.TickTick_TAG}[\\s\\S]*$`, "i"),
 
 	TickTick_ID: /\[ticktick_id::\s*[\d\S]+\]/,
@@ -485,6 +488,7 @@ export class TaskParser {
 
 	//get all tags from task text
 	getAllTagsFromLineText(lineText: string) {
+		// console.log("Line Text: ", lineText);
 		// let tags = lineText.matchAll(REGEX.ALL_TAGS);
 
 		// if (tags) {
@@ -494,7 +498,7 @@ export class TaskParser {
 		const tags = [...lineText.matchAll(REGEX.ALL_TAGS)];
 		let tagArray = tags.map(tag => tag[0].replace('#', ''));
 		tagArray = tagArray.map(tag => tag.replace(/\//g, '-'));
-		//tagArray.forEach(tag => console.log("#### get all tags", tag))
+		// tagArray.forEach(tag => console.log("#### get all tags", tag))
 
 		return tagArray;
 	}
@@ -862,6 +866,8 @@ export class TaskParser {
 		return text;
 	}
 
+	//Note to future me: I wanted to get all the known tags in Obsidian to something clever
+	//                   with tag management.
 	getAllTags() {
 		// 	const tags = Object.keys(this.app.metadataCache.getTags())
 		// 	tags.forEach(tag => console.log(tag))
