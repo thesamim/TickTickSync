@@ -340,6 +340,11 @@ export class TickTickRestAPI {
 			if (!result || result.length === 0 && this.api?.lastError.statusCode!= 200) {
 				throw new Error("No Results.")
 			}
+			//checkpoint, may have changed. Save it if it has.
+			if (this.plugin.settings.checkPoint != this.api?.checkpoint) {
+				this.plugin.settings.checkPoint = <number>this.api?.checkpoint
+				await this.plugin.saveSettings();
+			}
 			return (result)
 
 		} catch (error) {
