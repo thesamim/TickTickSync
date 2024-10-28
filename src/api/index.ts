@@ -78,11 +78,9 @@ export class Tick {
 			this.loginUrl = `${protocol}${ticktickServer}${apiVersion}`;
 			this.originUrl = `${protocol}${ticktickServer}`;
 		}
-		if (checkPoint == 0) {
-			//TickTick was launched in 2013. Hoping this catches all the task for everyone.
-			let dtDate = new Date('2013-01-01T00:00:00.000+0000');
-			console.log('Starting Checkpoint date: ', dtDate, 'Checkpoint', dtDate.getTime());
-			this._checkpoint = dtDate.getTime();
+		if (!checkPoint) {
+			//Checkpoint back end processing has changed again. Let's get a new one.
+			this.getPreviousCheckPoint()
 		} else {
 			this._checkpoint = checkPoint;
 		}
@@ -273,13 +271,25 @@ export class Tick {
 	// TASKS =====================================================================
 	async getTaskDetails(): Promise<ITask[]> {
 		try {
-			const url = `${this.apiUrl}/${allTasksEndPoint}` + this._checkpoint;
-			const response = await this.makeRequest('Get Task Details', url, 'GET', undefined);
-			if (response) {
-				return response['syncTaskBean'];
-			} else {
-				return [];
+			let retry = 10;
+			while (retry > 0) {
+				const url = `${this.apiUrl}/${allTasksEndPoint}` + this._checkpoint;
+				const response = await this.makeRequest('Get Task Details', url, 'GET', undefined);
+				if (response) {
+					const numReturns = response['syncTaskBean'].update.length;
+					// console.log('Got: ', numReturns);
+					if (numReturns > 0) {
+						return response['syncTaskBean'];
+					} else {
+						retry -= 1;
+						this.getPreviousCheckPoint();
+					}
+				} else {
+					retry -= 1;
+					this.getPreviousCheckPoint();
+				}
 			}
+			return [];
 		} catch (e) {
 			console.error('Get Tasks Details failed: ', e);
 			this.setError('Get Tasks', null, e);
@@ -288,6 +298,8 @@ export class Tick {
 	}
 
 
+	//TODO: I believe this is a leftover. I further believe it can safely go away. But I don't believe it strongly
+	//      enough to actually do the deletion.
 	async getTasks(): Promise<ITask[]> {
 		try {
 			let retry = 3;
@@ -295,10 +307,11 @@ export class Tick {
 				const url = `${this.apiUrl}/${allTasksEndPoint}` + this._checkpoint;
 				const response = await this.makeRequest('Get Tasks', url, 'GET', undefined);
 				if (response) {
+					console.log("Got: ", response['syncTaskBean'].update.length);
 					return response['syncTaskBean'].update;
 				} else {
 					if (retry > 0) {
-						this.getNextCheckPoint();
+						this.getPreviousCheckPoint();
 						retry = retry - 1;
 					} else {
 						return [];
@@ -650,7 +663,6 @@ export class Tick {
 			// 'Cookie': 't=' + `${this.token}` + '; AWSALB=pSOIrwzvoncz4ZewmeDJ7PMpbA5nOrji5o1tcb1yXSzeEDKmqlk/maPqPiqTGaXJLQk0yokDm0WtcoxmwemccVHh+sFbA59Mx1MBjBFVV9vACQO5HGpv8eO5pXYL; AWSALBCORS=pSOIrwzvoncz4ZewmeDJ7PMpbA5nOrji5o1tcb1yXSzeEDKmqlk/maPqPiqTGaXJLQk0yokDm0WtcoxmwemccVHh+sFbA59Mx1MBjBFVV9vACQO5HGpv8eO5pXYL',
 			'Cookie' : 't=' + `${this.token}` + ";" + this.cookieHeader,
 			't': `${this.token}`
-
 		};
 		// console.log("Regular headers\n", method, "\n", url, "\n", headers);
 		const options: RequestUrlParam = {
@@ -706,13 +718,18 @@ export class Tick {
 		}
 	}
 
-	//For now: we're not doing the checkpoint bump stuff. If we have more issues...
-	private getNextCheckPoint() {
-		let dtDate = new Date(this._checkpoint);
+	//Checkpoint processing is fraught.
+	//Assumption: Checkpoint tells TickTick how far back to get last updated tasks.
+	//Empirical evidence: If we have a checkpoint from two weeks ago, it gives us pretty much everything. (which
+	//                    doesn't match with the assumption.
+	//TODO: The full solution would be to ask the user when they started using TickTick, then start from there.
+	//      Then update Checkpoint on every fetch so we only fetch updated Tasks. But I'm not confident that this
+	//      is actually going to work.
+	private getPreviousCheckPoint() {
+		let dtDate = new Date();
 		// console.log("Date: ", dtDate)
-		dtDate.setDate(dtDate.getDate() + 15);
+		dtDate.setDate(dtDate.getDate() - 15);
 		// console.log("Date: ", dtDate)
-		console.log('Attempted Checkpoint: ', dtDate.getTime());
 		this._checkpoint = dtDate.getTime();
 		console.warn('Check point has been changed.', this._checkpoint);
 		return this._checkpoint;
@@ -774,7 +791,7 @@ export class Tick {
 	}
 
 	private reset() {
-		this._checkpoint = this.getNextCheckPoint();
+		this._checkpoint = this.getPreviousCheckPoint();
 	}
 
 	private generateRandomID() {
