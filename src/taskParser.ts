@@ -47,7 +47,7 @@ interface dataviewTaskObject {
 const priorityEmojis = ['⏬', '🔽', '🔼', '⏫', '🔺'];
 const prioritySymbols = {
 	Highest: '🔺', High: '⏫', Medium: '🔼', Low: '🔽', Lowest: '⏬', None: ''
-};
+} as const;
 
 enum Priority {
 	Highest = '5', High = '5', Medium = '3', None = '0', Low = '1', Lowest = '0',

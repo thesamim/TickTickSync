@@ -27,6 +27,8 @@ export interface TaskDetail {
 	taskItems: string[];
 }
 
+const FILE_EXT = ".md";
+
 export class CacheOperation {
     app: App;
     plugin: TickTickSync;
@@ -42,9 +44,8 @@ export class CacheOperation {
 		// if (this.plugin.settings.debugMode) {
 		// 	console.log("Adding task to : ", filepath)
 		// }
-        let metaData: FileMetadata = await this.getFileMetadata(filepath, task.projectId)
-        let taskMeta: TaskDetail;
-        taskMeta = { taskId: task.id, taskItems: [] };
+        const metaData: FileMetadata = await this.getFileMetadata(filepath, task.projectId)
+        const taskMeta: TaskDetail = { taskId: task.id, taskItems: [] }; 
         if (task.items && task.items.length > 0) {
             task.items.forEach((item) => { 
                 taskMeta.taskItems.push(item.id)
@@ -304,43 +305,36 @@ export class CacheOperation {
         }
     }
 
+
     async getFilepathForProjectId(projectId: string) {
 
         const metadatas = this.plugin.settings.fileMetadata
 
-
         //If this project is set as a default for a file, return that file.
         for (const key in metadatas) {
             const value = metadatas[key];
-            if (metadatas[key].defaultProjectId === projectId) {
+            if (value.defaultProjectId === projectId) {
                 return key;
             }
         }
-
-		let filePath = "";
 
 		if ((projectId === this.plugin.settings.inboxID) ||
 			(projectId === this.plugin.settings.defaultProjectId)){ //highly unlikely, but just in case
 			//They don't have a file for the Inbox. If they have a default project, return that.
 			if (this.plugin.settings.defaultProjectName) {
 				// filePath = this.plugin.settings?.TickTickTasksFilePath +"/"+ this.plugin.settings.defaultProjectName + ".md"
-				filePath = this.plugin.settings.defaultProjectName + ".md"
-				return filePath
+				return this.plugin.settings.defaultProjectName + FILE_EXT;
 			}
 		}
         //otherwise, return the project name as a md file and hope for the best.
-        filePath = await this.getProjectNameByIdFromCache(projectId) + ".md"
-
+		const filePath = await this.getProjectNameByIdFromCache(projectId, this.plugin.settings.keepProjectFolders)
         if (!filePath) {
 			//Not a file that's in fileMetaData, not the inbox no default project set
-			let errmsg = `File path not found for ${projectId}, returning ${filePath} instead. `
+			const errmsg = `File path not found for ${projectId}, returning ${filePath} instead.`
 			console.warn(errmsg)
 			throw new Error(errmsg);
 		}
-		let errmsg = `File path not found for ${projectId}, returning ${filePath} instead. `
-		console.warn(errmsg)
-
-        return filePath;
+        return filePath + FILE_EXT;
     }
 
     async setDefaultProjectIdForFilepath(filepath: string, defaultProjectId: string) {
@@ -605,36 +599,46 @@ export class CacheOperation {
 
 
 
-    async getProjectNameByIdFromCache(projectId: string) {
+    async getProjectNameByIdFromCache(projectId: string, addFolder: boolean) : Promise<string | null> {
         try {
             const savedProjects = this.plugin.settings.TickTickTasksData.projects
             const targetProject = savedProjects.find(obj => obj.id === projectId);
             const projectName = targetProject ? targetProject.name : null;
-            return (projectName)
+			if (addFolder){
+				const groupName = this.plugin.settings.TickTickTasksData.projectGroups.find(g => g.id == targetProject.groupId)?.name;
+				if (groupName) return groupName + '/' + projectName;
+			}
+            return projectName
         } catch (error) {
             console.error(`Error finding project from Cache file: ${error}`);
-            return (false)
         }
+		return null;
     }
 
 
 
     //save projects data to json file
     async saveProjectsToCache() {
+		if (!this.plugin.tickTickRestAPI){
+			console.log("API doesn't exist")
+			return false;
+		}
         try {
             //get projects
             // console.log(`Save Projects to cache with ${this.plugin.tickTickRestAPI}`)
-			//const projectGroups = await this.plugin.tickTickRestAPI?.GetProjectGroups();
+			// if (this.plugin.settings.keepProjectFolders){
+			// 	 const projectGroups = await this.plugin.tickTickRestAPI.GetProjectGroups();
+			// }
 
-            const projects: IProject[] = await this.plugin.tickTickRestAPI?.GetAllProjects();
+            const projects: IProject[] = await this.plugin.tickTickRestAPI.GetAllProjects();
 			//TODO: Don't know what I thought projectGroups are but what we really need are project sections.
 			//      For Each Project call getProjectSections
 			//const projectSections = await this.plugin.tickTickRestAPI?.getProjectSections("")''
 			//Moving this here because if they have a list named Inbox, bad shit will happen.
-			let inboxProject = {
+			const inboxProject: IProject = {
 				id: this.plugin.settings.inboxID,
 				name: this.plugin.settings.inboxName
-			};
+			} as IProject;
 
 			projects.push(inboxProject);
 
@@ -644,7 +648,7 @@ export class CacheOperation {
 					acc.push(obj);
 				}
 				return acc;
-			}, []);
+			}, [] as IProject[]);
 			// @ts-ignore
 			const sortedDuplicates = duplicates.sort((a, b) => a.name.localeCompare(b.name));
 			// @ts-ignore
@@ -705,7 +709,7 @@ export class CacheOperation {
         } catch (error) {
             console.error(`error downloading projects: ${error}`)
 			new Notice("Error downloading projects: " + error.message);
-            await this.plugin.unlockSynclock();;
+            await this.plugin.unlockSynclock();
             return false
         }
 
@@ -822,7 +826,7 @@ export class CacheOperation {
 		return tasks;
 	}
 
-	private async showFoundDuplicatesModal(app, plugin, projects: []) {
+	private async showFoundDuplicatesModal(app, plugin, projects: IProject[]) {
 		const myModal = new FoundDuplicatesModal(app, plugin,  projects, (result) => {
 			this.ret = result;
 		});

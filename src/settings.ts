@@ -5,19 +5,23 @@ import {FolderSuggest} from "./utils/FolderSuggester";
 import { Tick } from './api';
 import { TickTickRestAPI } from './TicktickRestAPI';
 
+const PROVIDER_OPTIONS: Record<string, string> =  {
+	ticktick: "ticktick.com",
+	dida365: "dida365.com"
+} as const;
 
 export interface TickTickSyncSettings {
 	inboxName: any;
 	inboxID: any;
 	SyncProject: any;
 	SyncTag: any;
-	baseURL: string;
+	baseURL: string; //TODO store key
 	initialized: boolean;
 	apiInitialized: boolean;
 	defaultProjectName: string;
 	defaultProjectId: string;
 	TickTickTasksFilePath: string;
-	automaticSynchronizationInterval: Number;
+	automaticSynchronizationInterval: number;
 	TickTickTasksData: any;
 	fileMetadata: any;
 	enableFullVaultSync: boolean;
@@ -28,6 +32,8 @@ export interface TickTickSyncSettings {
 	checkPoint: number;
 	version: string;
 	tagAndOr: number; // 1 == And ; 2 == Or
+	/** If true, use the project folders from TickTick in the vault. Otherwise, keep all in the default folder. */
+	keepProjectFolders: boolean;
 }
 
 
@@ -37,9 +43,9 @@ export const DEFAULT_SETTINGS: TickTickSyncSettings = {
 	initialized: false,
 	apiInitialized: false,
 	defaultProjectName: "Inbox",
-	baseURL: 'ticktick.com',
-	automaticSynchronizationInterval: 300, //default aync interval 300s
-	TickTickTasksData: {"projects": [], "tasks": []},
+	baseURL: PROVIDER_OPTIONS.ticktick,
+	automaticSynchronizationInterval: 300, //default sync interval 300s
+	TickTickTasksData: {"projects": [], "tasks": [], "projectGroups": []},
 	fileMetadata: {},
 	enableFullVaultSync: false,
 	statistics: {},
@@ -50,7 +56,10 @@ export const DEFAULT_SETTINGS: TickTickSyncSettings = {
 	SyncProject: "",
 	SyncTag: "",
 	syncLock: false,
-	checkPoint: 0
+	checkPoint: 0,
+	tagAndOr: 0,
+	version: "",
+	keepProjectFolders: false
 }
 
 
@@ -62,7 +71,7 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 		this.plugin = plugin;
 	}
 
-	async display(): void {
+	display(): void {
 		let bProjectsLoaded = false;
 		const { containerEl } = this;
 
@@ -81,8 +90,7 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 				console.error("Failed to Load", item.name);
 			}
 		}, {});
-		const providerOptions: Record<string, string> = {"1": "ticktick.com", "2": "dida365.com"}
-		const currentVal = Object.keys(providerOptions).find(key => providerOptions[key] === this.plugin.settings.baseURL)
+		const currentVal = Object.keys(PROVIDER_OPTIONS).find(key => PROVIDER_OPTIONS[key] === this.plugin.settings.baseURL) || PROVIDER_OPTIONS.ticktick
 		const tagAndOr: Record<number, string> = {1: "AND", 2: "OR"}
 
 		containerEl.createEl('hr');
@@ -97,10 +105,10 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 			.setHeading()
 			.addDropdown(component =>
 				component
-					.addOptions(providerOptions)
+					.addOptions(PROVIDER_OPTIONS)
 					.setValue(currentVal)
 					.onChange(async (value: string) => {
-						this.plugin.settings.baseURL = providerOptions[value]
+						this.plugin.settings.baseURL = PROVIDER_OPTIONS[value]
 						await this.plugin.saveSettings();
 					})
 			);
@@ -202,95 +210,110 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 			containerEl.createEl('hr');
 			containerEl.createEl('h1', { text: 'Sync control' });
 
-			this.add_default_folder_path();
+			this.addFolderOptions(containerEl);
 
-		new Setting(containerEl)
-			.setName('Default project')
-			.setDesc('New tasks are automatically synced to the default project. You can modify the project here.')
-			.addDropdown(component =>
-				component
-					.addOption(this.plugin.settings.defaultProjectId, this.plugin.settings.defaultProjectName)
-					.addOptions(myProjectsOptions)
-					.onChange(async (value) => {
-						this.plugin.settings.defaultProjectId = value
-						this.plugin.settings.defaultProjectName = await this.plugin.cacheOperation?.getProjectNameByIdFromCache(value)
-							const defaultProjectFileName = this.plugin.settings.defaultProjectName + ".md"
-							//make sure the file exists.
-							const defaultProjectFile = await this.plugin.fileOperation?.getOrCreateDefaultFile(defaultProjectFileName);
-							if (defaultProjectFile) {
-								this.plugin.cacheOperation?.setDefaultProjectIdForFilepath(defaultProjectFile.path, this.plugin.settings.defaultProjectId)
-							} else {
-								new Notice("Unable to create file for selected default project " + this.plugin.settings.defaultProjectName )
-							}
-							await this.plugin.saveSettings()
-						})
-				)
+			new Setting(containerEl)
+				.setName('Default project')
+				.setDesc('New tasks are automatically synced to the default project. You can modify the project here.')
+				.addDropdown(component =>
+					component
+						.addOption(this.plugin.settings.defaultProjectId, this.plugin.settings.defaultProjectName)
+						.addOptions(myProjectsOptions)
+						.onChange(async (value) => {
+							this.plugin.settings.defaultProjectId = value
+							this.plugin.settings.defaultProjectName = await this.plugin.cacheOperation?.getProjectNameByIdFromCache(value)
+								const defaultProjectFileName = this.plugin.settings.defaultProjectName + ".md"
+								//make sure the file exists.
+								const defaultProjectFile = await this.plugin.fileOperation?.getOrCreateDefaultFile(defaultProjectFileName);
+								if (defaultProjectFile) {
+									this.plugin.cacheOperation?.setDefaultProjectIdForFilepath(defaultProjectFile.path, this.plugin.settings.defaultProjectId)
+								} else {
+									new Notice("Unable to create file for selected default project " + this.plugin.settings.defaultProjectName )
+								}
+								await this.plugin.saveSettings()
+							})
+					)
 			containerEl.createEl('hr');
 			containerEl.createEl('h2', { text: 'Limit synchronization' });
+
 			new Setting(containerEl)
 				.setDesc("To limit the tasks TickTickSync will synchronize from TickTick to " +
 					"Obsidian select a tag and/or project(list) below. If a tag is entered, only tasks with that tag will be " +
 					"synchronized. If a project(list) is selected, only tasks in that project will be synchronized. If " +
 					"both are chosen the behavior will be determined by your settings. See result below.")
 
-		new Setting(containerEl)
-			.setName('Project')
-			.setDesc('Only tasks in this project will be synchronized.')
-			.addDropdown(component =>
-				component
-					.addOption("", "")
-					.addOptions(myProjectsOptions)
-					.setValue(this.plugin.settings.SyncProject)
-					.onChange(async (value) => {
-						this.plugin.settings.SyncProject = value;
-						const fileMetaData = this.plugin.settings.fileMetadata;
-						const defaultProjectFileEntry = Object.values(fileMetaData).find(obj => obj.defaultProjectId === this.plugin.settings.SyncProject );
-						if(!defaultProjectFileEntry) {
-							const noticeMsg = "Did not find a default Project File for Project " +
-								myProjectsOptions?.[value] +
-								". Please create a file and set it's default to this project, or select a file to be the default for this project."
-							new Notice(noticeMsg, 0)
-						}
-						await this.plugin.saveSettings()
-						this.display();
-					})
-			)
-
 			new Setting(containerEl)
-				.setName('Tag Behavior')
-				.setDesc('Determine how Tags will be handled.')
+				.setName('Project')
+				.setDesc('Only tasks in this project will be synchronized.')
 				.addDropdown(component =>
 					component
-						.addOptions(tagAndOr)
-						.setValue(this.plugin.settings.tagAndOr)
-						.onChange((value) => {
-							this.plugin.settings.tagAndOr = value;
-							this.plugin.saveSettings();
-							this.display();
-						}))
-
-			let saveSettingsTimeout: ReturnType<typeof setTimeout>;
-			new Setting(containerEl)
-				.setName('Tag')
-				.setDesc('Tag value, no "#"')
-				.addText(text => text
-					.setValue(this.plugin.settings.SyncTag)
-					.onChange(async (value) => {
-						clearTimeout(saveSettingsTimeout);
-						saveSettingsTimeout = setTimeout(async () => {
-							if (value.startsWith("#")) {
-								value = value.substring(1);
+						.addOption("", "")
+						.addOptions(myProjectsOptions)
+						.setValue(this.plugin.settings.SyncProject)
+						.onChange(async (value) => {
+							this.plugin.settings.SyncProject = value;
+							const fileMetaData = this.plugin.settings.fileMetadata;
+							const defaultProjectFileEntry = Object.values(fileMetaData).find(obj => obj.defaultProjectId === this.plugin.settings.SyncProject );
+							if(!defaultProjectFileEntry) {
+								const noticeMsg = "Did not find a default Project File for Project " +
+									myProjectsOptions?.[value] +
+									". Please create a file and set it's default to this project, or select a file to be the default for this project."
+								new Notice(noticeMsg, 0)
 							}
-							this.plugin.settings.SyncTag = value;
-							await this.plugin.saveSettings();
+							await this.plugin.saveSettings()
 							this.display();
-							}, 1000);
-					})
+						})
 				)
-			const explanationText = containerEl.createEl('p', { text: 'Project/Tag selection result.' });
-			explanationText.innerHTML = this.getProjectTagText(myProjectsOptions);
 		}
 
+
+		containerEl.createEl('hr');
+		//allow set before first sync
+		new Setting(containerEl)
+			.setName('Tag Behavior')
+			.setDesc('Determine how Tags will be handled.')
+			.addDropdown(component =>
+				component
+					.addOptions(tagAndOr)
+					.setValue(this.plugin.settings.tagAndOr)
+					.onChange((value) => {
+						this.plugin.settings.tagAndOr = value;
+						this.plugin.saveSettings();
+						this.display();
+					}))
+
+		let saveSettingsTimeout: ReturnType<typeof setTimeout>;
+		new Setting(containerEl)
+			.setName('Tag')
+			.setDesc('Tag value, no "#"')
+			.addText(text => text
+				.setValue(this.plugin.settings.SyncTag)
+				.onChange(async (value) => {
+					clearTimeout(saveSettingsTimeout);
+					saveSettingsTimeout = setTimeout(async () => {
+						if (value.startsWith("#")) {
+							value = value.substring(1);
+						}
+						this.plugin.settings.SyncTag = value;
+						await this.plugin.saveSettings();
+						this.display();
+						}, 1000);
+				})
+			)
+		const explanationText = containerEl.createEl('p', { text: 'Project/Tag selection result.' });
+		explanationText.innerHTML = this.getProjectTagText(myProjectsOptions);
+
+		new Setting(containerEl)
+			.setName('Keep project folders')
+			.setDesc('Use the TickTick project folders in the Vault. Otherwise, keep everything in the default folder.')
+			.addToggle(component =>
+				component
+					.setValue(this.plugin.settings.keepProjectFolders)
+					.onChange(async (value) => {
+						this.plugin.settings.keepProjectFolders = value
+						await this.plugin.saveSettings()
+					})
+			)
 
 		containerEl.createEl('hr');
 		new Setting(containerEl)
@@ -578,11 +601,11 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 		}
 	}
 
-	add_default_folder_path(): void {
+	private addFolderOptions(container: HTMLElement): void {
 		let folderSearch: SearchComponent | undefined;
-		new Setting(this.containerEl)
+		new Setting(container)
 			.setName("Default folder location")
-			.setDesc("Folder to be used for TickTick Tasks.")
+			.setDesc("Vault folder to be used for TickTick Tasks.")
 			.addSearch((cb) => {
 				folderSearch = cb;
 				new FolderSuggest(cb.inputEl);
@@ -596,8 +619,8 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 				cb.setIcon('plus');
 				cb.setTooltip('Add folder');
 				cb.onClick(async () => {
-					let new_folder = folderSearch?.getValue();
-					const updatedFolder = await  this.validateNewFolder(new_folder);
+					const newFolder = folderSearch?.getValue();
+					const updatedFolder = await  this.validateNewFolder(newFolder);
 					if (this.plugin.settings.debugMode)
 					{
 						console.log('updated folder: ', updatedFolder);
@@ -610,22 +633,22 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 
 					this.display();
 				});
-			});;
+			});
 	}
 
-	private async validateNewFolder(new_folder: string | undefined) {
-		if (new_folder && (new_folder.length > 1) && (/^[/\\]/.test(new_folder))) {
-			new_folder = new_folder.substring(1);
+	private async validateNewFolder(newFolder: string | undefined) {
+		if (newFolder && (newFolder.length > 1) && (/^[/\\]/.test(newFolder))) {
+			newFolder = newFolder.substring(1);
 		}
-		let newFolderFile = this.app.vault.getAbstractFileByPath(new_folder);
+		let newFolderFile = this.app.vault.getAbstractFileByPath(newFolder);
 		if (!newFolderFile) {
 			//it doesn't exist, create it and return it's path.
 			try {
-				newFolderFile = await this.app.vault.createFolder(new_folder);
+				newFolderFile = await this.app.vault.createFolder(newFolder);
 				new Notice(`New folder ${newFolderFile.path} created.`)
 				return newFolderFile?.path;
 			} catch (error) {
-				new Notice(`Folder ${new_folder} creation failed: ${error}. Please correct and try again.`, 0)
+				new Notice(`Folder ${newFolder} creation failed: ${error}. Please correct and try again.`, 0)
 				return null;
 			}
 		} else {
@@ -655,9 +678,9 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 		}
 		if (taskAndOr == 1 ) {
 			return "Only tasks in <b>" + project + "</b> AND tagged with <b>#" + tag + "</b> tag will be synchronized"
-		} else {
-			return "All tasks in <b>" + project + "</b> will be synchronized. All tasks tagged with <b>#" + tag + "</b> tag will be synchronized"
 		}
+		
+		return "All tasks in <b>" + project + "</b> will be synchronized. All tasks tagged with <b>#" + tag + "</b> tag will be synchronized"
 	}
 }
 

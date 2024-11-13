@@ -7,6 +7,7 @@ const API_ENDPOINTS = {
   apiVersion: '/api/v2',
   signInEndPoint: 'user/signon?wc=true&remember=true',
   userPreferencesEndPoint: 'user/preferences/settings',
+  allProjectGroupsEndPoint: 'batch/check/', //TODO: populate from the projectGroups
   allProjectsEndPoint: 'projects',
   allHabitsEndPoint: 'habits',
   allTagsEndPoint: 'tags',

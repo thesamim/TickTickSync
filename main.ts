@@ -30,12 +30,11 @@ export default class TickTickSync extends Plugin {
 	tickTickSync: SyncMan | undefined;
 	lastLines: Map<string, number>;
 	statusBar: any;
-	syncLock: Boolean;
+	syncLock: boolean;
 
 	async onload() {
 
 		const isSettingsLoaded = await this.loadSettings();
-
 		if (!isSettingsLoaded) {
 			new Notice('Settings failed to load. Please reload the TickTickSync plugin.');
 			return;
@@ -83,8 +82,8 @@ export default class TickTickSync extends Plugin {
 		this.settings.apiInitialized = false;
 		try {
 			await this.initializePlugin();
-		} catch (Error) {
-			console.error('API Initialization Failed.');
+		} catch (err) {
+			console.error('API Initialization Failed.', err);
 		}
 
 		//lastLine object {path:line} is saved in lastLines map
