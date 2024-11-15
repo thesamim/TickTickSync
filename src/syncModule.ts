@@ -570,9 +570,9 @@ export class SyncMan {
 		//is it a task at all?
 		if (!this.plugin.taskParser?.isMarkdownTask(lineText)) {
 			//Nah Brah. Bail.
-			return;
+			return false;
 		}
-		let parsedItem = await this.plugin.taskParser?.taskFromLine(lineText, filepath);
+		let parsedItem = this.plugin.taskParser?.taskFromLine(lineText);
 		if (this.plugin.settings.debugMode) {
 			if (!parsedItem) {
 				console.error(`Task construction failed in line: ${lineText}`)
@@ -580,9 +580,9 @@ export class SyncMan {
 		}
 		if (!parsedItem.description || !(parsedItem.status)) {
 			//empty item. Bail.
-			return;
+			return false;
 		}
-		let tabs = parsedItem?.indentation;
+		let tabs = parsedItem?.indent;
 		let content = parsedItem?.description;
 		if (content?.trim().length == 0) {
 			//they hit enter, but haven't typed anything yet.
@@ -590,9 +590,9 @@ export class SyncMan {
 			modified = false
 			return modified;
 		}
-		const thisLineStatus = parsedItem.status.isCompleted();
+		const thisLineStatus = parsedItem?.completed;
 		let parentTask: ITask = null;
-		if (tabs.length > 0) {//must be indented at least once.
+		if (tabs > 0) {//must be indented at least once.
 			const lines = fileContent.split('\n');
 			let itemId = "";
 			let regex = /%%(.*)%%/;
@@ -612,7 +612,7 @@ export class SyncMan {
 							if (oldItem) {
 								content = content.replace(regex, ""); //We just want content now.
 								//TODO deal with "Won't do" which is -1
-								const oldItemStatus = oldItem.status == 0 ? false : true;
+								const oldItemStatus = oldItem.status != 0;
 								if (content.trim() != oldItem.title.trim()) {
 									// console.log(`[${content}] vs [${oldItem.title}] and ${thisLineStatus} vs ${oldItemStatus}`)
 									oldItem.title = content;
@@ -848,7 +848,6 @@ export class SyncMan {
 			return [];
 		}
 
-		const api = await this.plugin.tickTickRestAPI?.initializeAPI()
 		for (const taskId of taskIds) {
 			try {
 				let response;
