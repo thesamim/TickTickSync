@@ -797,6 +797,16 @@ export class Tick {
 	private generateRandomID() {
 
 		let result = localStorage.getItem('TTS_UniqueID');
+
+		//leftover from one of the old iterations.
+		if (result) {
+			if (result.includes("-")) {
+				localStorage.removeItem("TTS_UniqueID");
+				result = null;
+			}
+		}
+
+
 		if (!result) {
 			const prefix = '66';
 			const length = 24; // Total length of the string

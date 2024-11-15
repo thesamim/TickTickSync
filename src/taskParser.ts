@@ -1,9 +1,6 @@
 import { App } from 'obsidian';
 import TickTickSync from '../main';
 import { ITask } from './api/types/Task';
-import { Task } from 'obsidian-task/src/Task/Task';
-import { TaskRegularExpressions } from 'obsidian-task/src/Task/TaskRegularExpressions';
-import { TaskLocation } from 'obsidian-task/src/Task/TaskLocation';
 
 
 interface dataviewTaskObject {
@@ -73,9 +70,6 @@ const priorityMapping = [{ ticktick: 0, obsidian: null }, { ticktick: 0, obsidia
 }, { ticktick: 3, obsidian: '🔼' }, { ticktick: 5, obsidian: '⏫' }, { ticktick: 5, obsidian: '🔺' }];
 
 
-// const tag_regex = /(?<=\s)#[\w\d\u4e00-\u9fff\u0600-\u06ff\uac00-\ud7af-_/]+/g; //Add -,_,/ as valid seperators.
-// const tag_regex = /(?<=\s)#[\w\d\u00c4-\u00f6\u4e00-\u9fff\u0600-\u06ff\uac00-\ud7af-_/]+/gu; //Add -,_,/ as valid seperators.
-// Obsidian tag spec: https://help.obsidian.md/Editing+and+formatting/Tags#Tag+format
 //borrowed from https://github.com/moremeyou/Obsidian-Tag-Buddy
 const tag_regex = /(?<=^|\s)(#(?=[^\s#.'’,;!?:]*[^\d\s#.'’,;!?:])[^\s#.'’,;!?:]+)(?=[.,;!?:'’\s]|$)|(?<!`)```(?!`)/g; // fix for number-only and typographic apostrophy's
 // const due_date_regex = `(${keywords.DUE_DATE})\\s(\\d{4}-\\d{2}-\\d{2})(\\s\\d{1,}:\\d{2})?`
@@ -84,9 +78,34 @@ const due_date_strip_regex =        `[${keywords.DUE_DATE}]\\s\\d{4}-\\d{2}-\\d{
 const completion_date_regex = `(${keywords.TASK_COMPLETE})\\s(\\d{4}-\\d{2}-\\d{2})\\s*(\\d{1,}:\\d{2})*`;
 const completion_date_strip_regex = `${keywords.TASK_COMPLETE}\\s\\d{4}-\\d{2}-\\d{2}(\\s*\\d{1,}:\\d{2}|)`;
 
+/*
+* Stolen from https://github.com/obsidian-tasks-group/obsidian-tasks/blob/main/src/Task/TaskRegularExpressions.ts
+* used without permission.
+* Will ask for forgiveness in the fullness of time.
+*
+* */
 const status_regex  = "^\\s*(-|\\*)\\s+\\[(x| )\\]\\s"
 
+const indentationRegex = /^([\s\t>]*)/;
 
+// Matches - * and + list markers, or numbered list markers (eg 1.)
+const listMarkerRegex = /([-*+]|[0-9]+\.)/;
+
+// Matches a checkbox and saves the status character inside
+const checkboxRegex = /\[(.)\]/u;
+
+// Matches the rest of the task after the checkbox.
+const afterCheckboxRegex = / *(.*)/u;
+
+const taskRegex = new RegExp(
+	indentationRegex.source +
+	listMarkerRegex.source +
+	' +' +
+	checkboxRegex.source +
+	afterCheckboxRegex.source,
+	'u',
+);
+/*End of stolen regex*/
 
 const REGEX = {
 	//hopefully tighter find.
@@ -311,7 +330,7 @@ export class TaskParser {
 		if (hasParent) {
 			if (parentTaskObject) {
 				projectId = parentTaskObject.projectId;
-				projectName = await this.plugin.cacheOperation?.getProjectNameByIdFromCache(projectId);
+				// projectName = await this.plugin.cacheOperation?.getProjectNameByIdFromCache(projectId);
 			}
 		} else {
 			//Check if we need to add this to a specific project by tag.
@@ -687,14 +706,8 @@ export class TaskParser {
 		return result;
 	}
 
-	//TODO fix this.
-	oldMarkdownTask(str: string): boolean {
-		const taskRegex = /^\s*-\s+\[([x ])\]/;
-		return taskRegex.test(str);
-	}
-
 	isMarkdownTask(str: string): boolean {
-		const forRealRegex = TaskRegularExpressions.taskRegex;
+		const forRealRegex = taskRegex;
 		return forRealRegex.test(str);
 	}
 
@@ -753,14 +766,24 @@ export class TaskParser {
 		return mapping ? mapping.ticktick : null;
 	}
 
-	async taskFromLine(line: string, path: string): Promise<Task> {
-		let taskLocation: TaskLocation = TaskLocation.fromUnknownPosition(path);
-		let task = Task.fromLine({
-			line, taskLocation: TaskLocation.fromUnknownPosition(path), fallbackDate: null
-		});
-		return task;
-	}
+	taskFromLine(line: string)  {
+		let matches = taskRegex.exec(line);
+		if (!matches) {
+			return null;
+		}
+		let status = matches[3] || "";
+		let description = matches[4] || "";
+		let indent = matches[1] ? matches[1].length : 0;
+		let completed = status === "x";
 
+		return {
+			line,
+			status,
+			description,
+			indent,
+			completed
+		};
+	}
 	cleanDate(dateString: string) {
 
 		if (dateString.includes('+-')) {
@@ -810,6 +833,8 @@ export class TaskParser {
 		return resultLine;
 	}
 
+	//TODO: This is redundant with taskFromLine. And the status is sus.
+	// But I don't want to make too many changes right now
 	private getItemFromLine(itemLine: string) {
 
 		const matches = REGEX.ITEM_LINE.exec(itemLine);
@@ -859,31 +884,6 @@ export class TaskParser {
 		return resultLine;
 	}
 
-	private removeMultipleCompletionDates(text: string, task: ITask) {
-		const regEx = REGEX.COMPLETION_DATE;
-		let results = [...text.matchAll(regEx)];
-		if (results.length == 0) {
-			const nullDate = '';
-			const nullVal = '';
-			return text;
-		}
-
-		let keepNum;
-
-		if (task.status == 0) {
-			keepNum = 0
-		} else {
-			keepNum = 1
-		}
-		let result;
-		if (results.length > keepNum) {
-			//arbitrarily take the last one
-			for (let i = 0; i < results.length; i++) {
-				text = text.replace(`${results[i][1]} ${results[i][2]}`, '');
-			}
-		}
-		return text;
-	}
 
 	//Note to future me: I wanted to get all the known tags in Obsidian to something clever
 	//                   with tag management.
