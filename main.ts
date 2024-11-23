@@ -26,6 +26,7 @@ export default class TickTickSync extends Plugin {
 	tickTickRestAPI: TickTickRestAPI | undefined | null;
 	tickTickSyncAPI: TickTickSyncAPI | undefined;
 	taskParser: TaskParser | undefined;
+	dateMan : DateMan | undefined;
 	cacheOperation: CacheOperation | undefined;
 	fileOperation: FileOperation | undefined;
 	tickTickSync: SyncMan | undefined;
@@ -64,6 +65,12 @@ export default class TickTickSync extends Plugin {
 			//get rid of user name and password. we don't need them no more.
 			delete this.settings.username;
 			delete this.settings.password;
+		}
+		if ((!this.settings.version) || (this.isOlder(this.settings.version, '1.0.36'))) {
+			//default to AND because that's what we used to do:
+			this.settings.tagAndOr = 1;
+			//warn about tag changes.
+			await this.LatestChangesModal()
 		}
 
 		//Update the version number. It will save me headaches later.
@@ -406,7 +413,7 @@ export default class TickTickSync extends Plugin {
 			//Create a backup folder to back up TickTick data
 			try {
 
-				//TODO: this should not be necessary. Check why it was at some point.
+
 				if (!this.settings.SyncTag) {
 					this.settings.SyncTag = '';
 					await this.saveSettings();
@@ -845,6 +852,15 @@ export default class TickTickSync extends Plugin {
 	}
 
 
+	private async LatestChangesModal() {
+		const myModal = new ConfirmFullSyncModal(this.app, (result) => {
+			this.ret = result;
+		});
+		const bConfirmation = await myModal.showModal();
+
+		return bConfirmation;
+
+	}
 }
 
 

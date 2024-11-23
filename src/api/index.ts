@@ -755,12 +755,16 @@ export class Tick {
 	private getXDevice() {
 		console.log("'generatedID': ", this.generateRandomID());
 		const randomID = this.generateRandomID();
-		const randomVersion = 6070 //this.generateRandomVersion();
+		//TickTick wants a version number equal to or greater than 6070. I thought it was random. It's not.
+		const randomVersion = 6070
 		const uaObject = UAParser(navigator.userAgent);
 
 		let xDeviceObject = {
+			//TickTick won't take anything but web
 			platform: 'web',//`${this.getPlatform()}`,
+			//TickTick won't take anything but a Windows variant apparently.
 			os: "Windows 10", //`${uaObject.os.name} ${uaObject.os.version}`,
+			//TickTick doesn't care about the device name.
 			device: "Firefox 117.0", //`${uaObject.browser.name} ${uaObject.browser.version}`,
 			name: '', //"${uaObject.engine.name}",
 			version: randomVersion,
@@ -797,6 +801,15 @@ export class Tick {
 	private generateRandomID() {
 
 		let result = localStorage.getItem('TTS_UniqueID');
+
+		//leftover from one of the old iterations.
+		if (result) {
+			if (result.includes("-")) {
+				localStorage.removeItem("TTS_UniqueID");
+				result = null;
+			}
+		}
+
 		if (!result) {
 			const prefix = '66';
 			const length = 24; // Total length of the string

@@ -120,13 +120,6 @@ export class FileOperation {
             await this.app.vault.modify(file, newContent)
 			new Notice("New Tasks will be added to TickTick on next Sync.")
 			// console.error("Modified: ", file?.path, new Date().toISOString());
-
-            // //update filemetadate
-            // const metadata = await this.plugin.cacheOperation?.getFileMetadata(filepath)
-            // if (!metadata) {
-            //     throw new Error(`File Metadata creation failed for file ${filepath}`);
-            // }
-
         }
     }
 
@@ -324,11 +317,11 @@ export class FileOperation {
 			if (lines.find(line => (line.includes(task.id)))) {
 				//it's in the file, but not in cache. Just update it.
 				await this.updateTaskInFile(task, lines)
-				await this.plugin.cacheOperation?.updateTaskToCacheByID(task, file.path)
+				await this.plugin.cacheOperation?.updateTaskToCache(task, file.path)
 				addedTask.push(task.id);
 				continue;
 			}
-            let lineText = await this.plugin.taskParser?.convertTaskToLine(task);
+            let lineText = await this.plugin.taskParser?.convertTaskToLine(task, "TTAdd");
 
 			if (task.status != 0) {
 				//closed task, add completion time
@@ -411,15 +404,13 @@ export class FileOperation {
         // Get the task file path
         const currentTask: ITask = await this.plugin.cacheOperation?.loadTaskFromCacheID(taskId)
 
-
 		if (currentTask) {
 			//Only check for Project/Parent change if task is in cache.
 			const hasChildren = this.hasChildren(currentTask);
-
+			// if (this.plugin.dateMan) {
+			// 	this.plugin.dateMan.updateDates(currentTask, task);
+			// }
 			if ((this.plugin.taskParser?.isProjectIdChanged(currentTask, task)) || this.plugin.taskParser?.isParentIdChanged(currentTask, task)) {
-				//todo: if a task is moved, AND it's status is changed, then the completion date is going to be wrong.
-				//      wait to see how big a deal this is before making a bunch of changes. Chances are it will be handled
-				//      on the next sync anyway.
 				await this.handleTickTickStructureMove(task, currentTask, toBeProcessed);
 				return;
 			}
@@ -443,7 +434,7 @@ export class FileOperation {
         for (let i = 0; i < lines.length; i++) {
             let line = lines[i]
             if (line.includes(taskId) && this.plugin.taskParser?.hasTickTickTag(line)) {
-                let newTaskContent = await this.plugin.taskParser?.convertTaskToLine(task);
+                let newTaskContent = await this.plugin.taskParser?.convertTaskToLine(task, "TTUpdate");
 
 				//get tabs for current task
                 let parentTabs = this.plugin.taskParser?.getTabs(line);
@@ -471,8 +462,6 @@ export class FileOperation {
                 break
             }
         }
-
-
         if (modified) {
             const newContent = lines.join('\n')
             await this.app.vault.modify(file, newContent)

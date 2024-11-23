@@ -19,7 +19,6 @@ export interface ITask {
 	completedTime?: string;
 	completedUserId?: any;
 	repeatTaskId?: string;
-
 	priority: number;
 	status: number;
 	items: any[];
@@ -33,7 +32,6 @@ export interface ITask {
 	focusSummaries?: any[];
 	columnId?: string;
 	kind?: string;
-
 	assignee?: any;
 	isDirty?: boolean;
 	local?: boolean;
@@ -41,23 +39,15 @@ export interface ITask {
 	tags?: any[];
 	childIds: string[];
 	parentId: string;
-//Not TickTick Data.
-	created_date: string,
-	scheduled_date: string,
-	start_date: string,
-	due_date: string,
-	done_date: string,
-	cancelled_date: string,
-	allDates: date_holder_type | null
-
+	//This is not a TickTick data element. It must be managed separately.
+	dateHolder: date_holder_type;
 }
 
-export interface IUpdate
-{
-  "add": ITask[],
-  "addAttachments": [],
-  "delete": ITask[],
-  "deleteAttachments": [],
-  "update": ITask[],
-  "updateAttachments": []
+export interface IUpdate {
+	'add': ITask[],
+	'addAttachments': [],
+	'delete': ITask[],
+	'deleteAttachments': [],
+	'update': ITask[],
+	'updateAttachments': []
 }
