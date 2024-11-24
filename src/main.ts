@@ -1,23 +1,28 @@
-import { Editor, MarkdownView, Notice, Plugin, TFile, TFolder } from 'obsidian';
+import "@/static/index.css";
+import "@/static/styles.css";
+
+import {Editor, MarkdownView, Notice, Plugin, TFolder} from 'obsidian';
 
 //settings
-import { DEFAULT_SETTINGS, TickTickSyncSettings, TickTickSyncSettingTab } from './src/settings';
+import {DEFAULT_SETTINGS, TickTickSyncSettings} from './settings';
 //TickTick api
-import { TickTickRestAPI } from './src/TicktickRestAPI';
-import { TickTickSyncAPI } from './src/TicktickSyncAPI';
+import {TickTickRestAPI} from './TicktickRestAPI';
+import {TickTickSyncAPI} from './TicktickSyncAPI';
 //task parser
-import { TaskParser } from './src/taskParser';
+import {TaskParser} from './taskParser';
 //cache task read and write
-import { CacheOperation } from './src/cacheOperation';
+import {CacheOperation} from './cacheOperation';
 //file operation
-import { FileOperation } from './src/fileOperation';
+import {FileOperation} from './fileOperation';
 
 //sync module
-import { SyncMan } from './src/syncModule';
+import {SyncMan} from './syncModule';
 
 //import modals
-import { SetDefaultProjectForFileModal } from 'src/modals/DefaultProjectModal';
-import {ConfirmFullSyncModal} from "./src/modals/LatestChangesModal"
+import {SetDefaultProjectForFileModal} from './modals/DefaultProjectModal';
+import {ConfirmFullSyncModal} from "./modals/LatestChangesModal"
+import {isOlder} from "./utils/version";
+import {TickTickSyncSettingTab} from "./ui/settings";
 
 
 export default class TickTickSync extends Plugin {
@@ -30,78 +35,47 @@ export default class TickTickSync extends Plugin {
 	tickTickSync: SyncMan | undefined;
 	lastLines: Map<string, number>;
 	statusBar: any;
-	syncLock: Boolean;
+	syncLock: boolean;
 
 	async onload() {
 
-		const isSettingsLoaded = await this.loadSettings();
+		// const queryInjector = new QueryInjector(this);
+		// this.registerMarkdownCodeBlockProcessor(
+		// 	"ticktick",
+		// 	queryInjector.onNewBlock.bind(queryInjector),
+		// );
 
+		// This adds a settings tab so the user can configure various aspects of the plugin
+		this.addSettingTab(new TickTickSyncSettingTab(this.app, this));
+
+		const isSettingsLoaded = await this.loadSettings();
 		if (!isSettingsLoaded) {
 			new Notice('Settings failed to load. Please reload the TickTickSync plugin.');
 			return;
 		}
 
-		//We're going to handle data structure conversions here.
-		if (!this.settings.version) {
-			const fileMetataDataStructure = this.settings.fileMetadata;
-			for (let file in fileMetataDataStructure) {
-				let oldTasksHolder = fileMetataDataStructure[file]; //an array of tasks.
-				let newTasksHolder = {};
-				newTasksHolder = {
-					TickTickTasks: oldTasksHolder.TickTickTasks.map((taskIDString) => ({
-						taskId: taskIDString, taskItems: [] //TODO: Validate that the assumption that the next sync will fill these correctly.
-					})), TickTickCount: oldTasksHolder.TickTickCount, defaultProjectId: oldTasksHolder.defaultProjectId
-				};
-				fileMetataDataStructure[file] = newTasksHolder;
-			}
-			//Force a sync
-			if (this.settings && this.settings.apiInitialized) {
-				await this.scheduledSynchronization();
-			}
-		}
-		if ((!this.settings.version) || (this.isOlder(this.settings.version, '1.0.10'))) {
-			//get rid of user name and password. we don't need them no more.
-			delete this.settings.username;
-			delete this.settings.password;
-		}
-		if ((!this.settings.version) || (this.isOlder(this.settings.version, '1.0.36'))) {
-			//default to AND because that's what we used to do:
-			this.settings.tagAndOr = 1;
-			//warn about tag changes.
-			await this.LatestChangesModal()
-		}
-
-		//Update the version number. It will save me headaches later.
-		if ((!this.settings.version) || (this.isOlder(this.settings.version, this.manifest.version))) {
-			this.settings.version = this.manifest.version;
-			await this.saveSettings();
-		}
-
-
-		// This adds a settings tab so the user can configure various aspects of the plugin
-		this.addSettingTab(new TickTickSyncSettingTab(this.app, this));
 		this.settings.apiInitialized = false;
 		try {
 			await this.initializePlugin();
-		} catch (Error) {
-			console.error('API Initialization Failed.');
+		} catch (error) {
+			console.error('API Initialization Failed.', error);
 		}
 
 		//lastLine object {path:line} is saved in lastLines map
 		this.lastLines = new Map();
 
 		// if (this.settings.debugMode) {
-			// This creates an icon in the left ribbon.
-			const ribbonIconEl = this.addRibbonIcon('sync', 'TickTickSync', async (evt: MouseEvent) => {
-				// Called when the user clicks the icon.
-				await this.scheduledSynchronization();
-				await this.unlockSynclock();
-				new Notice(`Sync completed..`);
-			});
-			//Used for testing adhoc code.
-			// const ribbonIconEl1 = this.addRibbonIcon('check', 'TickTickSync', async (evt: MouseEvent) => {
-			// 	// Nothing to see here right now.
-			// });
+		// This creates an icon in the left ribbon.
+		const ribbonIconEl = this.addRibbonIcon('sync', 'TickTickSync', async (evt: MouseEvent) => {
+			// Called when the user clicks the icon.
+			await this.scheduledSynchronization();
+			await this.unlockSynclock();
+			new Notice(`Sync completed..`);
+		});
+		//Used for testing adhoc code.
+		// const ribbonIconEl1 = this.addRibbonIcon('check', 'TickTickSync', async (evt: MouseEvent) => {
+		// 	// Nothing to see here right now.
+		// });
 		// }
 
 		//Key event monitoring, judging line breaks and deletions
@@ -156,7 +130,7 @@ export default class TickTickSync extends Plugin {
 		// If the plugin hooks up any global DOM events (on parts of the app that doesn't belong to this plugin)
 		// Using this function will automatically remove the event listener when this plugin is disabled.
 		this.registerDomEvent(document, 'click', async (evt: MouseEvent) => {
-			const { target } = evt;
+			const {target} = evt;
 			const markDownView = this.app.workspace.getActiveViewOfType(MarkdownView);
 			const file = markDownView?.app.workspace.activeEditor?.file;
 			const fileName = file?.name;
@@ -354,11 +328,52 @@ export default class TickTickSync extends Plugin {
 		try {
 			const data = await this.loadData();
 			this.settings = Object.assign({}, DEFAULT_SETTINGS, data);
-			return true; // Returning true indicates that the settings are loaded successfully
 		} catch (error) {
 			console.error('Failed to load data:', error);
 			return false; // Returning false indicates that the setting loading failed
 		}
+		try {
+			//TODO move to migrate separate function
+			//We're going to handle data structure conversions here.
+			if (!this.settings.version) {
+				const fileMetaDataStructure = this.settings.fileMetadata;
+				for (const file in fileMetaDataStructure) {
+					const oldTasksHolder = fileMetaDataStructure[file]; //an array of tasks.
+					let newTasksHolder = {};
+					newTasksHolder = {
+						TickTickTasks: oldTasksHolder.TickTickTasks.map((taskIDString) => ({
+							taskId: taskIDString, taskItems: [] //TODO: Validate that the assumption that the next sync will fill these correctly.
+						})), TickTickCount: oldTasksHolder.TickTickCount, defaultProjectId: oldTasksHolder.defaultProjectId
+					};
+					fileMetaDataStructure[file] = newTasksHolder;
+				}
+				//Force a sync
+				if (this.settings && this.settings.apiInitialized) {
+					await this.scheduledSynchronization();
+				}
+			}
+			if ((!this.settings.version) || (isOlder(this.settings.version, '1.0.10'))) {
+				//get rid of username and password. we don't need them no more.
+				delete this.settings.username;
+				delete this.settings.password;
+			}
+			if ((!this.settings.version) || (isOlder(this.settings.version, '1.0.36'))) {
+				//default to AND because that's what we used to do:
+				this.settings.tagAndOr = 1;
+				//warn about tag changes.
+				await this.LatestChangesModal()
+			}
+
+			//Update the version number. It will save me headaches later.
+			if ((!this.settings.version) || (isOlder(this.settings.version, this.manifest.version))) {
+				this.settings.version = this.manifest.version;
+				await this.saveSettings();
+			}
+		} catch (error) {
+			console.error('Failed to migrate data:', error);
+			return false; // Returning false indicates that the setting loading failed
+		}
+		return true; // Returning true indicates that the settings are loaded successfully
 	}
 
 	async saveSettings() {
@@ -818,24 +833,6 @@ export default class TickTickSync extends Plugin {
 		this.settings.syncLock = true;
 		await this.saveSettings();
 		return true;
-	}
-
-	private isOlder(version1: string, version2: string) {
-		const v1 = version1.split('.');
-		const v2 = version2.split('.');
-
-		for (let i = 0; i < Math.max(v1.length, v2.length); i++) {
-			const num1 = parseInt(v1[i] || 0);
-			const num2 = parseInt(v2[i] || 0);
-
-			if (num1 < num2) {
-				return true;
-			} else if (num1 > num2) {
-				return false;
-			}
-		}
-
-		return false;
 	}
 
 

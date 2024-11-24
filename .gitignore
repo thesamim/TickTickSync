@@ -24,4 +24,7 @@ userData
 
 # Exclude macOS Finder (System Explorer) View States
 .DS_Store
-dist/emptyData.json
+
+dist/
+
+pnpm-lock.yaml

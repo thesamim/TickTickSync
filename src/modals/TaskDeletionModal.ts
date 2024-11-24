@@ -1,5 +1,4 @@
 import {App, Modal, Setting} from "obsidian";
-import TickTickSync from "../../main";
 
 
 export class TaskDeletionModal extends Modal {

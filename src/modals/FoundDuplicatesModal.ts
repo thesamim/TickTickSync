@@ -1,5 +1,5 @@
 import {App, Modal, Plugin, Setting} from "obsidian";
-import TickTickSync from "../../main";
+import TickTickSync from "@/main";
 
 
 export class FoundDuplicatesModal extends Modal {

@@ -107,7 +107,7 @@ const taskRegex = new RegExp(
 );
 /*End of stolen regex*/
 
-const REGEX = {
+export const REGEX = {
 	//hopefully tighter find.
 	TickTick_TAG: new RegExp(`^[\\s]*[-] \\[[x ]\\] [\\s\\S]*${keywords.TickTick_TAG}[\\s\\S]*$`, "i"),
 
