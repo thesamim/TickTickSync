@@ -4,7 +4,7 @@ import "@/static/styles.css";
 import {Editor, MarkdownView, Notice, Plugin, TFolder} from 'obsidian';
 
 //settings
-import {DEFAULT_SETTINGS, TickTickSyncSettings} from './settings';
+import {DEFAULT_SETTINGS, ITickTickSyncSettings} from './settings';
 //TickTick api
 import {TickTickRestAPI} from './TicktickRestAPI';
 import {TickTickSyncAPI} from './TicktickSyncAPI';
@@ -23,21 +23,35 @@ import {SetDefaultProjectForFileModal} from './modals/DefaultProjectModal';
 import {ConfirmFullSyncModal} from "./modals/LatestChangesModal"
 import {isOlder} from "./utils/version";
 import {TickTickSyncSettingTab} from "./ui/settings";
+import {TickTickService} from "@/services";
 
 
 export default class TickTickSync extends Plugin {
-	settings: TickTickSyncSettings;
-	tickTickRestAPI: TickTickRestAPI | undefined | null;
+	settings: ITickTickSyncSettings;
+	service: TickTickService;
+
+	tickTickRestAPI?: TickTickRestAPI;
 	tickTickSyncAPI: TickTickSyncAPI | undefined;
 	taskParser: TaskParser | undefined;
 	cacheOperation: CacheOperation | undefined;
 	fileOperation: FileOperation | undefined;
 	tickTickSync: SyncMan | undefined;
 	lastLines: Map<string, number>;
-	statusBar: any;
+	statusBar: HTMLElement;
 	syncLock: boolean;
 
+	initialized: boolean = false;
+
 	async onload() {
+
+		const isSettingsLoaded = await this.loadSettings();
+		if (!isSettingsLoaded) {
+			new Notice('Settings failed to load. Please reload the TickTickSync plugin.');
+			return;
+		}
+
+		// This adds a settings tab so the user can configure various aspects of the plugin
+		this.addSettingTab(new TickTickSyncSettingTab(this.app, this));
 
 		// const queryInjector = new QueryInjector(this);
 		// this.registerMarkdownCodeBlockProcessor(
@@ -45,14 +59,6 @@ export default class TickTickSync extends Plugin {
 		// 	queryInjector.onNewBlock.bind(queryInjector),
 		// );
 
-		// This adds a settings tab so the user can configure various aspects of the plugin
-		this.addSettingTab(new TickTickSyncSettingTab(this.app, this));
-
-		const isSettingsLoaded = await this.loadSettings();
-		if (!isSettingsLoaded) {
-			new Notice('Settings failed to load. Please reload the TickTickSync plugin.');
-			return;
-		}
 
 		this.settings.apiInitialized = false;
 		try {
@@ -419,7 +425,7 @@ export default class TickTickSync extends Plugin {
 			return;
 		}
 
-		if (!this.settings.initialized) {
+		if (!this.initialized) {
 
 			//Create a backup folder to back up TickTick data
 			try {
@@ -458,7 +464,7 @@ export default class TickTickSync extends Plugin {
 
 
 			//Initialize settings
-			this.settings.initialized = true;
+			this.initialized = true;
 			await this.saveSettings();
 			new Notice(`TickTickSync initialization successful. TickTick data has been backed up.`);
 
