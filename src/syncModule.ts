@@ -1,4 +1,4 @@
-import TickTickSync from "../main";
+import TickTickSync from "@/main";
 import {App, Editor, EditorPosition, MarkdownView, Notice, TFile, TFolder} from 'obsidian';
 import { ITask } from './api/types/Task';
 import ObjectID from 'bson-objectid';

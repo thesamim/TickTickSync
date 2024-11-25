@@ -1,5 +1,5 @@
 import {App, Notice, TFile, TFolder} from 'obsidian';
-import TickTickSync from "../main";
+import TickTickSync from "@/main";
 import { ITask } from './api/types/Task';
 import {TaskDeletionModal} from "./modals/TaskDeletionModal";
 

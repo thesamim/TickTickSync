@@ -4,6 +4,7 @@ import {TickTickRestAPI} from "@/TicktickRestAPI";
 import {ConfirmFullSyncModal} from "@/modals/ConfirmFullSyncModal";
 import {FolderSuggest} from "@/utils/FolderSuggester";
 import TickTickSync from "@/main";
+import {getSettings, updateSettings} from "@/settings";
 
 const PROVIDER_OPTIONS: Record<string, string> = {"ticktick.com": "TickTick", "dida365.com": "Dida365"} as const;
 const TAGS_BEHAVIOR: Record<number, string> = {1: "AND", 2: "OR"} as const;
@@ -49,11 +50,21 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 
 	 */
 
+	private async saveSettings(update?: boolean): Promise<void> {
+		await this.plugin.saveSettings();
+		if (update) {
+			await this.display();
+		}
+	}
+
+	/*
+
+	 */
+
 	private addAuthBlock(containerEl: HTMLElement) {
 
 		containerEl.createEl('hr');
 		containerEl.createEl('h1', {text: 'Access Control'});
-		let userName: string;
 		let userPassword: string;
 
 		new Setting(containerEl)
@@ -76,9 +87,10 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 			.setDesc('...')
 			.addText(text => text
 				.setPlaceholder('User Name')
-				.setValue("")
+				.setValue(getSettings().username || "")
 				.onChange(async (value) => {
-					userName = value;
+					updateSettings({username: value});
+					await this.saveSettings(false);
 				})
 			);
 
@@ -101,7 +113,7 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 				loginBtn.setButtonText("Login");
 				loginBtn.setTooltip("Click To Login")
 				loginBtn.onClick( async () => {
-					await this.loginHandler(userName, userPassword)
+					await this.loginHandler(getSettings().username, userPassword)
 				})
 			})
 	}
@@ -368,7 +380,7 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 	
 	 */
 	
-	private async loginHandler(username: string, password: string) {
+	private async loginHandler(username?: string, password?: string) {
 		if (!username || !password || username.length < 1 || password.length < 1) {
 			new Notice("Please fill in both Username and Password")
 			return;

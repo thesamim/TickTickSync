@@ -4,7 +4,7 @@ import "@/static/styles.css";
 import {Editor, MarkdownView, Notice, Plugin, TFolder} from 'obsidian';
 
 //settings
-import {DEFAULT_SETTINGS, ITickTickSyncSettings} from './settings';
+import {DEFAULT_SETTINGS, ITickTickSyncSettings, updateSettings} from './settings';
 //TickTick api
 import {TickTickRestAPI} from './TicktickRestAPI';
 import {TickTickSyncAPI} from './TicktickSyncAPI';
@@ -28,7 +28,7 @@ import {TickTickService} from "@/services";
 
 export default class TickTickSync extends Plugin {
 	settings: ITickTickSyncSettings;
-	service: TickTickService;
+	service: TickTickService = new TickTickService(this);
 
 	tickTickRestAPI?: TickTickRestAPI;
 	tickTickSyncAPI: TickTickSyncAPI | undefined;
@@ -333,50 +333,54 @@ export default class TickTickSync extends Plugin {
 	async loadSettings() {
 		try {
 			const data = await this.loadData();
+
+			try {
+				//TODO move to migrate separate function
+				//We're going to handle data structure conversions here.
+				if (!data.version) {
+					const fileMetaDataStructure = data.fileMetadata;
+					for (const file in fileMetaDataStructure) {
+						const oldTasksHolder = fileMetaDataStructure[file]; //an array of tasks.
+						let newTasksHolder = {};
+						newTasksHolder = {
+							TickTickTasks: oldTasksHolder.TickTickTasks.map((taskIDString) => ({
+								taskId: taskIDString, taskItems: [] //TODO: Validate that the assumption that the next sync will fill these correctly.
+							})), TickTickCount: oldTasksHolder.TickTickCount, defaultProjectId: oldTasksHolder.defaultProjectId
+						};
+						fileMetaDataStructure[file] = newTasksHolder;
+					}
+					//Force a sync
+					if (this.settings && this.settings.apiInitialized) {
+						await this.scheduledSynchronization();
+					}
+				}
+				if ((!data.version) || (isOlder(data.version, '1.0.10'))) {
+					//get rid of username and password. we don't need them no more.
+					//delete data.username; //keep username for info
+					// @ts-ignore
+					delete data.password;
+				}
+				if ((!data.version) || (isOlder(data.version, '1.0.36'))) {
+					//default to AND because that's what we used to do:
+					data.tagAndOr = 1;
+					//warn about tag changes.
+					await this.LatestChangesModal()
+				}
+
+				//Update the version number. It will save me headaches later.
+				if ((!data.version) || (isOlder(data.version, this.manifest.version))) {
+					data.version = this.manifest.version;
+					await this.saveSettings();
+				}
+			} catch (error) {
+				console.error('Failed to migrate data:', error);
+				return false; // Returning false indicates that the setting loading failed
+			}
+
+			updateSettings(data);
 			this.settings = Object.assign({}, DEFAULT_SETTINGS, data);
 		} catch (error) {
 			console.error('Failed to load data:', error);
-			return false; // Returning false indicates that the setting loading failed
-		}
-		try {
-			//TODO move to migrate separate function
-			//We're going to handle data structure conversions here.
-			if (!this.settings.version) {
-				const fileMetaDataStructure = this.settings.fileMetadata;
-				for (const file in fileMetaDataStructure) {
-					const oldTasksHolder = fileMetaDataStructure[file]; //an array of tasks.
-					let newTasksHolder = {};
-					newTasksHolder = {
-						TickTickTasks: oldTasksHolder.TickTickTasks.map((taskIDString) => ({
-							taskId: taskIDString, taskItems: [] //TODO: Validate that the assumption that the next sync will fill these correctly.
-						})), TickTickCount: oldTasksHolder.TickTickCount, defaultProjectId: oldTasksHolder.defaultProjectId
-					};
-					fileMetaDataStructure[file] = newTasksHolder;
-				}
-				//Force a sync
-				if (this.settings && this.settings.apiInitialized) {
-					await this.scheduledSynchronization();
-				}
-			}
-			if ((!this.settings.version) || (isOlder(this.settings.version, '1.0.10'))) {
-				//get rid of username and password. we don't need them no more.
-				delete this.settings.username;
-				delete this.settings.password;
-			}
-			if ((!this.settings.version) || (isOlder(this.settings.version, '1.0.36'))) {
-				//default to AND because that's what we used to do:
-				this.settings.tagAndOr = 1;
-				//warn about tag changes.
-				await this.LatestChangesModal()
-			}
-
-			//Update the version number. It will save me headaches later.
-			if ((!this.settings.version) || (isOlder(this.settings.version, this.manifest.version))) {
-				this.settings.version = this.manifest.version;
-				await this.saveSettings();
-			}
-		} catch (error) {
-			console.error('Failed to migrate data:', error);
 			return false; // Returning false indicates that the setting loading failed
 		}
 		return true; // Returning true indicates that the settings are loaded successfully

@@ -1,7 +1,7 @@
 import {Tick} from './api'
 import {ITask} from "./api/types/Task"
 import {App, Notice} from 'obsidian';
-import TickTickSync from "../main";
+import TickTickSync from "@/main";
 import {IProject} from './api/types/Project';
 
 export class TickTickRestAPI {
@@ -9,7 +9,7 @@ export class TickTickRestAPI {
 	plugin: TickTickSync;
 	api: Tick | null;
 	token: string;
-	baseUrl: string;
+	baseURL: string;
 
 	constructor(app: App, plugin: TickTickSync, api: Tick|null) {
 		//super(app,settings);

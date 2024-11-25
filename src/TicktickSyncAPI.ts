@@ -1,5 +1,5 @@
 import { App} from 'obsidian';
-import TickTickSync from "../main";
+import TickTickSync from "@/main";
 
 
 type Event = {

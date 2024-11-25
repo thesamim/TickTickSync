@@ -2,9 +2,18 @@ import {IProject} from "@/api/types/Project";
 
 export interface ITickTickSyncSettings {
 	baseURL: string;
+	username?: string;
 	token?: string;
 	version?: string;
 	automaticSynchronizationInterval: number;
+	enableFullVaultSync: boolean;
+	tagAndOr: number; // 1 == And ; 2 == Or
+	debugMode: boolean;
+	SyncProject: string;
+	SyncTag: string;
+	defaultProjectId: string;
+	defaultProjectName: string;
+	TickTickTasksFilePath: string;
 
 	//TODO look like one cache object
 	inboxID: string;
@@ -13,24 +22,23 @@ export interface ITickTickSyncSettings {
 	TickTickTasksData: {"projects": IProject[], "tasks": []};
 
 
-	SyncProject: any;
-	SyncTag: any;
 	apiInitialized: boolean;
-	defaultProjectName: string;
-	defaultProjectId: string;
-	TickTickTasksFilePath: string;
 	fileMetadata: any;
-	enableFullVaultSync: boolean;
 	statistics: any;
-	debugMode: boolean;
 	syncLock: boolean;
-	tagAndOr: number; // 1 == And ; 2 == Or
 }
-
 
 export const DEFAULT_SETTINGS: ITickTickSyncSettings = {
 	baseURL: 'ticktick.com',
 	automaticSynchronizationInterval: 300, //default aync interval 300s
+	enableFullVaultSync: false,
+	tagAndOr: 1,
+	debugMode: false,
+	SyncProject: "",
+	SyncTag: "",
+	defaultProjectId: "",
+	defaultProjectName: "Inbox",
+	TickTickTasksFilePath: "/",
 
 	inboxID: "",
 	inboxName: "",
@@ -38,15 +46,22 @@ export const DEFAULT_SETTINGS: ITickTickSyncSettings = {
 	TickTickTasksData: {"projects": [], "tasks": []},
 
 
-	defaultProjectId: "",
 	apiInitialized: false,
-	defaultProjectName: "Inbox",
 	fileMetadata: {},
-	enableFullVaultSync: false,
 	statistics: {},
-	debugMode: false,
-	TickTickTasksFilePath: "/",
-	SyncProject: "",
-	SyncTag: "",
 	syncLock: false
 }
+
+//two places for settings, move all ref from main to here
+//username
+
+let settings: ITickTickSyncSettings = { ...DEFAULT_SETTINGS };
+
+export const getSettings = (): ITickTickSyncSettings => {
+	return settings;
+}
+
+export const updateSettings = (newSettings: Partial<ITickTickSyncSettings>): ITickTickSyncSettings => {
+	settings = { ...settings, ...newSettings } as const;
+	return getSettings();
+};
