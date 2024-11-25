@@ -224,27 +224,24 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 		containerEl.createEl('hr');
 		new Setting(containerEl)
 			.setName('Automatic sync interval time')
-			.setDesc('Please specify the desired interval time, with seconds as the default unit. The default setting is 300 seconds, which corresponds to syncing once every 5 minutes. You can customize it, but it cannot be lower than 20 seconds.')
+			.setDesc('Please specify the desired interval time, with seconds as the default unit. 0 for manual sync. The default setting is 300 seconds, which corresponds to syncing once every 5 minutes. You can customize it, but it cannot be lower than 20 seconds.')
 			.addText((text) =>
 				text
 					.setPlaceholder('Sync interval')
-					.setValue(this.plugin.settings.automaticSynchronizationInterval.toString())
+					.setValue(getSettings().automaticSynchronizationInterval.toString())
 					.onChange(async (value) => {
 						const intervalNum = Number(value)
-						if (isNaN(intervalNum)) {
-							new Notice(`Wrong type, please enter a number.`)
+						if (isNaN(intervalNum) || !Number.isInteger(intervalNum)) {
+							new Notice(`Wrong type, please enter a integer.`)
 							return
 						}
-						if (intervalNum < 20) {
+						if (intervalNum !== 0 && intervalNum < 20) {
 							new Notice(`The synchronization interval time cannot be less than 20 seconds.`)
 							return
 						}
-						if (!Number.isInteger(intervalNum)) {
-							new Notice('The synchronization interval must be an integer.');
-							return;
-						}
-						this.plugin.settings.automaticSynchronizationInterval = intervalNum;
-						await this.plugin.saveSettings()
+						updateSettings({automaticSynchronizationInterval: intervalNum});
+						await this.saveSettings()
+						this.plugin.reloadInterval();
 						new Notice('Settings have been updated.');
 						//
 					})

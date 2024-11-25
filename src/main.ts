@@ -84,6 +84,44 @@ export default class TickTickSync extends Plugin {
 		// });
 		// }
 
+		this.registerEvents();
+
+
+		// set default project for TickTick task in the current file
+		// This adds an editor command that can perform some operation on the current editor instance
+		this.addCommand({
+			id: 'set-default-project-for-TickTick-task-in-the-current-file',
+			name: 'Set default TickTick project for Tasks in the current file',
+			editorCallback: (editor: Editor, view: MarkdownView) => {
+				if (!view) {
+					return;
+				}
+				const filepath = view.file.path;
+				new SetDefaultProjectForFileModal(this.app, this, filepath);
+
+			}
+		});
+
+		//display default project for the current file on status bar
+		// This adds a status bar item to the bottom of the app. Does not work on mobile apps.
+		this.statusBar = this.addStatusBarItem();
+		console.log(`${this.manifest.name} ${this.manifest.version} loaded!`);
+	}
+
+	private syncInterval?: number;
+	reloadInterval() {
+		if (this.syncInterval) {
+			window.clearInterval(this.syncInterval);
+			this.syncInterval = undefined;
+		}
+		const timeout = getSettings().automaticSynchronizationInterval * 1000;
+		if (timeout === 0) {
+			return;
+		}
+		this.syncInterval = window.setInterval(this.scheduledSynchronization, timeout);
+	}
+
+	private registerEvents() {
 		//Key event monitoring, judging line breaks and deletions
 		this.registerDomEvent(document, 'keyup', async (evt: KeyboardEvent) => {
 			if (!this.settings.apiInitialized) {
@@ -297,36 +335,16 @@ export default class TickTickSync extends Plugin {
 			}
 		}));
 
-		this.registerInterval(window.setInterval(async () => await this.scheduledSynchronization(), this.settings.automaticSynchronizationInterval * 1000));
-
 		this.registerEvent(this.app.workspace.on('active-leaf-change', async (leaf) => {
 			await this.setStatusBarText();
 		}));
-
-
-		// set default project for TickTick task in the current file
-		// This adds an editor command that can perform some operation on the current editor instance
-		this.addCommand({
-			id: 'set-default-project-for-TickTick-task-in-the-current-file',
-			name: 'Set default TickTick project for Tasks in the current file',
-			editorCallback: (editor: Editor, view: MarkdownView) => {
-				if (!view) {
-					return;
-				}
-				const filepath = view.file.path;
-				new SetDefaultProjectForFileModal(this.app, this, filepath);
-
-			}
-		});
-
-		//display default project for the current file on status bar
-		// This adds a status bar item to the bottom of the app. Does not work on mobile apps.
-		this.statusBar = this.addStatusBarItem();
-		console.log(`${this.manifest.name} ${this.manifest.version} loaded!`);
-	}
+    }
 
 
 	async onunload() {
+		if (this.syncInterval) {
+			window.clearInterval(this.syncInterval);
+		}
 		console.log(`TickTickSync unloaded!`);
 	}
 
@@ -397,6 +415,7 @@ export default class TickTickSync extends Plugin {
 						username: getSettings().username,
 						token: getSettings().token,
 						inboxID: getSettings().inboxID,
+						automaticSynchronizationInterval: getSettings().automaticSynchronizationInterval,
 					});
 			} else {
 				console.error('Settings are empty or invalid, not saving to avoid data loss.');
@@ -636,7 +655,7 @@ export default class TickTickSync extends Plugin {
 
 	//return true
 	checkModuleClass() {
-		if (this.settings.apiInitialized === true) {
+		if (this.settings.apiInitialized) {
 			if (this.tickTickRestAPI === undefined || this.tickTickSyncAPI === undefined || this.cacheOperation === undefined || this.fileOperation === undefined || this.tickTickSync === undefined || this.taskParser === undefined) {
 				this.initializeModuleClass();
 			}
