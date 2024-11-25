@@ -5,8 +5,8 @@
 	"main": "main.js",
 	"scripts": {
 		"check": "tsc --noEmit",
-		"dev": " VITE_ENV=dev vite build --watch",
-		"build": "vite build",
+		"dev": " vite build --mode development --watch",
+		"build": "vite build --mode production",
 		"test": "vitest"
 	},
 	"keywords": [

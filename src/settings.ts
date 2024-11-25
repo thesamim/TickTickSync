@@ -53,7 +53,6 @@ export const DEFAULT_SETTINGS: ITickTickSyncSettings = {
 }
 
 //two places for settings, move all ref from main to here
-//username
 
 let settings: ITickTickSyncSettings = { ...DEFAULT_SETTINGS };
 

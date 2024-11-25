@@ -4,7 +4,7 @@ import "@/static/styles.css";
 import {Editor, MarkdownView, Notice, Plugin, TFolder} from 'obsidian';
 
 //settings
-import {DEFAULT_SETTINGS, ITickTickSyncSettings, updateSettings} from './settings';
+import {DEFAULT_SETTINGS, getSettings, ITickTickSyncSettings, updateSettings} from './settings';
 //TickTick api
 import {TickTickRestAPI} from './TicktickRestAPI';
 import {TickTickSyncAPI} from './TicktickSyncAPI';
@@ -390,7 +390,14 @@ export default class TickTickSync extends Plugin {
 		try {
 			// Verify that the setting exists and is not empty
 			if (this.settings && Object.keys(this.settings).length > 0) {
-				await this.saveData(this.settings);
+				await this.saveData( //TODO: migrate to getSettings
+					{
+						...this.settings,
+						baseURL: getSettings().baseURL,
+						username: getSettings().username,
+						token: getSettings().token,
+						inboxID: getSettings().inboxID,
+					});
 			} else {
 				console.error('Settings are empty or invalid, not saving to avoid data loss.');
 			}

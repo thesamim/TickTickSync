@@ -1,6 +1,7 @@
 import { App } from 'obsidian';
 import TickTickSync from '@/main';
 import { ITask } from './api/types/Task';
+import {getSettings} from "@/settings";
 
 
 interface dataviewTaskObject {
@@ -749,9 +750,9 @@ export class TaskParser {
 	createURL(newTaskId: string, projectId: string): string {
 		let url = '';
 		if (projectId) {
-			url = `https://${this.plugin.settings.baseURL}/webapp/#p/${projectId}/tasks/${newTaskId}`;
+			url = `https://${getSettings().baseURL}/webapp/#p/${projectId}/tasks/${newTaskId}`;
 		} else {
-			url = `https://${this.plugin.settings.baseURL}/webapp/#q/all/tasks/${newTaskId}`;
+			url = `https://${getSettings().baseURL}/webapp/#q/all/tasks/${newTaskId}`;
 		}
 		return url;
 	}

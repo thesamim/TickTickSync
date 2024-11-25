@@ -113,29 +113,27 @@ export class Tick {
 	}
 
 	// USER ======================================================================
-	async login(): Promise<boolean> {
+	async login(): Promise<{ inboxId: string; token: string } | null> {
 		try {
-			let ret = false;
 			const url = `${this.loginUrl}/${signInEndPoint}`;
 			const body = {
 				username: this.username,
 				password: this.password
 			};
-
 			const response = await this.makeRequest('Login', url, 'POST', body);
 			console.log('Signed in Response: ', response);
-			if (response) {
-				this.token = response.token;
-				this.inboxProperties.id = response.inboxId;
-				ret = await this.getInboxProperties();
+			if (response && response.token) {
+				//token userId userCode username teamPro proEndDate needSubscribe inboxId teamUser activeTeamUser freeTrial pro ds
+				return {
+					token: response.token,
+					inboxId: response.inboxId
+				};
 			}
-			return ret;
-		} catch (e: any) {
-			this.setError('Login', null, e);
-			console.error(e);
-
-			return false;
+		} catch (error) {
+			this.setError('Login', null, error);
+			console.error(error);
 		}
+		return null;
 	}
 
 	async getUserSettings(): Promise<any[] | null> {
@@ -159,7 +157,6 @@ export class Tick {
 
 	async getInboxProperties(): Promise<boolean> {
 		try {
-
 			for (let i = 0; i < 10; i++) {
 				const url = `${this.apiUrl}/${allTasksEndPoint}` + this._checkpoint;
 				// console.log("url ", url)

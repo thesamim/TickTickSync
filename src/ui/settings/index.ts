@@ -1,5 +1,4 @@
 import {App, Notice, PluginSettingTab, SearchComponent, Setting, TFolder} from "obsidian";
-import {Tick} from "@/api";
 import {TickTickRestAPI} from "@/TicktickRestAPI";
 import {ConfirmFullSyncModal} from "@/modals/ConfirmFullSyncModal";
 import {FolderSuggest} from "@/utils/FolderSuggester";
@@ -74,10 +73,10 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 			.addDropdown(component =>
 				component
 					.addOptions(PROVIDER_OPTIONS)
-					.setValue(this.plugin.settings.baseURL)
+					.setValue(getSettings().baseURL)
 					.onChange(async (value: string) => {
-						this.plugin.settings.baseURL = value
-						await this.plugin.saveSettings();
+						updateSettings({baseURL: value});
+						await this.saveSettings();
 					})
 			);
 		//Re-instate userid, password login because I can't be shagged to figure out putting up a browser window on
@@ -90,7 +89,7 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 				.setValue(getSettings().username || "")
 				.onChange(async (value) => {
 					updateSettings({username: value});
-					await this.saveSettings(false);
+					await this.saveSettings();
 				})
 			);
 
@@ -107,13 +106,13 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName("Login")
-			.setDesc(this.plugin.settings.token ? "You are logged in. You can re-login here." : "Please login here.")
+			.setDesc(getSettings().token ? "You are logged in. You can re-login here." : "Please login here.")
 			.addButton(loginBtn => {
 				loginBtn.setClass('ts_login_button');
 				loginBtn.setButtonText("Login");
 				loginBtn.setTooltip("Click To Login")
 				loginBtn.onClick( async () => {
-					await this.loginHandler(getSettings().username, userPassword)
+					await this.loginHandler(getSettings().baseURL, getSettings().username, userPassword)
 				})
 			})
 	}
@@ -380,66 +379,41 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 	
 	 */
 	
-	private async loginHandler(username?: string, password?: string) {
-		if (!username || !password || username.length < 1 || password.length < 1) {
+	private async loginHandler(baseUrl?: string, username?: string, password?: string) {
+		if (!baseUrl || !username || !password ||
+			baseUrl.length < 1 || username.length < 1 || password.length < 1) {
 			new Notice("Please fill in both Username and Password")
 			return;
 		}
 
-		const cleanApiToken = async () => {
-			this.plugin.settings.token = undefined;
-			this.plugin.settings.apiInitialized = false;
-			this.plugin.tickTickRestAPI = undefined;
-			await this.plugin.saveSettings();
-			// console.log("Before: ", this.plugin.tickTickRestAPI);
-			// delete this.plugin.tickTickRestAPI
-			// console.log("After: ", this.plugin.tickTickRestAPI);
-		}
-
-		if (this.plugin.tickTickRestAPI) {
-			await cleanApiToken();
-		}
-		const api = new Tick({
-			username: username,
-			password: password,
-			baseUrl: this.plugin.settings.baseURL,
-			token: "",
-			checkPoint: this.plugin.settings.checkPoint
-		});
-		// console.log("Gonna login: ", api);
-		const loggedIn = await api.login();
-		if (!loggedIn) {
-			await cleanApiToken();
-			let errMsg = "Login Failed. "
-			if (api.lastError) {
-				console.log("Last Error: ", api.lastError);
-				errMsg = errMsg + JSON.stringify(api.lastError)
-				errMsg = errMsg.replace(/{/g, '\n').replace(/}/g, '\n').replace(/,/g, '\n')
-			} else {
-				errMsg = errMsg + "\nUnknown error occurred.";
-			}
-			new Notice(errMsg, 0);
+		const info = await this.plugin.service.login(baseUrl, username, password);
+		if (!info) {
+			new Notice("Login Failed. ")
 			return;
 		}
 
-		this.plugin.settings.token = api.token;
+		const oldInboxId = getSettings().inboxID;
+		if (oldInboxId.length > 0 &&  oldInboxId != info.inboxId) {
+			//they've logged in with a different user id ask user about it.
+			new Notice("You are logged in with a different user ID.")
+		}
+
+		updateSettings({
+			token: info.token,
+			inboxID: info.inboxId,
+		});
+
 		this.plugin.settings.apiInitialized = true;
+		this.plugin.settings.checkPoint = 0;
+		this.plugin.tickTickRestAPI = new TickTickRestAPI(this.app, this.plugin, null);
+		this.plugin.tickTickRestAPI.token = info.token;
 
-		this.plugin.tickTickRestAPI = new TickTickRestAPI(this.app, this.plugin, api);
-		this.plugin.tickTickRestAPI.token = this.plugin.settings.token = api.token;
-
-		this.plugin.settings.inboxID = api.inboxId;
-		this.plugin.settings.inboxName = 'Inbox';
-		this.plugin.settings.checkPoint = api.checkpoint;
-
-		await this.plugin.saveSettings();
-
-		//it's first login right? Cache the projects for to get the rest of set up done.
-		new Notice('Logged in! Fetching projects', 5);
-		await this.plugin.cacheOperation?.saveProjectsToCache();
-		new Notice('Project Fetch complete.', 5);
-		await this.plugin.saveSettings();
-		await this.display();
+		//TODO: load projects and tags
+		// //it's first login right? Cache the projects for to get the rest of set up done.
+		// new Notice('Logged in! Fetching projects', 5);
+		// await this.plugin.cacheOperation?.saveProjectsToCache();
+		// new Notice('Project Fetch complete.', 5);
+		await this.saveSettings(true);
 	}
 
 	private getProjectTagText(myProjectsOptions: Record<string, string>) {
@@ -504,10 +478,9 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 		//check file metadata
 		console.log('checking file metadata')
 
-		let fileNum = await this.plugin.cacheOperation?.checkFileMetadata()
+		const fileNum = await this.plugin.cacheOperation?.checkFileMetadata()
 		console.log("Number of files: ", fileNum)
-		if (fileNum < 1) //nothing? really?
-		{
+		if (!fileNum || fileNum < 1){ //nothing? really?
 			console.log("File Metadata rebuild.");
 			const allMDFiles = this.app.vault.getMarkdownFiles();
 			allMDFiles.forEach(file => {
@@ -542,7 +515,7 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 					// console.log(`The task data of the ${taskId} is empty.`)
 					//get from TickTick
 					try {
-						taskObject = await this.plugin.tickTickRestAPI?.getTaskById(taskDetails.taskId, null);
+						taskObject = await this.plugin.tickTickRestAPI?.getTaskById(taskDetails.taskId);
 						if (taskObject && taskObject.deleted === 1) {
 							await this.plugin.cacheOperation?.deleteTaskIdFromMetadata(key, taskDetails.taskId)
 						}

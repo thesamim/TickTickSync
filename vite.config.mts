@@ -1,6 +1,6 @@
 import { resolve } from "path";
 import replace from "@rollup/plugin-replace";
-import { loadEnv } from "vite";
+import {loadEnv, UserConfig} from "vite";
 import { viteStaticCopy } from "vite-plugin-static-copy";
 import tsConfigPaths from "vite-tsconfig-paths";
 import { configDefaults, defineConfig } from "vitest/config";
@@ -20,51 +20,56 @@ function getOutDir(): string | undefined {
 	return path.join(vaultDir, ".obsidian", "plugins", "tickticksync");
 }
 
-export default defineConfig({
-	plugins: [
-		tsConfigPaths(),
-		viteStaticCopy({
-			targets: [
-				{
-					src: "./manifest.json",
-					dest: "",
-				},
-			],
-		}),
-		replace({
-			"process.env.NODE_ENV": JSON.stringify(process.env.NODE_ENV),
-		}),
-	],
-	build: {
-		// We aren't building a website, so we build in library mode
-		// and bundle the output using our index.ts as the entrypoint.
-		lib: {
-			entry: resolve(__dirname, "src/main.ts"),
-			fileName: "main",
-			formats: ["cjs"],
-		},
-		rollupOptions: {
-			external: ["obsidian"],
-			output: {
-				assetFileNames: (assetInfo) => {
-					if (assetInfo.name === "style.css") {
-						return "styles.css";
-					}
+export default defineConfig(async ({ mode }) => {
+	const prod = mode === 'production';
+	return {
+		plugins: [
+			tsConfigPaths(),
+			viteStaticCopy({
+				targets: [
+					{
+						src: "./manifest.json",
+						dest: "",
+					},
+				],
+			}),
+			replace({
+				"process.env.NODE_ENV": JSON.stringify(process.env.NODE_ENV),
+			}),
+		],
+		build: {
+			// We aren't building a website, so we build in library mode
+			// and bundle the output using our index.ts as the entrypoint.
+			lib: {
+				entry: resolve(__dirname, "src/main.ts"),
+				fileName: "main",
+				formats: ["cjs"],
+			},
+			minify: prod,
+			sourcemap: prod ? false : 'inline',
+			rollupOptions: {
+				external: ["obsidian"],
+				output: {
+					assetFileNames: (assetInfo) => {
+						if (assetInfo.name === "style.css") {
+							return "styles.css";
+						}
 
-					return assetInfo.name as string;
+						return assetInfo.name as string;
+					},
 				},
 			},
+			outDir: getOutDir(),
 		},
-		outDir: getOutDir(),
-	},
-	test: {
-		watch: false,
-		exclude: [...configDefaults.exclude, ".direnv/**/*"],
-		globals: true,
-		environment: "jsdom",
-		alias: {
-			obsidian: resolve(__dirname, "src/mocks/obsidian.ts"),
+		test: {
+			watch: false,
+			exclude: [...configDefaults.exclude, ".direnv/**/*"],
+			globals: true,
+			environment: "jsdom",
+			alias: {
+				obsidian: resolve(__dirname, "src/mocks/obsidian.ts"),
+			},
+			setupFiles: ["./vitest-setup.ts"],
 		},
-		setupFiles: ["./vitest-setup.ts"],
-	},
+	} as UserConfig;
 });

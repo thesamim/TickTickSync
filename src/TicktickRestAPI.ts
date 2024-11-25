@@ -3,6 +3,7 @@ import {ITask} from "./api/types/Task"
 import {App, Notice} from 'obsidian';
 import TickTickSync from "@/main";
 import {IProject} from './api/types/Project';
+import {getSettings} from "@/settings";
 
 export class TickTickRestAPI {
 	app: App;
@@ -15,8 +16,8 @@ export class TickTickRestAPI {
 		//super(app,settings);
 		this.app = app;
 		this.plugin = plugin;
-		this.token = this.plugin.settings.token;
-		this.baseURL = this.plugin.settings.baseURL;
+		this.token = getSettings().token;
+		this.baseURL = getSettings().baseURL;
 
 		if (!this.token || this.token === "" ) {
 			new Notice("Please login from Settings.", 0)
@@ -32,10 +33,10 @@ export class TickTickRestAPI {
 			}
 			if (!api) {
 				this.api = new Tick({
-					baseUrl: this.plugin.settings.baseURL,
+					baseUrl: getSettings().baseURL,
 					token: this.token,
 					checkPoint: this.plugin.settings.checkPoint });
-				this.api.inboxProperties = {id: this.plugin.settings.inboxID, sortOrder: 0 }
+				this.api.inboxProperties = {id: getSettings().inboxID, sortOrder: 0 }
 				this.plugin.settings.checkPoint = this.api.checkpoint;
 			} else {
 				this.api = api;
@@ -60,12 +61,12 @@ export class TickTickRestAPI {
 
 					await this.api?.getInboxProperties()
 					let bSaveSettings = false;
-					if (this.plugin.settings.inboxID != this.api?.inboxId) {
+					if (getSettings().inboxID != this.api?.inboxId) {
 						//they've logged in with a different user id!
 						bSaveSettings = true;
 					}
-					this.plugin.settings.inboxID = this.api?.inboxId;
-					this.token = this.plugin.settings.token = this.api?.token;
+					//this.plugin.settings.inboxID = this.api?.inboxId;
+					//this.token = this.plugin.settings.token = this.api?.token;
 
 					//TickTick doesn't allow default Inbox to be renamed. This is safe to do.
 					this.plugin.settings.inboxName = "Inbox"
@@ -219,7 +220,7 @@ export class TickTickRestAPI {
 
 
 	// get a task by Id
-	async getTaskById(taskId: string, projectId: string): Promise<ITask|null|undefined> {
+	async getTaskById(taskId: string, projectId?: string): Promise<ITask|null|undefined> {
 		await this.initializeAPI();
 		if (!taskId) {
 			throw new Error('taskId is required');

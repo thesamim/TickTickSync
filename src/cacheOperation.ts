@@ -3,6 +3,7 @@ import TickTickSync from "@/main";
 import { ITask } from './api/types/Task';
 import { IProject } from '@/api/types//Project';
 import {FoundDuplicatesModal} from "./modals/FoundDuplicatesModal";
+import {getSettings} from "@/settings";
 
 // type TaskDetail = {
 //     taskId: string,
@@ -319,7 +320,7 @@ export class CacheOperation {
 
 		let filePath = "";
 
-		if ((projectId === this.plugin.settings.inboxID) ||
+		if ((projectId === getSettings().inboxID) ||
 			(projectId === this.plugin.settings.defaultProjectId)){ //highly unlikely, but just in case
 			//They don't have a file for the Inbox. If they have a default project, return that.
 			if (this.plugin.settings.defaultProjectName) {
@@ -632,7 +633,7 @@ export class CacheOperation {
 			//const projectSections = await this.plugin.tickTickRestAPI?.getProjectSections("")''
 			//Moving this here because if they have a list named Inbox, bad shit will happen.
 			let inboxProject = {
-				id: this.plugin.settings.inboxID,
+				id: getSettings().inboxID,
 				name: this.plugin.settings.inboxName
 			};
 

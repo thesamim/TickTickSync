@@ -5,6 +5,7 @@ import ObjectID from 'bson-objectid';
 import {TaskDetail} from "./cacheOperation"
 import {RegExpMatchArray} from 'typescript';
 import {TaskDeletionModal} from "./modals/TaskDeletionModal";
+import {getSettings} from "@/settings";
 
 type deletedTask = {
 	taskId: string,
@@ -408,7 +409,7 @@ export class SyncMan {
 						noticeMessage = `Task ${lineTask_ticktick_id}: ${lineTaskTitle} has moved from ` +
 							`${await this.plugin.cacheOperation?.getProjectNameByIdFromCache(savedTask.projectId)} to ` +
 							`${await this.plugin.cacheOperation?.getProjectNameByIdFromCache(lineTask.projectId)} \n` +
-							`If any children were moved, they will be updated to ${this.plugin.settings.baseURL} on the next Sync event`
+							`If any children were moved, they will be updated to ${getSettings().baseURL} on the next Sync event`
 					} else if (projectMoved) {
 						if (this.plugin.settings.debugMode) {
 							console.log("Project Moved");
@@ -416,7 +417,7 @@ export class SyncMan {
 						noticeMessage = `Task ${lineTask_ticktick_id}: ${lineTaskTitle} has moved from ` +
 							`${oldFilePath} to ` +
 							`${filepath} \n` +
-							`If any children were moved, they will be updated to ${this.plugin.settings.baseURL} on the next Sync event`
+							`If any children were moved, they will be updated to ${getSettings().baseURL} on the next Sync event`
 					}
 					new Notice(noticeMessage, 0);
 					if (this.plugin.settings.debugMode) {
@@ -435,7 +436,7 @@ export class SyncMan {
 					let noticeMessage = `Task ${lineTask_ticktick_id}:\n${this.plugin.taskParser?.stripOBSUrl(lineTaskTitle).trim()}\n` +
 						`used to be a child of:\n${oldParent ? oldParent.title.trim() : "No old parent found"}\n` +
 						`but is now a child of:\n${newParent ? newParent.title.trim() : "No new parent found."}\n`+
-						`If any children were moved, they will be updated to ${this.plugin.settings.baseURL} on the next Sync event`
+						`If any children were moved, they will be updated to ${getSettings().baseURL} on the next Sync event`
 					await this.plugin.tickTickRestAPI?.moveTaskParent(lineTask_ticktick_id, lineTask.parentId, lineTask.projectId)
 
 					new Notice(noticeMessage, 0)
