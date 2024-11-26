@@ -14,7 +14,7 @@ export class TickTickService {
 
 	initialized: boolean = false;
 	plugin: TickTickSync;
-	tickTickSync?: SyncMan;
+	tickTickSync!: SyncMan;
 	api?: Tick;
 	cacheOperation?: CacheOperation;
 	fileOperation?: FileOperation;
@@ -69,20 +69,21 @@ export class TickTickService {
 
 	async synchronization() {
 		try {
-			await doWithLock(LOCK_TASKS, async () => {
-				await this.syncTickTickToObsidian();
+			const bChanged = await doWithLock(LOCK_TASKS, async () => {
+				return await this.syncTickTickToObsidian();
 			});
+			if (bChanged) {
+				//the file system is farckled. Wait until next sync to avoid race conditions.
+				return;
+			}
 			await this.syncFiles();
 		} catch (error) {
 			console.info('Error on synchronization:', error);
 		}
 	}
 
-	private async syncTickTickToObsidian(){
-		const result = await this.tickTickSync?.syncTickTickToObsidian();
-		if (!result) { //MB find other way to check for success.
-			throw new Error("syncTickTickToObsidian failed");
-		}
+	private async syncTickTickToObsidian(): Promise<boolean> {
+		return this.tickTickSync.syncTickTickToObsidian();
 	}
 
 	private async syncFiles(){

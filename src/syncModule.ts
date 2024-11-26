@@ -945,7 +945,14 @@ export class SyncMan {
 		}
 	}
 
-	async syncTickTickToObsidian() {
+	/*
+	 * Synchronizes the tasks between TickTick and Obsidian.
+	 * //TODO: split this function into smaller functions
+	 * return:
+	 *  true if the function is in the process of modifying files
+	 *  false otherwise
+	 */
+	async syncTickTickToObsidian(): Promise<boolean> {
 		//Tasks in Obsidian, not in TickTick: upload
 		//Tasks in TickTick, not in Obsidian: Download
 		//Tasks in both: check for updates.
@@ -953,7 +960,7 @@ export class SyncMan {
 			const res = await this.plugin.cacheOperation?.saveProjectsToCache();
 			if (!res) {
 				console.error("probable network connection error.")
-				return;
+				return false;
 			}
 			let bModifiedFileSystem = false;
 			let allTaskDetails = await this.plugin.tickTickRestAPI?.getAllTasks();
@@ -1189,6 +1196,7 @@ export class SyncMan {
 		} catch (err) {
 			console.error('An error occurred while synchronizing:', err);
 		}
+		return false;
 	}
 
 	dumpArray(which: string, arrayIn: ITask[]) {

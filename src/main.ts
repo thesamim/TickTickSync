@@ -53,19 +53,18 @@ export default class TickTickSync extends Plugin {
 		// This adds a settings tab so the user can configure various aspects of the plugin
 		this.addSettingTab(new TickTickSyncSettingTab(this.app, this));
 
-		// const queryInjector = new QueryInjector(this);
-		// this.registerMarkdownCodeBlockProcessor(
-		// 	"ticktick",
-		// 	queryInjector.onNewBlock.bind(queryInjector),
-		// );
-
-
 		this.settings.apiInitialized = false;
 		try {
 			await this.initializePlugin();
 		} catch (error) {
 			console.error('API Initialization Failed.', error);
 		}
+
+		// const queryInjector = new QueryInjector(this);
+		// this.registerMarkdownCodeBlockProcessor(
+		// 	"ticktick",
+		// 	queryInjector.onNewBlock.bind(queryInjector),
+		// );
 
 		//lastLine object {path:line} is saved in lastLines map
 		this.lastLines = new Map();
@@ -75,7 +74,6 @@ export default class TickTickSync extends Plugin {
 		const ribbonIconEl = this.addRibbonIcon('sync', 'TickTickSync', async (evt: MouseEvent) => {
 			// Called when the user clicks the icon.
 			await this.scheduledSynchronization();
-			await this.unlockSynclock();
 			new Notice(`Sync completed..`);
 		});
 		//Used for testing adhoc code.
@@ -93,12 +91,12 @@ export default class TickTickSync extends Plugin {
 			id: 'set-default-project-for-TickTick-task-in-the-current-file',
 			name: 'Set default TickTick project for Tasks in the current file',
 			editorCallback: (editor: Editor, view: MarkdownView) => {
-				if (!view) {
+				if (!view || !view.file) {
+					new Notice(`No active file.`)
 					return;
 				}
 				const filepath = view.file.path;
 				new SetDefaultProjectForFileModal(this.app, this, filepath);
-
 			}
 		});
 
