@@ -3,7 +3,7 @@ import {ITask} from "./api/types/Task"
 import {App, Notice} from 'obsidian';
 import TickTickSync from "@/main";
 import {IProject} from './api/types/Project';
-import {getSettings} from "@/settings";
+import {getSettings, updateSettings} from "@/settings";
 
 export class TickTickRestAPI {
 	app: App;
@@ -35,9 +35,9 @@ export class TickTickRestAPI {
 				this.api = new Tick({
 					baseUrl: getSettings().baseURL,
 					token: this.token,
-					checkPoint: this.plugin.settings.checkPoint });
+					checkPoint: getSettings().checkPoint });
 				this.api.inboxProperties = {id: getSettings().inboxID, sortOrder: 0 }
-				this.plugin.settings.checkPoint = this.api.checkpoint;
+				//this.plugin.settings.checkPoint = this.api.checkpoint;
 			} else {
 				this.api = api;
 			}
@@ -342,8 +342,8 @@ export class TickTickRestAPI {
 				throw new Error("No Results.")
 			}
 			//checkpoint, may have changed. Save it if it has.
-			if (this.plugin.settings.checkPoint != this.api?.checkpoint) {
-				this.plugin.settings.checkPoint = <number>this.api?.checkpoint
+			if (getSettings().checkPoint != this.api?.checkpoint) {
+				updateSettings({checkPoint: <number>this.api?.checkpoint});
 				await this.plugin.saveSettings();
 			}
 			return (result)

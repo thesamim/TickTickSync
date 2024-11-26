@@ -85,7 +85,7 @@ export default class TickTickSync extends Plugin {
 		// }
 
 		this.registerEvents();
-
+		this.reloadInterval();
 
 		// set default project for TickTick task in the current file
 		// This adds an editor command that can perform some operation on the current editor instance
@@ -353,43 +353,7 @@ export default class TickTickSync extends Plugin {
 			const data = await this.loadData();
 
 			try {
-				//TODO move to migrate separate function
-				//We're going to handle data structure conversions here.
-				if (!data.version) {
-					const fileMetaDataStructure = data.fileMetadata;
-					for (const file in fileMetaDataStructure) {
-						const oldTasksHolder = fileMetaDataStructure[file]; //an array of tasks.
-						let newTasksHolder = {};
-						newTasksHolder = {
-							TickTickTasks: oldTasksHolder.TickTickTasks.map((taskIDString) => ({
-								taskId: taskIDString, taskItems: [] //TODO: Validate that the assumption that the next sync will fill these correctly.
-							})), TickTickCount: oldTasksHolder.TickTickCount, defaultProjectId: oldTasksHolder.defaultProjectId
-						};
-						fileMetaDataStructure[file] = newTasksHolder;
-					}
-					//Force a sync
-					if (this.settings && this.settings.apiInitialized) {
-						await this.scheduledSynchronization();
-					}
-				}
-				if ((!data.version) || (isOlder(data.version, '1.0.10'))) {
-					//get rid of username and password. we don't need them no more.
-					//delete data.username; //keep username for info
-					// @ts-ignore
-					delete data.password;
-				}
-				if ((!data.version) || (isOlder(data.version, '1.0.36'))) {
-					//default to AND because that's what we used to do:
-					data.tagAndOr = 1;
-					//warn about tag changes.
-					await this.LatestChangesModal()
-				}
-
-				//Update the version number. It will save me headaches later.
-				if ((!data.version) || (isOlder(data.version, this.manifest.version))) {
-					data.version = this.manifest.version;
-					await this.saveSettings();
-				}
+				await this.migrateData(data);
 			} catch (error) {
 				console.error('Failed to migrate data:', error);
 				return false; // Returning false indicates that the setting loading failed
@@ -404,6 +368,47 @@ export default class TickTickSync extends Plugin {
 		return true; // Returning true indicates that the settings are loaded successfully
 	}
 
+	private async migrateData(data: any) {
+		if (!data) return;
+		//TODO make more clean
+		//We're going to handle data structure conversions here.
+		if (!data.version) {
+			const fileMetaDataStructure = data.fileMetadata;
+			for (const file in fileMetaDataStructure) {
+				const oldTasksHolder = fileMetaDataStructure[file]; //an array of tasks.
+				let newTasksHolder = {};
+				newTasksHolder = {
+					TickTickTasks: oldTasksHolder.TickTickTasks.map((taskIDString) => ({
+						taskId: taskIDString, taskItems: [] //TODO: Validate that the assumption that the next sync will fill these correctly.
+					})), TickTickCount: oldTasksHolder.TickTickCount, defaultProjectId: oldTasksHolder.defaultProjectId
+				};
+				fileMetaDataStructure[file] = newTasksHolder;
+			}
+			//Force a sync
+			if (this.settings && this.settings.apiInitialized) {
+				await this.scheduledSynchronization();
+			}
+		}
+		if ((!data.version) || (isOlder(data.version, '1.0.10'))) {
+			//get rid of username and password. we don't need them no more.
+			//delete data.username; //keep username for info
+			// @ts-ignore
+			delete data.password;
+		}
+		if ((!data.version) || (isOlder(data.version, '1.0.36'))) {
+			//default to AND because that's what we used to do:
+			data.tagAndOr = 1;
+			//warn about tag changes.
+			await this.LatestChangesModal()
+		}
+
+		//Update the version number. It will save me headaches later.
+		if ((!data.version) || (isOlder(data.version, this.manifest.version))) {
+			data.version = this.manifest.version;
+			await this.saveSettings();
+		}
+    }
+
 	async saveSettings() {
 		try {
 			// Verify that the setting exists and is not empty
@@ -415,6 +420,7 @@ export default class TickTickSync extends Plugin {
 						username: getSettings().username,
 						token: getSettings().token,
 						inboxID: getSettings().inboxID,
+						checkPoint: getSettings().checkPoint,
 						automaticSynchronizationInterval: getSettings().automaticSynchronizationInterval,
 					});
 			} else {
@@ -500,9 +506,7 @@ export default class TickTickSync extends Plugin {
 
 		}
 
-
-		await this.initializeModuleClass();
-
+		this.initializeModuleClass();
 
 		//get user plan resources
 		//const rsp = await this.TickTickSyncAPI.getUserResource()
@@ -514,7 +518,7 @@ export default class TickTickSync extends Plugin {
 
 	}
 
-	async initializeModuleClass() {
+	initializeModuleClass() {
 		// console.log("initializeModuleClass")
 		//initialize TickTick restapi
 		if (!this.tickTickRestAPI) {
@@ -535,8 +539,6 @@ export default class TickTickSync extends Plugin {
 
 		//initialize TickTick sync module
 		this.tickTickSync = new SyncMan(this.app, this);
-
-
 	}
 
 	async lineNumberCheck() {
@@ -655,17 +657,18 @@ export default class TickTickSync extends Plugin {
 
 	//return true
 	checkModuleClass() {
-		if (this.settings.apiInitialized) {
-			if (this.tickTickRestAPI === undefined || this.tickTickSyncAPI === undefined || this.cacheOperation === undefined || this.fileOperation === undefined || this.tickTickSync === undefined || this.taskParser === undefined) {
-				this.initializeModuleClass();
-			}
-			return true;
-		} else {
+		if (!getSettings().token){
 			new Notice(`Please login from settings.`);
-			return (false);
+			return false;
 		}
 
-
+		if (!this.service.initialized) {
+			this.service.initialize();
+		}
+		if (this.tickTickRestAPI === undefined || this.tickTickSyncAPI === undefined || this.cacheOperation === undefined || this.fileOperation === undefined || this.tickTickSync === undefined || this.taskParser === undefined) {
+			this.initializeModuleClass();
+		}
+		return true;
 	}
 
 	async setStatusBarText() {
@@ -692,153 +695,16 @@ export default class TickTickSync extends Plugin {
 	}
 
 	async scheduledSynchronization() {
-		if (!(this.checkModuleClass())) {
+		if (!this.checkModuleClass()) {
 			return;
 		}
 
 		console.log('TickTick scheduled synchronization task started at', new Date().toLocaleString());
 		try {
-
-			if (!await this.checkAndHandleSyncLock()) {
-				console.error('TickTick scheduled synchronization task terminated for sync loc at', new Date().toLocaleString());
-				return;
-			}
-
-			try {
-				let bChanged = await this.tickTickSync?.syncTickTickToObsidian();
-				if (bChanged) {
-					//the file system is farckled. Wait until next sync to avoid race conditions.
-					await this.unlockSynclock();
-					console.log('TickTick scheduled synchronization task completed at', new Date().toLocaleString());
-					return;
-				}
-			} catch (error) {
-				console.error('An error occurred in syncTickTickToObsidian:', error);
-				console.error('TickTick terminated synchronization task at', new Date().toLocaleString());
-				await this.unlockSynclock();
-
-				return;
-			}
-			await this.unlockSynclock();
-
-			try {
-				await this.saveSettings();
-			} catch (error) {
-				console.error('An error occurred in saveSettings:', error);
-			}
-
-			const filesToSync = this.settings.fileMetadata;
-			let newFilesToSync = filesToSync;
-			//If one project is to be synced, don't look at it's other files.
-
-
-			if (this.settings.SyncProject) {
-				newFilesToSync = Object.fromEntries(Object.entries(filesToSync).filter(([key, value]) =>
-					value.defaultProjectId == this.settings.SyncProject));
-			}
-
-
-			//Check for duplicates before we do anything
-
-			try {
-				const result = this.cacheOperation?.checkForDuplicates(newFilesToSync);
-
-				if (result?.duplicates && (JSON.stringify(result.duplicates) != "{}")) {
-					let dupText = '';
-					for (let duplicatesKey in result.duplicates) {
-						dupText += "Task: " + duplicatesKey + '\nin files: \n';
-						result.duplicates[duplicatesKey].forEach(file => {
-							dupText += file + "\n"
-						})
-					}
-					const msg =
-						"Found duplicates in MetaData.\n\n" +
-						`${dupText}` +
-						"\nPlease fix manually. This causes unpredictable results" +
-						"\nPlease open an issue in the TickTickSync repository if you continue to see this issue." +
-						"\n\nTo prevent data corruption. Sync is aborted."
-					console.log("Metadata Duplicates: ", result.duplicates);
-					new Notice(msg, 0);
-					return;
-				}
-
-
-				const duplicateTasksInFiles = await this.fileOperation?.checkForDuplicates(filesToSync, result?.taskIds)
-				if (duplicateTasksInFiles && (JSON.stringify(duplicateTasksInFiles) != "{}")) {
-					let dupText = ""
-					for (let duplicateTasksInFilesKey in duplicateTasksInFiles) {
-						dupText += "Task: " + duplicateTasksInFilesKey + "\nFound in Files: \n"
-						duplicateTasksInFiles[duplicateTasksInFilesKey].forEach(file => {
-							dupText += file + "\n"
-						})
-					}
-					const msg =
-						"Found duplicates in Files.\n\n" +
-						`${dupText}` +
-						"\nPlease fix manually. This causes unpredictable results" +
-						"\nPlease open an issue in the TickTickSync repository if you continue to see this issue." +
-						"\n\nTo prevent data corruption. Sync is aborted."
-					new Notice(msg, 0)
-					return;
-				}
-			} catch (Error) {
-				console.error(Error)
-				new Notice(`Duplicate check failed:  ${Error}`, 0)
-				return
-			}
-
-
-			//let's see if any files got killed while we weren't watching
-			for (const fileKey in newFilesToSync) {
-				const file = this.app.vault.getAbstractFileByPath(fileKey);
-				if (!file) {
-					console.log("File ", fileKey, " was deleted before last sync.");
-					await this.cacheOperation?.deleteFilepathFromMetadata(fileKey);
-					const toDelete = newFilesToSync.findIndex(fileKey)
-					newFilesToSync.splice(toDelete, 1)
-				}
-			}
-
-			//Now do the task checking.
-			for (const fileKey in newFilesToSync) {
-				if (this.settings.debugMode) {
-					console.log(fileKey);
-				}
-
-				if (!await this.checkAndHandleSyncLock()) return;
-				try {
-					await this.tickTickSync?.fullTextNewTaskCheck(fileKey);
-				} catch (error) {
-					console.error('An error occurred in fullTextNewTaskCheck:', error);
-				}
-				await this.unlockSynclock();
-
-
-				if (!await this.checkAndHandleSyncLock()) return;
-				try {
-					await this.tickTickSync?.fullTextModifiedTaskCheck(fileKey);
-				} catch (error) {
-					console.error('An error occurred in fullTextModifiedTaskCheck:', error);
-				}
-				await this.unlockSynclock();
-
-
-				if (!await this.checkAndHandleSyncLock()) return;
-				try {
-					await this.tickTickSync?.deletedTaskCheck(fileKey);
-				} catch (error) {
-					console.error('An error occurred in deletedTaskCheck:', error);
-				}
-				await this.unlockSynclock();
-
-
-			}
-
+			await this.service.synchronization();
 		} catch (error) {
 			console.error('An error occurred:', error);
 			new Notice('An error occurred:', error);
-			await this.unlockSynclock();
-
 		}
 		console.log('TickTick scheduled synchronization task completed at', new Date().toLocaleString());
 	}

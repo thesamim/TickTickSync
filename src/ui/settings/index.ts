@@ -401,7 +401,7 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 		});
 
 		this.plugin.settings.apiInitialized = true;
-		this.plugin.settings.checkPoint = 0;
+		updateSettings({checkPoint: 0});
 		this.plugin.tickTickRestAPI = new TickTickRestAPI(this.app, this.plugin, null);
 		this.plugin.tickTickRestAPI.token = info.token;
 

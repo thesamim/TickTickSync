@@ -30,7 +30,7 @@ export interface ITickTickSyncSettings {
 
 export const DEFAULT_SETTINGS: ITickTickSyncSettings = {
 	baseURL: 'ticktick.com',
-	automaticSynchronizationInterval: 300, //default aync interval 300s
+	automaticSynchronizationInterval: 300, //default sync interval 300s
 	enableFullVaultSync: false,
 	tagAndOr: 1,
 	debugMode: false,

@@ -939,7 +939,7 @@ export class SyncMan {
 			//const allEvents = [...savedEvents, ...unSynchronizedEvents]
 			//TODO: This is just wrong. Probably delete this function or fix this!
 			await this.plugin.cacheOperation?.appendTaskToCache(processedEvents)
-			this.plugin.saveSettings()
+			await this.plugin.saveSettings()
 		} catch (error) {
 			console.error('Error synchronizing task status:', error)
 		}
