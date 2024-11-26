@@ -586,17 +586,17 @@ export class SyncMan {
 			//Nah Brah. Bail.
 			return;
 		}
-		let parsedItem = await this.plugin.taskParser?.taskFromLine(lineText, filepath);
+		let parsedItem = this.plugin.taskParser?.taskFromLine(lineText);
 		if (this.plugin.settings.debugMode) {
 			if (!parsedItem) {
 				console.error(`Task construction failed in line: ${lineText}`)
 			}
 		}
-		if (!parsedItem.description || !(parsedItem.status)) {
+		if (!parsedItem.description) {
 			//empty item. Bail.
 			return;
 		}
-		let tabs = parsedItem?.indentation;
+		let tabs = parsedItem?.indent;
 		let content = parsedItem?.description;
 		if (content?.trim().length == 0) {
 			//they hit enter, but haven't typed anything yet.
@@ -604,9 +604,9 @@ export class SyncMan {
 			modified = false
 			return modified;
 		}
-		const thisLineStatus = parsedItem.status.isCompleted();
+		const thisLineStatus = parsedItem?.status;
 		let parentTask: ITask = null;
-		if (tabs.length > 0) {//must be indented at least once.
+		if (tabs > 0) {//must be indented at least once.
 			const lines = fileContent.split('\n');
 			let itemId = "";
 			let regex = /%%(.*)%%/;
@@ -626,7 +626,7 @@ export class SyncMan {
 							if (oldItem) {
 								content = content.replace(regex, ""); //We just want content now.
 								//TODO deal with "Won't do" which is -1
-								const oldItemStatus = oldItem.status == 0 ? false : true;
+								const oldItemStatus = oldItem.status != 0;
 								if (content.trim() != oldItem.title.trim()) {
 									// console.log(`[${content}] vs [${oldItem.title}] and ${thisLineStatus} vs ${oldItemStatus}`)
 									oldItem.title = content;
@@ -710,12 +710,12 @@ export class SyncMan {
 				//Nah Brah. Bail.
 				return;
 			}
-			let parsedItem = await this.plugin.taskParser?.taskFromLine(lineText, filepath);
-			let tabs = parsedItem?.indentation;
-			let content = parsedItem.description;
-			const thisLineStatus = parsedItem.status.isCompleted();
+			let parsedItem = this.plugin.taskParser?.taskFromLine(lineText);
+			let tabs = parsedItem?.indent;
+			let content = parsedItem?.description;
+			const thisLineStatus = parsedItem?.status;
 			let parentTask;
-			if (tabs.length > 0) {//must be indented at least once.
+			if (tabs > 0) {//must be indented at least once.
 				const lines = fileContent.split('\n');
 				//We're on a task item, need to find it's parent.
 				//TODO: Do we get here on deleting a character
@@ -1187,7 +1187,6 @@ export class SyncMan {
 
 			const toBeProcessed = recentUpdates.map(task => task.id)
 			for (const task of recentUpdates) {
-				this.plugin.dateMan?.addDateHolderToTask(task);
 				await this.plugin.fileOperation?.updateTaskInFile(task, toBeProcessed );
 				await this.plugin.cacheOperation?.updateTaskToCache(task);
 				bModifiedFileSystem = true;

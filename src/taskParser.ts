@@ -373,6 +373,12 @@ export class TaskParser {
 			}
 
 		}
+		console.log("TRACETHIS FINAL: ",allDatesStruct);
+		let actualStartDate = allDatesStruct?.startDate ?
+										allDatesStruct?.startDate.isoDate : //there's a start date
+										allDatesStruct?.scheduled_date ?
+										allDatesStruct?.scheduled_date.isoDate //there's a scheduled date
+										: ''; //there are neither start date nor scheduled date.
 		const task: ITask = {
 			id: TickTick_id || '',
 			projectId: projectId,
@@ -383,7 +389,7 @@ export class TaskParser {
 			items: taskItems || [],
 			parentId: parentId || '',
 			dueDate: allDatesStruct?.dueDate?.isoDate || '',
-			startDate: allDatesStruct?.startDate?.isoDate || '',
+			startDate: actualStartDate,
 			isAllDay: allDatesStruct?.isAllDay || false,
 			tags: tags || [],
 			priority: Number(priority),
@@ -392,7 +398,9 @@ export class TaskParser {
 			timeZone: timeZone,
 			dateHolder: allDatesStruct //Assume that there's a dateStruct of some kind
 		};
+		console.log("TRACETHIS FINAL: ", task.title, "\nDue Date: ", task.dueDate, "\nStart DAte: ", task.startDate, "\nisAllDay: ", task.isAllDay);
 		return task;
+
 	}
 
 	hasTickTickTag(text: string) {
@@ -744,17 +752,21 @@ export class TaskParser {
 		if (!matches) {
 			return null;
 		}
-		let status = matches[3] || "";
+		let checkBox = matches[3] || "";
+
+		//Anything other than 'x' is a not done state. Deal with it accordingly.
+		//https://publish.obsidian.md/tasks/Getting+Started/Statuses
+		const status = checkBox == 'x';
+		console.log("TRACETHIS taskFromLine: ", line, "STATUS [", status, "]");
 		let description = matches[4] || "";
 		let indent = matches[1] ? matches[1].length : 0;
-		let completed = status === "x";
+
 
 		return {
 			line,
 			status,
 			description,
-			indent,
-			completed
+			indent
 		};
 	}
 

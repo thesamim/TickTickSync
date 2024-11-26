@@ -82,7 +82,7 @@ export class DateMan {
 				console.log(`TRACETHIS: ${key}: ${value}`, dateItem);
 				if ((key == 'scheduled_date') || (key == 'startDate')) {
 					if ((fromTime) && (!dateItem.hasATime)) {
-						//they entered a time. Put it back. Assume either scheduled OR start date are popuated.
+						//they entered a time. Put it back. Assume either scheduled OR start date are populated.
 						//Hopefully not both.
 						dateItem.hasATime = true;
 						dateItem.time = fromTime;
@@ -239,8 +239,9 @@ export class DateMan {
 		return retString;
 	}
 
-	addDateHolderToTask(task: ITask) {
+	addDateHolderToTask(task: ITask, oldTask: ITask|undefined) {
 		console.log('addDateStructToTask:', task.title, task.isAllDay, task.dueDate, task.startDate);
+
 		let dates = this.getEmptydateHolder();
 		if (!('isAllDay' in task)) {
 			//Just a task with no dates.
@@ -252,7 +253,19 @@ export class DateMan {
 				dates.dueDate = this.getDateAndTime(task.dueDate, task.isAllDay, date_emoji.dueDate);
 				if (task.dueDate !== task.startDate) {
 					//If they're different also save off the startdate because it's a duration.
-					dates.startDate = this.getDateAndTime(task.startDate, task.isAllDay, date_emoji.startDate);
+					if (oldTask) {
+						if (oldTask.dateHolder.scheduled_date) {
+							//They used scheduled date. put the new start date in scheduled date.
+							dates.scheduled_date = this.getDateAndTime(task.startDate, task.isAllDay, date_emoji.scheduled_date);
+						} else {
+							//They either didn't used to have a start date, or had a start date. put the new start date in scheduled date
+							dates.startDate = this.getDateAndTime(task.startDate, task.isAllDay, date_emoji.startDate);
+						}
+					} else {
+						//default to start date.
+						//TODO: maybe make it a preference in the future?
+						dates.startDate = this.getDateAndTime(task.startDate, task.isAllDay, date_emoji.startDate);
+					}
 				}
 			}
 		}
@@ -260,68 +273,6 @@ export class DateMan {
 		console.log('addDateStructToTask:', task);
 	}
 
-	//I thought  I needed to do this for updates, but I don't think I need to anymore
-	//leaving here until I finalize that decision. #dateStuff.
-	//Called when a task in updated in TT.
-	updateDates(oldTask: ITask, newTask: ITask) {
-		const oldDates = oldTask.dateHolder;
-		let emptyDate: date_time_type = <date_time_type>{};
-		//	startDate: string;
-		// 	dueDate: string;
-		// completedTime?: string;
-		let cachedStartDate;
-		let whichDidTheyUse;
-
-		//did they have a start date before
-		if (oldDates.scheduled_date) {
-			whichDidTheyUse = 'scheduled_date';
-			cachedStartDate = oldDates.scheduled_date.isoDate;
-		} else if (oldDates.startDate) {
-			whichDidTheyUse = 'startDate';
-			cachedStartDate = oldDates.startDate.isoDate;
-		} else {
-			//no they didn't.
-			cachedStartDate = null;
-			whichDidTheyUse = 'startDate';
-		}
-
-
-		if (newTask.isAllDay) {
-			// 1. a due date with no time
-			// 2. there will be a start date, but it will be equal to due date.
-			if (newTask.startDate) {
-				if (!oldDates[whichDidTheyUse]) {
-					oldDates[whichDidTheyUse] = null;
-				}
-				if (cachedStartDate != newTask.startDate) {
-					// 3. If they had a start date, update it.
-					oldDates[whichDidTheyUse] = this.getDateAndTime(newTask.startDate, newTask.isAllDay, date_emoji.startDate);
-				}
-			}
-		} else {
-			// 1. Either there is a time on the due date
-			// 2. OR there is a start date and an end date
-			// 3. Or there are times on both start date and end date.
-			if (newTask.startDate) {
-				if (!oldDates[whichDidTheyUse] || (cachedStartDate != newTask.startDate)) {
-					// 3. If they did not have  start date, or if the dates are different, update it.
-					oldDates[whichDidTheyUse] = this.getDateAndTime(newTask.startDate, newTask.isAllDay, date_emoji.scheduled_date);
-				}
-			}
-		}
-
-		if (newTask.dueDate) {
-			if (!oldDates.dueDate) {
-				oldDates.dueDate = emptyDate;
-			}
-			if (oldDates.dueDate?.isoDate != newTask.dueDate) {
-				oldDates.dueDate = this.getDateAndTime(newTask.dueDate, newTask.isAllDay, date_emoji.dueDate);
-			}
-		}
-
-		newTask.dateHolder = oldDates;
-		console.log('Dates Now look like.', oldDates);
-	}
 
 	//TODO Check all Dates #dateStuff
 	//task due date compare

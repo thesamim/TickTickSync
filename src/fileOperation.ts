@@ -404,6 +404,8 @@ export class FileOperation {
         // Get the task file path
         const currentTask: ITask = await this.plugin.cacheOperation?.loadTaskFromCacheID(taskId)
 
+		this.plugin.dateMan?.addDateHolderToTask(task, currentTask);
+
 		if (currentTask) {
 			//Only check for Project/Parent change if task is in cache.
 			const hasChildren = this.hasChildren(currentTask);
