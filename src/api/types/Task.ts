@@ -41,6 +41,7 @@ export interface ITask {
 	parentId: string;
 	//This is not a TickTick data element. It must be managed separately.
 	dateHolder: date_holder_type;
+	lineHash: string;
 }
 
 export interface IUpdate {

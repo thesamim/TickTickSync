@@ -149,6 +149,7 @@ export default class TickTickSync extends Plugin {
 			}
 		});
 
+		//This is here to try and find nested checkboxes, which I put on hold for now.
 		function traverseDOMBackwards(element, callback) {
 			while (element) {
 				callback(element);
@@ -204,13 +205,11 @@ export default class TickTickSync extends Plugin {
 					return;
 				}
 
-				//TODO: lineNumberCheck also triggers a line modified check. I suspect this is redundant and
-				//      inefficient when a new task is being added. I've added returns out of there, but I need for find if the last line check
-				//      is needed for an add.
-				await this.lineNumberCheck();
 				if (!(this.checkModuleClass())) {
 					return;
 				}
+
+				await this.lineNumberCheck();
 				if (this.settings.enableFullVaultSync) {
 					return;
 				}
@@ -545,7 +544,6 @@ export default class TickTickSync extends Plugin {
 
 				modified = await this.tickTickSync?.lineModifiedTaskCheck(filepath as string, lastLineText, lastLine as number, fileContent);
 
-
 				// }catch(error){
 				//     console.error(`An error occurred while check modified task in line text: ${error}`);
 				//     await this.unlockSynclock();
@@ -761,6 +759,7 @@ export default class TickTickSync extends Plugin {
 				}
 			}
 
+			// console.time("TIMING File Check");
 			//Now do the task checking.
 			for (const fileKey in newFilesToSync) {
 				if (this.settings.debugMode) {
@@ -795,6 +794,7 @@ export default class TickTickSync extends Plugin {
 
 
 			}
+			// console.timeEnd("TIMING File Check");
 
 		} catch (error) {
 			console.error('An error occurred:', error);
@@ -862,7 +862,3 @@ export default class TickTickSync extends Plugin {
 
 	}
 }
-
-
-
-

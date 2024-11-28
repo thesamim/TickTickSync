@@ -402,16 +402,16 @@ export class CacheOperation {
     }
 
     //Read the task with the specified id
-    async loadTaskFromCacheID(taskId: string) {
+    async loadTaskFromCacheID(taskId: string) : Promise<ITask|null> {
         // console.log("loadTaskFromCacheID")
-        try {
 
+        try {
             const savedTasks = this.plugin.settings.TickTickTasksData.tasks
             const savedTask = savedTasks.find((task: ITask) => task.id === taskId);
             return (savedTask)
         } catch (error) {
             console.error(`Error finding task from Cache: ${error}`);
-            return [];
+            return null;
         }
     }
 

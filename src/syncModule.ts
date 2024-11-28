@@ -179,10 +179,9 @@ export class SyncMan {
 			//Whether #ticktick is included, but not ticktickid: Task just added.
 			try {
 				const currentTask = await this.plugin.taskParser?.convertLineToTask(lineTxt, filePath, line, fileContent)
-				console.log("CurrentTask: ", currentTask);
+				// console.log("CurrentTask: ", currentTask);
 				const newTask = await this.plugin.tickTickRestAPI?.AddTask(currentTask)
-				newTask.dateHolder = currentTask.dateHolder;
-				console.log("New Task: ", newTask);
+				// console.log("TRACETHIS New Task: ", newTask);
 				if (currentTask.parentId) {
 					let parentTask = await this.plugin.cacheOperation?.loadTaskFromCacheID(currentTask.parentId);
 					parentTask = this.plugin.taskParser?.addChildToParent(parentTask, currentTask.parentId);
@@ -192,9 +191,6 @@ export class SyncMan {
 				const {id: ticktick_id, projectId: ticktick_projectId, url: ticktick_url} = newTask;
 				//console.log(newTask);
 				new Notice(`new task ${newTask.title} id is ${newTask.id}`)
-				//newTask writes to cache
-				//Will handle meta data there.
-				await this.plugin.cacheOperation?.appendTaskToCache(newTask, filePath)
 
 				//If the task is completed
 				if (currentTask.status != 0) {
@@ -202,9 +198,19 @@ export class SyncMan {
 					await this.plugin.cacheOperation?.closeTaskToCacheByID(ticktick_id)
 
 				}
-				await this.plugin.saveSettings()
+
+				//Save the data that TickTick Doesn't know about.
+				newTask.dateHolder = currentTask.dateHolder;
+
 				//Get TickTickID and links after updating.
-				return await this.updateTaskLine(newTask, lineTxt, editor, cursor, fileContent, line, filePath);
+				let updatedText = await this.updateTaskLine(newTask, lineTxt, editor, cursor, fileContent, line, filePath);
+
+				//we want the line as it is in Obsidian.
+				newTask.lineHash = this.plugin.taskParser?.getLineHash(updatedText);
+				//newTask writes to cache
+				//Will handle meta data there.
+				await this.plugin.cacheOperation?.appendTaskToCache(newTask, filePath)
+				await this.plugin.saveSettings()
 			} catch (error) {
 				console.error('Error adding task:', error);
 				console.error(`The error occurred in file: ${filePath}`)
@@ -219,7 +225,7 @@ export class SyncMan {
 	private async updateTaskLine(newTask: ITask, lineTxt: string, editor: Editor | null, cursor: EditorPosition | null, fileContent: string, line: number| null, filePath: string) {
 		let newTaskCopy = {...newTask}
 		newTaskCopy.items = []
-		console.log("TRACETHIS: dateStruct in: ", newTask.dateHolder);
+		// console.log("TRACETHIS: dateStruct in: ", newTask.dateHolder);
 		let text = await this.plugin.taskParser?.convertTaskToLine(newTaskCopy, "OBSUpdating");
 		const tabs = this.plugin.taskParser?.getTabs(lineTxt);
 		text = tabs + text;
@@ -310,10 +316,24 @@ export class SyncMan {
 
 		//check task
 		if (this.plugin.taskParser?.hasTickTickId(lineText) && this.plugin.taskParser?.hasTickTickTag(lineText)) {
-			const lineTask = await this.plugin.taskParser?.convertLineToTask(lineText, filepath, lineNumber, fileContent)
-			console.log("TRACETHIS: 1", lineTask.dateHolder);
-			const lineTask_ticktick_id = lineTask.id
+
+			const newHash = this.plugin.taskParser?.getLineHash(lineText);
+			//convertLineToTask has become a pretty expensive operation avoid it.
+			//let's see if the saved task has a lineHash.
+			const lineTask_ticktick_id = this.plugin.taskParser?.getTickTickIdFromLineText(lineText)
 			const savedTask = await this.plugin.cacheOperation?.loadTaskFromCacheID(lineTask_ticktick_id)
+			if (savedTask) {
+				if (savedTask.lineHash) {
+					//it has one. Is it the same as this one being edited?
+					if (newHash == savedTask.lineHash) {
+						return false;
+					} else {
+						console.log("TRACETHIS hashcheck failed.", "\n", lineText, "\n", savedTask.title, "\n", newHash, "\n", savedTask.lineHash);
+					}
+				}
+			}
+			const lineTask = await this.plugin.taskParser?.convertLineToTask(lineText, filepath, lineNumber, fileContent)
+			// console.log("TRACETHIS: 1", lineTask.dateHolder);
 
 			if (!savedTask) {
 				//Task in note, but not in cache. Assuming this would only happen in testing, delete the task from the note
@@ -330,6 +350,9 @@ export class SyncMan {
 				if (!savedTask.dateHolder) {
 					savedTask.dateHolder = this.plugin.dateMan?.getEmptydateHolder();
 					await this.plugin.cacheOperation?.updateTaskToCache(savedTask, null);
+				}
+				if (!savedTask.lineHash) {
+					savedTask.lineHash = this.plugin.taskParser?.getLineHash(lineText);
 				}
 			}
 
@@ -356,7 +379,7 @@ export class SyncMan {
 			//TODO Check All Dates #dateStuff
 			//due date whether to modify
 			const someDatesModified = this.plugin.dateMan?.areDatesChanged(lineTask, savedTask)
-			console.log("TRACETHIS: 2", lineTask.dateHolder);
+			// console.log("TRACETHIS: 2", lineTask.dateHolder);
 
 
 			const parentIdModified = this.plugin.taskParser?.isParentIdChanged(lineTask, savedTask);
@@ -478,23 +501,22 @@ export class SyncMan {
 					//console.log(updatedContent)
 					savedTask.modifiedTime = this.plugin.dateMan?.formatDateToISO(new Date());
 
-					console.log("TRACETHIS: 3", lineTask.dateHolder);
+					// console.log("TRACETHIS: 3", lineTask.dateHolder);
 					const saveDateHolder = lineTask.dateHolder; //because it's going to get clobered when we refetch the tas,
 					const updatedTask = <ITask> await this.plugin.tickTickRestAPI?.UpdateTask(lineTask)
 					//TODO: This feels Kludgy AF. examine ways to get past this.
 					updatedTask.dateHolder = saveDateHolder;
-					console.log("TRACETHIS, should have a dateholder", updatedTask);
+					updatedTask.lineHash = newHash
+					// console.log("TRACETHIS, should have a dateholder", updatedTask);
+
+					await this.updateTaskLine(updatedTask, lineText, null, null, fileContent, lineNumber, filepath);
+
 
 					if (!projectChanged) {
 						await this.plugin.cacheOperation?.updateTaskToCache(updatedTask, null);
 					} else {
 						await this.plugin.cacheOperation?.updateTaskToCache(updatedTask, filepath);
 					}
-					//May seem redundant, but puts task line formatting in one place.
-					//Oh, and stick the dateStructure back on.
-
-					await this.updateTaskLine(updatedTask, lineText, null, null, fileContent, lineNumber, filepath);
-
 					modified = true;
 				}
 				// console.log(result)

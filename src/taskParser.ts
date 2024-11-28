@@ -1,7 +1,7 @@
 import { App } from 'obsidian';
 import TickTickSync from '../main';
 import { ITask } from './api/types/Task';
-import { date_holder_type, DateMan } from './dateMan';
+
 
 interface dataviewTaskObject {
 	status: string;
@@ -264,9 +264,9 @@ export class TaskParser {
 		const TickTick_id = this.getTickTickIdFromLineText(textWithoutIndentation);
 
 		//Strip dates.
-		console.log("sending: ", textWithoutIndentation, this.plugin.dateMan);
+		// console.log("sending: ", textWithoutIndentation, this.plugin.dateMan);
 		const allDatesStruct =  this.plugin.dateMan?.parseDates(textWithoutIndentation);
-		console.log("And we have: ", textWithoutIndentation);
+		// console.log("And we have: ", textWithoutIndentation);
 
 		//Detect parentID
 		if (lineTextTabIndentation > 0) {
@@ -373,7 +373,7 @@ export class TaskParser {
 			}
 
 		}
-		console.log("TRACETHIS FINAL: ",allDatesStruct);
+
 		let actualStartDate = allDatesStruct?.startDate ?
 										allDatesStruct?.startDate.isoDate : //there's a start date
 										allDatesStruct?.scheduled_date ?
@@ -398,7 +398,7 @@ export class TaskParser {
 			timeZone: timeZone,
 			dateHolder: allDatesStruct //Assume that there's a dateStruct of some kind
 		};
-		console.log("TRACETHIS FINAL: ", task.title, "\nDue Date: ", task.dueDate, "\nStart DAte: ", task.startDate, "\nisAllDay: ", task.isAllDay);
+		// console.log("TRACETHIS FINAL: ", task.title, "\nDue Date: ", task.dueDate, "\nStart DAte: ", task.startDate, "\nisAllDay: ", task.isAllDay);
 		return task;
 
 	}
@@ -437,51 +437,7 @@ export class TaskParser {
 		return parentTask;
 	}
 
-	hasDueDate(text: string) {
-		return (REGEX.DUE_DATE_WITH_EMOJ.test(text));
-	}
-
-	getDueDateFromLineText(text: string) {
-		let isAllDay = true;
-		const regEx = REGEX.DUE_DATE;
-		let results = [...text.matchAll(regEx)];
-		// console.log('@@@ Date parts from Regex: ', results);
-		if (results.length == 0) {
-			const nullDate = '';
-			const nullVal = '';
-			return { isAllDay, nullDate, nullVal };
-		}
-
-		let result;
-		if (results.length > 1) {
-			//arbitrarily take the last one
-			result = results[results.length - 1];
-		} else {
-			result = results[0];
-		}
-		// for (const resultKey in result) {
-		// 	console.log("@@@ ---", resultKey, result[resultKey]);
-		// }
-		let returnDate = null;
-		if (result) {
-			// console.log("String Date parts: ", result);
-			if (!result[3]) {
-				returnDate = `${result[2]}T00:00:00.000`;
-				isAllDay = true;
-			} else {
-				if (result[3].includes('24:')) {
-					result[3] = result[3].replace('24:', '00:');
-				}
-				returnDate = `${result[2]}T${result[3]}`;
-				isAllDay = false;
-			}
-			returnDate = this.formatDateToISO(new Date(returnDate));
-		}
-		const emoji = result[1];
-		// console.log("@@@ Returning ", {isAllDay,returnDate, emoji});
-		return { isAllDay, returnDate, emoji };
-	}
-
+	//pretty sure this is surplus to requirements. Kill it next time.
 	getProjectNameFromLineText(text: string) {
 		const result = REGEX.PROJECT_NAME.exec(text);
 		return result ? result[1] : null;
@@ -573,63 +529,6 @@ export class TaskParser {
 		return (lineParentId != cacheParentId);
 	}
 
-	//use DateMan. Delete when done. #dateStuff
-	//task due date compare
-	// isDueDateChanged(lineTask: ITask, TickTickTask: ITask): boolean {
-	// 	const lineTaskDue = lineTask.dueDate;
-	// 	const TickTickTaskDue = TickTickTask.dueDate ?? '';
-	// 	if (lineTaskDue === '' && TickTickTaskDue === '') {
-	// 		//console.log('No due date')
-	// 		return false;
-	// 	}
-	//
-	// 	if ((lineTaskDue || TickTickTaskDue) === '') {
-	// 		//console.log('due date has changed')
-	// 		return true;
-	// 	}
-	//
-	// 	if (lineTaskDue === TickTickTaskDue) {
-	// 		//console.log('due date consistent')
-	// 		return false;
-	// 	} else if (lineTaskDue.toString() === 'Invalid Date' && TickTickTaskDue.toString() === 'Invalid Date') {
-	// 		// console.log('invalid date')
-	// 		return false;
-	// 	} else {
-	// 		const date1 = this.plugin.dateMan?.cleanDate(lineTaskDue);
-	// 		const date2 = this.plugin.dateMan?.cleanDate(TickTickTaskDue);
-	// 		const date1TZ = date1?.getTimezoneOffset();
-	// 		const date2TZ = date2?.getTimezoneOffset();
-	// 		const diff = (date1.getTime() - date2.getTime()) / 3600000;
-	//
-	// 		const utcDate1 = date1;
-	// 		const utcDate2 = date2;
-	//
-	// 		if (utcDate1.getTime() === utcDate2.getTime()) {
-	// 			return false;
-	// 		} else {
-	//
-	//
-	// 			if (this.plugin.settings.debugMode) {
-	// 				// Calculate the difference in minutes
-	// 				const timeDifferenceInMilliseconds = Math.abs(utcDate2.getTime() - utcDate1.getTime());
-	// 				const days = Math.floor(timeDifferenceInMilliseconds / (1000 * 60 * 60 * 24));
-	// 				const hours = Math.floor((timeDifferenceInMilliseconds % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-	// 				const minutes = Math.floor((timeDifferenceInMilliseconds % (1000 * 60 * 60)) / (1000 * 60));
-	//
-	// 				if (days > 0) {
-	// 					console.log(`The timestamps are ${days} days, ${hours} hours, and ${minutes} minutes apart.`);
-	// 				} else if (hours > 0) {
-	// 					console.log(`The timestamps are ${hours} hours and ${minutes} minutes apart.`);
-	// 				} else if (minutes > 0) {
-	// 					console.log(`The timestamps are ${minutes} minutes apart.`);
-	// 				} else {
-	// 					console.log(`The timestamps are different, but not calculatable..`);
-	// 				}
-	// 			}
-	// 			return true;
-	// 		}
-	// 	}
-	// }
 
 	//task project id compare
 	isProjectIdChanged(lineTask: ITask, TickTickTask: ITask) {
@@ -757,7 +656,7 @@ export class TaskParser {
 		//Anything other than 'x' is a not done state. Deal with it accordingly.
 		//https://publish.obsidian.md/tasks/Getting+Started/Statuses
 		const status = checkBox == 'x';
-		console.log("TRACETHIS taskFromLine: ", line, "STATUS [", status, "]");
+		// console.log("TRACETHIS taskFromLine: ", line, "STATUS [", status, "]");
 		let description = matches[4] || "";
 		let indent = matches[1] ? matches[1].length : 0;
 
@@ -859,4 +758,12 @@ export class TaskParser {
 		// 	// foo.forEach(tag => console.log(tag));
 	}
 
+	getLineHash(resultLine: string) {
+		// console.time("Line Hash")
+		const crypto = require('crypto');
+		const hash = crypto.createHash("sha256").update(resultLine).digest("hex");
+		// console.log("TRACETHIS hashing: ", resultLine, hash);
+		// console.timeEnd("Line Hash")
+		return hash
+	}
 }
