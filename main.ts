@@ -1,4 +1,4 @@
-import { Editor, MarkdownView, Notice, Plugin, TFile, TFolder } from 'obsidian';
+import { App, Editor, MarkdownView, Notice, Plugin, TFile, TFolder } from 'obsidian';
 
 //settings
 import { DEFAULT_SETTINGS, TickTickSyncSettings, TickTickSyncSettingTab } from './src/settings';
@@ -17,7 +17,7 @@ import { SyncMan } from './src/syncModule';
 
 //import modals
 import { SetDefaultProjectForFileModal } from 'src/modals/DefaultProjectModal';
-import {ConfirmFullSyncModal} from "./src/modals/LatestChangesModal"
+import {LatestChangesModal} from "./src/modals/LatestChangesModal"
 import { DateMan } from './src/dateMan';
 
 
@@ -35,7 +35,16 @@ export default class TickTickSync extends Plugin {
 	syncLock: Boolean;
 
 	async onload() {
+		//We're doing too much at load time, and it's causing issues. Do it properly!
 
+		this.app.workspace.onLayoutReady(() => {
+			this.registerEvent(this.app.vault.on('create', this.pluginLoad(), this));
+		});
+
+	}
+
+
+	private async pluginLoad() {
 		const isSettingsLoaded = await this.loadSettings();
 
 		if (!isSettingsLoaded) {
@@ -66,11 +75,22 @@ export default class TickTickSync extends Plugin {
 			delete this.settings.username;
 			delete this.settings.password;
 		}
+
+		//After this point, there's a need to document changes for the users.
+		let notableChanges: string [][] = [];
 		if ((!this.settings.version) || (this.isOlder(this.settings.version, '1.0.36'))) {
 			//default to AND because that's what we used to do:
 			this.settings.tagAndOr = 1;
 			//warn about tag changes.
-			await this.LatestChangesModal()
+			notableChanges.push(['Changes from 1.0.0 to 1.0.36', 'priorTo1.0.36']);
+		}
+		if ((!this.settings.version) || (this.isOlder(this.settings.version, '1.0.40'))) {
+			//warn about the date/time foo
+			notableChanges.push(['Changes from 1.0.36 to 1.040', 'priorTo1.0.40']);
+		}
+
+		if (notableChanges.length > 0) {
+			await this.LatestChangesModal(notableChanges);
 		}
 
 		//Update the version number. It will save me headaches later.
@@ -347,7 +367,6 @@ export default class TickTickSync extends Plugin {
 		this.statusBar = this.addStatusBarItem();
 		console.log(`${this.manifest.name} ${this.manifest.version} loaded!`);
 	}
-
 
 	async onunload() {
 		console.log(`TickTickSync unloaded!`);
@@ -852,8 +871,8 @@ export default class TickTickSync extends Plugin {
 	}
 
 
-	private async LatestChangesModal() {
-		const myModal = new ConfirmFullSyncModal(this.app, (result) => {
+	private async LatestChangesModal(notableChanges: string[][]) {
+		const myModal = new LatestChangesModal(this.app, notableChanges, (result) => {
 			this.ret = result;
 		});
 		const bConfirmation = await myModal.showModal();
