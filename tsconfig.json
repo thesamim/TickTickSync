@@ -1,14 +1,28 @@
 {
-	"include": ["src/**/*", "./vitest-setup.ts"],
-	"exclude": ["node_modules/*"],
+	"extends": "@tsconfig/svelte/tsconfig.json",
+	"include": [
+		"src/**/*.d.ts",
+		"src/**/*.ts",
+		"src/**/*.js",
+		"src/**/*.svelte",
+		"./vitest-setup.ts"
+	],
+	"exclude": [
+		"node_modules/*"
+	],
 	"compilerOptions": {
+		"types": [
+			"svelte",
+			"node"
+		],
 		"paths": {
-			"@/*": ["./src/*"]
+			"@/*": [
+				"./src/*"
+			]
 		},
-		"inlineSourceMap": true,
 		"inlineSources": true,
 		"module": "ESNext",
-		"target": "ES6",
+		"target": "es2016",
 		"allowJs": true,
 		"noImplicitAny": true,
 		"moduleResolution": "node",

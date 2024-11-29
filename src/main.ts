@@ -4,7 +4,7 @@ import "@/static/styles.css";
 import {Editor, MarkdownView, Notice, Plugin, TFolder} from 'obsidian';
 
 //settings
-import {DEFAULT_SETTINGS, getSettings, ITickTickSyncSettings, updateSettings} from './settings';
+import {DEFAULT_SETTINGS, getSettings, type ITickTickSyncSettings, updateSettings} from './settings';
 //TickTick api
 import {TickTickRestAPI} from './TicktickRestAPI';
 import {TickTickSyncAPI} from './TicktickSyncAPI';
@@ -24,10 +24,11 @@ import {ConfirmFullSyncModal} from "./modals/LatestChangesModal"
 import {isOlder} from "./utils/version";
 import {TickTickSyncSettingTab} from "./ui/settings";
 import {TickTickService} from "@/services";
+import {QueryInjector} from "@/query/injector";
 
 
 export default class TickTickSync extends Plugin {
-	settings: ITickTickSyncSettings;
+	settings!: ITickTickSyncSettings;
 	service: TickTickService = new TickTickService(this);
 
 	tickTickRestAPI?: TickTickRestAPI;
@@ -60,11 +61,11 @@ export default class TickTickSync extends Plugin {
 			console.error('API Initialization Failed.', error);
 		}
 
-		// const queryInjector = new QueryInjector(this);
-		// this.registerMarkdownCodeBlockProcessor(
-		// 	"ticktick",
-		// 	queryInjector.onNewBlock.bind(queryInjector),
-		// );
+		const queryInjector = new QueryInjector(this);
+		this.registerMarkdownCodeBlockProcessor(
+			"ticktick",
+			queryInjector.onNewBlock.bind(queryInjector),
+		);
 
 		//lastLine object {path:line} is saved in lastLines map
 		this.lastLines = new Map();
@@ -116,7 +117,7 @@ export default class TickTickSync extends Plugin {
 		if (timeout === 0) {
 			return;
 		}
-		this.syncInterval = window.setInterval(this.scheduledSynchronization, timeout);
+		this.syncInterval = window.setInterval(this.scheduledSynchronization.bind(this), timeout);
 	}
 
 	private registerEvents() {
@@ -488,7 +489,7 @@ export default class TickTickSync extends Plugin {
 				// console.log('ticktick sync : ', this.tickTickSync) ;
 
 				//Back up all data before each startup
-				this.tickTickSync?.backupTickTickAllResources();
+				// this.tickTickSync?.backupTickTickAllResources();
 
 			} catch (error) {
 				console.error(`error creating user data folder: ${error}`);

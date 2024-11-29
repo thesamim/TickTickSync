@@ -1,7 +1,7 @@
-import { App, ListItemCache, Notice, TFile, TFolder } from 'obsidian';
+import { App, type ListItemCache, Notice, TFile, TFolder } from 'obsidian';
 import TickTickSync from "@/main";
-import { ITask } from './api/types/Task';
-import { IProject } from '@/api/types//Project';
+import type {ITask} from './api/types/Task';
+import type {IProject} from '@/api/types//Project';
 import {FoundDuplicatesModal} from "./modals/FoundDuplicatesModal";
 import {getSettings} from "@/settings";
 

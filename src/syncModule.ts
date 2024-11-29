@@ -1,9 +1,8 @@
 import TickTickSync from "@/main";
-import {App, Editor, EditorPosition, MarkdownView, Notice, TFile, TFolder} from 'obsidian';
-import { ITask } from './api/types/Task';
+import {App, Editor, type EditorPosition, MarkdownView, Notice, TFile, TFolder} from 'obsidian';
+import type {ITask} from './api/types/Task';
 import ObjectID from 'bson-objectid';
-import {TaskDetail} from "./cacheOperation"
-import {RegExpMatchArray} from 'typescript';
+import type {TaskDetail} from "./cacheOperation";
 import {TaskDeletionModal} from "./modals/TaskDeletionModal";
 import {getSettings} from "@/settings";
 

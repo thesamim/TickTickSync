@@ -1,4 +1,4 @@
-import {IProject} from "@/api/types/Project";
+import type {IProject} from "@/api/types/Project";
 
 export interface ITickTickSyncSettings {
 	baseURL: string;

@@ -1,11 +1,12 @@
 'use strict';
-import { Platform, requestUrl, RequestUrlParam, RequestUrlResponse } from 'obsidian';
+import { Platform, requestUrl, type RequestUrlParam, type RequestUrlResponse } from 'obsidian';
 import { UAParser } from 'ua-parser-js';
 import ObjectID from 'bson-objectid';
-import { IProjectGroup } from './types/ProjectGroup';
-import { IProject, ISections } from './types/Project';
+import type {IProjectGroup} from './types/ProjectGroup';
+import type {IProject, ISections} from './types/Project';
 // import { ITag } from './types/Tag';
-import { ITask } from './types/Task';
+// import { ITag } from './types/Tag';
+import type {ITask} from './types/Task';
 // import { IFilter } from './types/Filter';
 // import { IHabit } from './types/Habit';
 import { API_ENDPOINTS } from './utils/get-api-endpoints';

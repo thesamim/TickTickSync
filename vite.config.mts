@@ -1,29 +1,28 @@
-import { resolve } from "path";
-import replace from "@rollup/plugin-replace";
-import {loadEnv, UserConfig} from "vite";
-import { viteStaticCopy } from "vite-plugin-static-copy";
-import tsConfigPaths from "vite-tsconfig-paths";
-import { configDefaults, defineConfig } from "vitest/config";
 import * as path from "path";
+import {resolve} from "path";
+import replace from "@rollup/plugin-replace";
+import builtins from "builtin-modules";
+import {svelte, vitePreprocess} from '@sveltejs/vite-plugin-svelte';
+import {loadEnv, type UserConfig} from "vite";
+import {viteStaticCopy} from "vite-plugin-static-copy";
+import tsConfigPaths from "vite-tsconfig-paths";
+import {configDefaults, defineConfig} from "vitest/config";
+import {pathToFileURL} from "node:url";
 
-function getOutDir(): string | undefined {
-	const env = loadEnv("prod", process.cwd());
-	if (env?.VITE_ENV !== "dev") {
-		return undefined;
-	}
-
-	const vaultDir = env?.VITE_OBSIDIAN_VAULT;
-	if (vaultDir === undefined) {
-		return vaultDir;
-	}
-
-	return path.join(vaultDir, ".obsidian", "plugins", "tickticksync");
+const DEV_PATH = path.join("..", "test-vault", ".obsidian", "plugins", "tickticksync");
+function getOutDir(prod: boolean): string | undefined {
+	if (!prod)
+		return DEV_PATH;
+	return undefined;
 }
 
-export default defineConfig(async ({ mode }) => {
+export default defineConfig(({mode}) => {
 	const prod = mode === 'production';
 	return {
 		plugins: [
+			svelte({
+				preprocess: [vitePreprocess()]
+			}),
 			tsConfigPaths(),
 			viteStaticCopy({
 				targets: [
@@ -33,13 +32,9 @@ export default defineConfig(async ({ mode }) => {
 					},
 				],
 			}),
-			replace({
-				"process.env.NODE_ENV": JSON.stringify(process.env.NODE_ENV),
-			}),
 		],
 		build: {
 			// We aren't building a website, so we build in library mode
-			// and bundle the output using our index.ts as the entrypoint.
 			lib: {
 				entry: resolve(__dirname, "src/main.ts"),
 				fileName: "main",
@@ -48,18 +43,33 @@ export default defineConfig(async ({ mode }) => {
 			minify: prod,
 			sourcemap: prod ? false : 'inline',
 			rollupOptions: {
-				external: ["obsidian"],
+				external: [
+					"obsidian",
+					"electron",
+					"typescript",
+					"@codemirror/autocomplete",
+					"@codemirror/collab",
+					"@codemirror/commands",
+					"@codemirror/language",
+					"@codemirror/lint",
+					"@codemirror/search",
+					"@codemirror/state",
+					"@codemirror/view",
+					"@lezer/common",
+					"@lezer/highlight",
+					"@lezer/lr",
+					...builtins,
+				],
 				output: {
-					assetFileNames: (assetInfo) => {
-						if (assetInfo.name === "style.css") {
-							return "styles.css";
-						}
-
-						return assetInfo.name as string;
-					},
+					// Overwrite default Vite output fileName
+					entryFileNames: 'main.js',
+					assetFileNames: 'styles.css',
+					sourcemapBaseUrl: pathToFileURL(
+						DEV_PATH,
+					).toString(),
 				},
 			},
-			outDir: getOutDir(),
+			outDir: getOutDir(prod),
 		},
 		test: {
 			watch: false,
