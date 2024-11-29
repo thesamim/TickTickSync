@@ -345,7 +345,6 @@ export class SyncMan {
 				await this.plugin.fileOperation?.deleteTaskFromSpecificFile(filepath, lineTask.id, lineTask.title, lineTask.items?.length,true);
 				return false
 			} else {
-				//TODO: #dateStuff, or do we want to do a conversion and be safe?
 				//this should only be necessary for a while, until they update all tasks
 				if (!savedTask.dateHolder) {
 					savedTask.dateHolder = this.plugin.dateMan?.getEmptydateHolder();
@@ -376,8 +375,8 @@ export class SyncMan {
 
 			//Whether status is modified?
 			const statusModified = this.plugin.taskParser?.isStatusChanged(lineTask, savedTask)
-			//TODO Check All Dates #dateStuff
-			//due date whether to modify
+
+			//any dates modified
 			const someDatesModified = this.plugin.dateMan?.areDatesChanged(lineTask, savedTask)
 			// console.log("TRACETHIS: 2", lineTask.dateHolder);
 
