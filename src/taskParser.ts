@@ -739,16 +739,16 @@ export class TaskParser {
 		return resultLine;
 	}
 
-	//#dateStuff
-	addCompletionDate(line: string, completedTime: string|undefined): string {
-		if (completedTime) {
-			const completionTime = this.plugin.dateMan?.utcToLocal(completedTime)
-			line = line + ` ${keywords.TASK_COMPLETE} ` + completionTime;
-			return line
-		} else {
-			return line;
-		}
-	}
+	// //Trust either Task plugin or Ticktick to do the completion dates.
+	// addCompletionDate(line: string, completedTime: string|undefined): string {
+	// 	if (completedTime) {
+	// 		const completionTime = this.plugin.dateMan?.utcToLocal(completedTime)
+	// 		line = line + ` ${keywords.TASK_COMPLETE} ` + completionTime;
+	// 		return line
+	// 	} else {
+	// 		return line;
+	// 	}
+	// }
 
 	//Note to future me: I wanted to get all the known tags in Obsidian to something clever
 	//                   with tag management.

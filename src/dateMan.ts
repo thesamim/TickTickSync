@@ -21,7 +21,7 @@ enum date_emoji {
 	dueDate = '📅',
 	completedTime = '✅',
 	cancelled_date = '❌'
-};
+}
 
 interface date_time_type {
 	hasATime: boolean,
@@ -125,7 +125,7 @@ export class DateMan {
 		Called from convertTaskToLine which is called either on Add or Update of a task.
 	*/
 
-	//TODO: Add whatever the new data representation format is going to be. #dateStuff
+
 	//Assume that dateholder is populated by the time we get here.
 	addDatesToLine(inString: string, task: ITask, direction: string | null): string {
 		// console.log('TRACETHIS Direction: ', direction, 'addDatesToLine - in :', inString, 'and the task DH is: ', task.dateHolder);
@@ -198,7 +198,7 @@ export class DateMan {
 		return inString;
 	}
 
-	//todo: strip whatever the new data representation format is going to be. #dateStuff
+	//Strip new data representation format is going to be.
 	//      and also get the times right.
 	stripDatesFromLine(inString: string): string | null {
 		let retString;
@@ -242,13 +242,15 @@ export class DateMan {
 				}
 			}
 		}
+		if (task.completedTime) {
+			dates.completedTime = this.getDateAndTime(task.completedTime, task.isAllDay, date_emoji.completedTime);
+		}
 		task.dateHolder = dates;
 		// console.log('addDateStructToTask:', task);
 	}
 
 
-	//TODO Check all Dates #dateStuff
-	//task due date compare
+	//Check all Dates
 	areDatesChanged(lineTask: ITask, TickTickTask: ITask): boolean {
 		//we're going to be bold and assume that both tasks have dateHolders.
 		const editedTaskDates = lineTask.dateHolder;
@@ -459,7 +461,7 @@ export class DateMan {
 		return dateItem;
 	}
 
-	//TODO: Verify that Time Zone differences are accounted for. #dateStuff
+
 	private areDatesDifferent(editedDate: string, cachedDate: string ) {
 		const utcDate1 = this.cleanDate(editedDate);
 		const utcDate2 = this.cleanDate(cachedDate);

@@ -323,10 +323,11 @@ export class FileOperation {
 			}
             let lineText = await this.plugin.taskParser?.convertTaskToLine(task, "TTAdd");
 
-			if (task.status != 0) {
-				//closed task, add completion time
-				lineText = this.plugin.taskParser?.addCompletionDate(lineText, task.completedTime);
-			}
+			//Trust either Task plugin or Ticktick to do the completion dates.
+			// if (task.status != 0) {
+			// 	//closed task, add completion time
+			// 	lineText = this.plugin.taskParser?.addCompletionDate(lineText, task.completedTime);
+			// }
 
 			if (task.parentId) {
                 let parentIndex = lines.indexOf(lines.find(line => line.includes(task.parentId)))
@@ -450,12 +451,14 @@ export class FileOperation {
 					lines.splice(i+1,currentTask.items.length)
 				}
                 lines[i] = parentTabs + line.replace(line, newTaskContent)
-				//always add completion date at end if the task is closed.
-				if (task.status != 0) {
-					//in an ideal world, we would triger Tasks to complete the task for us.
-					//but we're not there. Slap a completion date on the end of the line and be done
-					lines[i] = this.plugin.taskParser?.addCompletionDate(lines[i], task.completedTime);
-				}
+
+				//Trust either Task plugin or Ticktick to do the completion dates.
+				// //always add completion date at end if the task is closed.
+				// if (task.status != 0) {
+				// 	//in an ideal world, we would triger Tasks to complete the task for us.
+				// 	//but we're not there. Slap a completion date on the end of the line and be done
+				// 	lines[i] = this.plugin.taskParser?.addCompletionDate(lines[i], task.completedTime);
+				// }
 
 				// if (task.items && task.items.length > 0 ) {
                 //     console.log(`new Task has ${currentTask.items.length}`)
