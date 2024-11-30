@@ -82,11 +82,11 @@ export default class TickTickSync extends Plugin {
 			//default to AND because that's what we used to do:
 			this.settings.tagAndOr = 1;
 			//warn about tag changes.
-			notableChanges.push(['Changes from 1.0.0 to 1.0.36', 'priorTo1.0.36']);
+			notableChanges.push(['New Task Limiting rules', 'priorTo1.0.36']);
 		}
 		if ((!this.settings.version) || (this.isOlder(this.settings.version, '1.0.40'))) {
 			//warn about the date/time foo
-			notableChanges.push(['Changes from 1.0.36 to 1.040', 'priorTo1.0.40']);
+			notableChanges.push(['New Date/Time Handling', 'priorTo1.0.40']);
 		}
 
 		if (notableChanges.length > 0) {
