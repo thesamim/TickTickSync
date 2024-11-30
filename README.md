@@ -1,28 +1,24 @@
 # TickTickSync
 
-The TickTickSync plugin automatically creates tasks in ticktick and synchronizes task state between Obsidian and ticktick.
+The TickTickSync plugin automatically creates tasks in TickTick and synchronizes task state between Obsidian and TickTick.
 
-** **TickTickSync is now Mobile Compatible! [1]** **
+**TickTickSync is now Mobile Compatible!**
 
 The plugin works best when the [Tasks](https://github.com/obsidian-tasks-group/obsidian-tasks) plugin is installed.
-
-[1] I have tested reasonably well on Android. I only have limited access to IPhone, please proceed with caution.
-
 
 ## Features
 
 - Any task created in Obsidian and tagged with #ticktick will be synchronized with TickTick
-- Any task created in TickTick will be synchronized to Obisidian, unless synchronization is limited. [details here](https://github.com/thesamim/TickTickSync/wiki/Documentation#limit-synchronization).
+- Any task created in TickTick will be synchronized to Obsidian, unless synchronization is limited. [details here](https://github.com/thesamim/TickTickSync/wiki/Documentation#limit-synchronization).
 - Updates are bi-directional
-- Tasks added or updated from Obsidian are synched to TickTick immediately.
-- Tasks added or updated from TickTick are synched on a configurable time interval.
+- Tasks added or updated from Obsidian are synced to TickTick immediately.
+- Tasks added or updated from TickTick are synced on a configurable time interval.
 - Moving Tasks between Projects is now supported. Please see [Task movement documentation](https://github.com/thesamim/TickTickSync/wiki/Documentation#moving-tasks).
 - Moving Tasks between Parents is now supported.
-- Due dates accommodate times, times are no longer stripped in Obsidian.  
+- Date/Time compatibility with the [Tasks](https://github.com/obsidian-tasks-group/obsidian-tasks) plugin.   
 - Mobile Compatible.
 
-
-> 🚩
+ 🚩
 >## **Very Important**
 > 
 > If you share a vault between Desktop and Mobile, it is critical that you use the same vault structure and TickTickSync settings everywhere you use your TickTick account. Differences
@@ -31,51 +27,31 @@ The plugin works best when the [Tasks](https://github.com/obsidian-tasks-group/o
 > If you share your files between Desktop and Mobile using an application that creates duplicate files when it encounters a conflict (eg: Syncthing), it is possible to trigger the duplication issue (see below.)
 > Strongly recommend handling those conflicts ASAP.
 >
-> 🚩
-> 
-> ⚠️ 
->## CAUTION!
->
-> Logging in: Because of the changes for Mobile, the login method has changed. You will now be required to enter your UserId and Password.
-> The credentials are **NOT** saved, they are only used to get a login token. You will only be asked to login again if the
-> token expires.
-> 
-> The previous method of handling task status was in competition with the Tasks plugin status handling. For now: task status handling is deferred to the Tasks plugin. Which means updates to task status
-> are handled on update, or during Synchronization rather than immediately.
-> 
-> Please see the [New Date Handling caution in documentation.](https://github.com/thesamim/TickTickSync/wiki/Documentation#new-date-handling)
-> 
+🚩
+
+⚠️ 
 > It is possible to create duplicate projects/lists in TickTick. TickTickSync will show a warning and ask you to rename/move one of the duplicates because duplicate lists mess up synchronization. All synchronization will stop until the issue is handled.
 > 
-> I **believe** I have taken care of the bugs that have been causing duplicate tasks, or unwanted task moves between files. Because of the tremendous data loss this was causing, 
-> TickTickSync will now warn you if duplicate tasks are found and will prevent further Syncing until the issue is resolved. If you keep seeing duplicate warning **PLEASE** open an [issue](https://github.com/thesamim/TickTickSync/issues) with as much detail as possible.
-> 
-> 
-> ⚠️
+⚠️
 
 
 ## Notes
-1. TickTickSync [back ups](https://github.com/thesamim/TickTickSync/wiki/Documentation#backup-ticktick-data) are now CSV files that are compatible with TickTick's "Import Backups."
-2. **All Task Deletion operations must be confirmed.** In the fullness of time, when we get out of Beta, this might be a preference item. For now it's compulsory.
-3. TickTick lists are referred to as Projects in the plugin, and throughout documentation.
+1. TickTick lists are referred to as Projects in the plugin, and throughout documentation.
+2. TickTickSync [back ups](https://github.com/thesamim/TickTickSync/wiki/Documentation#backup-ticktick-data) are now CSV files that are compatible with TickTick's "Import Backups."
+3. **All Task Deletion operations must be confirmed.**
 4. TickTick only has four priorities (High, Medium, Low, None). Please see Priority in [Task Format](https://github.com/thesamim/TickTickSync/wiki/Documentation#task-format) for Task mapping of priority
 5. **Warning:** TickTickSync automatically creates .md files corresponding with the lists/projects created in TickTick and downloads all tasks to them.  
-   If the files are deleted in Obsidian while the TickTickSync plugin is active, those tasks will be deleted. If you accidentally confirm that deletion: 
+   If the files are deleted in Obsidian while the TickTickSync plugin is active, those Tasks will be deleted from TickTick. If you accidentally confirm that deletion: 
    To recover those tasks, go to the "[Trash](https://ticktick.com/webapp/#q/all/trash)" menu item on the TickTick interface and recover deleted tasks from there.
-6. TickTickSync now supports Task Items and will **NOT** delete Task Content. However, as of now, it will not allow management of Task Content.
+6. TickTickSync supports Task Items and will **NOT** delete Task Content. However, as of now, it will not allow management of Task Content.
 7. A link to the containing file in Obsidian is added to the Task Title in TickTick, but the content field is not mangled. In the fullness of time content will be manageable in TickTickSync. Please watch this [issue](https://github.com/thesamim/TickTickSync/issues/10) for progress. 
-8. Relatively confident that Time Zone difference issues are resolved. If not: Please open an issue with details.
-9. It is now possible control synchronization. Please see [details here](https://github.com/thesamim/TickTickSync/wiki/Documentation#limit-synchronization).
-10. TickTick has changed sign in procedures. You will have to login manually from settings.
-11. Tag handling now conforms to Obsidian tag handling.
+8. It is now possible control synchronization. Please see [details here](https://github.com/thesamim/TickTickSync/wiki/Documentation#limit-synchronization).
 
 ## Known Issues
 
 1. The plugin only works with the [Tasks emoji formats](https://publish.obsidian.md/tasks/Reference/Task+Formats/About+Task+Formats). It will **not** work with the Dataview format. In the fullness of time, this plugin will be refactored to use Tasks functionality to support both.
-2. Because Tags can't have spaces, at this time it is not possible to add a task to a project with name that contains spaces. In the fullness of time, will implement some kind of workaround (eg: `#folder_with_a_space` will be converted to `folder with a space`)
-3. If a file has a default project association (see [settings](https://github.com/thesamim/TickTickSync/wiki/Documentation#sync-control)), it is possible to create a task with a project tag other than the default project. The Task will be correctly synched to TickTick in the correct project. However, if the Task is then updated with subtasks, from TickTick, the subtasks will be synched to the project's default file rather than the file where the original parent task was created. **Additionally, the subtask will become the child of the last Task in that file.**
-4. TickTickSync has been updated to check for duplicate task creation. However, there are still scenarios where duplicate tasks can exist. If this is a significant enough problem, please open an [issue](https://github.com/thesamim/TickTickSync/issues/)
-
+2. Because Tags can't have spaces, at this time it is not possible to add a task to a project with name that contains spaces. As a workaround `#folder_with_a_space` will be converted to `folder with a space` in TickTick
+3. If a file has a default project association (see [settings](https://github.com/thesamim/TickTickSync/wiki/Documentation#sync-control)), it is possible to create a task with a project tag other than the default project. The Task will be correctly synced to TickTick in the correct project. However, if the Task is then updated with subtasks, from TickTick, the subtasks will be synced to the project's default file rather than the file where the original parent task was created. **Additionally, the subtask will become the child of the last Task in that file.**
 
 ## Installation
 
