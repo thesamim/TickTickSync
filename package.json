@@ -30,6 +30,7 @@
 		"@popperjs/core": "^2.11.8",
 		"bson-objectid": "^2.0.4",
 		"dependency-tree": "^11.0.1",
+		"eventemitter2": "^6.4.9",
 		"ua-parser-js": "^1.0.39",
 		"yaml": "^2.6.1"
 	},

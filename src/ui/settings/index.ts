@@ -7,6 +7,7 @@ import {getSettings, updateSettings} from "@/settings";
 
 const PROVIDER_OPTIONS: Record<string, string> = {"ticktick.com": "TickTick", "dida365.com": "Dida365"} as const;
 const TAGS_BEHAVIOR: Record<number, string> = {1: "AND", 2: "OR"} as const;
+const LOG_LEVEL: Record<string, string> = {"trace": "trace", "debug": "debug", "info": "info", "warn": "warn", "error": "error"} as const;
 
 export class TickTickSyncSettingTab extends PluginSettingTab {
 	private readonly plugin: TickTickSync;
@@ -28,32 +29,7 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 
 		this.addManualBlock(containerEl);
 
-		containerEl.createEl('hr');
-		containerEl.createEl('h1', {text: 'Debug operations'});
-
-		new Setting(containerEl)
-			.setName('Debug mode')
-			.setDesc('After enabling this option, all log information will be output to the console, which can help check for errors.')
-			.addToggle(component =>
-				component
-					.setValue(this.plugin.settings.debugMode)
-					.onChange(async (value) => {
-						this.plugin.settings.debugMode = value
-						await this.plugin.saveSettings()
-					})
-			)
-
-	}
-
-	/*
-
-	 */
-
-	private async saveSettings(update?: boolean): Promise<void> {
-		await this.plugin.saveSettings();
-		if (update) {
-			await this.display();
-		}
+		this.addDebugBlock(containerEl);
 	}
 
 	/*
@@ -372,6 +348,62 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 				})
 			);
 	}
+
+	private addDebugBlock(containerEl: HTMLElement) {
+		containerEl.createEl('hr');
+		containerEl.createEl('h1', {text: 'Debug operations'});
+
+		new Setting(containerEl)
+			.setName('Debug mode')
+			.setDesc('Allow access to developer settings.')
+			.addToggle(component =>
+				component
+					.setValue(getSettings().debugMode)
+					.onChange(async (value) => {
+						updateSettings({debugMode: value});
+						await this.saveSettings(true);
+					})
+			)
+
+		if (!getSettings().debugMode) return;
+
+		new Setting(containerEl)
+			.setName('Log Level')
+			.setDesc('Determine log level.')
+			.addDropdown(component =>
+				component
+					.addOptions(LOG_LEVEL)
+					.setValue(getSettings().logLevel)
+					.onChange(async (value) => {
+						updateSettings({logLevel: value});
+						await this.saveSettings(true);
+						this.plugin.reloadLogging();
+					}))
+
+		new Setting(containerEl)
+			.setName('Skip backup')
+			.setDesc('Skip backup on startup.')
+			.addToggle(component =>
+				component
+					.setValue(!!getSettings().skipBackup)
+					.onChange(async (value) => {
+						updateSettings({skipBackup: value});
+						await this.saveSettings();
+					})
+			)
+	}
+
+	/*
+
+	 */
+
+	private async saveSettings(update?: boolean): Promise<void> {
+		await this.plugin.saveSettings();
+		if (update) {
+			await this.display();
+		}
+	}
+
 	/*
 	
 	 */
@@ -394,22 +426,15 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 			//they've logged in with a different user id ask user about it.
 			new Notice("You are logged in with a different user ID.")
 		}
+		//if oldInboxId same as info.inboxId ask user about full re-syncing. set checkPoint to 0 to force full sync.
 
 		updateSettings({
 			token: info.token,
 			inboxID: info.inboxId,
 		});
 
-		this.plugin.settings.apiInitialized = true;
-		updateSettings({checkPoint: 0});
-		this.plugin.tickTickRestAPI = new TickTickRestAPI(this.app, this.plugin, null);
-		this.plugin.tickTickRestAPI.token = info.token;
+		await this.plugin.saveProjectsToCache();
 
-		//TODO: load projects and tags
-		// //it's first login right? Cache the projects for to get the rest of set up done.
-		// new Notice('Logged in! Fetching projects', 5);
-		// await this.plugin.cacheOperation?.saveProjectsToCache();
-		// new Notice('Project Fetch complete.', 5);
 		await this.saveSettings(true);
 	}
 
@@ -419,18 +444,18 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 		const taskAndOr = this.plugin.settings.tagAndOr;
 
 		if (!project && !tag) {
-			return "No limitation."
+			return "No limitation.";
 		}
 		if (project && !tag) {
-			return "Only Tasks in <b>" + project + "</b> will be synchronized"
+			return `Only Tasks in <b>${project}</b> will be synchronized`;
 		}
 		if (!project && tag) {
-			return "Only Tasks tagged with <b>#" + tag + "</b> tag will be synchronized"
+			return `Only Tasks tagged with <b>#${tag}</b> tag will be synchronized`;
 		}
 		if (taskAndOr == 1) {
-			return "Only tasks in <b>" + project + "</b> AND tagged with <b>#" + tag + "</b> tag will be synchronized"
+			return `Only tasks in <b>${project}</b> AND tagged with <b>#${tag}</b> tag will be synchronized`;
 		}
-		return "All tasks in <b>" + project + "</b> will be synchronized. All tasks tagged with <b>#" + tag + "</b> tag will be synchronized";
+		return `All tasks in <b>${project}</b> will be synchronized. All tasks tagged with <b>#${tag}</b> tag will be synchronized`;
 	}
 
 	private async confirmFullSync() {

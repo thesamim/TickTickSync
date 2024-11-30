@@ -4,6 +4,7 @@ import type {ITask} from './api/types/Task';
 import type {IProject} from '@/api/types//Project';
 import {FoundDuplicatesModal} from "./modals/FoundDuplicatesModal";
 import {getSettings} from "@/settings";
+import {log} from "@/utils/logging";
 
 // type TaskDetail = {
 //     taskId: string,
@@ -614,54 +615,35 @@ export class CacheOperation {
             return (projectName)
         } catch (error) {
             console.error(`Error finding project from Cache file: ${error}`);
-            return (false)
+            return false
         }
     }
 
 
 
     //save projects data to json file
-    async saveProjectsToCache() {
+    async saveProjectsToCache(projects: IProject[]) {
         try {
-            //get projects
-            // console.log(`Save Projects to cache with ${this.plugin.tickTickRestAPI}`)
-			//const projectGroups = await this.plugin.tickTickRestAPI?.GetProjectGroups();
-
-            const projects: IProject[] = await this.plugin.tickTickRestAPI?.GetAllProjects();
-			//TODO: Don't know what I thought projectGroups are but what we really need are project sections.
-			//      For Each Project call getProjectSections
-			//const projectSections = await this.plugin.tickTickRestAPI?.getProjectSections("")''
-			//Moving this here because if they have a list named Inbox, bad shit will happen.
-			let inboxProject = {
+			const inboxProject = {
 				id: getSettings().inboxID,
 				name: this.plugin.settings.inboxName
-			};
-
+			} as IProject;
 			projects.push(inboxProject);
 
+			//TODO: this really need?
 			const duplicates = projects.reduce((acc, obj, index, arr) => {
 				const duplicateIndex = arr.findIndex(item => item.name === obj.name && item.id !== obj.id);
 				if (duplicateIndex !== -1 && !acc.includes(obj)) {
 					acc.push(obj);
 				}
 				return acc;
-			}, []);
-			// @ts-ignore
+			}, [] as IProject[]);
 			const sortedDuplicates = duplicates.sort((a, b) => a.name.localeCompare(b.name));
-			// @ts-ignore
-
 			if (sortedDuplicates.length > 0) {
-				// @ts-ignore
-				if (this.plugin.settings.debugMode) {
-					console.log("Found duplicate lists:")
-					sortedDuplicates.forEach(thing => console.log(thing.id, thing.name))
-				}
+				log('debug', 'Found duplicate lists:', sortedDuplicates.map(thing => `${thing.id} ${thing.name}`));
 				await this.showFoundDuplicatesModal(this.app, this.plugin, sortedDuplicates)
 				return false;
 			}
-
-
-
 
             // if (this.plugin.settings.debugMode) {
             //     if (projectGroups !== undefined && projectGroups !== null) {
@@ -693,10 +675,6 @@ export class CacheOperation {
             //     // ================
             // }
 
-            if (!projects) {
-                return false
-            }
-
             //save to json
             //TODO: Do we want to deal with sections.
             this.plugin.settings.TickTickTasksData.projects = projects
@@ -704,12 +682,10 @@ export class CacheOperation {
             return true
 
         } catch (error) {
-            console.error(`error downloading projects: ${error}`)
-			new Notice("Error downloading projects: " + error.message);
-            await this.plugin.unlockSynclock();;
-            return false
+			log('error', 'Error on save projects:', error);
+			new Notice(`error on save projects: ${error}`);
         }
-
+		return false
     }
 
 
@@ -823,7 +799,7 @@ export class CacheOperation {
 		return tasks;
 	}
 
-	private async showFoundDuplicatesModal(app, plugin, projects: []) {
+	private async showFoundDuplicatesModal(app, plugin, projects: IProject[]) {
 		const myModal = new FoundDuplicatesModal(app, plugin,  projects, (result) => {
 			this.ret = result;
 		});

@@ -6,6 +6,8 @@ import {SyncMan} from "@/syncModule";
 import {Notice} from "obsidian";
 import {CacheOperation} from "@/cacheOperation";
 import {FileOperation} from "@/fileOperation";
+import {log} from "@/utils/logging";
+import type {IProject} from "@/api/types/Project";
 
 const LOCK_TASKS = 'LOCK_TASKS';
 
@@ -16,7 +18,7 @@ export class TickTickService {
 	plugin: TickTickSync;
 	tickTickSync!: SyncMan;
 	api?: Tick;
-	cacheOperation?: CacheOperation;
+	cacheOperation!: CacheOperation;
 	fileOperation?: FileOperation;
 
 	constructor(plugin: TickTickSync) {
@@ -27,7 +29,7 @@ export class TickTickService {
 		try {
 			const token = getSettings().token;
 			if (!token) {
-				console.log("Please login from settings.");
+				log('debug', "Please login from settings.");
 				return false;
 			}
 			this.api = new Tick({
@@ -43,7 +45,7 @@ export class TickTickService {
 			this.initialized = true;
 			return true;
 		} catch (error) {
-			console.info('Error on initialization:', error);
+			log('info', 'Error on initialization:', error);
 		}
 		return false;
 	}
@@ -62,7 +64,7 @@ export class TickTickService {
 			//try login
 			return await api.login();
 		} catch (error) {
-			console.error(error);
+			log('info', 'Error on login:', error);
 		}
 		return null;
 	}
@@ -78,8 +80,16 @@ export class TickTickService {
 			}
 			await this.syncFiles();
 		} catch (error) {
-			console.info('Error on synchronization:', error);
+			log('info', 'Error on synchronization:', error);
 		}
+	}
+
+	async saveProjectsToCache(): Promise<boolean> {
+		const projects = await this.api?.getProjects();
+		if (!projects) {
+			return false;
+		}
+		return this.cacheOperation.saveProjectsToCache(projects);
 	}
 
 	private async syncTickTickToObsidian(): Promise<boolean> {

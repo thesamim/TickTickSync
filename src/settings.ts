@@ -8,12 +8,15 @@ export interface ITickTickSyncSettings {
 	automaticSynchronizationInterval: number;
 	enableFullVaultSync: boolean;
 	tagAndOr: number; // 1 == And ; 2 == Or
-	debugMode: boolean;
 	SyncProject: string;
 	SyncTag: string;
 	defaultProjectId: string;
 	defaultProjectName: string;
 	TickTickTasksFilePath: string;
+
+	debugMode: boolean;
+	logLevel: string;
+	skipBackup?: boolean;
 
 	//TODO look like one cache object
 	inboxID: string;
@@ -34,6 +37,7 @@ export const DEFAULT_SETTINGS: ITickTickSyncSettings = {
 	enableFullVaultSync: false,
 	tagAndOr: 1,
 	debugMode: false,
+	logLevel: "info",
 	SyncProject: "",
 	SyncTag: "",
 	defaultProjectId: "",

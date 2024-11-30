@@ -1,7 +1,7 @@
 import "@/static/index.css";
 import "@/static/styles.css";
 
-import {Editor, MarkdownView, Notice, Plugin, TFolder} from 'obsidian';
+import {Editor, type MarkdownFileInfo, MarkdownView, Notice, Plugin, TFolder} from 'obsidian';
 
 //settings
 import {DEFAULT_SETTINGS, getSettings, type ITickTickSyncSettings, updateSettings} from './settings';
@@ -25,9 +25,11 @@ import {isOlder} from "./utils/version";
 import {TickTickSyncSettingTab} from "./ui/settings";
 import {TickTickService} from "@/services";
 import {QueryInjector} from "@/query/injector";
+import {log, logging, type LogOptions} from "@/utils/logging";
 
 
 export default class TickTickSync extends Plugin {
+
 	settings!: ITickTickSyncSettings;
 	service: TickTickService = new TickTickService(this);
 
@@ -44,6 +46,8 @@ export default class TickTickSync extends Plugin {
 	initialized: boolean = false;
 
 	async onload() {
+		logging.registerConsoleLogger();
+		log('info', `loading plugin "${this.manifest.name}" v${this.manifest.version}`);
 
 		const isSettingsLoaded = await this.loadSettings();
 		if (!isSettingsLoaded) {
@@ -51,6 +55,7 @@ export default class TickTickSync extends Plugin {
 			return;
 		}
 
+		this.reloadLogging();
 		// This adds a settings tab so the user can configure various aspects of the plugin
 		this.addSettingTab(new TickTickSyncSettingTab(this.app, this));
 
@@ -58,7 +63,7 @@ export default class TickTickSync extends Plugin {
 		try {
 			await this.initializePlugin();
 		} catch (error) {
-			console.error('API Initialization Failed.', error);
+			log('error', 'API Initialization Failed.', error);
 		}
 
 		const queryInjector = new QueryInjector(this);
@@ -91,7 +96,7 @@ export default class TickTickSync extends Plugin {
 		this.addCommand({
 			id: 'set-default-project-for-TickTick-task-in-the-current-file',
 			name: 'Set default TickTick project for Tasks in the current file',
-			editorCallback: (editor: Editor, view: MarkdownView) => {
+			editorCallback: (editor: Editor, view: MarkdownView | MarkdownFileInfo) => {
 				if (!view || !view.file) {
 					new Notice(`No active file.`)
 					return;
@@ -104,20 +109,32 @@ export default class TickTickSync extends Plugin {
 		//display default project for the current file on status bar
 		// This adds a status bar item to the bottom of the app. Does not work on mobile apps.
 		this.statusBar = this.addStatusBarItem();
-		console.log(`${this.manifest.name} ${this.manifest.version} loaded!`);
+
+		log('debug', `loaded plugin "${this.manifest.name}" v${this.manifest.version}`);
 	}
 
-	private syncInterval?: number;
+	private syncIntervalId?: number;
 	reloadInterval() {
-		if (this.syncInterval) {
-			window.clearInterval(this.syncInterval);
-			this.syncInterval = undefined;
+		if (this.syncIntervalId) {
+			window.clearInterval(this.syncIntervalId);
+			this.syncIntervalId = undefined;
 		}
 		const timeout = getSettings().automaticSynchronizationInterval * 1000;
 		if (timeout === 0) {
 			return;
 		}
-		this.syncInterval = window.setInterval(this.scheduledSynchronization.bind(this), timeout);
+		this.syncIntervalId = window.setInterval(this.scheduledSynchronization.bind(this), timeout);
+	}
+
+	// Configure logging.
+	reloadLogging() {
+		const options: LogOptions = {
+			minLevels: {
+				'': getSettings().logLevel,
+				ticktick: getSettings().logLevel,
+			},
+		};
+		logging.configure(options);
 	}
 
 	private registerEvents() {
@@ -155,7 +172,7 @@ export default class TickTickSync extends Plugin {
 					await this.unlockSynclock();
 					await this.saveSettings();
 				} catch (error) {
-					console.error(`An error occurred while deleting tasks: ${error}`);
+					log('warn', `An error occurred while deleting tasks: ${error}`);
 					await this.unlockSynclock();
 				}
 
@@ -341,8 +358,8 @@ export default class TickTickSync extends Plugin {
 
 
 	async onunload() {
-		if (this.syncInterval) {
-			window.clearInterval(this.syncInterval);
+		if (this.syncIntervalId) {
+			window.clearInterval(this.syncIntervalId);
 		}
 		console.log(`TickTickSync unloaded!`);
 	}
@@ -421,13 +438,16 @@ export default class TickTickSync extends Plugin {
 						inboxID: getSettings().inboxID,
 						checkPoint: getSettings().checkPoint,
 						automaticSynchronizationInterval: getSettings().automaticSynchronizationInterval,
+						debugMode: getSettings().debugMode,
+						logLevel: getSettings().logLevel,
+						skipBackup: getSettings().skipBackup,
 					});
 			} else {
-				console.error('Settings are empty or invalid, not saving to avoid data loss.');
+				log('warn', 'Settings are empty or invalid, not saving to avoid data loss.');
 			}
 		} catch (error) {
 			//Print or handle errors
-			console.error('Error saving settings:', error);
+			log('error', 'Error saving settings:', error);
 		}
 	}
 
@@ -443,8 +463,9 @@ export default class TickTickSync extends Plugin {
 		this.cacheOperation = new CacheOperation(this.app, this);
 
 		let isProjectsSaved = false;
-		if (this.settings.apiInitialized) {
-			isProjectsSaved = await this.cacheOperation?.saveProjectsToCache();
+		if (getSettings().token) {
+			isProjectsSaved = await this.saveProjectsToCache();
+				//await this.cacheOperation?.saveProjectsToCache();
 		}
 
 
@@ -489,7 +510,9 @@ export default class TickTickSync extends Plugin {
 				// console.log('ticktick sync : ', this.tickTickSync) ;
 
 				//Back up all data before each startup
-				// this.tickTickSync?.backupTickTickAllResources();
+				if (!getSettings().skipBackup) {
+					this.tickTickSync?.backupTickTickAllResources();
+				}
 
 			} catch (error) {
 				console.error(`error creating user data folder: ${error}`);
@@ -675,21 +698,18 @@ export default class TickTickSync extends Plugin {
 			return;
 		}
 		const markDownView = this.app.workspace.getActiveViewOfType(MarkdownView);
-		if (!markDownView) {
+		if (!markDownView || !markDownView.file) {
 			this.statusBar.setText('');
-		} else {
-			const filepath = markDownView?.file?.path;
-			if (filepath === undefined) {
-				// console.log(`file path undefined`)
-				return;
-			}
-			const defaultProjectName = await this.cacheOperation?.getDefaultProjectNameForFilepath(filepath as string);
-			if (defaultProjectName === undefined) {
-				// console.log(`projectName undefined`)
-				return;
-			}
-			this.statusBar.setText(defaultProjectName);
+			return;
 		}
+
+		const filepath = markDownView.file.path;
+		const defaultProjectName = await this.cacheOperation?.getDefaultProjectNameForFilepath(filepath as string);
+		if (defaultProjectName === undefined) {
+			// console.log(`projectName undefined`)
+			return;
+		}
+		this.statusBar.setText(defaultProjectName);
 
 	}
 
@@ -697,15 +717,29 @@ export default class TickTickSync extends Plugin {
 		if (!this.checkModuleClass()) {
 			return;
 		}
-
-		console.log('TickTick scheduled synchronization task started at', new Date().toLocaleString());
+		log('debug', `TickTick scheduled synchronization task started at ${new Date().toLocaleString()}`)
 		try {
 			await this.service.synchronization();
 		} catch (error) {
-			console.error('An error occurred:', error);
-			new Notice('An error occurred:', error);
+			log('error', 'An error occurred:', error);
+			new Notice(`An error occurred: ${error}`);
 		}
-		console.log('TickTick scheduled synchronization task completed at', new Date().toLocaleString());
+		log('debug', `TickTick scheduled synchronization task completed at ${new Date().toLocaleString()}`)
+	}
+
+	async saveProjectsToCache(): Promise<boolean> {
+		if (!this.checkModuleClass()) {
+			return false;
+		}
+		log('debug', `TickTick saveProjectsToCache started at ${new Date().toLocaleString()}`)
+		try {
+			return await this.service.saveProjectsToCache();
+		} catch (error) {
+			log('error', 'An error in saveProjectsToCache occurred:', error);
+			new Notice(`An error in saveProjectsToCache occurred: ${error}`);
+		}
+		log('debug', `TickTick saveProjectsToCache completed at ${new Date().toLocaleString()}`)
+		return false;
 	}
 
 	async checkSyncLock() {

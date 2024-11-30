@@ -34,11 +34,11 @@ export function parseQuery(raw: string): [Query, QueryWarning[]] {
   try {
     obj = tryParseAsJson(raw);
     warnings.push(possibleWarnings.JsonQuery);
-  } catch (e) {
+  } catch (eJson) {
     try {
       obj = tryParseAsYaml(raw);
-    } catch (e) {
-      throw new ParsingError("Unable to parse as YAML or JSON");
+    } catch (eYaml) {
+      throw new ParsingError("Unable to parse as YAML or JSON", { eJson, eYaml });
     }
   }
 
