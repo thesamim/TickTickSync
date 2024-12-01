@@ -3,11 +3,10 @@ import {Tick} from "@/api";
 import {getSettings} from "@/settings";
 import {doWithLock} from "@/utils/locks";
 import {SyncMan} from "@/syncModule";
-import {Notice} from "obsidian";
+import {Editor, type MarkdownFileInfo, type MarkdownView, Notice, TFile} from "obsidian";
 import {CacheOperation} from "@/cacheOperation";
 import {FileOperation} from "@/fileOperation";
 import {log} from "@/utils/logging";
-import type {IProject} from "@/api/types/Project";
 
 const LOCK_TASKS = 'LOCK_TASKS';
 
@@ -91,6 +90,211 @@ export class TickTickService {
 		}
 		return this.cacheOperation.saveProjectsToCache(projects);
 	}
+
+	async getProjects() {
+		//TODO: add a check for valid data
+		return this.plugin.settings.TickTickTasksData.projects
+	}
+
+	async deletedTaskCheck(filePath: string | null) {
+		return await doWithLock(LOCK_TASKS, async () => {
+			return this.tickTickSync?.deletedTaskCheck(filePath);
+		});
+	}
+
+	async deletedFileCheck(filePath: string): Promise<boolean> {
+
+		const fileMetadata = await this.cacheOperation?.getFileMetadata(filePath, null);
+		if (!fileMetadata || !fileMetadata.TickTickTasks) {
+			//console.log('There is no task in the deleted file')
+			return false;
+		}
+		//TODO
+		// if (!(this.checkModuleClass())) {
+		// 	return false;
+		// }
+
+		await doWithLock(LOCK_TASKS, async () => {
+			await this.tickTickSync.deletedTaskCheck(filePath);
+			await this.cacheOperation.deleteFilepathFromMetadata(filePath);
+		});
+		return true;
+	}
+
+	async renamedFileCheck(filePath: string, oldPath: string): Promise<boolean> {
+		// console.log(`${oldPath} is renamed`)
+		//Read fileMetadata
+		//const fileMetadata = await this.fileOperation.getFileMetadata(file)
+		const fileMetadata = await this.cacheOperation?.getFileMetadata(oldPath, null);
+		if (!fileMetadata || !fileMetadata.TickTickTasks) {
+			//console.log('There is no task in the deleted file')
+			return false;
+		}
+		//TODO
+		// if (!(this.checkModuleClass())) {
+		// 	return;
+		// }
+
+		await doWithLock(LOCK_TASKS, async () => {
+			await this.tickTickSync.updateTaskContent(filePath);
+			await this.cacheOperation.updateRenamedFilePath(oldPath, filePath);
+		});
+		return true;
+	}
+
+	async fullTextNewTaskCheck(filepath: string) {
+		await doWithLock(LOCK_TASKS, async () => {
+			await this.tickTickSync?.fullTextNewTaskCheck(filepath);
+		});
+	}
+
+	async lineContentNewTaskCheck(editor: Editor, info: MarkdownView | MarkdownFileInfo) {
+		return await doWithLock(LOCK_TASKS, async () => {
+			await this.tickTickSync?.lineContentNewTaskCheck(editor, info);
+		});
+	}
+
+	async lineModifiedTaskCheck(filepath: string, lastLineText: string, lastLine: number, fileContent: string): Promise<boolean> {
+		return await doWithLock(LOCK_TASKS, async () => {
+			return this.tickTickSync?.lineModifiedTaskCheck(filepath, lastLineText, lastLine, fileContent);
+		});
+	}
+
+	//TODO: refactor
+	async checkDataBase() {
+		// Add code here to handle exporting TickTick data
+		//reinstall plugin
+		const vault = this.plugin.app.vault;
+		const fileNum = await this.plugin.cacheOperation?.checkFileMetadata()
+		log('debug', `checking metadata for ${fileNum} files`);
+		if (!fileNum || fileNum < 1){ //nothing? really?
+			console.log("File Metadata rebuild.");
+			const allMDFiles: TFile[] = vault.getMarkdownFiles();
+			allMDFiles.forEach(file => {
+				// console.log("File: ", file);
+				this.tickTickSync?.fullTextModifiedTaskCheck(file.path)
+			});
+		}
+		await this.plugin.saveSettings()
+
+		const metadatas = await this.cacheOperation?.getFileMetadatas()
+
+		//if (!await this.plugin.checkAndHandleSyncLock()) return;
+
+		log('debug', 'checking deleted tasks')
+		await doWithLock(LOCK_TASKS, async () => {
+
+			//check empty task
+			for (const key in metadatas) {
+				// console.log("Key: ", key)
+				const value = metadatas[key];
+				//console.log(value)
+				for (const taskDetails of value.TickTickTasks) {
+
+					//console.log(`${taskId}`)
+					let taskObject
+
+					try {
+						taskObject = await this.plugin.cacheOperation?.loadTaskFromCacheID(taskDetails.taskId)
+					} catch (error) {
+						console.error(`An error occurred while loading task cache: ${error.message}`);
+					}
+
+					if (!taskObject) {
+						// console.log(`The task data of the ${taskId} is empty.`)
+						//get from TickTick
+						try {
+							taskObject = await this.plugin.tickTickRestAPI?.getTaskById(taskDetails.taskId);
+							if (taskObject && taskObject.deleted === 1) {
+								await this.plugin.cacheOperation?.deleteTaskIdFromMetadata(key, taskDetails.taskId)
+							}
+						} catch (error) {
+							if (error.message.includes('404')) {
+								// console.log(`Task ${taskId} seems to not exist.`);
+								await this.plugin.cacheOperation?.deleteTaskIdFromMetadata(key, taskDetails.taskId)
+								continue
+							} else {
+								console.error(error);
+								continue
+							}
+						}
+
+					}
+				}
+			}
+			await this.plugin.saveSettings()
+
+
+			log('debug', 'checking renamed files -- This operation takes a while, please be patient.')
+			try {
+				//check renamed files
+				for (const key in metadatas) {
+					console.log("Checking Renamed: ", key);
+					const value = metadatas[key];
+					//console.log(value)
+					const obsidianURL = this.plugin.taskParser?.getObsidianUrlFromFilepath(key)
+					for (const taskDetail of value.TickTickTasks) {
+						//console.log(`${taskId}`)
+						let taskObject
+						try {
+							taskObject = await this.plugin.cacheOperation?.loadTaskFromCacheID(taskDetail.taskId)
+						} catch (error) {
+							log('warn', `An error occurred while loading task ${taskDetail.taskId} from cache:`, error);
+						}
+						if (!taskObject) {
+							log('warn', `Task ${taskDetail.id}: ${taskDetail.title} is not found.`)
+							continue
+						}
+						const oldTitle = taskObject?.title ?? '';
+						if (!oldTitle.includes(obsidianURL)) {
+							// console.log('Preparing to update description.')
+							// console.log(oldContent)
+							// console.log(newContent)
+							try {
+								await this.plugin.tickTickSync?.updateTaskContent(key)
+							} catch (error) {
+								log('warn', `An error occurred while updating task description:`, error);
+							}
+						}
+					}
+				}
+				log('debug', "Done File Rename check.");
+
+				try {
+					log('debug', 'checking unsynced tasks');
+					const files = vault.getFiles();
+					for (const v of files) {
+
+						if (v.extension == 'md') {
+							console.log("Now looking at: ", v);
+							try {
+								console.log(`Scanning file ${v.path}`)
+								await this.plugin.fileOperation?.addTickTickLinkToFile(v.path);
+								if (this.plugin.settings.enableFullVaultSync) {
+									await this.plugin.fileOperation?.addTickTickTagToFile(v.path);
+								}
+							} catch (error) {
+								log('warn', `An error occurred while check new tasks in the file: ${v.path}`, error);
+							}
+
+						}
+					}
+				} catch (error) {
+					log('warn', `An error occurred while checking for unsynced tasks.:`, error)
+					return;
+				}
+
+				new Notice(`All files have been scanned.`)
+
+			} catch (error) {
+				log('warn', `An error occurred while scanning the vault.:`, error)
+			}
+		});
+	}
+
+	/*
+
+	 */
 
 	private async syncTickTickToObsidian(): Promise<boolean> {
 		return this.tickTickSync.syncTickTickToObsidian();

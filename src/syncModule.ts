@@ -1,5 +1,5 @@
 import TickTickSync from "@/main";
-import {App, Editor, type EditorPosition, MarkdownView, Notice, TFile, TFolder} from 'obsidian';
+import {App, Editor, type EditorPosition, type MarkdownFileInfo, MarkdownView, Notice, TFile, TFolder} from 'obsidian';
 import type {ITask} from './api/types/Task';
 import ObjectID from 'bson-objectid';
 import type {TaskDetail} from "./cacheOperation";
@@ -409,7 +409,7 @@ export class SyncMan {
 		return missingTaskIds;
 	}
 
-	async lineContentNewTaskCheck(editor: Editor, view: MarkdownView): Promise<boolean> {
+	async lineContentNewTaskCheck(editor: Editor, view: MarkdownView | MarkdownFileInfo): Promise<boolean> {
 		//const editor = this.app.workspace.activeEditor?.editor
 		//const view =this.app.workspace.getActiveViewOfType(MarkdownView)
 		const filepath = view.file?.path

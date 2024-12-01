@@ -1,5 +1,4 @@
 import {App, Notice, PluginSettingTab, SearchComponent, Setting, TFolder} from "obsidian";
-import {TickTickRestAPI} from "@/TicktickRestAPI";
 import {ConfirmFullSyncModal} from "@/modals/ConfirmFullSyncModal";
 import {FolderSuggest} from "@/utils/FolderSuggester";
 import TickTickSync from "@/main";
@@ -25,7 +24,7 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 
 		this.addAuthBlock(containerEl);
 
-		this.addSyncBlock(containerEl);
+		await this.addSyncBlock(containerEl);
 
 		this.addManualBlock(containerEl);
 
@@ -93,19 +92,13 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 			})
 	}
 
-	private addSyncBlock(containerEl: HTMLElement) {
+	private async addSyncBlock(containerEl: HTMLElement) {
 		containerEl.createEl('hr');
 		containerEl.createEl('h1', {text: 'Sync control'});
 
-		//let projectsLoaded: boolean = this.plugin.settings.apiInitialized && this.plugin.settings.TickTickTasksData?.projects;
-
-		const projects = this.plugin.settings.TickTickTasksData?.projects || [];
+		const projects = await this.plugin.service.getProjects();
 		const myProjectsOptions: Record<string, string> = projects.reduce((obj, item) => {
-			try {
-				obj[item.id] = item.name;
-			} catch {
-				console.error("Failed to Load", item.name);
-			}
+			obj[item.id] = item.name;
 			return obj;
 		}, {} as Record<string, string>);
 
@@ -293,7 +286,7 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 	}
 
 	private addManualBlock(containerEl: HTMLElement) {
-		if (!this.plugin.settings.apiInitialized)
+		if (!getSettings().token)
 			return;
 
 		containerEl.createEl('hr');
@@ -306,17 +299,15 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 				.setButtonText('Sync')
 				.onClick(async () => {
 					// Add code here to handle exporting TickTick data
-					if (!this.plugin.settings.apiInitialized) {
+					if (!getSettings().token) {
 						new Notice(`Please log in from settings first`)
 						return
 					}
 					try {
 						await this.plugin.scheduledSynchronization()
-						await this.plugin.unlockSynclock();
 						new Notice(`Sync completed..`)
 					} catch (error) {
 						new Notice(`An error occurred while syncing.:${error}`)
-						await this.plugin.unlockSynclock();
 					}
 
 				})
@@ -329,7 +320,12 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 			.addButton(button => button
 				.setButtonText('Check Database')
 				.onClick(async () => {
-					await this.checkDataBase();
+					if (!getSettings().token) {
+						new Notice(`Please log in from settings first`)
+						return
+					}
+
+					await this.plugin.service.checkDataBase();
 				})
 			);
 
@@ -340,7 +336,7 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 				.setButtonText('Backup')
 				.onClick(() => {
 					// Add code here to handle exporting TickTick data
-					if (!this.plugin.settings.apiInitialized) {
+					if (!getSettings().token) {
 						new Notice(`Please log in from settings first`)
 						return
 					}
@@ -351,7 +347,7 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 
 	private addDebugBlock(containerEl: HTMLElement) {
 		containerEl.createEl('hr');
-		containerEl.createEl('h1', {text: 'Debug operations'});
+		containerEl.createEl('h1', {text: 'Debug options'});
 
 		new Setting(containerEl)
 			.setName('Debug mode')
@@ -432,9 +428,7 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 			token: info.token,
 			inboxID: info.inboxId,
 		});
-
 		await this.plugin.saveProjectsToCache();
-
 		await this.saveSettings(true);
 	}
 
@@ -487,148 +481,4 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 		return null;
 	}
 
-	//TODO: move to service
-	private async checkDataBase() {
-		// Add code here to handle exporting TickTick data
-		if (!this.plugin.settings.apiInitialized) {
-			new Notice(`Please log in from settings first`)
-			return
-		}
-
-		//reinstall plugin
-
-		//check file metadata
-		console.log('checking file metadata')
-
-		const fileNum = await this.plugin.cacheOperation?.checkFileMetadata()
-		console.log("Number of files: ", fileNum)
-		if (!fileNum || fileNum < 1){ //nothing? really?
-			console.log("File Metadata rebuild.");
-			const allMDFiles = this.app.vault.getMarkdownFiles();
-			allMDFiles.forEach(file => {
-				// console.log("File: ", file);
-				this.plugin.tickTickSync?.fullTextModifiedTaskCheck(file.path)
-			});
-		}
-		await this.plugin.saveSettings()
-
-		const metadatas = await this.plugin.cacheOperation?.getFileMetadatas()
-
-		if (!await this.plugin.checkAndHandleSyncLock()) return;
-
-		console.log('checking deleted tasks')
-		//check empty task
-		for (const key in metadatas) {
-			// console.log("Key: ", key)
-			const value = metadatas[key];
-			//console.log(value)
-			for (const taskDetails of value.TickTickTasks) {
-
-				//console.log(`${taskId}`)
-				let taskObject
-
-				try {
-					taskObject = await this.plugin.cacheOperation?.loadTaskFromCacheID(taskDetails.taskId)
-				} catch (error) {
-					console.error(`An error occurred while loading task cache: ${error.message}`);
-				}
-
-				if (!taskObject) {
-					// console.log(`The task data of the ${taskId} is empty.`)
-					//get from TickTick
-					try {
-						taskObject = await this.plugin.tickTickRestAPI?.getTaskById(taskDetails.taskId);
-						if (taskObject && taskObject.deleted === 1) {
-							await this.plugin.cacheOperation?.deleteTaskIdFromMetadata(key, taskDetails.taskId)
-						}
-					} catch (error) {
-						if (error.message.includes('404')) {
-							// console.log(`Task ${taskId} seems to not exist.`);
-							await this.plugin.cacheOperation?.deleteTaskIdFromMetadata(key, taskDetails.taskId)
-							continue
-						} else {
-							console.error(error);
-							continue
-						}
-					}
-
-				}
-			}
-			;
-
-		}
-		await this.plugin.saveSettings()
-
-
-		console.log('checking renamed files -- This operation takes a while, please be patient.')
-		try {
-			//check renamed files
-			for (const key in metadatas) {
-				console.log("Checking Renamed: ", key);
-				const value = metadatas[key];
-				//console.log(value)
-				const obsidianURL = this.plugin.taskParser?.getObsidianUrlFromFilepath(key)
-				for (const taskDetail of value.TickTickTasks) {
-					//console.log(`${taskId}`)
-					let taskObject
-					try {
-						taskObject = await this.plugin.cacheOperation?.loadTaskFromCacheID(taskDetail.taskId)
-					} catch (error) {
-						console.error(`An error occurred while loading task ${taskDetail.taskId} from cache: ${error.message}`);
-					}
-					if (!taskObject) {
-						console.error(`Task ${taskDetail.id}: ${taskDetail.title} is not found.`)
-						continue
-					}
-					const oldTitle = taskObject?.title ?? '';
-					if (!oldTitle.includes(obsidianURL)) {
-						// console.log('Preparing to update description.')
-						// console.log(oldContent)
-						// console.log(newContent)
-						try {
-							await this.plugin.tickTickSync?.updateTaskContent(key)
-						} catch (error) {
-							console.error(`An error occurred while updating task description: ${error.message}`);
-						}
-					}
-				}
-			}
-			console.log("Done File Rename check.");
-
-			try {
-				console.log('checking unsynced tasks');
-				const files = this.app.vault.getFiles();
-				for (const v of files) {
-
-					const i = files.indexOf(v);
-					if (v.extension == 'md') {
-						console.log("Now looking at: ", v);
-						try {
-							console.log(`Scanning file ${v.path}`)
-							await this.plugin.fileOperation?.addTickTickLinkToFile(v.path);
-							if (this.plugin.settings.enableFullVaultSync) {
-								await this.plugin.fileOperation?.addTickTickTagToFile(v.path);
-							}
-						} catch (error) {
-							console.error(`An error occurred while check new tasks in the file: ${v.path}, ${error.message}`);
-						}
-
-					}
-				}
-				await this.plugin.unlockSynclock();
-			} catch (Error) {
-				console.error(`An error occurred while checking for unsynced tasks.:${Error}`)
-				await this.plugin.unlockSynclock();
-				return;
-			}
-
-
-			new Notice(`All files have been scanned.`)
-
-
-		} catch (error) {
-			console.error(`An error occurred while scanning the vault.:${error}`)
-			await this.plugin.unlockSynclock();
-		}
-	}
 }

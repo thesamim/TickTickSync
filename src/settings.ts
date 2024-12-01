@@ -28,7 +28,6 @@ export interface ITickTickSyncSettings {
 	apiInitialized: boolean;
 	fileMetadata: any;
 	statistics: any;
-	syncLock: boolean;
 }
 
 export const DEFAULT_SETTINGS: ITickTickSyncSettings = {
@@ -52,8 +51,7 @@ export const DEFAULT_SETTINGS: ITickTickSyncSettings = {
 
 	apiInitialized: false,
 	fileMetadata: {},
-	statistics: {},
-	syncLock: false
+	statistics: {}
 }
 
 //two places for settings, move all ref from main to here

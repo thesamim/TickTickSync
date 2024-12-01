@@ -26,6 +26,7 @@ import {TickTickSyncSettingTab} from "./ui/settings";
 import {TickTickService} from "@/services";
 import {QueryInjector} from "@/query/injector";
 import {log, logging, type LogOptions} from "@/utils/logging";
+import store from "@/store";
 
 
 export default class TickTickSync extends Plugin {
@@ -66,6 +67,7 @@ export default class TickTickSync extends Plugin {
 			log('error', 'API Initialization Failed.', error);
 		}
 
+		store.service.set(this.service);
 		const queryInjector = new QueryInjector(this);
 		this.registerMarkdownCodeBlockProcessor(
 			"ticktick",
@@ -140,83 +142,58 @@ export default class TickTickSync extends Plugin {
 	private registerEvents() {
 		//Key event monitoring, judging line breaks and deletions
 		this.registerDomEvent(document, 'keyup', async (evt: KeyboardEvent) => {
-			if (!this.settings.apiInitialized) {
-				return;
-			}
-			//console.log(`key pressed`)
-			const markDownView = this.app.workspace.getActiveViewOfType(MarkdownView);
-			const editor = markDownView?.app.workspace.activeEditor?.editor;
-
-
-			if ((!markDownView) || !(editor) || (editor) && !(editor.hasFocus())) {
-				// (console.log(`editor is not focused`))
+			if (!getSettings().token) {
 				return;
 			}
 
-			if (evt.key === 'ArrowUp' || evt.key === 'ArrowDown' || evt.key === 'ArrowLeft' || evt.key === 'ArrowRight' || evt.key === 'PageUp' || evt.key === 'PageDown') {
-				// console.log(`${evt.key} arrow key is released`);
-				if (!(this.checkModuleClass())) {
+			const editor = this.app.workspace.activeEditor?.editor;
+			if (!editor || !editor.hasFocus()) {
+				return;
+			}
+
+			if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'PageUp', 'PageDown'].includes(evt.key)) {
+				// log('trace', `${evt.key} arrow key is released`);
+				if (!this.checkModuleClass()) {
 					return;
 				}
 				await this.lineNumberCheck();
 			}
 
-			if (evt.key === 'Delete' || evt.key === 'Backspace') {
+			if (['Delete', 'Backspace'].includes(evt.key)) {
 				try {
-					//console.log(`${evt.key} key is released`);
+					// log('trace', `${evt.key} arrow key is released`);
 					if (!(this.checkModuleClass())) {
 						return;
 					}
-					if (!await this.checkAndHandleSyncLock()) return;
-					await this.tickTickSync?.deletedTaskCheck(null);
-					await this.unlockSynclock();
+					await this.service.deletedTaskCheck(null);
 					await this.saveSettings();
 				} catch (error) {
 					log('warn', `An error occurred while deleting tasks: ${error}`);
-					await this.unlockSynclock();
 				}
 
 			}
 		});
 
-		function traverseDOMBackwards(element, callback) {
-			while (element) {
-				callback(element);
-				element = element.previousElementSibling;
-
-			}
-		}
-
 		// If the plugin hooks up any global DOM events (on parts of the app that doesn't belong to this plugin)
 		// Using this function will automatically remove the event listener when this plugin is disabled.
 		this.registerDomEvent(document, 'click', async (evt: MouseEvent) => {
-			const {target} = evt;
-			const markDownView = this.app.workspace.getActiveViewOfType(MarkdownView);
-			const file = markDownView?.app.workspace.activeEditor?.file;
-			const fileName = file?.name;
-			const filepath = file?.path;
-
-			//Here for future debugging.
-			// traverseDOMBackwards(target, (element) => {
-			// 	console.log(element);
-			// });
-
-			if (!this.settings.apiInitialized) {
+			if (!getSettings().token) {
 				return;
 			}
+
+			const editor = this.app.workspace.activeEditor?.editor;
+			if (!editor || !editor.hasFocus()) {
+				return;
+			}
+
 			if (!(this.checkModuleClass())) {
 				return;
 			}
 
+			await this.lineNumberCheck();
 
-			if (this.app.workspace.activeEditor?.editor?.hasFocus()) {
-				await this.lineNumberCheck();
-			} else {
-				return;
-			}
 			//Here for future debugging.
-			// const target = evt.target as HTMLInputElement;
-
+			const {target} = evt;
 			if (target && target.type === 'checkbox') {
 				await this.checkboxEventhandle(evt);
 			}
@@ -228,9 +205,9 @@ export default class TickTickSync extends Plugin {
 
 
 		//hook editor-change event, if the current line contains #ticktick, it means there is a new task
-		this.registerEvent(this.app.workspace.on('editor-change', async (editor, view: MarkdownView) => {
+		this.registerEvent(this.app.workspace.on('editor-change', async (editor: Editor, info: MarkdownView | MarkdownFileInfo) => {
 			try {
-				if (!this.settings.apiInitialized) {
+				if (!getSettings().token) {
 					return;
 				}
 
@@ -244,108 +221,57 @@ export default class TickTickSync extends Plugin {
 				if (this.settings.enableFullVaultSync) {
 					return;
 				}
-				if (!await this.checkAndHandleSyncLock()) return;
-				await this.tickTickSync?.lineContentNewTaskCheck(editor, view);
+				await this.service.lineContentNewTaskCheck(editor, info);
 				await this.saveSettings();
-				await this.unlockSynclock();
 			} catch (error) {
-				console.error(`An error occurred while check new task in line: ${error.message}`);
-				await this.unlockSynclock();
+				log('error', 'An error occurred while check new task in line:', error);
 			}
-
 		}));
 
 		//Listen to the delete event
 		this.registerEvent(this.app.vault.on('delete', async (file) => {
-			if (file instanceof TFolder) {
+			if (file instanceof TFolder || !getSettings().token) {
 				//individual file deletes will be handled. I hope.
 				return;
 			}
-			if (!this.settings.apiInitialized) {
-				console.error('API Not intialized!');
-				return;
+			const updated = await this.service.deletedFileCheck(file.path);
+			if (updated) {
+				await this.saveSettings();
 			}
-			const fileMetadata = await this.cacheOperation?.getFileMetadata(file.path, null);
-			if (!fileMetadata || !fileMetadata.TickTickTasks) {
-				//console.log('There is no task in the deleted file')
-				return;
-			}
-			if (!(this.checkModuleClass())) {
-				return;
-			}
-			// @ts-ignore
-			await this.tickTickSync.deletedTaskCheck(file.path);
-			await this.cacheOperation?.deleteFilepathFromMetadata(file.path);
-			await this.saveSettings();
-
-			await this.unlockSynclock();
-
-
 		}));
 
 		//Listen to the rename event and update the path in task data
-		this.registerEvent(this.app.vault.on('rename', async (file, oldpath) => {
-			if (!this.settings.apiInitialized) {
-				console.error('API Not intialized!');
+		this.registerEvent(this.app.vault.on('rename', async (file, oldPath) => {
+			if (file instanceof TFolder || !getSettings().token) {
+				//individual file rename will be handled. I hope.
 				return;
 			}
-			// console.log(`${oldpath} is renamed`)
-			//Read fileMetadata
-			//const fileMetadata = await this.fileOperation.getFileMetadata(file)
-			const fileMetadata = await this.cacheOperation?.getFileMetadata(oldpath, null);
-			// console.log(fileMetadata)
-			if (!fileMetadata || !fileMetadata.TickTickTasks) {
-				//console.log('There is no task in the deleted file')
-				return;
+			const updated = await this.service.renamedFileCheck(file.path, oldPath);
+			if (updated) {
+				await this.saveSettings();
 			}
-			if (!(this.checkModuleClass())) {
-				return;
-			}
-			await this.cacheOperation?.updateRenamedFilePath(oldpath, file.path);
-			await this.saveSettings();
-
-			//update task description
-			if (!await this.checkAndHandleSyncLock()) return;
-			try {
-				await this.tickTickSync?.updateTaskContent(file.path);
-			} catch (error) {
-				console.error('An error occurred in updateTaskDescription:', error);
-			}
-			await this.unlockSynclock();
-
-
 		}));
 
 
 		//Listen for file modified events and execute fullTextNewTaskCheck
 		this.registerEvent(this.app.vault.on('modify', async (file) => {
 			try {
-				if (!this.settings.apiInitialized) {
+				if (!getSettings().token) {
 					return;
 				}
 				const filepath = file.path;
 				// console.log(`${filepath} is modified`)
-
 				//get current view
-
 				const activateFile = this.app.workspace.getActiveFile();
-
-				// console.log(activateFile?.path, filepath)
-
 				//To avoid conflicts, Do not check files being edited
 				if (activateFile?.path == filepath) {
 					//TODO: find out if they cut or pasted task(s) in here.
 					return;
 				}
 
-				if (!await this.checkAndHandleSyncLock()) return;
-				// console.log("go check.")
-				await this.tickTickSync?.fullTextNewTaskCheck(filepath);
-				await this.unlockSynclock();
-
+				await this.service.fullTextNewTaskCheck(filepath);
 			} catch (error) {
-				console.error(`An error occurred while modifying the file: ${error.message}`);
-				await this.unlockSynclock();
+				log('error', 'An error occurred while modifying the file:', error);
 				// You can add further error handling logic here. For example, you may want to
 				// revert certain operations, or alert the user about the error.
 			}
@@ -361,7 +287,7 @@ export default class TickTickSync extends Plugin {
 		if (this.syncIntervalId) {
 			window.clearInterval(this.syncIntervalId);
 		}
-		console.log(`TickTickSync unloaded!`);
+		log('debug', `TickTickSync unloaded!`);
 	}
 
 	async loadSettings() {
@@ -453,23 +379,13 @@ export default class TickTickSync extends Plugin {
 
 
 	// return true of false
-	async initializePlugin() {
-
-		//initialize TickTick restapi
-		this.tickTickRestAPI = new TickTickRestAPI(this.app, this, null);
-		await this.tickTickRestAPI.initializeAPI();
-
-		//initialize data read and write object
-		this.cacheOperation = new CacheOperation(this.app, this);
-
-		let isProjectsSaved = false;
-		if (getSettings().token) {
-			isProjectsSaved = await this.saveProjectsToCache();
-				//await this.cacheOperation?.saveProjectsToCache();
+	async initializePlugin(): Promise<boolean> {
+		if (!getSettings().token) {
+			return false;
 		}
 
-
-		if (!isProjectsSaved) {
+		const isProjectsSaved = await this.saveProjectsToCache();
+		if (!isProjectsSaved) {// invalid token or offline?
 			this.tickTickRestAPI = undefined;
 			this.tickTickSyncAPI = undefined;
 			this.taskParser = undefined;
@@ -478,66 +394,29 @@ export default class TickTickSync extends Plugin {
 			this.fileOperation = undefined;
 			this.tickTickSync = undefined;
 			new Notice(`TickTickSync plugin initialization failed, please check userID and password in settings.`);
-			return;
+			return false;
 		}
 
+		this.initializeModuleClass();
 		if (!this.initialized) {
-
 			//Create a backup folder to back up TickTick data
 			try {
-
-				//TODO: this should not be necessary. Check why it was at some point.
-				if (!this.settings.SyncTag) {
-					this.settings.SyncTag = '';
-					await this.saveSettings();
-				}
-				if (!this.settings.SyncProject) {
-					this.settings.SyncProject = '';
-					await this.saveSettings();
-				}
-
-				//Start the plug-in for the first time and back up TickTick data
-				this.taskParser = new TaskParser(this.app, this);
-
-				//initialize file operation
-				this.fileOperation = new FileOperation(this.app, this);
-
-				//initialize ticktick sync api
-				this.tickTickSyncAPI = new TickTickSyncAPI(this.app, this);
-
-				//initialize TickTick sync module
-				this.tickTickSync = new SyncMan(this.app, this);
-				// console.log('ticktick sync : ', this.tickTickSync) ;
-
 				//Back up all data before each startup
 				if (!getSettings().skipBackup) {
 					this.tickTickSync?.backupTickTickAllResources();
 				}
-
 			} catch (error) {
 				console.error(`error creating user data folder: ${error}`);
 				new Notice(`error creating user data folder`);
-				return;
+				return false;
 			}
-
-
 			//Initialize settings
 			this.initialized = true;
-			await this.saveSettings();
 			new Notice(`TickTickSync initialization successful. TickTick data has been backed up.`);
-
 		}
 
-		this.initializeModuleClass();
-
-		//get user plan resources
-		//const rsp = await this.TickTickSyncAPI.getUserResource()
-		// this.settings.apiInitialized = true
-		await this.unlockSynclock();
 		new Notice(`TickTickSync loaded successfully.`);
 		return true;
-
-
 	}
 
 	initializeModuleClass() {
@@ -563,62 +442,54 @@ export default class TickTickSync extends Plugin {
 		this.tickTickSync = new SyncMan(this.app, this);
 	}
 
-	async lineNumberCheck() {
-		if (!await this.checkAndHandleSyncLock()) {
-			console.log("We're locked. Returning.");
-			return;
-		}
-		let modified = false;
+	async lineNumberCheck(): Promise<boolean> {
 		const markDownView = this.app.workspace.getActiveViewOfType(MarkdownView);
-		if (markDownView) {
-			const cursor = markDownView?.editor.getCursor();
-			const line = cursor?.line;
-			//const lineText = view.editor.getLine(line)
-			const fileContent = markDownView.data;
+		if (!markDownView) {
+			return false;
+		}
 
-			//console.log(line)
-			//const fileName = view.file?.name
-			const file = markDownView?.app.workspace.activeEditor?.file;
-			const fileName = file?.name;
-			const filepath = file?.path;
+		const cursor = markDownView?.editor.getCursor();
+		const line = cursor?.line;
+		//const lineText = view.editor.getLine(line)
+		const fileContent = markDownView.data;
 
-			if (typeof this.lastLines === 'undefined' || typeof this.lastLines.get(fileName as string) === 'undefined') {
-				this.lastLines.set(fileName as string, line as number);
-				await this.unlockSynclock();
+		//console.log(line)
+		//const fileName = view.file?.name
+		const file = markDownView?.app.workspace.activeEditor?.file;
+		const fileName = file?.name;
+		const filepath = file?.path;
+
+		if (typeof this.lastLines === 'undefined' || typeof this.lastLines.get(fileName as string) === 'undefined') {
+			this.lastLines.set(fileName as string, line as number);
+			return false;
+		}
+
+		//console.log(`filename is ${fileName}`)
+		if (this.lastLines.has(fileName as string) && line !== this.lastLines.get(fileName as string)) {
+			const lastLine = this.lastLines.get(fileName as string);
+			// if (this.settings.debugMode) {
+			// 	console.log('Line changed!', `current line is ${line}`, `last line is ${lastLine}`);
+			// }
+
+			//Perform the operation you want
+			const lastLineText = markDownView.editor.getLine(lastLine as number);
+			// console.log(lastLineText)
+			if (!(this.checkModuleClass())) {
 				return false;
 			}
+			this.lastLines.set(fileName as string, line as number);
+			// try{
 
-			//console.log(`filename is ${fileName}`)
-			if (this.lastLines.has(fileName as string) && line !== this.lastLines.get(fileName as string)) {
-				const lastLine = this.lastLines.get(fileName as string);
-				// if (this.settings.debugMode) {
-				// 	console.log('Line changed!', `current line is ${line}`, `last line is ${lastLine}`);
-				// }
+			return await this.service.lineModifiedTaskCheck(filepath as string, lastLineText, lastLine as number, fileContent);
 
-				//Perform the operation you want
-				const lastLineText = markDownView.editor.getLine(lastLine as number);
-				// console.log(lastLineText)
-				if (!(this.checkModuleClass())) {
-					await this.unlockSynclock();
-					return false;
-				}
-				this.lastLines.set(fileName as string, line as number);
-				// try{
-
-				modified = await this.tickTickSync?.lineModifiedTaskCheck(filepath as string, lastLineText, lastLine as number, fileContent);
-
-
-				// }catch(error){
-				//     console.error(`An error occurred while check modified task in line text: ${error}`);
-				//     await this.unlockSynclock();
-				// }
-			} else {
-				//console.log('Line not changed');
-			}
-
+			// }catch(error){
+			//     console.error(`An error occurred while check modified task in line text: ${error}`);
+			//     await this.unlockSynclock();
+			// }
+		} else {
+			//console.log('Line not changed');
 		}
-		await this.unlockSynclock();
-		return modified;
+		return false;
 	}
 
 	async checkboxEventhandle(evt: MouseEvent) {
@@ -741,35 +612,6 @@ export default class TickTickSync extends Plugin {
 		log('debug', `TickTick saveProjectsToCache completed at ${new Date().toLocaleString()}`)
 		return false;
 	}
-
-	async checkSyncLock() {
-		let checkCount = 0;
-		while (this.settings.syncLock && checkCount < 10) {
-			await new Promise(resolve => setTimeout(resolve, 1000));
-			checkCount++;
-		}
-		return !this.settings.syncLock;
-	}
-
-	async unlockSynclock() {
-		this.settings.syncLock = false;
-		await this.saveSettings();
-	}
-
-	async checkAndHandleSyncLock() {
-		if (this.settings.syncLock) {
-			// console.log('sync locked.');
-			const isSyncLockChecked = await this.checkSyncLock();
-			if (!isSyncLockChecked) {
-				return false;
-			}
-			// console.log('sync unlocked.')
-		}
-		this.settings.syncLock = true;
-		await this.saveSettings();
-		return true;
-	}
-
 
 	private async LatestChangesModal() {
 		const myModal = new ConfirmFullSyncModal(this.app, (result) => {
