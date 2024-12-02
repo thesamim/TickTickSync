@@ -25,7 +25,7 @@ export class TickTickRestAPI {
 			console.error("No Token")
 			throw new Error("API Not Initialized.")
 		} else {
-			if (this.plugin.settings.debugMode) {
+			if (getSettings().debugMode) {
 				console.log(JSON.stringify({
 					baseUrl: this.baseURL,
 					token: "[" + this.token.substring(0, 10) + "...]" + " len: " + this.token.length
@@ -41,7 +41,7 @@ export class TickTickRestAPI {
 			} else {
 				this.api = api;
 			}
-			this.plugin.settings.apiInitialized = false;
+			//getSettings().apiInitialized = false;
 		}
 	}
 
@@ -52,7 +52,7 @@ export class TickTickRestAPI {
 			throw new Error("API Not Initialized. Please restart Obsidian.")
 		}
 
-		let apiInitialized = this.plugin.settings.apiInitialized;
+		let apiInitialized = getSettings().token //getSettings().apiInitialized;
 		if (!apiInitialized)
 			try {
 				const userSettings = await this.api?.getUserSettings();
@@ -69,10 +69,10 @@ export class TickTickRestAPI {
 					//this.token = this.plugin.settings.token = this.api?.token;
 
 					//TickTick doesn't allow default Inbox to be renamed. This is safe to do.
-					this.plugin.settings.inboxName = "Inbox"
-					if (!this.plugin.settings.defaultProjectId) {
-						this.plugin.settings.defaultProjectId = this.api?.inboxId;
-						this.plugin.settings.defaultProjectName = "Inbox";
+					//updateSettings({inboxName: "Inbox"})
+					if (!getSettings().defaultProjectId) {
+						updateSettings({defaultProjectId: this.api?.inboxId,
+							defaultProjectName: "Inbox"});
 					}
 					if (bSaveSettings) {
 						await this.plugin.saveSettings();
@@ -80,24 +80,24 @@ export class TickTickRestAPI {
 				} else {
 					console.error(this.api?.lastError);
 				}
-				this.plugin.settings.apiInitialized = apiInitialized;
+				//updateSettings({apiInitialized: apiInitialized});
 
 				if (apiInitialized) {
-					if (this.plugin.settings.debugMode) {
+					if (getSettings().debugMode) {
 						console.log(`Logged In: ${apiInitialized}`);
 					}
 				} else {
 					new Notice("Login failed, please login through settings.")
 					console.error("Login failed! ");
-					this.plugin.settings.apiInitialized = false;
+					//updateSettings({apiInitialized: false});
 				}
 			} catch (error) {
 				console.error("Login failed! ", error);
-				this.plugin.settings.apiInitialized = false;
-				apiInitialized = false;
+				//updateSettings({apiInitialized: false});
+				//apiInitialized = false;
 				new Notice(`Login failed: ${error}\nPlease login again`)
 			} finally {
-				this.plugin.saveSettings();
+				await this.plugin.saveSettings();
 			}
 	}
 

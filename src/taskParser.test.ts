@@ -17,3 +17,13 @@ describe("TaskParser.common", () => {
 		expect(parser.hasTickTickId(TASK1)).toBeTruthy();
 	});
 })
+
+
+describe("test.common", () => {
+	test('const', () => {
+		const t = {
+			test: {t1:[], t2:[]}
+		} as const;
+
+	});
+})

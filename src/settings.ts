@@ -1,4 +1,5 @@
 import type {IProject} from "@/api/types/Project";
+import type {FileMetadata} from "@/cacheOperation";
 
 export interface ITickTickSyncSettings {
 	baseURL: string;
@@ -25,8 +26,7 @@ export interface ITickTickSyncSettings {
 	TickTickTasksData: {"projects": IProject[], "tasks": []};
 
 
-	apiInitialized: boolean;
-	fileMetadata: any;
+	fileMetadata: FileMetadata;
 	statistics: any;
 }
 
@@ -49,7 +49,6 @@ export const DEFAULT_SETTINGS: ITickTickSyncSettings = {
 	TickTickTasksData: {"projects": [], "tasks": []},
 
 
-	apiInitialized: false,
 	fileMetadata: {},
 	statistics: {}
 }

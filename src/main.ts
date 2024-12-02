@@ -60,7 +60,6 @@ export default class TickTickSync extends Plugin {
 		// This adds a settings tab so the user can configure various aspects of the plugin
 		this.addSettingTab(new TickTickSyncSettingTab(this.app, this));
 
-		this.settings.apiInitialized = false;
 		try {
 			await this.initializePlugin();
 		} catch (error) {
@@ -218,7 +217,7 @@ export default class TickTickSync extends Plugin {
 				if (!(this.checkModuleClass())) {
 					return;
 				}
-				if (this.settings.enableFullVaultSync) {
+				if (getSettings().enableFullVaultSync) {
 					return;
 				}
 				await this.service.lineContentNewTaskCheck(editor, info);
@@ -327,7 +326,7 @@ export default class TickTickSync extends Plugin {
 				fileMetaDataStructure[file] = newTasksHolder;
 			}
 			//Force a sync
-			if (this.settings && this.settings.apiInitialized) {
+			if (getSettings().token) {
 				await this.scheduledSynchronization();
 			}
 		}
@@ -353,20 +352,13 @@ export default class TickTickSync extends Plugin {
 
 	async saveSettings() {
 		try {
+			const settings = getSettings();
 			// Verify that the setting exists and is not empty
-			if (this.settings && Object.keys(this.settings).length > 0) {
+			if (settings && Object.keys(settings).length > 0) {
 				await this.saveData( //TODO: migrate to getSettings
 					{
-						...this.settings,
-						baseURL: getSettings().baseURL,
-						username: getSettings().username,
-						token: getSettings().token,
-						inboxID: getSettings().inboxID,
-						checkPoint: getSettings().checkPoint,
-						automaticSynchronizationInterval: getSettings().automaticSynchronizationInterval,
-						debugMode: getSettings().debugMode,
-						logLevel: getSettings().logLevel,
-						skipBackup: getSettings().skipBackup,
+						...settings,
+						TickTickTasksData: this.settings.TickTickTasksData
 					});
 			} else {
 				log('warn', 'Settings are empty or invalid, not saving to avoid data loss.');

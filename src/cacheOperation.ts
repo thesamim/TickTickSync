@@ -3,7 +3,7 @@ import TickTickSync from "@/main";
 import type {ITask} from './api/types/Task';
 import type {IProject} from '@/api/types//Project';
 import {FoundDuplicatesModal} from "./modals/FoundDuplicatesModal";
-import {getSettings} from "@/settings";
+import {getSettings, updateSettings} from "@/settings";
 import {log} from "@/utils/logging";
 
 // type TaskDetail = {
@@ -93,7 +93,7 @@ export class CacheOperation {
 
 
     async getFileMetadata(filepath: string, projectId: string | null): Promise<FileMetadata> {
-        let metaData = this.plugin.settings.fileMetadata[filepath];
+        let metaData = getSettings().fileMetadata[filepath];
         if (!metaData) {
             //TODO is this valid?
             //Always return something.
@@ -103,7 +103,7 @@ export class CacheOperation {
     }
 
     async getFileMetadatas() {
-        return this.plugin.settings.fileMetadata ?? null
+        return getSettings().fileMetadata ?? null
     }
 
 
@@ -119,7 +119,7 @@ export class CacheOperation {
 			console.error("Not adding ", filepath, " to Metadata because it's a folder.");
 			return null;
 		}
-        const metadatas = this.plugin.settings.fileMetadata
+        const metadatas = getSettings().fileMetadata
         if (metadatas[filepath]) {
             //todo: verify did doesn't break anything.
             return metadatas[filepath]; //in case trying to clobber one.
@@ -133,13 +133,13 @@ export class CacheOperation {
             metadatas[filepath].defaultProjectId = projectId;
         }
         // Save the updated metadatas object back to the settings object
-        this.plugin.settings.fileMetadata = metadatas
-        this.plugin.saveSettings();
-        return this.plugin.settings.fileMetadata[filepath]
+		updateSettings({fileMetadata: metadatas});
+        await this.plugin.saveSettings();
+        return getSettings().fileMetadata[filepath]
     }
 
     async updateFileMetadata(filepath: string, newMetadata: FileMetadata) {
-        const metadatas = this.plugin.settings.fileMetadata
+        const metadatas = getSettings().fileMetadata
 
         // If the metadata object does not exist, create a new object and add it to metadatas
         if (!metadatas[filepath]) {
@@ -151,8 +151,8 @@ export class CacheOperation {
         metadatas[filepath].TickTickCount = newMetadata.TickTickCount;
 
         // Save the updated metadatas object back to the settings object
-        this.plugin.settings.fileMetadata = metadatas
-        this.plugin.saveSettings();
+        updateSettings({fileMetadata: metadatas});
+        await this.plugin.saveSettings();
 
     }
 
@@ -189,7 +189,7 @@ export class CacheOperation {
     }
     //delete filepath from filemetadata
     async deleteFilepathFromMetadata(filepath: string): Promise<FileMetadata> {
-		const fileMetaData: FileMetadata = this.plugin.settings.fileMetadata;
+		const fileMetaData: FileMetadata = getSettings().fileMetadata;
 		const newFileMetadata: FileMetadata = {};
 
 		for (const filename in fileMetaData) {
@@ -198,9 +198,9 @@ export class CacheOperation {
 			}
 		}
 
-		this.plugin.settings.fileMetadata = newFileMetadata;
+		updateSettings({fileMetadata: newFileMetadata});
 		await this.plugin.saveSettings()
-		return this.plugin.settings.fileMetadata;
+		return getSettings().fileMetadata;
 
         // console.log(`${filepath} is deleted from file metadatas.`)
     }
@@ -283,9 +283,9 @@ export class CacheOperation {
     }
 
     async getDefaultProjectNameForFilepath(filepath: string) {
-        const metadatas = this.plugin.settings.fileMetadata
+        const metadatas = getSettings().fileMetadata
         if (!metadatas[filepath] || metadatas[filepath].defaultProjectId === undefined) {
-            return this.plugin.settings.defaultProjectName
+            return getSettings().defaultProjectName
         }
         else {
             const defaultProjectId = metadatas[filepath].defaultProjectId
@@ -296,9 +296,9 @@ export class CacheOperation {
 
 
     async getDefaultProjectIdForFilepath(filepath: string) {
-        const metadatas = this.plugin.settings.fileMetadata
+        const metadatas = getSettings().fileMetadata
         if (!metadatas[filepath] || metadatas[filepath].defaultProjectId === undefined) {
-            return this.plugin.settings.defaultProjectId
+            return getSettings().defaultProjectId
         }
         else {
             const defaultProjectId = metadatas[filepath].defaultProjectId
@@ -308,7 +308,7 @@ export class CacheOperation {
 
     async getFilepathForProjectId(projectId: string) {
 
-        const metadatas = this.plugin.settings.fileMetadata
+        const metadatas = getSettings().fileMetadata
 
 
         //If this project is set as a default for a file, return that file.
@@ -322,11 +322,11 @@ export class CacheOperation {
 		let filePath = "";
 
 		if ((projectId === getSettings().inboxID) ||
-			(projectId === this.plugin.settings.defaultProjectId)){ //highly unlikely, but just in case
+			(projectId === getSettings().defaultProjectId)){ //highly unlikely, but just in case
 			//They don't have a file for the Inbox. If they have a default project, return that.
-			if (this.plugin.settings.defaultProjectName) {
+			if (getSettings().defaultProjectName) {
 				// filePath = this.plugin.settings?.TickTickTasksFilePath +"/"+ this.plugin.settings.defaultProjectName + ".md"
-				filePath = this.plugin.settings.defaultProjectName + ".md"
+				filePath = getSettings().defaultProjectName + ".md"
 				return filePath
 			}
 		}
@@ -626,7 +626,7 @@ export class CacheOperation {
         try {
 			const inboxProject = {
 				id: getSettings().inboxID,
-				name: this.plugin.settings.inboxName
+				name: getSettings().inboxName
 			} as IProject;
 			projects.push(inboxProject);
 
@@ -706,10 +706,10 @@ export class CacheOperation {
             await this.saveTasksToCache(newTasks)
 
             //update filepath
-            const fileMetadatas = this.plugin.settings.fileMetadata
+            const fileMetadatas = getSettings().fileMetadata
             fileMetadatas[newpath] = fileMetadatas[oldpath]
             delete fileMetadatas[oldpath]
-            this.plugin.settings.fileMetadata = fileMetadatas
+            updateSettings({fileMetadata: fileMetadatas});
 
         } catch (error) {
             console.error(`Error updating renamed file path to cache: ${error}`)
@@ -719,7 +719,7 @@ export class CacheOperation {
     }
 	// TODO: why did I think I needed this?
 	findTaskInMetada(taskId: string, filePath: string) {
-		const fileMetadata = this.plugin.settings.fileMetadata;
+		const fileMetadata = getSettings().fileMetadata;
 		for (const file in fileMetadata) {
 			console.log("in file: :", file)
 			if (file == filePath) {

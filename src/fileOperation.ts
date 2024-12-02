@@ -2,6 +2,7 @@ import {App, Notice, TFile, TFolder} from 'obsidian';
 import TickTickSync from "@/main";
 import type {ITask} from './api/types/Task';
 import {TaskDeletionModal} from "./modals/TaskDeletionModal";
+import {getSettings} from "@/settings";
 
 
 export class FileOperation {
@@ -212,7 +213,7 @@ export class FileOperation {
             let result = await this.addProjectTasksToFile(file, projectTasks);
             // Sleep for 1 second
             await new Promise(resolve => setTimeout(resolve, 1000));
-            if (this.plugin.settings.debugMode) {
+            if (getSettings().debugMode) {
                 console.log("===", projectTasks, result ? "Completed add task." : "Failed add task")
             }
         }
@@ -225,7 +226,7 @@ export class FileOperation {
 		//the file doesn't exist. Create it.
 		try {
 			//TODO: Deal with Folders and sections in the fullness of time.
-			const folderPath = this.plugin.settings.TickTickTasksFilePath;
+			const folderPath = getSettings().TickTickTasksFilePath;
 			let folder = this.app.vault.getAbstractFileByPath(folderPath);
 			if (!(folder instanceof TFolder)) {
 				console.warn(`Folder ${folderPath} does not exit. It will be created`);

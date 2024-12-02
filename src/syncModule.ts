@@ -48,7 +48,7 @@ export class SyncMan {
 
 			//TODO: Filtering deleted tasks would take an act of congress. Just warn the user in Readme.
 
-			let syncTag: string = this.plugin.settings.SyncTag;
+			let syncTag: string = getSettings().SyncTag;
 			if (syncTag)  {
 				//TODO: In the fullness of time we need to look at Tag Labels not Tag Names.
 				//because TickTick only stores lowercase tags.;
@@ -58,10 +58,10 @@ export class SyncMan {
 				}
 			}
 			//Both Tag and Project limiting present
-			if (syncTag && this.plugin.settings.SyncProject) {
+			if (syncTag && getSettings().SyncProject) {
 
 				//Check for AND/OR presences to determine processing.
-				const AndOrIndicator = this.plugin.settings.tagAndOr
+				const AndOrIndicator = getSettings().tagAndOr
 
 				// AND selected. They want only tasks with the tag in the project.
 				if (AndOrIndicator == 1) {
@@ -72,7 +72,7 @@ export class SyncMan {
 					});
 					if (tasksWithTag) {
 						tasksFromTickTic = tasksWithTag.filter(task => {
-							return task.projectId === this.plugin.settings.SyncProject;
+							return task.projectId === getSettings().SyncProject;
 						});
 					}
 				} else {
@@ -81,7 +81,7 @@ export class SyncMan {
 						return task.tags?.includes(syncTag);
 					});
 					let tasksInProject = tasksFromTickTic.filter(task => {
-						return task.projectId === this.plugin.settings.SyncProject;
+						return task.projectId === getSettings().SyncProject;
 					});
 
 					tasksFromTickTic = [...tasksWithTag, ...tasksInProject].reduce((acc, current) => {
@@ -97,10 +97,10 @@ export class SyncMan {
 			} else {
 				//Either tag or project is present
 				//Will process whichever one is present.
-				if (syncTag || this.plugin.settings.SyncProject) {
+				if (syncTag || getSettings().SyncProject) {
 					tasksFromTickTic = tasksFromTickTic.filter(task => {
 						const hasTag = task.tags?.includes(syncTag);
-						const hasProjectId = task.projectId === this.plugin.settings.SyncProject;
+						const hasProjectId = task.projectId === getSettings().SyncProject;
 						return hasTag || hasProjectId;
 					});
 				}
@@ -110,7 +110,7 @@ export class SyncMan {
 			let tasksInCache = await this.plugin.cacheOperation?.loadTasksFromCache()
 			// this.dumpArray("cache", tasksInCache)
 
-			if (this.plugin.settings.debugMode) {
+			if (getSettings().debugMode) {
 				if (tasksFromTickTic) {
 					console.log("We have: ", tasksFromTickTic.length, " tasks on " + this.plugin.tickTickRestAPI?.api?.apiUrl)
 					const closedTasks = tasksFromTickTic.filter(task => task.status != 0);
@@ -264,7 +264,7 @@ export class SyncMan {
 
 			await this.plugin.saveSettings();
 			//If we just farckled the file system, stop Syncing to avoid race conditions.
-			if (this.plugin.settings.debugMode) {
+			if (getSettings().debugMode) {
 				console.log(bModifiedFileSystem ? "File System Modified." : "No synchronization changes.")
 			}
 			return bModifiedFileSystem;
@@ -426,7 +426,7 @@ export class SyncMan {
 
 	async addTask(lineTxt: string, filePath: string, line: number, fileContent: string, editor: Editor | null, cursor: EditorPosition | null) {
 		//Add task
-		// if (this.plugin.settings.debugMode) {
+		// if (getSettings().debugMode) {
 		// 	console.log("Adding to: ", filePath)
 		// }
 
@@ -532,7 +532,7 @@ export class SyncMan {
 			currentFileValue = view?.data
 		}
 
-		if (this.plugin.settings.enableFullVaultSync) {
+		if (getSettings().enableFullVaultSync) {
 			//console.log('full vault sync enabled')
 			//console.log(filepath)
 			// console.log("Called from sync.")
@@ -551,7 +551,7 @@ export class SyncMan {
 
 	async lineModifiedTaskCheck(filepath: string | undefined, lineText: string, lineNumber: number | undefined, fileContent: string): Promise<boolean> {
 		let modified = false;
-		if (this.plugin.settings.enableFullVaultSync) {
+		if (getSettings().enableFullVaultSync) {
 			//new empty metadata
 			let metadata = await this.plugin.cacheOperation?.getFileMetadata(filepath)
 			//TODO: I'm pretty sure this is redundant. Don't feel like taking it out now because it's been here forever and it works.
@@ -620,7 +620,7 @@ export class SyncMan {
 
 
 				if (titleModified) {
-					if (this.plugin.settings.debugMode) {
+					if (getSettings().debugMode) {
 						console.log(`Title modified for task ${lineTask_ticktick_id}\n"New:" ${lineTask.title}\n"Cached:" ${savedTask.title}`)
 					}
 					// savedTask.title = lineTaskTitle
@@ -628,7 +628,7 @@ export class SyncMan {
 				}
 
 				if (tagsModified) {
-					if (this.plugin.settings.debugMode) {
+					if (getSettings().debugMode) {
 						console.log(`Tags modified for task ${lineTask_ticktick_id}, , ${lineTask.tags}, ${savedTask.tags}`)
 					}
 					// savedTask.tags = lineTask.tags
@@ -637,7 +637,7 @@ export class SyncMan {
 
 
 				if (dueDateModified) {
-					if (this.plugin.settings.debugMode) {
+					if (getSettings().debugMode) {
 						console.log(`Due date modified for task ${lineTask_ticktick_id}`)
 						console.log("new: ", lineTask.dueDate, "old: ", savedTask.dueDate)
 					}
@@ -656,7 +656,7 @@ export class SyncMan {
 
 					let noticeMessage = "";
 					if (projectModified) {
-						if (this.plugin.settings.debugMode) {
+						if (getSettings().debugMode) {
 							console.log("Project Modified");
 						}
 						noticeMessage = `Task ${lineTask_ticktick_id}: ${lineTaskTitle} has moved from ` +
@@ -664,7 +664,7 @@ export class SyncMan {
 							`${await this.plugin.cacheOperation?.getProjectNameByIdFromCache(lineTask.projectId)} \n` +
 							`If any children were moved, they will be updated to ${getSettings().baseURL} on the next Sync event`
 					} else if (projectMoved) {
-						if (this.plugin.settings.debugMode) {
+						if (getSettings().debugMode) {
 							console.log("Project Moved");
 						}
 						noticeMessage = `Task ${lineTask_ticktick_id}: ${lineTaskTitle} has moved from ` +
@@ -673,7 +673,7 @@ export class SyncMan {
 							`If any children were moved, they will be updated to ${getSettings().baseURL} on the next Sync event`
 					}
 					new Notice(noticeMessage, 0);
-					if (this.plugin.settings.debugMode) {
+					if (getSettings().debugMode) {
 						console.log(noticeMessage);
 					}
 
@@ -693,7 +693,7 @@ export class SyncMan {
 					await this.plugin.tickTickRestAPI?.moveTaskParent(lineTask_ticktick_id, lineTask.parentId, lineTask.projectId)
 
 					new Notice(noticeMessage, 0)
-					if (this.plugin.settings.debugMode) {
+					if (getSettings().debugMode) {
 						console.log(noticeMessage);
 					}
 
@@ -708,7 +708,7 @@ export class SyncMan {
 				}
 
 				if (taskItemsModified) {
-					if (this.plugin.settings.debugMode) {
+					if (getSettings().debugMode) {
 						console.log("Number of items changed: ", lineTask.items?.length, savedTask.items?.length)
 					}
 					taskItemsChanged = true;
@@ -735,17 +735,17 @@ export class SyncMan {
 				// console.log(result)
 
 				if (statusModified) {
-					if (this.plugin.settings.debugMode) {
+					if (getSettings().debugMode) {
 						console.log(`Status modified for task ${lineTask_ticktick_id}`)
 					}
 					if (lineTask.status != 0) {
-						if (this.plugin.settings.debugMode) {
+						if (getSettings().debugMode) {
 							console.log(`task completed`)
 						}
 						this.plugin.tickTickRestAPI?.CloseTask(lineTask.id, lineTask.projectId);
 						await this.plugin.cacheOperation?.closeTaskToCacheByID(lineTask.id);
 					} else {
-						if (this.plugin.settings.debugMode) {
+						if (getSettings().debugMode) {
 							console.log(`task not completed`)
 						}
 						this.plugin.tickTickRestAPI?.OpenTask(lineTask.id, lineTask.projectId);
@@ -793,7 +793,7 @@ export class SyncMan {
 					}
 
 
-					if (this.plugin.settings.debugMode) {
+					if (getSettings().debugMode) {
 						console.log("Task Changed: ", lineTask.id, "\n", message)
 					}
 
@@ -810,7 +810,7 @@ export class SyncMan {
 			// When Full Vault Sync is enabled, we can tell the difference between items and subtasks
 			// everything is a subtask
 			// TODO: in the fullness of time, see if there's a way to differentiate.
-			if (!this.plugin.settings.enableFullVaultSync) {
+			if (!getSettings().enableFullVaultSync) {
 				modified = await this.handleTaskItem(lineText, filepath, fileContent, lineNumber);
 			}
 		}
@@ -827,7 +827,7 @@ export class SyncMan {
 			return false;
 		}
 		let parsedItem = this.plugin.taskParser?.taskFromLine(lineText);
-		if (this.plugin.settings.debugMode) {
+		if (getSettings().debugMode) {
 			if (!parsedItem) {
 				console.error(`Task construction failed in line: ${lineText}`)
 			}
@@ -908,7 +908,7 @@ export class SyncMan {
 						}
 
 					} else {
-						if (this.plugin.settings.debugMode) {
+						if (getSettings().debugMode) {
 							console.log(`parent didn't have items.`)
 						}
 						break;
@@ -1124,7 +1124,7 @@ export class SyncMan {
 		}
 
 		if (!deletedTaskIds.length) {
-			if (this.plugin.settings.debugMode) {
+			if (getSettings().debugMode) {
 				console.log("Task not deleted");
 			}
 			return [];

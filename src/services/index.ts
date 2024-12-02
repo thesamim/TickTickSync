@@ -270,7 +270,7 @@ export class TickTickService {
 							try {
 								console.log(`Scanning file ${v.path}`)
 								await this.plugin.fileOperation?.addTickTickLinkToFile(v.path);
-								if (this.plugin.settings.enableFullVaultSync) {
+								if (getSettings().enableFullVaultSync) {
 									await this.plugin.fileOperation?.addTickTickTagToFile(v.path);
 								}
 							} catch (error) {
@@ -301,13 +301,13 @@ export class TickTickService {
 	}
 
 	private async syncFiles(){
-		const filesToSync = this.plugin.settings.fileMetadata;
+		const filesToSync = getSettings().fileMetadata;
 		let newFilesToSync = filesToSync;
 		//If one project is to be synced, don't look at it's other files.
 
-		if (this.plugin.settings.SyncProject) {
+		if (getSettings().SyncProject) {
 			newFilesToSync = Object.fromEntries(Object.entries(filesToSync).filter(([key, value]) =>
-				value.defaultProjectId == this.plugin.settings.SyncProject));
+				value.defaultProjectId == getSettings().SyncProject));
 		}
 
 		//Check for duplicates before we do anything
@@ -371,7 +371,7 @@ export class TickTickService {
 
 		//Now do the task checking.
 		for (const fileKey in newFilesToSync) {
-			if (this.plugin.settings.debugMode) {
+			if (getSettings().debugMode) {
 				console.log(fileKey);
 			}
 

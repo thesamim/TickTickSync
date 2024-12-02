@@ -292,7 +292,7 @@ export class TaskParser {
 		// When Full Vault Sync is enabled, we can tell the difference between items and subtasks
 		// everything is a subtask
 		// TODO: in the fullness of time, see if there's a way to differentiate.
-		if (!this.plugin.settings.enableFullVaultSync) {
+		if (!getSettings().enableFullVaultSync) {
 			for (let i = (lineNumber + 1); i <= lines.length; i++) {
 				const line = lines[i];
 				//console.log(line)
@@ -351,7 +351,7 @@ export class TaskParser {
 		}
 
 		const title = this.getTaskContentFromLineText(textWithoutIndentation);
-		if ((this.plugin.settings.debugMode) && (!projectId)) {
+		if ((getSettings().debugMode) && (!projectId)) {
 			console.error('Converting line to Object, could not find project Id: ', title);
 		}
 
@@ -618,7 +618,7 @@ export class TaskParser {
 			} else {
 
 
-				if (this.plugin.settings.debugMode) {
+				if (getSettings().debugMode) {
 					// Calculate the difference in minutes
 					const timeDifferenceInMilliseconds = Math.abs(utcDate2.getTime() - utcDate1.getTime());
 					const days = Math.floor(timeDifferenceInMilliseconds / (1000 * 60 * 60 * 24));
@@ -825,7 +825,7 @@ export class TaskParser {
 			// When Full Vault Sync is enabled, we can tell the difference between items and subtasks
 			// everything is a subtask
 			// TODO: in the fullness of time, see if there's a way to differentiate.
-			if (!this.plugin.settings.enableFullVaultSync) {
+			if (!getSettings().enableFullVaultSync) {
 				resultLine = `${resultLine} \n${completion} ${item.title} %%${item.id}%%`;
 			} else {
 				resultLine = `${resultLine} \n${completion} ${item.title}`;

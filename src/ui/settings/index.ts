@@ -109,18 +109,18 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 			.setDesc('New tasks are automatically synced to the default project. You can modify the project here.')
 			.addDropdown(component =>
 				component
-					.addOption(this.plugin.settings.defaultProjectId, this.plugin.settings.defaultProjectName)
+					.addOption(getSettings().defaultProjectId, getSettings().defaultProjectName)
 					.addOptions(myProjectsOptions)
 					.onChange(async (value) => {
-						this.plugin.settings.defaultProjectId = value
-						this.plugin.settings.defaultProjectName = await this.plugin.cacheOperation?.getProjectNameByIdFromCache(value)
-						const defaultProjectFileName = this.plugin.settings.defaultProjectName + ".md"
+						getSettings().defaultProjectId = value
+						updateSettings({defaultProjectName: await this.plugin.cacheOperation?.getProjectNameByIdFromCache(value)})
+						const defaultProjectFileName = getSettings().defaultProjectName + ".md"
 						//make sure the file exists.
 						const defaultProjectFile = await this.plugin.fileOperation?.getOrCreateDefaultFile(defaultProjectFileName);
 						if (defaultProjectFile) {
-							this.plugin.cacheOperation?.setDefaultProjectIdForFilepath(defaultProjectFile.path, this.plugin.settings.defaultProjectId)
+							this.plugin.cacheOperation?.setDefaultProjectIdForFilepath(defaultProjectFile.path, getSettings().defaultProjectId)
 						} else {
-							new Notice("Unable to create file for selected default project " + this.plugin.settings.defaultProjectName)
+							new Notice("Unable to create file for selected default project " + getSettings().defaultProjectName)
 						}
 						await this.plugin.saveSettings()
 					})
@@ -140,11 +140,11 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 				component
 					.addOption("", "")
 					.addOptions(myProjectsOptions)
-					.setValue(this.plugin.settings.SyncProject)
+					.setValue(getSettings().SyncProject)
 					.onChange(async (value) => {
-						this.plugin.settings.SyncProject = value;
-						const fileMetaData = this.plugin.settings.fileMetadata;
-						const defaultProjectFileEntry = Object.values(fileMetaData).find(obj => obj.defaultProjectId === this.plugin.settings.SyncProject);
+						updateSettings({SyncProject: value});
+						const fileMetaData = getSettings().fileMetadata;
+						const defaultProjectFileEntry = Object.values(fileMetaData).find(obj => obj.defaultProjectId === getSettings().SyncProject);
 						if (!defaultProjectFileEntry) {
 							const noticeMsg = "Did not find a default Project File for Project " +
 								myProjectsOptions?.[value] +
@@ -162,9 +162,9 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 			.addDropdown(component =>
 				component
 					.addOptions(TAGS_BEHAVIOR)
-					.setValue(String(this.plugin.settings.tagAndOr))
+					.setValue(String(getSettings().tagAndOr))
 					.onChange(async (value) => {
-						this.plugin.settings.tagAndOr = parseInt(value);
+						updateSettings({tagAndOr: parseInt(value)});
 						await this.plugin.saveSettings();
 						await this.display();
 					}))
@@ -174,14 +174,14 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 			.setName('Tag')
 			.setDesc('Tag value, no "#"')
 			.addText(text => text
-				.setValue(this.plugin.settings.SyncTag)
+				.setValue(getSettings().SyncTag)
 				.onChange(async (value) => {
 					clearTimeout(saveSettingsTimeout);
 					saveSettingsTimeout = setTimeout(async () => {
 						if (value.startsWith("#")) {
 							value = value.substring(1);
 						}
-						this.plugin.settings.SyncTag = value;
+						updateSettings({SyncTag: value});
 						await this.plugin.saveSettings();
 						explanationText.innerHTML = this.getProjectTagText(myProjectsOptions);
 					}, 1000);
@@ -223,24 +223,24 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 				'**NOTE: This includes all tasks that are currently Items of a task.**')
 			.addToggle(component =>
 				component
-					.setValue(this.plugin.settings.enableFullVaultSync)
+					.setValue(getSettings().enableFullVaultSync)
 					.onChange(async (value) => {
 
-						if (!this.plugin.settings.enableFullVaultSync) {
+						if (!getSettings().enableFullVaultSync) {
 							const bConfirmation = await this.confirmFullSync()
 							if (bConfirmation) {
-								this.plugin.settings.enableFullVaultSync = true
+								updateSettings({enableFullVaultSync: true})
 								await this.plugin.saveSettings()
 								new Notice("Full vault sync is enabled.")
 							} else {
-								this.plugin.settings.enableFullVaultSync = false;
+								updateSettings({enableFullVaultSync: false});
 								await this.plugin.saveSettings()
 								new Notice("Full vault sync not enabled.")
 							}
 							//TODO: if we don't do this, things get farckled.
 							await this.display();
 						} else {
-							this.plugin.settings.enableFullVaultSync = value
+							updateSettings({enableFullVaultSync: value});
 							await this.plugin.saveSettings()
 							new Notice("Full vault sync is disabled.")
 						}
@@ -257,7 +257,7 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 				folderSearch = cb;
 				new FolderSuggest(cb.inputEl);
 				cb.setPlaceholder("Example: folder1/folder2")
-					.setValue(this.plugin.settings.TickTickTasksFilePath)
+					.setValue(getSettings().TickTickTasksFilePath)
 				// @ts-ignore
 				// maybe someday we'll style it.
 				// cb.containerEl.addClass("def-folder");
@@ -271,12 +271,12 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 						return;
 					}
 					const updatedFolder = await this.validateNewFolder(newFolder);
-					if (this.plugin.settings.debugMode) {
+					if (getSettings().debugMode) {
 						console.log('updated folder: ', updatedFolder);
 					}
 					if (updatedFolder) {
 						folderSearch?.setValue(updatedFolder)
-						this.plugin.settings.TickTickTasksFilePath = updatedFolder
+						getSettings().TickTickTasksFilePath = updatedFolder
 						await this.plugin.saveSettings();
 					}
 
@@ -433,9 +433,9 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 	}
 
 	private getProjectTagText(myProjectsOptions: Record<string, string>) {
-		const project = myProjectsOptions[this.plugin.settings.SyncProject];
-		const tag = this.plugin.settings.SyncTag;
-		const taskAndOr = this.plugin.settings.tagAndOr;
+		const project = myProjectsOptions[getSettings().SyncProject];
+		const tag = getSettings().SyncTag;
+		const taskAndOr = getSettings().tagAndOr;
 
 		if (!project && !tag) {
 			return "No limitation.";
