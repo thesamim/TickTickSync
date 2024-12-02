@@ -8,7 +8,7 @@ export class LatestChangesModal extends Modal {
 	confirmLabel = 'Got it.';
 	message = '';
 	result: boolean;
-	intro = "The following are user experience affecting changes from prior versions of TickTickSync.";
+	intro = "<p>The following are user experience affecting changes from prior versions of TickTickSync.</p><p><strong>Strongly</strong> recommend that you take a backup ASAP.</p>";
 	notableChanges: string[][];
 	onSubmit: (result: boolean) => void;
 	resolvePromise: (value: (PromiseLike<boolean> | boolean)) => void;
@@ -29,7 +29,8 @@ export class LatestChangesModal extends Modal {
 		let {titleEl, contentEl} = this;
 		titleEl.setText(this.title);
 
-		let changesText = contentEl.createEl('p', {text: `${this.intro}`})
+		let changesText = contentEl.createEl('p');
+		changesText.innerHTML = `${this.intro}`;
 		changesText = contentEl.createEl('ol');
 		this.notableChanges.forEach(notableChange => {
 			let lineItem = changesText.createEl('li');
