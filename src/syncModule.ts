@@ -329,7 +329,9 @@ export class SyncMan {
 					if (newHash == savedTask.lineHash) {
 						return false;
 					} else {
-						console.log('hashcheck failed.', '\n', lineText, '\n', savedTask.title, '\n', newHash, '\n', savedTask.lineHash);
+						if (this.plugin.settings.debugMode) {
+							console.log('hashcheck failed.', '\n', lineText, '\n', savedTask.title, '\n', newHash, '\n', savedTask.lineHash);
+						}
 						bHashCheckFailed = true;
 					}
 				}

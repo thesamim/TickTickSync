@@ -132,11 +132,7 @@ export class DateMan {
 		let dateStrings: string[] = [];
 		let startDatetimeString: string = '';
 		let dueDatetimeString: string = '';
-		let completedDatetimeString: string = '';
-		let createTimeString: string = '';
-		let scheduledDateTimeString: string = '';
 		let dateKeys = null;
-		let myDateHolder = this.getEmptydateHolder();
 
 		if (task.dateHolder) {
 			dateKeys = Object.keys(task.dateHolder);
@@ -221,7 +217,6 @@ export class DateMan {
 			// @ts-ignore //we're relatively sure we're always going to get task.
 			task.dateHolder = dates;
 		} else {
-			//This feels a bit kludgy. When isAllDay getting updated on no date tasks?
 			if ('dueDate' in task) {
 				dates.dueDate = this.getDateAndTime(task.dueDate, task.isAllDay, date_emoji.dueDate);
 				if (task.dueDate !== task.startDate) {
@@ -234,6 +229,8 @@ export class DateMan {
 							//They either didn't used to have a start date, or had a start date. put the new start date in scheduled date
 							dates.startDate = this.getDateAndTime(task.startDate, task.isAllDay, date_emoji.startDate);
 						}
+						//pick up the rest of the dates from the old task.
+
 					} else {
 						//default to start date.
 						//TODO: maybe make it a preference in the future?
@@ -245,8 +242,18 @@ export class DateMan {
 		if (task.completedTime) {
 			dates.completedTime = this.getDateAndTime(task.completedTime, task.isAllDay, date_emoji.completedTime);
 		}
+		//Pick up the times that TickTick doesn't care about, but Obsidian does.
+		if (oldTask) {
+			if (oldTask.dateHolder.cancelled_date) {
+				dates.cancelled_date = oldTask.dateHolder.cancelled_date;
+			}
+			if (oldTask.dateHolder.createdTime) {
+				dates.createdTime = oldTask.dateHolder.createdTime;
+			}
+
+		}
 		task.dateHolder = dates;
-		// console.log('addDateStructToTask:', task);
+		// console.log('TRACETHIS addDateHolderToTask:', task.dateHolder);
 	}
 
 
