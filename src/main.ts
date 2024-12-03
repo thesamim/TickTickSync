@@ -4,7 +4,15 @@ import "@/static/styles.css";
 import {Editor, type MarkdownFileInfo, MarkdownView, Notice, Plugin, TFolder} from 'obsidian';
 
 //settings
-import {DEFAULT_SETTINGS, getSettings, type ITickTickSyncSettings, updateSettings} from './settings';
+import {
+	DEFAULT_SETTINGS,
+	getProjects,
+	getSettings,
+	getTasks,
+	type ITickTickSyncSettings, updateProjects,
+	updateSettings,
+	updateTasks
+} from './settings';
 //TickTick api
 import {TickTickRestAPI} from './TicktickRestAPI';
 import {TickTickSyncAPI} from './TicktickSyncAPI';
@@ -27,6 +35,7 @@ import {TickTickService} from "@/services";
 import {QueryInjector} from "@/query/injector";
 import {log, logging, type LogOptions} from "@/utils/logging";
 import store from "@/store";
+import type {IProject} from "@/api/types/Project";
 
 
 export default class TickTickSync extends Plugin {
@@ -292,14 +301,17 @@ export default class TickTickSync extends Plugin {
 	async loadSettings() {
 		try {
 			const data = await this.loadData();
-
 			try {
 				await this.migrateData(data);
 			} catch (error) {
 				console.error('Failed to migrate data:', error);
 				return false; // Returning false indicates that the setting loading failed
 			}
-
+			if (data.TickTickTasksData) {
+				updateProjects(data.TickTickTasksData.projects);
+				updateTasks(data.TickTickTasksData.tasks);
+			}
+			delete data.TickTickTasksData;
 			updateSettings(data);
 			this.settings = Object.assign({}, DEFAULT_SETTINGS, data);
 		} catch (error) {
@@ -358,7 +370,7 @@ export default class TickTickSync extends Plugin {
 				await this.saveData( //TODO: migrate to getSettings
 					{
 						...settings,
-						TickTickTasksData: this.settings.TickTickTasksData
+						TickTickTasksData: {"projects": getProjects(), "tasks": getTasks()}
 					});
 			} else {
 				log('warn', 'Settings are empty or invalid, not saving to avoid data loss.');

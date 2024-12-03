@@ -1,6 +1,6 @@
 import TickTickSync from "@/main";
 import {Tick} from "@/api";
-import {getSettings} from "@/settings";
+import {getProjects, getSettings} from "@/settings";
 import {doWithLock} from "@/utils/locks";
 import {SyncMan} from "@/syncModule";
 import {Editor, type MarkdownFileInfo, type MarkdownView, Notice, TFile} from "obsidian";
@@ -93,7 +93,7 @@ export class TickTickService {
 
 	async getProjects() {
 		//TODO: add a check for valid data
-		return this.plugin.settings.TickTickTasksData.projects
+		return getProjects()
 	}
 
 	async deletedTaskCheck(filePath: string | null) {

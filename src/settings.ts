@@ -23,11 +23,10 @@ export interface ITickTickSyncSettings {
 	inboxID: string;
 	inboxName: string;
 	checkPoint: number;
-	TickTickTasksData: {"projects": IProject[], "tasks": []};
 
 
 	fileMetadata: FileMetadata;
-	statistics: any;
+	//statistics: any;
 }
 
 export const DEFAULT_SETTINGS: ITickTickSyncSettings = {
@@ -46,11 +45,10 @@ export const DEFAULT_SETTINGS: ITickTickSyncSettings = {
 	inboxID: "",
 	inboxName: "",
 	checkPoint: 0,
-	TickTickTasksData: {"projects": [], "tasks": []},
 
 
 	fileMetadata: {},
-	statistics: {}
+	//statistics: {}
 }
 
 //two places for settings, move all ref from main to here
@@ -64,4 +62,28 @@ export const getSettings = (): ITickTickSyncSettings => {
 export const updateSettings = (newSettings: Partial<ITickTickSyncSettings>): ITickTickSyncSettings => {
 	settings = { ...settings, ...newSettings } as const;
 	return getSettings();
+};
+
+//TODO move to store
+
+let projects: IProject[] = [];
+
+export const getProjects = (): IProject[] => {
+	return projects;
+}
+
+export const updateProjects = (newProjects: IProject[]): IProject[] => {
+	projects = newProjects;
+	return getProjects();
+};
+
+let tasks: [] = [];
+
+export const getTasks = (): [] => {
+	return tasks;
+}
+
+export const updateTasks = (newTasks: []): [] => {
+	tasks = newTasks;
+	return getTasks();
 };

@@ -3,7 +3,7 @@ import TickTickSync from "@/main";
 import type {ITask} from './api/types/Task';
 import type {IProject} from '@/api/types//Project';
 import {FoundDuplicatesModal} from "./modals/FoundDuplicatesModal";
-import {getSettings, updateSettings} from "@/settings";
+import {getProjects, getSettings, getTasks, updateProjects, updateSettings, updateTasks} from "@/settings";
 import {log} from "@/utils/logging";
 
 // type TaskDetail = {
@@ -361,7 +361,7 @@ export class CacheOperation {
     //Read all tasks from Cache
     async loadTasksFromCache() {
         try {
-            const savedTasks = this.plugin.settings.TickTickTasksData.tasks
+            const savedTasks = getTasks()
             return savedTasks;
         } catch (error) {
             console.error(`Error loading tasks from Cache: ${error}`);
@@ -373,7 +373,7 @@ export class CacheOperation {
     // Overwrite and save all tasks to cache
     async saveTasksToCache(newTasks) {
         try {
-            this.plugin.settings.TickTickTasksData.tasks = newTasks
+            updateTasks(newTasks)
 
         } catch (error) {
             console.error(`Error saving tasks to Cache: ${error}`);
@@ -388,13 +388,10 @@ export class CacheOperation {
             if (task === null) {
                 return
             }
-            const savedTasks = this.plugin.settings.TickTickTasksData.tasks
-            if (!savedTasks) {
-                this.plugin.settings.TickTickTasksData.tasks = [];
-                await this.plugin.saveSettings();
-            }
+            const savedTasks = getTasks();
             task.title = this.plugin.taskParser?.stripOBSUrl(task.title);
-            this.plugin.settings.TickTickTasksData.tasks.push(task);
+			savedTasks.push(task);
+			updateTasks(savedTasks);
             await this.addTaskToMetadata(filePath, task)
 
 			await this.plugin.saveSettings();
@@ -409,7 +406,7 @@ export class CacheOperation {
         // console.log("loadTaskFromCacheID")
         try {
 
-            const savedTasks = this.plugin.settings.TickTickTasksData.tasks
+            const savedTasks = getTasks()
             const savedTask = savedTasks.find((task: ITask) => task.id === taskId);
             return (savedTask)
         } catch (error) {
@@ -421,7 +418,7 @@ export class CacheOperation {
 	//get Task titles
 	async getTaskTitles(taskIds: string []): Promise<string []> {
 
-		const savedTasks = this.plugin.settings.TickTickTasksData.tasks;
+		const savedTasks = getTasks();
 		let titles = savedTasks.filter(task => taskIds.includes(task.id)).map(task => task.title);
 		titles = titles.map((task: string ) => {
 			return this.plugin.taskParser?.stripOBSUrl(task);
@@ -470,7 +467,7 @@ export class CacheOperation {
         return null;
     }
     async getProjectIdForTask(taskId: string) {
-        const savedTasks = this.plugin.settings.TickTickTasksData.tasks;
+        const savedTasks = getTasks();
         const taskIndex = savedTasks.findIndex((task) => task.id === taskId);
 
         if (taskIndex !== -1) {
@@ -518,7 +515,7 @@ export class CacheOperation {
     async reopenTaskToCacheByID(taskId: string): Promise<string> {
         let projectId = null;
         try {
-            const savedTasks = this.plugin.settings.TickTickTasksData.tasks
+            const savedTasks = getTasks()
 
 
             const taskIndex = savedTasks.findIndex((task) => task.id === taskId);
@@ -527,7 +524,7 @@ export class CacheOperation {
                 projectId = savedTasks[taskIndex].projectId;
             }
 
-            this.plugin.settings.TickTickTasksData.tasks = savedTasks
+			updateTasks(savedTasks);
             return projectId;
 
         } catch (error) {
@@ -542,7 +539,7 @@ export class CacheOperation {
     async closeTaskToCacheByID(taskId: string): Promise<string> {
         let projectId = null;
         try {
-            const savedTasks = this.plugin.settings.TickTickTasksData.tasks
+            const savedTasks = getTasks();
 
             const taskIndex = savedTasks.findIndex((task) => task.id === taskId);
             if (taskIndex > -1)  {
@@ -550,7 +547,7 @@ export class CacheOperation {
                 projectId = savedTasks[taskIndex].projectId;
             }
 
-            this.plugin.settings.TickTickTasksData.tasks = savedTasks
+            updateTasks(savedTasks);
             return projectId;
 
         } catch (error) {
@@ -563,9 +560,9 @@ export class CacheOperation {
     //Delete task by ID
     async deleteTaskFromCache(taskId: string) {
         try {
-            const savedTasks = this.plugin.settings.TickTickTasksData.tasks
+            const savedTasks = getTasks()
             const newSavedTasks = savedTasks.filter((t) => t.id !== taskId);
-            this.plugin.settings.TickTickTasksData.tasks = newSavedTasks
+            updateTasks(newSavedTasks)
             //Also clean up meta data
             await this.deleteTaskIdFromMetadataByTaskId(taskId);
         } catch (error) {
@@ -577,9 +574,9 @@ export class CacheOperation {
 	//Delete task through ID array
     async deleteTaskFromCacheByIDs(deletedTaskIds: string[]) {
         try {
-            const savedTasks = this.plugin.settings.TickTickTasksData.tasks
+            const savedTasks = getTasks()
             const newSavedTasks = savedTasks.filter((t) => !deletedTaskIds.includes(t.id))
-            this.plugin.settings.TickTickTasksData.tasks = newSavedTasks
+            updateTasks(newSavedTasks)
             //clean up file meta data
             deletedTaskIds.forEach(async taskId => {
                 await this.deleteTaskIdFromMetadataByTaskId(taskId)
@@ -595,7 +592,7 @@ export class CacheOperation {
     //Find project id by name
     async getProjectIdByNameFromCache(projectName: string) {
         try {
-            const savedProjects = this.plugin.settings.TickTickTasksData.projects
+            const savedProjects = getProjects()
             const targetProject = savedProjects.find((obj: IProject) => obj.name.toLowerCase() === projectName.toLowerCase());
             const projectId = targetProject ? targetProject.id : null;
             return (projectId)
@@ -609,7 +606,7 @@ export class CacheOperation {
 
     async getProjectNameByIdFromCache(projectId: string) {
         try {
-            const savedProjects = this.plugin.settings.TickTickTasksData.projects
+            const savedProjects = getProjects()
             const targetProject = savedProjects.find(obj => obj.id === projectId);
             const projectName = targetProject ? targetProject.name : null;
             return (projectName)
@@ -677,7 +674,7 @@ export class CacheOperation {
 
             //save to json
             //TODO: Do we want to deal with sections.
-            this.plugin.settings.TickTickTasksData.projects = projects
+            updateProjects(projects);
             await this.plugin.saveSettings();
             return true
 
@@ -755,7 +752,7 @@ export class CacheOperation {
 
 	isTaskInCache(taskId) {
 		try {
-			const savedTasks = this.plugin.settings.TickTickTasksData.tasks
+			const savedTasks = getTasks()
 			const savedTask = savedTasks.find((task: ITask) => task.id === taskId);
 			if (savedTask) {
 				return  true;

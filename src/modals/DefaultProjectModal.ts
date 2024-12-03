@@ -1,6 +1,6 @@
 import { App, Modal, Setting } from "obsidian";
 import TickTickSync from "@/main"
-import {getSettings} from "@/settings";
+import {getProjects, getSettings} from "@/settings";
 
 
 interface MyProject {
@@ -33,7 +33,7 @@ export class SetDefaultProjectForFileModal extends Modal {
         // console.log(this.defaultProjectName)
         const fileMetadata = getSettings().fileMetadata;
         const defaultProjectIds = Object.values(fileMetadata).map(meta => meta.defaultProjectId);
-        const allowableProjects = getSettings().TickTickTasksData?.projects?.filter(project => !defaultProjectIds.includes(project.id));
+        const allowableProjects = getProjects().filter(project => !defaultProjectIds.includes(project.id));
         const myProjectsOptions: MyProject | undefined = allowableProjects.reduce((obj, item) => {
                 // console.log(obj, item.id, item.name)
                 obj[item.id] = item.name;
