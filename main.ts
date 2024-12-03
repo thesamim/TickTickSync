@@ -1,4 +1,4 @@
-import { Editor, MarkdownView, Notice, Plugin, TFile, TFolder } from 'obsidian';
+import { App, Editor, MarkdownView, Notice, Plugin, TFile, TFolder } from 'obsidian';
 
 //settings
 import { DEFAULT_SETTINGS, TickTickSyncSettings, TickTickSyncSettingTab } from './src/settings';
@@ -17,7 +17,8 @@ import { SyncMan } from './src/syncModule';
 
 //import modals
 import { SetDefaultProjectForFileModal } from 'src/modals/DefaultProjectModal';
-import {ConfirmFullSyncModal} from "./src/modals/LatestChangesModal"
+import {LatestChangesModal} from "./src/modals/LatestChangesModal"
+import { DateMan } from './src/dateMan';
 
 
 export default class TickTickSync extends Plugin {
@@ -25,6 +26,7 @@ export default class TickTickSync extends Plugin {
 	tickTickRestAPI: TickTickRestAPI | undefined | null;
 	tickTickSyncAPI: TickTickSyncAPI | undefined;
 	taskParser: TaskParser | undefined;
+	dateMan : DateMan | undefined;
 	cacheOperation: CacheOperation | undefined;
 	fileOperation: FileOperation | undefined;
 	tickTickSync: SyncMan | undefined;
@@ -33,7 +35,16 @@ export default class TickTickSync extends Plugin {
 	syncLock: Boolean;
 
 	async onload() {
+		//We're doing too much at load time, and it's causing issues. Do it properly!
 
+		this.app.workspace.onLayoutReady(() => {
+			this.registerEvent(this.app.vault.on('create', this.pluginLoad(), this));
+		});
+
+	}
+
+
+	private async pluginLoad() {
 		const isSettingsLoaded = await this.loadSettings();
 
 		if (!isSettingsLoaded) {
@@ -49,7 +60,7 @@ export default class TickTickSync extends Plugin {
 				let newTasksHolder = {};
 				newTasksHolder = {
 					TickTickTasks: oldTasksHolder.TickTickTasks.map((taskIDString) => ({
-						taskId: taskIDString, taskItems: [] //TODO: Validate that the assumption that the next sync will fill these correctly.
+						taskId: taskIDString, taskItems: []
 					})), TickTickCount: oldTasksHolder.TickTickCount, defaultProjectId: oldTasksHolder.defaultProjectId
 				};
 				fileMetataDataStructure[file] = newTasksHolder;
@@ -64,11 +75,22 @@ export default class TickTickSync extends Plugin {
 			delete this.settings.username;
 			delete this.settings.password;
 		}
+
+		//After this point, there's a need to document changes for the users.
+		let notableChanges: string [][] = [];
 		if ((!this.settings.version) || (this.isOlder(this.settings.version, '1.0.36'))) {
 			//default to AND because that's what we used to do:
 			this.settings.tagAndOr = 1;
 			//warn about tag changes.
-			await this.LatestChangesModal()
+			notableChanges.push(['New Task Limiting rules', 'Please update your preferences in settings as needed.', 'priorTo1.0.36']);
+		}
+		if ((!this.settings.version) || (this.isOlder(this.settings.version, '1.0.40'))) {
+			//warn about the date/time foo
+			notableChanges.push(['New Date/Time Handling', 'Old date formats will be converted on the next synchronization operation.', 'priorTo1.0.40']);
+		}
+
+		if (notableChanges.length > 0) {
+			await this.LatestChangesModal(notableChanges);
 		}
 
 		//Update the version number. It will save me headaches later.
@@ -90,19 +112,21 @@ export default class TickTickSync extends Plugin {
 		//lastLine object {path:line} is saved in lastLines map
 		this.lastLines = new Map();
 
-		// if (this.settings.debugMode) {
-			// This creates an icon in the left ribbon.
-			const ribbonIconEl = this.addRibbonIcon('sync', 'TickTickSync', async (evt: MouseEvent) => {
-				// Called when the user clicks the icon.
-				await this.scheduledSynchronization();
-				await this.unlockSynclock();
-				new Notice(`Sync completed..`);
-			});
+		//Popular Request: Always on Sync Icon.
+		// This creates an icon in the left ribbon.
+		const ribbonIconEl = this.addRibbonIcon('sync', 'TickTickSync', async (evt: MouseEvent) => {
+			// Called when the user clicks the icon.
+			await this.scheduledSynchronization();
+			await this.unlockSynclock();
+			new Notice(`Sync completed..`);
+		});
+
+		if (this.settings.debugMode) {
 			//Used for testing adhoc code.
 			// const ribbonIconEl1 = this.addRibbonIcon('check', 'TickTickSync', async (evt: MouseEvent) => {
 			// 	// Nothing to see here right now.
 			// });
-		// }
+		}
 
 		//Key event monitoring, judging line breaks and deletions
 		this.registerDomEvent(document, 'keyup', async (evt: KeyboardEvent) => {
@@ -145,6 +169,7 @@ export default class TickTickSync extends Plugin {
 			}
 		});
 
+		//This is here to try and find nested checkboxes, which I put on hold for now.
 		function traverseDOMBackwards(element, callback) {
 			while (element) {
 				callback(element);
@@ -200,13 +225,11 @@ export default class TickTickSync extends Plugin {
 					return;
 				}
 
-				//TODO: lineNumberCheck also triggers a line modified check. I suspect this is redundant and
-				//      inefficient when a new task is being added. I've added returns out of there, but I need for find if the last line check
-				//      is needed for an add.
-				await this.lineNumberCheck();
 				if (!(this.checkModuleClass())) {
 					return;
 				}
+
+				await this.lineNumberCheck();
 				if (this.settings.enableFullVaultSync) {
 					return;
 				}
@@ -345,7 +368,6 @@ export default class TickTickSync extends Plugin {
 		console.log(`${this.manifest.name} ${this.manifest.version} loaded!`);
 	}
 
-
 	async onunload() {
 		console.log(`TickTickSync unloaded!`);
 	}
@@ -396,10 +418,10 @@ export default class TickTickSync extends Plugin {
 			this.tickTickRestAPI = undefined;
 			this.tickTickSyncAPI = undefined;
 			this.taskParser = undefined;
-			this.taskParser = undefined;
 			this.cacheOperation = undefined;
 			this.fileOperation = undefined;
 			this.tickTickSync = undefined;
+			this.dateMan = undefined;
 			new Notice(`TickTickSync plugin initialization failed, please check userID and password in settings.`);
 			return;
 		}
@@ -409,7 +431,7 @@ export default class TickTickSync extends Plugin {
 			//Create a backup folder to back up TickTick data
 			try {
 
-				//TODO: this should not be necessary. Check why it was at some point.
+
 				if (!this.settings.SyncTag) {
 					this.settings.SyncTag = '';
 					await this.saveSettings();
@@ -420,7 +442,12 @@ export default class TickTickSync extends Plugin {
 				}
 
 				//Start the plug-in for the first time and back up TickTick data
+
+				//init task parser
 				this.taskParser = new TaskParser(this.app, this);
+
+				//init date manager
+				this.dateMan = new DateMan();
 
 				//initialize file operation
 				this.fileOperation = new FileOperation(this.app, this);
@@ -473,13 +500,17 @@ export default class TickTickSync extends Plugin {
 
 		//initialize data read and write object
 		this.cacheOperation = new CacheOperation(this.app, this);
+
+		//init taskparser
 		this.taskParser = new TaskParser(this.app, this);
+
+		//init date manager
+		this.dateMan = new DateMan();
 
 		//initialize file operation
 		this.fileOperation = new FileOperation(this.app, this);
 
 		//initialize TickTick sync api
-		//Todo: Do we really need it?
 		this.tickTickSyncAPI = new TickTickSyncAPI(this.app, this);
 
 		//initialize TickTick sync module
@@ -531,7 +562,6 @@ export default class TickTickSync extends Plugin {
 				// try{
 
 				modified = await this.tickTickSync?.lineModifiedTaskCheck(filepath as string, lastLineText, lastLine as number, fileContent);
-
 
 				// }catch(error){
 				//     console.error(`An error occurred while check modified task in line text: ${error}`);
@@ -748,6 +778,7 @@ export default class TickTickSync extends Plugin {
 				}
 			}
 
+			// console.time("TIMING File Check");
 			//Now do the task checking.
 			for (const fileKey in newFilesToSync) {
 				if (this.settings.debugMode) {
@@ -782,6 +813,7 @@ export default class TickTickSync extends Plugin {
 
 
 			}
+			// console.timeEnd("TIMING File Check");
 
 		} catch (error) {
 			console.error('An error occurred:', error);
@@ -839,8 +871,8 @@ export default class TickTickSync extends Plugin {
 	}
 
 
-	private async LatestChangesModal() {
-		const myModal = new ConfirmFullSyncModal(this.app, (result) => {
+	private async LatestChangesModal(notableChanges: string[][]) {
+		const myModal = new LatestChangesModal(this.app, notableChanges, (result) => {
 			this.ret = result;
 		});
 		const bConfirmation = await myModal.showModal();
@@ -849,7 +881,3 @@ export default class TickTickSync extends Plugin {
 
 	}
 }
-
-
-
-

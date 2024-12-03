@@ -79,7 +79,7 @@ export class CacheOperation {
                 });
                 //update will take care of metadata update.
                 task.items = taskItems;
-                task = await this.updateTaskToCacheByID(task);
+                task = await this.updateTaskToCache(task);
                 return task;
             } else {
                 console.warn(`Task '${taskId}' not found in metadata`);
@@ -93,7 +93,6 @@ export class CacheOperation {
     async getFileMetadata(filepath: string, projectId: string | null): Promise<FileMetadata> {
         let metaData = this.plugin.settings.fileMetadata[filepath];
         if (!metaData) {
-            //TODO is this valid?
             //Always return something.
             metaData = await this.newEmptyFileMetadata(filepath, projectId);
         }
@@ -403,16 +402,16 @@ export class CacheOperation {
     }
 
     //Read the task with the specified id
-    async loadTaskFromCacheID(taskId: string) {
+    async loadTaskFromCacheID(taskId: string) : Promise<ITask|null> {
         // console.log("loadTaskFromCacheID")
-        try {
 
+        try {
             const savedTasks = this.plugin.settings.TickTickTasksData.tasks
             const savedTask = savedTasks.find((task: ITask) => task.id === taskId);
             return (savedTask)
         } catch (error) {
             console.error(`Error finding task from Cache: ${error}`);
-            return [];
+            return null;
         }
     }
 
@@ -431,7 +430,7 @@ export class CacheOperation {
 
 
     //Overwrite the task with the specified id in update
-    async updateTaskToCacheByID(task: ITask, movedPath: string | null) {
+    async updateTaskToCache(task: ITask, movedPath: string | null) {
         try {
 			let filePath: string | null = ""
 			if (!movedPath) {
@@ -446,6 +445,8 @@ export class CacheOperation {
 			} else {
 				filePath = movedPath;
 			}
+
+			//Assume that dateHolder has been handled before this.
 			//Delete the existing task
 			await this.deleteTaskFromCache(task.id)
 			//Add new task

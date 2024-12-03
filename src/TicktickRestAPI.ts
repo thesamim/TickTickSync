@@ -104,9 +104,6 @@ export class TickTickRestAPI {
 	async AddTask(taskToAdd: ITask) {
 		await this.initializeAPI();
 		try {
-			//This hurts my feelings. But TickTick looks at startdate before duedate.
-			//For now, just null out the due date.
-			taskToAdd.dueDate = '';
 			const newTask = await this.api?.addTask(taskToAdd);
 			return newTask;
 		} catch (error) {
@@ -156,17 +153,21 @@ export class TickTickRestAPI {
 		await this.initializeAPI();
 
 		try {
-			//This hurts my feelings. But TickTick looks at startdate before duedate.
-			//For now, just null out the due date.
-			taskToUpdate.dueDate = '';
-			let updatedTask = {};
+			// @ts-ignore
+			let updatedTask: ITask | null | undefined = {};
+			const saveDateHolder = taskToUpdate.dateHolder;
 			const updateResult = await this.api?.updateTask(taskToUpdate);
 			// console.log("update result: ", updateResult.id2error);
 			if (JSON.stringify(updateResult.id2error) === '{}')
 			{
 				// console.log('it is fine');
 				//because of the due date BS, we need it back.
-				updatedTask = this.getTaskById(taskToUpdate.id, taskToUpdate.projectId);
+				updatedTask = await this.getTaskById(taskToUpdate.id, taskToUpdate.projectId);
+				if (updatedTask) {
+					updatedTask.dateHolder = saveDateHolder
+				} else {
+					console.error("Didn't get back the updated Task");
+				}
 			}
 			return updatedTask;
 		} catch (error) {

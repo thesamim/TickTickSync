@@ -1,6 +1,8 @@
-.cm-line:not(:hover):not(.cm-active) span.cm-comment:not(.cm-hmd-codeblock):not(.cm-templater-command) {
+/* Note To Self: This relies on task lines we care about being decorated with the .cm-tag-ticktick class */
+.cm-line:not(:hover):not(.cm-active):has(.cm-tag-ticktick) span.cm-comment {
 	display: none;
 }
+
 
 .ts_button {
 	margin-top: 1rem;
@@ -18,6 +20,11 @@ button.ts_button[disabled]:hover {
 	box-shadow: var(--input-shadow);
 }
 
+.ts_login_button {
+	width: 112px;
+	margin-top: 1rem;
+	cursor: pointer;
+}
 
 
 .project-table-table{
@@ -47,3 +54,4 @@ button.ts_button[disabled]:hover {
 .cm-line:hover .dataview.inline-field-key[data-dv-key="ticktick_id"] + span {
 	display: inline-block;
 }
+

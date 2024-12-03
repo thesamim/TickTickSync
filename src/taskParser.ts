@@ -50,6 +50,14 @@ enum Priority {
 	Highest = '5', High = '5', Medium = '3', None = '0', Low = '1', Lowest = '0',
 }
 
+//From https://publish.obsidian.md/tasks/Reference/Task+Formats/Tasks+Emoji+Format
+// - [ ] #task Has a created date ➕ 2023-04-13
+// - [ ] #task Has a scheduled date ⏳ 2023-04-14
+// - [ ] #task Has a start date 🛫 2023-04-15
+// - [ ] #task Has a due date 📅 2023-04-16
+// - [x] #task Has a done date ✅ 2023-04-17
+// - [-] #task Has a cancelled date ❌ 2023-04-18
+
 const keywords = {
 	TickTick_TAG: '#ticktick',
 	DUE_DATE: '⏳|🗓️|📅|📆|🗓',
@@ -154,7 +162,7 @@ export class TaskParser {
 	}
 
 	//convert a task object to a task line.
-	async convertTaskToLine(task: ITask): Promise<string> {
+	async convertTaskToLine(task: ITask, direction: string): Promise<string> {
 		let resultLine = '';
 
 		task.title = this.stripOBSUrl(task.title);
@@ -175,10 +183,8 @@ export class TaskParser {
 		//add priority
 		resultLine = this.addPriorityToLine(resultLine, task);
 
-		//add due date
-		if (task.dueDate) {
-			resultLine = this.addDueDateToLine(resultLine, task);
-		}
+		//add dates
+		resultLine = this.plugin.dateMan?.addDatesToLine(resultLine, task, direction);
 
 
 		if (task.items && task.items.length > 0) {
@@ -210,19 +216,19 @@ export class TaskParser {
 		return result.trim();
 	}
 
+	//Remove Extraneous data from line.
 	getTaskContentFromLineText(lineText: string) {
-		let TaskContent = lineText.replace(REGEX.TASK_CONTENT.REMOVE_INLINE_METADATA, '')
+		let taskContent = lineText.replace(REGEX.TASK_CONTENT.REMOVE_INLINE_METADATA, '')
 			.replace(REGEX.TASK_CONTENT.REMOVE_TickTick_LINK, '')
 			.replace(REGEX.TASK_CONTENT.REMOVE_PRIORITY, '')
 			.replace(REGEX.TASK_CONTENT.REMOVE_TAGS, '')
-			.replace(REGEX.TASK_CONTENT.REMOVE_DATE, '')
-			.replace(REGEX.TASK_CONTENT.REMOVE_COMPLETION_DATE, "")
 			.replace(REGEX.TASK_CONTENT.REMOVE_CHECKBOX, '')
 			.replace(REGEX.TASK_CONTENT.REMOVE_CHECKBOX_WITH_INDENTATION, '')
 			.replace(REGEX.TASK_CONTENT.REMOVE_SPACE, '');
 
-		TaskContent = this.stripOBSUrl(TaskContent);
-		return (TaskContent);
+		taskContent = this.stripOBSUrl(taskContent);
+		taskContent = this.plugin.dateMan?.stripDatesFromLine(taskContent);
+	return (taskContent);
 	}
 
 	stripLineItemId(lineText: string) {
@@ -256,6 +262,11 @@ export class TaskParser {
 		let textWithoutIndentation = this.removeTaskIndentation(lineText);
 
 		const TickTick_id = this.getTickTickIdFromLineText(textWithoutIndentation);
+
+		//Strip dates.
+		// console.log("sending: ", textWithoutIndentation, this.plugin.dateMan);
+		const allDatesStruct =  this.plugin.dateMan?.parseDates(textWithoutIndentation);
+		// console.log("And we have: ", textWithoutIndentation);
 
 		//Detect parentID
 		if (lineTextTabIndentation > 0) {
@@ -317,9 +328,7 @@ export class TaskParser {
 			}
 		}
 
-		let dueDateStruct = this.getDueDateFromLineText(textWithoutIndentation);
 		let timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-
 
 		const tags = this.getAllTagsFromLineText(textWithoutIndentation);
 
@@ -355,34 +364,43 @@ export class TaskParser {
 		}
 
 		const isCompleted = this.isTaskCheckboxChecked(textWithoutIndentation);
-		let description = '';
+		let taskURL = '';
 		const priority = this.getTaskPriority(textWithoutIndentation);
 		if (filepath) {
-			let taskURL = this.plugin.taskParser?.getObsidianUrlFromFilepath(filepath);
-			if (taskURL) {
-				description = taskURL;
+			let url = this.plugin.taskParser?.getObsidianUrlFromFilepath(filepath);
+			if (url) {
+				taskURL = url;
 			}
 
 		}
+
+		let actualStartDate = allDatesStruct?.startDate ?
+										allDatesStruct?.startDate.isoDate : //there's a start date
+										allDatesStruct?.scheduled_date ?
+										allDatesStruct?.scheduled_date.isoDate //there's a scheduled date
+										: ''; //there are neither start date nor scheduled date.
 		const task: ITask = {
 			id: TickTick_id || '',
 			projectId: projectId,
-			title: title.trim() + ' ' + description,
+			//RSN We're going to have to figure putting it Items or in Description.
+			title: title.trim() + ' ' + taskURL,
 			//content: ??
 			// content: description,
 			items: taskItems || [],
-			parentId: parentId || '', //TickTick, will use the start date for due date, and eff up the date displayed.
-			//emulate what they do on the web interface and send null for due date.
-			dueDate: dueDateStruct.returnDate || '',
-			startDate: dueDateStruct.returnDate || '',
-			isAllDay: dueDateStruct.isAllDay,
+			parentId: parentId || '',
+			dueDate: allDatesStruct?.dueDate?.isoDate || '',
+			startDate: actualStartDate,
+			isAllDay: allDatesStruct?.isAllDay || false,
 			tags: tags || [],
 			priority: Number(priority),
-			modifiedTime: this.formatDateToISO(new Date()),
+			modifiedTime: this.plugin.dateMan?.formatDateToISO(new Date()) || '',
 			status: isCompleted ? 2 : 0, //Status: 0 is no completed. Anything else is completed.
-			timeZone: timeZone
+			timeZone: timeZone,
+			dateHolder: allDatesStruct //Assume that there's a dateStruct of some kind
 		};
+		// console.log("TRACETHIS FINAL: ", task.title, "\nDue Date: ", task.dueDate, "\nStart DAte: ", task.startDate, "\nisAllDay: ", task.isAllDay);
 		return task;
+
 	}
 
 	hasTickTickTag(text: string) {
@@ -419,51 +437,7 @@ export class TaskParser {
 		return parentTask;
 	}
 
-	hasDueDate(text: string) {
-		return (REGEX.DUE_DATE_WITH_EMOJ.test(text));
-	}
-
-	getDueDateFromLineText(text: string) {
-		let isAllDay = true;
-		const regEx = REGEX.DUE_DATE;
-		let results = [...text.matchAll(regEx)];
-		// console.log('@@@ Date parts from Regex: ', results);
-		if (results.length == 0) {
-			const nullDate = '';
-			const nullVal = '';
-			return { isAllDay, nullDate, nullVal };
-		}
-
-		let result;
-		if (results.length > 1) {
-			//arbitrarily take the last one
-			result = results[results.length - 1];
-		} else {
-			result = results[0];
-		}
-		// for (const resultKey in result) {
-		// 	console.log("@@@ ---", resultKey, result[resultKey]);
-		// }
-		let returnDate = null;
-		if (result) {
-			// console.log("String Date parts: ", result);
-			if (!result[3]) {
-				returnDate = `${result[2]}T00:00:00.000`;
-				isAllDay = true;
-			} else {
-				if (result[3].includes('24:')) {
-					result[3] = result[3].replace('24:', '00:');
-				}
-				returnDate = `${result[2]}T${result[3]}`;
-				isAllDay = false;
-			}
-			returnDate = this.formatDateToISO(new Date(returnDate));
-		}
-		const emoji = result[1];
-		// console.log("@@@ Returning ", {isAllDay,returnDate, emoji});
-		return { isAllDay, returnDate, emoji };
-	}
-
+	//pretty sure this is surplus to requirements. Kill it next time.
 	getProjectNameFromLineText(text: string) {
 		const result = REGEX.PROJECT_NAME.exec(text);
 		return result ? result[1] : null;
@@ -487,33 +461,6 @@ export class TaskParser {
 		}
 	}
 
-
-	utcToLocal(utcDateString: string, bIsAllDay: boolean) {
-		const date = new Date(utcDateString);
-		//Regardless of host date/time format, we want to parse for "en-US" format
-		const locale = "en-US";
-		const hostTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone
-		const localDate = date.toLocaleString(locale, {timeZone: hostTimeZone});
-		//console.log("@@@@ local date string: ", localDate);
-		const [datePart, timePart] = localDate.split(', ');
-		let [month, day, year] = datePart.split('/');
-		month = String(month).padStart(2, '0');
-		day = String(day).padStart(2, '0');
-		let [hours, minutes] = timePart.split(':');
-		if (localDate.includes('PM')) {
-			hours = (Number(hours) + 12).toString();
-		} else if ((localDate.includes('AM') && hours === '12')) {
-			hours = '24';
-		}
-		hours = String(hours).padStart(2, '0');
-		minutes = String(minutes).padStart(2, '0');
-		if (!bIsAllDay) {
-			return `${year}-${month}-${day} ${hours}:${minutes}`;
-		} else {
-			return `${year}-${month}-${day}`;
-		}
-
-	}
 
 	//get all tags from task text
 	getAllTagsFromLineText(lineText: string) {
@@ -582,62 +529,6 @@ export class TaskParser {
 		return (lineParentId != cacheParentId);
 	}
 
-	//task due date compare
-	isDueDateChanged(lineTask: ITask, TickTickTask: ITask): boolean {
-		const lineTaskDue = lineTask.dueDate;
-		const TickTickTaskDue = TickTickTask.dueDate ?? '';
-		if (lineTaskDue === '' && TickTickTaskDue === '') {
-			//console.log('No due date')
-			return false;
-		}
-
-		if ((lineTaskDue || TickTickTaskDue) === '') {
-			//console.log('due date has changed')
-			return true;
-		}
-
-		if (lineTaskDue === TickTickTaskDue) {
-			//console.log('due date consistent')
-			return false;
-		} else if (lineTaskDue.toString() === 'Invalid Date' && TickTickTaskDue.toString() === 'Invalid Date') {
-			// console.log('invalid date')
-			return false;
-		} else {
-			const date1 = this.cleanDate(lineTaskDue);
-			const date2 = this.cleanDate(TickTickTaskDue);
-			const date1TZ = date1.getTimezoneOffset();
-			const date2TZ = date2.getTimezoneOffset();
-			const diff = (date1.getTime() - date2.getTime()) / 3600000;
-
-			const utcDate1 = date1;
-			const utcDate2 = date2;
-
-			if (utcDate1.getTime() === utcDate2.getTime()) {
-				return false;
-			} else {
-
-
-				if (this.plugin.settings.debugMode) {
-					// Calculate the difference in minutes
-					const timeDifferenceInMilliseconds = Math.abs(utcDate2.getTime() - utcDate1.getTime());
-					const days = Math.floor(timeDifferenceInMilliseconds / (1000 * 60 * 60 * 24));
-					const hours = Math.floor((timeDifferenceInMilliseconds % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-					const minutes = Math.floor((timeDifferenceInMilliseconds % (1000 * 60 * 60)) / (1000 * 60));
-
-					if (days > 0) {
-						console.log(`The timestamps are ${days} days, ${hours} hours, and ${minutes} minutes apart.`);
-					} else if (hours > 0) {
-						console.log(`The timestamps are ${hours} hours and ${minutes} minutes apart.`);
-					} else if (minutes > 0) {
-						console.log(`The timestamps are ${minutes} minutes apart.`);
-					} else {
-						console.log(`The timestamps are different, but not calculatable..`);
-					}
-				}
-				return true;
-			}
-		}
-	}
 
 	//task project id compare
 	isProjectIdChanged(lineTask: ITask, TickTickTask: ITask) {
@@ -692,18 +583,6 @@ export class TaskParser {
 	//Judge whether line is a blank line
 	isLineBlank(lineText: string) {
 		return (REGEX.BLANK_LINE.test(lineText));
-	}
-
-	//Format date to TickTick Accepted date.
-	formatDateToISO(dateTime: Date) {
-		// Check if the input is a valid date
-		if (isNaN(dateTime.getTime())) {
-			return 'Invalid Date';
-		}
-		const tzoffset = dateTime.getTimezoneOffset();
-		const convertedDate = new Date(dateTime.getTime());
-		const result = convertedDate.toISOString().replace(/Z$/, '+0000');
-		return result;
 	}
 
 	isMarkdownTask(str: string): boolean {
@@ -771,32 +650,22 @@ export class TaskParser {
 		if (!matches) {
 			return null;
 		}
-		let status = matches[3] || "";
+
+		let checkBox = matches[3] || "";
+
+		//Anything other than 'x' is a not done state. Deal with it accordingly.
+		//https://publish.obsidian.md/tasks/Getting+Started/Statuses
+		const status = checkBox == 'x';
+		// console.log("TRACETHIS taskFromLine: ", line, "STATUS [", status, "]");
 		let description = matches[4] || "";
 		let indent = matches[1] ? matches[1].length : 0;
-		let completed = status === "x";
 
 		return {
 			line,
 			status,
 			description,
-			indent,
-			completed
+			indent
 		};
-	}
-	cleanDate(dateString: string) {
-
-		if (dateString.includes('+-')) {
-			dateString = dateString.replace('+-', '-');
-
-			let regex = /(.*)([+-])(\d*)/;
-			const matchTime = dateString.match(regex);
-			if (matchTime[3].length < 4) {
-				dateString = matchTime[1] + '-0' + matchTime[3];
-			}
-		}
-		const cleanedDate = new Date(dateString);
-		return cleanedDate;
 	}
 
 	protected parsePriority(p: string): Priority {
@@ -868,22 +737,17 @@ export class TaskParser {
 		// }
 		return resultLine;
 	}
-	addCompletionDate(line: string, completedTime: string|undefined): string {
-		if (completedTime) {
-			const completionTime = this.utcToLocal(completedTime, true)
-			line = line + ` ${keywords.TASK_COMPLETE} ` + completionTime;
-			return line
-		} else {
-			return line;
-		}
-	}
 
-	private addDueDateToLine(resultLine: string, task: ITask) {
-		const dueDate = this.utcToLocal(task.dueDate, task.isAllDay);
-		resultLine = resultLine + ` ${keywords.TASK_DUE_DATE} ` + dueDate;
-		return resultLine;
-	}
-
+	// //Trust either Task plugin or Ticktick to do the completion dates.
+	// addCompletionDate(line: string, completedTime: string|undefined): string {
+	// 	if (completedTime) {
+	// 		const completionTime = this.plugin.dateMan?.utcToLocal(completedTime)
+	// 		line = line + ` ${keywords.TASK_COMPLETE} ` + completionTime;
+	// 		return line
+	// 	} else {
+	// 		return line;
+	// 	}
+	// }
 
 	//Note to future me: I wanted to get all the known tags in Obsidian to something clever
 	//                   with tag management.
@@ -893,4 +757,12 @@ export class TaskParser {
 		// 	// foo.forEach(tag => console.log(tag));
 	}
 
+	getLineHash(resultLine: string) {
+		// console.time("Line Hash")
+		const crypto = require('crypto');
+		const hash = crypto.createHash("sha256").update(resultLine).digest("hex");
+		// console.log("TRACETHIS hashing: ", resultLine, hash);
+		// console.timeEnd("Line Hash")
+		return hash
+	}
 }
