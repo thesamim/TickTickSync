@@ -619,7 +619,7 @@ export class SyncMan {
 		//is it a task at all?
 		if (!this.plugin.taskParser?.isMarkdownTask(lineText)) {
 			//Nah Brah. Bail.
-			return;
+			return false;
 		}
 		let parsedItem = this.plugin.taskParser?.taskFromLine(lineText);
 		if (this.plugin.settings.debugMode) {
@@ -629,7 +629,7 @@ export class SyncMan {
 		}
 		if (!parsedItem.description) {
 			//empty item. Bail.
-			return;
+			return false;
 		}
 		let tabs = parsedItem?.indent;
 		let content = parsedItem?.description;
@@ -897,7 +897,6 @@ export class SyncMan {
 			return [];
 		}
 
-		const api = await this.plugin.tickTickRestAPI?.initializeAPI()
 		for (const taskId of taskIds) {
 			try {
 				let response;

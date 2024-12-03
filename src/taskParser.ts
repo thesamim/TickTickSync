@@ -585,7 +585,6 @@ export class TaskParser {
 		return (REGEX.BLANK_LINE.test(lineText));
 	}
 
-
 	isMarkdownTask(str: string): boolean {
 		const forRealRegex = taskRegex;
 		return forRealRegex.test(str);
@@ -651,6 +650,7 @@ export class TaskParser {
 		if (!matches) {
 			return null;
 		}
+
 		let checkBox = matches[3] || "";
 
 		//Anything other than 'x' is a not done state. Deal with it accordingly.
@@ -659,7 +659,6 @@ export class TaskParser {
 		// console.log("TRACETHIS taskFromLine: ", line, "STATUS [", status, "]");
 		let description = matches[4] || "";
 		let indent = matches[1] ? matches[1].length : 0;
-
 
 		return {
 			line,
