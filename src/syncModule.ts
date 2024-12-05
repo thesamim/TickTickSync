@@ -1003,8 +1003,19 @@ export class SyncMan {
 				console.error("probable network connection error.")
 				return;
 			}
+
 			let bModifiedFileSystem = false;
-			let allTaskDetails = await this.plugin.tickTickRestAPI?.getAllTasks();
+			const allResources = await this.plugin.tickTickRestAPI?.getAllResources();
+			if (!allResources){
+				console.error("probable network connection error.")
+				return;
+			}
+
+			if (allResources.projectGroups && this.plugin.settings.TickTickTasksData) {
+				this.plugin.settings.TickTickTasksData.projectGroups = allResources.projectGroups;
+			}
+
+			const allTaskDetails = allResources['syncTaskBean'];//await this.plugin.tickTickRestAPI?.getAllTasks();
 			// console.log("All task details have been saved.", allTaskDetails);
 			let tasksFromTickTic = allTaskDetails.update;
 			let deletedTasks = allTaskDetails.delete;

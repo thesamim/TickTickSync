@@ -1,4 +1,4 @@
-import {Tick} from './api'
+import {IBatch, Tick} from './api'
 import {ITask} from "./api/types/Task"
 import {App, Notice} from 'obsidian';
 import TickTickSync from "../main";
@@ -259,9 +259,8 @@ export class TickTickRestAPI {
 	async GetAllProjects(): Promise<IProject[]> {
 		await this.initializeAPI();
 		try {
-			const result = await this.api?.getProjects();
-			return (result)
-
+			const result = await this.api?.getProjects() ?? [];
+			return result
 		} catch (error) {
 			console.error('Error get all projects', error);
 			return []
@@ -285,7 +284,7 @@ export class TickTickRestAPI {
 
 		} catch (error) {
 			console.error('Error get project groups', error);
-			new Notice("Unable to get Tasks: " + errorString , 0)
+			new Notice("Unable to get project groups: " + error , 0)
 			return false
 		}
 	}
@@ -319,17 +318,29 @@ export class TickTickRestAPI {
 	}
 
 	//TODO: Will need interpretation
-	async getAllResources(): Promise<any[]> {
+	async getAllResources(): Promise<IBatch | null> {
 		await this.initializeAPI();
+		if (!this.api){
+			console.error("getAllResources No API.")
+			return null;
+		}
 		try {
-			const result = await this.api?.getAllResources();
-
-			return (result)
+			const result = await this.api.getAllResources();
+			if (!result || (this.api.lastError && this.api.lastError.statusCode != 200)) {
+				throw new Error("getAllResources No Results.")
+			}
+			//TODO: mb save after processing?
+			//checkpoint, may have changed. Save it if it has.
+			if (this.plugin.settings.checkPoint != this.api?.checkpoint) {
+				this.plugin.settings.checkPoint = <number>this.api?.checkpoint
+				await this.plugin.saveSettings();
+			}
+			return result
 
 		} catch (error) {
 			console.error('Error get all resources', error);
-			return []
 		}
+		return null;
 	}
 
 	//TODO: Will need interpretation

@@ -27,3 +27,11 @@ export interface ISections
   name: string,
   sortOrder: number,
 }
+/**
+ * projectGroups
+ */
+export interface IGroup 
+{
+  id: number,
+  name: string
+}
