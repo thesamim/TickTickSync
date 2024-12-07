@@ -1,13 +1,19 @@
 {
 	"name": "tickticksync",
-	"version": "1.0.39",
+	"version": "1.0.40",
 	"description": "Sync TickTick tasks to Obsidian, and Obsidian tasks to TickTick",
 	"main": "main.js",
 	"scripts": {
 		"check": "tsc --noEmit",
 		"dev": " vite build --mode development --watch",
 		"build": "vite build --mode production",
-		"test": "vitest"
+		"test": "vitest",
+
+		"prepare": "npm run build-without-tsc",
+		"dev": "node esbuild.config.mjs",
+		"build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
+		"build-without-tsc": "node esbuild.config.mjs production",
+		"version": "node version-bump.mjs && git add manifest.json versions.json"
 	},
 	"keywords": [
 		"obsidian",
@@ -30,20 +36,24 @@
 		"@popperjs/core": "^2.11.8",
 		"bson-objectid": "^2.0.4",
 		"dependency-tree": "^11.0.1",
-		"eventemitter2": "^6.4.9",
-		"ua-parser-js": "^1.0.39",
-		"yaml": "^2.6.1"
+		"eventemitter2": "^6.4.9"
+		"yaml": "^2.6.1",
+		"lodash-es": "^4.17.21",
+		"lowdb": "^7.0.1"
 	},
 	"devDependencies": {
 		"@rollup/plugin-replace": "^6.0.1",
 		"@sveltejs/vite-plugin-svelte": "^5.0.1",
 		"@testing-library/jest-dom": "^6.4.2",
 		"@tsconfig/svelte": "^5.0.4",
+		"@types/lowdb": "^1.0.15",
 		"@types/node": "^22.9.0",
 		"@types/ua-parser-js": "^0.7.39",
 		"@typescript-eslint/eslint-plugin": "^8.14.0",
 		"@typescript-eslint/parser": "^8.14.0",
 		"builtin-modules": "^4.0.0",
+		"esbuild": "0.24.0",
+		"esbuild-plugin-copy": "2.1.1",
 		"jsdom": "^24.0.0",
 		"obsidian": "latest",
 		"svelte": "^5.2.10",
@@ -53,6 +63,7 @@
 		"vite": "^6.0.1",
 		"vite-plugin-static-copy": "^2.2.0",
 		"vite-tsconfig-paths": "^5.1.3",
-		"vitest": "^2.1.6"
+		"vitest": "^2.1.6",
+		"ua-parser-js": "^1.0.39"
 	}
 }

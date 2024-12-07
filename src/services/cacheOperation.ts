@@ -81,7 +81,7 @@ export class CacheOperation {
                 });
                 //update will take care of metadata update.
                 task.items = taskItems;
-                task = await this.updateTaskToCacheByID(task);
+                task = await this.updateTaskToCache(task);
                 return task;
             } else {
                 console.warn(`Task '${taskId}' not found in metadata`);
@@ -95,7 +95,6 @@ export class CacheOperation {
     async getFileMetadata(filepath: string, projectId: string | null): Promise<FileMetadata> {
         let metaData = getSettings().fileMetadata[filepath];
         if (!metaData) {
-            //TODO is this valid?
             //Always return something.
             metaData = await this.newEmptyFileMetadata(filepath, projectId);
         }
@@ -425,7 +424,7 @@ export class CacheOperation {
 
 
     //Overwrite the task with the specified id in update
-    async updateTaskToCacheByID(task: ITask, movedPath: string | null) {
+    async updateTaskToCache(task: ITask, movedPath: string | null) {
         try {
 			let filePath: string | null = ""
 			if (!movedPath) {
@@ -440,6 +439,8 @@ export class CacheOperation {
 			} else {
 				filePath = movedPath;
 			}
+
+			//Assume that dateHolder has been handled before this.
 			//Delete the existing task
 			await this.deleteTaskFromCache(task.id)
 			//Add new task

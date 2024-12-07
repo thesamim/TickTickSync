@@ -121,13 +121,6 @@ export class FileOperation {
             await this.app.vault.modify(file, newContent)
 			new Notice("New Tasks will be added to TickTick on next Sync.")
 			// console.error("Modified: ", file?.path, new Date().toISOString());
-
-            // //update filemetadate
-            // const metadata = await this.plugin.cacheOperation?.getFileMetadata(filepath)
-            // if (!metadata) {
-            //     throw new Error(`File Metadata creation failed for file ${filepath}`);
-            // }
-
         }
     }
 
@@ -325,16 +318,17 @@ export class FileOperation {
 			if (lines.find(line => (line.includes(task.id)))) {
 				//it's in the file, but not in cache. Just update it.
 				await this.updateTaskInFile(task, lines)
-				await this.plugin.cacheOperation?.updateTaskToCacheByID(task, file.path)
+				await this.plugin.cacheOperation?.updateTaskToCache(task, file.path)
 				addedTask.push(task.id);
 				continue;
 			}
-            let lineText = await this.plugin.taskParser?.convertTaskToLine(task);
+            let lineText = await this.plugin.taskParser?.convertTaskToLine(task, "TTAdd");
 
-			if (task.status != 0) {
-				//closed task, add completion time
-				lineText = this.plugin.taskParser?.addCompletionDate(lineText, task.completedTime);
-			}
+			//Trust either Task plugin or Ticktick to do the completion dates.
+			// if (task.status != 0) {
+			// 	//closed task, add completion time
+			// 	lineText = this.plugin.taskParser?.addCompletionDate(lineText, task.completedTime);
+			// }
 
 			if (task.parentId) {
                 let parentIndex = lines.indexOf(lines.find(line => line.includes(task.parentId)))
@@ -412,15 +406,15 @@ export class FileOperation {
         // Get the task file path
         const currentTask: ITask = await this.plugin.cacheOperation?.loadTaskFromCacheID(taskId)
 
+		this.plugin.dateMan?.addDateHolderToTask(task, currentTask);
 
 		if (currentTask) {
 			//Only check for Project/Parent change if task is in cache.
 			const hasChildren = this.hasChildren(currentTask);
-
+			// if (this.plugin.dateMan) {
+			// 	this.plugin.dateMan.updateDates(currentTask, task);
+			// }
 			if ((this.plugin.taskParser?.isProjectIdChanged(currentTask, task)) || this.plugin.taskParser?.isParentIdChanged(currentTask, task)) {
-				//todo: if a task is moved, AND it's status is changed, then the completion date is going to be wrong.
-				//      wait to see how big a deal this is before making a bunch of changes. Chances are it will be handled
-				//      on the next sync anyway.
 				await this.handleTickTickStructureMove(task, currentTask, toBeProcessed);
 				return;
 			}
@@ -444,7 +438,7 @@ export class FileOperation {
         for (let i = 0; i < lines.length; i++) {
             let line = lines[i]
             if (line.includes(taskId) && this.plugin.taskParser?.hasTickTickTag(line)) {
-                let newTaskContent = await this.plugin.taskParser?.convertTaskToLine(task);
+                let newTaskContent = await this.plugin.taskParser?.convertTaskToLine(task, "TTUpdate");
 
 				//get tabs for current task
                 let parentTabs = this.plugin.taskParser?.getTabs(line);
@@ -453,17 +447,19 @@ export class FileOperation {
                     newTaskContent = newTaskContent.replace(/\n/g, "\n" + parentTabs + '\t');
 					itemCount = (newTaskContent.match(/\n/g) || []).length;
                 }
-				//TODO: Is this even valid?
+
 				if (currentTask && currentTask.items && currentTask.items.length > 0 ) {
 					lines.splice(i+1,currentTask.items.length)
 				}
                 lines[i] = parentTabs + line.replace(line, newTaskContent)
-				//always add completion date at end if the task is closed.
-				if (task.status != 0) {
-					//in an ideal world, we would triger Tasks to complete the task for us.
-					//but we're not there. Slap a completion date on the end of the line and be done
-					lines[i] = this.plugin.taskParser?.addCompletionDate(lines[i], task.completedTime);
-				}
+
+				//Trust either Task plugin or Ticktick to do the completion dates.
+				// //always add completion date at end if the task is closed.
+				// if (task.status != 0) {
+				// 	//in an ideal world, we would triger Tasks to complete the task for us.
+				// 	//but we're not there. Slap a completion date on the end of the line and be done
+				// 	lines[i] = this.plugin.taskParser?.addCompletionDate(lines[i], task.completedTime);
+				// }
 
 				// if (task.items && task.items.length > 0 ) {
                 //     console.log(`new Task has ${currentTask.items.length}`)
@@ -472,8 +468,6 @@ export class FileOperation {
                 break
             }
         }
-
-
         if (modified) {
             const newContent = lines.join('\n')
             await this.app.vault.modify(file, newContent)

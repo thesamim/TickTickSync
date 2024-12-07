@@ -19,7 +19,7 @@ type FilterOptions = {
     object_type?: string;
 };
 
-//TODO: This is just mostly pass through. Do we reall need it?
+//TODO: This is just mostly pass through. Do we really need it?
 export class TickTickSyncAPI {
     app:App;
     plugin: TickTickSync;
