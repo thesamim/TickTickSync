@@ -9,10 +9,11 @@
 		"build": "vite build --mode production",
 		"test": "vitest",
 
-		"prepare": "npm run build-without-tsc",
-		"dev": "node esbuild.config.mjs",
-		"build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
-		"build-without-tsc": "node esbuild.config.mjs production",
+		"prepare_es": "npm run build-without-tsc",
+		"dev_es": "node esbuild.config.mjs",
+		"build_es": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
+		"build-without-tsc_es": "node esbuild.config.mjs production",
+
 		"version": "node version-bump.mjs && git add manifest.json versions.json"
 	},
 	"keywords": [
@@ -36,7 +37,7 @@
 		"@popperjs/core": "^2.11.8",
 		"bson-objectid": "^2.0.4",
 		"dependency-tree": "^11.0.1",
-		"eventemitter2": "^6.4.9"
+		"eventemitter2": "^6.4.9",
 		"yaml": "^2.6.1",
 		"lodash-es": "^4.17.21",
 		"lowdb": "^7.0.1"

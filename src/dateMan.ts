@@ -12,7 +12,19 @@
 
 // https://forum.obsidian.md/t/task-time-editing-ux-ui-advice/86124/2?u=thesamim
 
-import { ITask } from './api/types/Task';
+//From https://publish.obsidian.md/tasks/Reference/Task+Formats/Tasks+Emoji+Format
+//
+// interface date_emoji_type {
+// 	created_date: string,
+// 	scheduled_date: string,
+// 	start_date: string,
+// 	due_date: string,
+// 	done_date: string,
+// 	cancelled_date: string
+// }
+//
+// https://forum.obsidian.md/t/task-time-editing-ux-ui-advice/86124/2?u=thesamim
+import type {ITask} from './api/types/Task';
 
 enum date_emoji {
 	createdTime = '➕',

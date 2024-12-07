@@ -4,14 +4,7 @@ import "@/static/styles.css";
 import {Editor, type MarkdownFileInfo, MarkdownView, Notice, Plugin, TFolder} from 'obsidian';
 
 //settings
-import {
-	getProjects,
-	getSettings,
-	getTasks,
-	updateProjects,
-	updateSettings,
-	updateTasks
-} from './settings';
+import {getProjects, getSettings, getTasks, updateProjects, updateSettings, updateTasks} from './settings';
 //TickTick api
 import {TickTickRestAPI} from '@/services/TicktickRestAPI';
 //task parser
@@ -23,13 +16,14 @@ import {FileOperation} from './fileOperation';
 
 //import modals
 import {SetDefaultProjectForFileModal} from './modals/DefaultProjectModal';
-import {ConfirmFullSyncModal} from "./modals/LatestChangesModal"
+import {LatestChangesModal} from "./modals/LatestChangesModal"
 import {isOlder} from "./utils/version";
 import {TickTickSyncSettingTab} from "./ui/settings";
 import {TickTickService} from "@/services";
 import {QueryInjector} from "@/query/injector";
 import {log, logging, type LogOptions} from "@/utils/logging";
 import store from "@/store";
+import {DateMan} from "@/dateMan";
 
 
 export default class TickTickSync extends Plugin {
@@ -38,6 +32,7 @@ export default class TickTickSync extends Plugin {
 	readonly taskParser: TaskParser = new TaskParser(this.app, this);
 	readonly fileOperation: FileOperation = new FileOperation(this.app, this);
 	readonly cacheOperation: CacheOperation = new CacheOperation(this.app, this);
+	readonly dateMan: DateMan = new DateMan();
 
 	readonly lastLines: Map<string, number> = new Map(); //lastLine object {path:line} is saved in lastLines map
 
@@ -46,6 +41,16 @@ export default class TickTickSync extends Plugin {
 	statusBar?: HTMLElement;
 
 	async onload() {
+		//We're doing too much at load time, and it's causing issues. Do it properly!
+
+		this.app.workspace.onLayoutReady(() => {
+			this.registerEvent(this.app.vault.on('create', this.pluginLoad(), this));
+		});
+
+	}
+
+
+	private async pluginLoad() {
 		logging.registerConsoleLogger();
 		log('info', `loading plugin "${this.manifest.name}" v${this.manifest.version}`);
 
@@ -309,6 +314,8 @@ export default class TickTickSync extends Plugin {
 
 	private async migrateData(data: any) {
 		if (!data) return;
+
+		const notableChanges: string [][] = [];
 		//TODO make more clean
 		//We're going to handle data structure conversions here.
 		if (!data.version) {
@@ -338,7 +345,15 @@ export default class TickTickSync extends Plugin {
 			//default to AND because that's what we used to do:
 			data.tagAndOr = 1;
 			//warn about tag changes.
-			await this.LatestChangesModal()
+			notableChanges.push(['New Task Limiting rules', 'Please update your preferences in settings as needed.', 'priorTo1.0.36']);
+		}
+		if ((!data.version) || (isOlder(data.version, '1.0.40'))) {
+			//warn about the date/time foo
+			notableChanges.push(['New Date/Time Handling', 'Old date formats will be converted on the next synchronization operation.', 'priorTo1.0.40']);
+		}
+
+		if (notableChanges.length > 0) {
+			await this.LatestChangesModal(notableChanges);
 		}
 
 		//Update the version number. It will save me headaches later.
@@ -346,6 +361,7 @@ export default class TickTickSync extends Plugin {
 			data.version = this.manifest.version;
 			await this.saveSettings();
 		}
+
     }
 
 	async saveSettings() {
@@ -574,13 +590,11 @@ export default class TickTickSync extends Plugin {
 		return false;
 	}
 
-	private async LatestChangesModal() {
-		const myModal = new ConfirmFullSyncModal(this.app, (result) => {
+	private async LatestChangesModal(notableChanges: string[][]) {
+		const myModal = new LatestChangesModal(this.app, notableChanges, (result) => {
 			this.ret = result;
 		});
-		const bConfirmation = await myModal.showModal();
-
-		return bConfirmation;
+		return await myModal.showModal();
 
 	}
 }

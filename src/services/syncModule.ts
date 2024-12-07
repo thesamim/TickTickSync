@@ -21,264 +21,6 @@ export class SyncMan {
 		this.plugin = plugin;
 	}
 
-	/*
-	 * Synchronizes the tasks between TickTick and Obsidian.
-	 * //TODO: split this function into smaller functions
-	 * return:
-	 *  true if the function is in the process of modifying files
-	 *  false otherwise
-	 */
-	async syncTickTickToObsidian(): Promise<boolean> {
-		//Tasks in Obsidian, not in TickTick: upload
-		//Tasks in TickTick, not in Obsidian: Download
-		//Tasks in both: check for updates.
-		try {
-			const res = await this.plugin.saveProjectsToCache();
-			if (!res) {
-				console.error("probable network connection error.")
-				return false;
-			}
-			let bModifiedFileSystem = false;
-			let allTaskDetails = await this.plugin.tickTickRestAPI?.getAllTasks();
-			// console.log("All task details have been saved.", allTaskDetails);
-			let tasksFromTickTic = allTaskDetails.update;
-			let deletedTasks = allTaskDetails.delete;
-			// this.dumpArray("tick Tick ", tasksFromTickTic)
-			// this.dumpArray("deleted  ", deletedTasks)
-
-			//TODO: Filtering deleted tasks would take an act of congress. Just warn the user in Readme.
-
-			let syncTag: string = getSettings().SyncTag;
-			if (syncTag)  {
-				//TODO: In the fullness of time we need to look at Tag Labels not Tag Names.
-				//because TickTick only stores lowercase tags.;
-				syncTag.toLowerCase();
-				if (syncTag.includes("/")) {
-					syncTag = syncTag.replace(/\//g, '-');
-				}
-			}
-			//Both Tag and Project limiting present
-			if (syncTag && getSettings().SyncProject) {
-
-				//Check for AND/OR presences to determine processing.
-				const AndOrIndicator = getSettings().tagAndOr
-
-				// AND selected. They want only tasks with the tag in the project.
-				if (AndOrIndicator == 1) {
-					let tasksWithTag;
-					tasksWithTag = tasksFromTickTic.filter(task => {
-						tasksWithTag = task.tags?.includes(syncTag); //because TickTick only stores lowercase tags.
-						return tasksWithTag;
-					});
-					if (tasksWithTag) {
-						tasksFromTickTic = tasksWithTag.filter(task => {
-							return task.projectId === getSettings().SyncProject;
-						});
-					}
-				} else {
-					//OR they want tasks with either the tag or the project
-					let tasksWithTag = tasksFromTickTic.filter(task => {
-						return task.tags?.includes(syncTag);
-					});
-					let tasksInProject = tasksFromTickTic.filter(task => {
-						return task.projectId === getSettings().SyncProject;
-					});
-
-					tasksFromTickTic = [...tasksWithTag, ...tasksInProject].reduce((acc, current) => {
-						const existing = acc.find(item => item.id === current.id);
-						if (existing) {
-							Object.assign(existing, current);
-						} else {
-							acc.push(current);
-						}
-						return acc;
-					}, []);
-				}
-			} else {
-				//Either tag or project is present
-				//Will process whichever one is present.
-				if (syncTag || getSettings().SyncProject) {
-					tasksFromTickTic = tasksFromTickTic.filter(task => {
-						const hasTag = task.tags?.includes(syncTag);
-						const hasProjectId = task.projectId === getSettings().SyncProject;
-						return hasTag || hasProjectId;
-					});
-				}
-			}
-
-			// this.dumpArray('== remote:', tasksFromTickTic);
-			let tasksInCache = await this.plugin.cacheOperation?.loadTasksFromCache()
-			// this.dumpArray("cache", tasksInCache)
-
-			if (getSettings().debugMode) {
-				if (tasksFromTickTic) {
-					console.log("We have: ", tasksFromTickTic.length, " tasks on " + this.plugin.tickTickRestAPI?.api?.apiUrl)
-					const closedTasks = tasksFromTickTic.filter(task => task.status != 0);
-					const openTasks = tasksFromTickTic.filter(task => task.status === 0);
-					console.log('openTasks', openTasks.length, 'closedTasks', closedTasks.length);
-				} else {
-					console.log("No tasks found.");
-				}
-				if (tasksInCache) {
-					console.log("There are: ", tasksInCache.length, " tasks in Cache.");
-				} else {
-					console.log("There are no tasks in cache.");
-				}
-
-			}
-
-			tasksFromTickTic = tasksFromTickTic.sort((a, b) => (a.id > b.id) ? 1 : ((b.id > a.id) ? -1 : 0))
-			// console.log("num remote tasks: ", tasksFromTickTic.length)
-
-			// this.dumpArray('== local:', tasksInCache);
-
-			if (tasksInCache) {
-				tasksInCache = tasksInCache.sort((a, b) => (a.id > b.id) ? 1 : ((b.id > a.id) ? -1 : 0))
-				// console.log("local tasks: ", tasksInCache.length);
-			} else {
-				tasksInCache = [];
-			}
-			if (tasksFromTickTic) {
-				tasksFromTickTic = tasksFromTickTic.sort((a, b) => (a.id > b.id) ? 1 : ((b.id > a.id) ? -1 : 0))
-				// console.log("local tasks: ", tasksInCache.length);
-			} else {
-				tasksFromTickTic = [];
-			}
-			// Check for new tasks in TickTick
-
-			const newTickTickTasks = tasksFromTickTic.filter(task => !tasksInCache.some(t => t.id === task.id));
-			// this.dumpArray('== Add to Obsidian:', newTickTickTasks);
-			//download remote only tasks to Obsidian
-			if (newTickTickTasks.length > 0) {
-				let result = await this.plugin.fileOperation?.addTasksToFile(newTickTickTasks)
-				if (result) {
-					// Sleep for 1 seconds
-					await new Promise(resolve => setTimeout(resolve, 1000));
-				}
-				bModifiedFileSystem = true;
-			}
-
-
-
-			// Check for deleted tasks in TickTick
-			const deletedTickTickTasks = tasksInCache.filter(task => !tasksFromTickTic.some(t => t.id === task.id));
-			// this.dumpArray('deletedTickTickTasks Deleted tasks in TickTick:', deletedTickTickTasks);
-
-			const reallyDeletedTickTickTasks = deletedTickTickTasks.filter(task => deletedTasks.some(t => t.taskId === task.id));
-			// this.dumpArray('== reallyDeletedTickTickTasks deleted from TickTick:', reallyDeletedTickTickTasks);
-
-
-			if (reallyDeletedTickTickTasks.length > 0) {
-				const taskTitlesForConfirmation = reallyDeletedTickTickTasks.map((task: ITask) => task.id)
-
-				const bConfirm = await this.confirmDeletion(taskTitlesForConfirmation, "tasks deleted from TickTick");
-
-				if (bConfirm) {
-					for (const task of reallyDeletedTickTickTasks) {
-						try {
-							await this.plugin.fileOperation?.deleteTaskFromFile(task);
-						} catch (error) {
-							console.log("Tasks with no associated file found.")
-						}
-						await this.plugin.cacheOperation?.deleteTaskFromCache(task.id)
-						bModifiedFileSystem = true;
-					}
-
-				}
-			}
-
-
-			// Check for new tasks in Obsidian
-			const newObsidianTasks = tasksInCache.filter(task => !tasksFromTickTic.some(t => t.id === task.id));
-			const reallyNewObsidianTasks = newObsidianTasks.filter(task => reallyDeletedTickTickTasks.some(t => t.taskId === task.id));
-			//this.dumpArray('== Add to TickTick:', reallyNewObsidianTasks);
-			//upload local only tasks to TickTick
-
-			for (const task of reallyNewObsidianTasks) {
-				await this.plugin.tickTickRestAPI?.AddTask(task);
-				bModifiedFileSystem = true;
-			}
-
-
-			// Check for updated tasks in TickTick
-			const tasksUpdatedInTickTick = tasksFromTickTic.filter(task => {
-				const modifiedTask = tasksInCache.find(t => t.id === task.id);
-				return modifiedTask && (new Date(modifiedTask.modifiedTime) < new Date(task.modifiedTime));
-			});
-			// this.dumpArray('Tasks Updated in TickTick:', tasksUpdatedInTickTick);
-
-
-			// Check for updated tasks in Obsidian
-			const tasksUpdatedInObsidian = tasksInCache.filter(task => {
-				const modifiedTask = tasksFromTickTic.find(t => t.id === task.id);
-				return modifiedTask && (new Date(modifiedTask.modifiedTime) > new Date(task.modifiedTime));
-			});
-			// this.dumpArray('Tasks updated in Obsidian:', tasksUpdatedInObsidian);
-
-			//   // Check for updated tasks in Obsidian
-			//   const updatedObsidianTasks = tasksInCache.filter(task => {
-			//     const tickTickTask = tasksFromTickTic.find(t => t.id === task.id);
-			//     return tickTickTask && ((tickTickTask.title !== task.title) || (tickTickTask.modifiedTime !== task.modifiedTime));
-			// });
-			// //this.dumpArray('updatedObsidianTasks:', updatedObsidianTasks);
-
-			//If they are updated in ticktick more recently, update from ticktick to obsidian
-
-			const recentUpdates = tasksUpdatedInTickTick.filter(tickTask => {
-				const obsTask = tasksUpdatedInObsidian.find(obsTask => obsTask.id === tickTask.id);
-				if (obsTask && (obsTask.modifiedTime === undefined)) {
-					//No mod time on obs side: ticktick got modified.
-					return true;
-				} else {
-					return obsTask && new Date(tickTask.modifiedTime) > new Date(obsTask.modifiedTime);
-				}
-			});
-
-
-
-			//Need to have updates in parentage order else everything goes Tango Uniform
-			recentUpdates.sort((left, right) => {
-				if (!left.parentId && right.parentId) {
-					return -1;
-				} else if (left.parentId && !right.parentId) {
-					return 1;
-				} else {
-					return 0;
-				}
-			});
-
-
-			// this.dumpArray('== Update in  Obsidian:', recentUpdates);
-
-			const toBeProcessed = recentUpdates.map(task => task.id)
-			for (const task of recentUpdates) {
-				await this.plugin.fileOperation?.updateTaskInFile(task, toBeProcessed );
-				await this.plugin.cacheOperation?.updateTaskToCacheByID(task);
-				bModifiedFileSystem = true;
-			}
-			if (bModifiedFileSystem) {
-				// Sleep for 5 second
-				await new Promise(resolve => setTimeout(resolve, 5000));
-			}
-
-
-			await this.plugin.saveSettings();
-			//If we just farckled the file system, stop Syncing to avoid race conditions.
-			if (getSettings().debugMode) {
-				console.log(bModifiedFileSystem ? "File System Modified." : "No synchronization changes.")
-			}
-			return bModifiedFileSystem;
-
-		} catch (err) {
-			console.error('An error occurred while synchronizing:', err);
-		}
-		return false;
-	}
-
-
-
-
-
 	async deletedTaskCheck(file_path: string | null): Promise<void> {
 
 		let file
@@ -673,7 +415,7 @@ export class SyncMan {
 				}
 
 
-				if (dueDateModified) {
+				if (someDatesModified) {
 					if (getSettings().debugMode) {
 						console.log(`Due date modified for task ${lineTask_ticktick_id}`);
 						console.log("new: ", lineTask.dueDate, "old: ", savedTask.dueDate);
@@ -1246,15 +988,22 @@ export class SyncMan {
 		}
 	}
 
-	async syncTickTickToObsidian() {
+	/*
+	 * Synchronizes the tasks between TickTick and Obsidian.
+	 * //TODO: split this function into smaller functions
+	 * return:
+	 *  true if the function is in the process of modifying files
+	 *  false otherwise
+	 */
+	async syncTickTickToObsidian(): Promise<boolean> {
 		//Tasks in Obsidian, not in TickTick: upload
 		//Tasks in TickTick, not in Obsidian: Download
 		//Tasks in both: check for updates.
 		try {
-			const res = await this.plugin.cacheOperation?.saveProjectsToCache();
+			const res = await this.plugin.saveProjectsToCache();
 			if (!res) {
 				console.error("probable network connection error.")
-				return;
+				return false;
 			}
 			let bModifiedFileSystem = false;
 			let allTaskDetails = await this.plugin.tickTickRestAPI?.getAllTasks();
@@ -1266,7 +1015,7 @@ export class SyncMan {
 
 			//TODO: Filtering deleted tasks would take an act of congress. Just warn the user in Readme.
 
-			let syncTag: string = this.plugin.settings.SyncTag;
+			let syncTag: string = getSettings().SyncTag;
 			if (syncTag)  {
 				//TODO: In the fullness of time we need to look at Tag Labels not Tag Names.
 				//because TickTick only stores lowercase tags.;
@@ -1276,10 +1025,10 @@ export class SyncMan {
 				}
 			}
 			//Both Tag and Project limiting present
-			if (syncTag && this.plugin.settings.SyncProject) {
+			if (syncTag && getSettings().SyncProject) {
 
 				//Check for AND/OR presences to determine processing.
-				const AndOrIndicator = this.plugin.settings.tagAndOr
+				const AndOrIndicator = getSettings().tagAndOr
 
 				// AND selected. They want only tasks with the tag in the project.
 				if (AndOrIndicator == 1) {
@@ -1290,35 +1039,35 @@ export class SyncMan {
 					});
 					if (tasksWithTag) {
 						tasksFromTickTic = tasksWithTag.filter(task => {
-							return task.projectId === this.plugin.settings.SyncProject;
+							return task.projectId === getSettings().SyncProject;
 						});
 					}
 				} else {
-						//OR they want tasks with either the tag or the project
-						let tasksWithTag = tasksFromTickTic.filter(task => {
-							return task.tags?.includes(syncTag);
-						});
-						let tasksInProject = tasksFromTickTic.filter(task => {
-							return task.projectId === this.plugin.settings.SyncProject;
-						});
+					//OR they want tasks with either the tag or the project
+					let tasksWithTag = tasksFromTickTic.filter(task => {
+						return task.tags?.includes(syncTag);
+					});
+					let tasksInProject = tasksFromTickTic.filter(task => {
+						return task.projectId === getSettings().SyncProject;
+					});
 
-						tasksFromTickTic = [...tasksWithTag, ...tasksInProject].reduce((acc, current) => {
-							const existing = acc.find(item => item.id === current.id);
-							if (existing) {
-								Object.assign(existing, current);
-							} else {
-								acc.push(current);
-							}
-							return acc;
-						}, []);
-					}
+					tasksFromTickTic = [...tasksWithTag, ...tasksInProject].reduce((acc, current) => {
+						const existing = acc.find(item => item.id === current.id);
+						if (existing) {
+							Object.assign(existing, current);
+						} else {
+							acc.push(current);
+						}
+						return acc;
+					}, []);
+				}
 			} else {
 				//Either tag or project is present
 				//Will process whichever one is present.
-				if (syncTag || this.plugin.settings.SyncProject) {
+				if (syncTag || getSettings().SyncProject) {
 					tasksFromTickTic = tasksFromTickTic.filter(task => {
 						const hasTag = task.tags?.includes(syncTag);
-						const hasProjectId = task.projectId === this.plugin.settings.SyncProject;
+						const hasProjectId = task.projectId === getSettings().SyncProject;
 						return hasTag || hasProjectId;
 					});
 				}
@@ -1328,7 +1077,7 @@ export class SyncMan {
 			let tasksInCache = await this.plugin.cacheOperation?.loadTasksFromCache()
 			// this.dumpArray("cache", tasksInCache)
 
-			if (this.plugin.settings.debugMode) {
+			if (getSettings().debugMode) {
 				if (tasksFromTickTic) {
 					console.log("We have: ", tasksFromTickTic.length, " tasks on " + this.plugin.tickTickRestAPI?.api?.apiUrl)
 					const closedTasks = tasksFromTickTic.filter(task => task.status != 0);
@@ -1368,10 +1117,6 @@ export class SyncMan {
 			// this.dumpArray('== Add to Obsidian:', newTickTickTasks);
 			//download remote only tasks to Obsidian
 			if (newTickTickTasks.length > 0) {
-				//New Tasks, create their dateStruct
-				newTickTickTasks.forEach((newTickTickTask: ITask)=> {
-					this.plugin.dateMan?.addDateHolderToTask(newTickTickTask);
-				})
 				let result = await this.plugin.fileOperation?.addTasksToFile(newTickTickTasks)
 				if (result) {
 					// Sleep for 1 seconds
@@ -1475,7 +1220,7 @@ export class SyncMan {
 			const toBeProcessed = recentUpdates.map(task => task.id)
 			for (const task of recentUpdates) {
 				await this.plugin.fileOperation?.updateTaskInFile(task, toBeProcessed );
-				await this.plugin.cacheOperation?.updateTaskToCache(task);
+				await this.plugin.cacheOperation?.updateTaskToCacheByID(task);
 				bModifiedFileSystem = true;
 			}
 			if (bModifiedFileSystem) {
@@ -1486,7 +1231,7 @@ export class SyncMan {
 
 			await this.plugin.saveSettings();
 			//If we just farckled the file system, stop Syncing to avoid race conditions.
-			if (this.plugin.settings.debugMode) {
+			if (getSettings().debugMode) {
 				console.log(bModifiedFileSystem ? "File System Modified." : "No synchronization changes.")
 			}
 			return bModifiedFileSystem;
@@ -1494,6 +1239,7 @@ export class SyncMan {
 		} catch (err) {
 			console.error('An error occurred while synchronizing:', err);
 		}
+		return false;
 	}
 
 	dumpArray(which: string, arrayIn: ITask[]) {
