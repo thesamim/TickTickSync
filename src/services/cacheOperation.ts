@@ -1,8 +1,8 @@
-import { App, type ListItemCache, Notice, TFile, TFolder } from 'obsidian';
+import {App, type ListItemCache, Notice, TFile, TFolder} from 'obsidian';
 import TickTickSync from "@/main";
-import type {ITask} from './api/types/Task';
+import type {ITask} from '@/api/types/Task';
 import type {IProject} from '@/api/types//Project';
-import {FoundDuplicatesModal} from "./modals/FoundDuplicatesModal";
+import {FoundDuplicatesModal} from "@/modals/FoundDuplicatesModal";
 import {getProjects, getSettings, getTasks, updateProjects, updateSettings, updateTasks} from "@/settings";
 import {log} from "@/utils/logging";
 
@@ -287,11 +287,9 @@ export class CacheOperation {
         if (!metadatas[filepath] || metadatas[filepath].defaultProjectId === undefined) {
             return getSettings().defaultProjectName
         }
-        else {
-            const defaultProjectId = metadatas[filepath].defaultProjectId
-            const defaultProjectName = this.getProjectNameByIdFromCache(defaultProjectId)
-            return defaultProjectName
-        }
+
+		const defaultProjectId = metadatas[filepath].defaultProjectId
+		return this.getProjectNameByIdFromCache(defaultProjectId)
     }
 
 
@@ -389,7 +387,7 @@ export class CacheOperation {
                 return
             }
             const savedTasks = getTasks();
-            task.title = this.plugin.taskParser?.stripOBSUrl(task.title);
+            task.title = this.plugin.taskParser.stripOBSUrl(task.title);
 			savedTasks.push(task);
 			updateTasks(savedTasks);
             await this.addTaskToMetadata(filePath, task)
@@ -402,17 +400,14 @@ export class CacheOperation {
     }
 
     //Read the task with the specified id
-    async loadTaskFromCacheID(taskId: string) {
-        // console.log("loadTaskFromCacheID")
+	loadTaskFromCacheID(taskId: string) {
         try {
-
             const savedTasks = getTasks()
-            const savedTask = savedTasks.find((task: ITask) => task.id === taskId);
-            return (savedTask)
+			return savedTasks.find((task: ITask) => task.id === taskId);
         } catch (error) {
-            console.error(`Error finding task from Cache: ${error}`);
-            return [];
+			log('error', `Error finding task from Cache:`, error);
         }
+		return undefined;
     }
 
 	//get Task titles
@@ -421,7 +416,7 @@ export class CacheOperation {
 		const savedTasks = getTasks();
 		let titles = savedTasks.filter(task => taskIds.includes(task.id)).map(task => task.title);
 		titles = titles.map((task: string ) => {
-			return this.plugin.taskParser?.stripOBSUrl(task);
+			return this.plugin.taskParser.stripOBSUrl(task);
 		});
 
 		return titles;
@@ -608,12 +603,13 @@ export class CacheOperation {
         try {
             const savedProjects = getProjects()
             const targetProject = savedProjects.find(obj => obj.id === projectId);
-            const projectName = targetProject ? targetProject.name : null;
-            return (projectName)
+            if (targetProject) {
+				return targetProject.name
+			}
         } catch (error) {
             console.error(`Error finding project from Cache file: ${error}`);
-            return false
         }
+		return undefined;
     }
 
 
@@ -788,7 +784,7 @@ export class CacheOperation {
 			// Get the line
 			.map((idx) => lines[idx])
 			// Create a Task from the line
-			.map((line: string) => this.plugin.taskParser?.getTickTickIdFromLineText(line))
+			.map((line: string) => this.plugin.taskParser.getTickTickIdFromLineText(line))
 			// Filter out the nulls
 			.filter((taskId: string | null) => taskId !== null)
 		;

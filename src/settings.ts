@@ -1,5 +1,6 @@
 import type {IProject} from "@/api/types/Project";
 import type {FileMetadata} from "@/cacheOperation";
+import type {ITask} from "@/api/types/Task";
 
 export interface ITickTickSyncSettings {
 	baseURL: string;
@@ -77,13 +78,13 @@ export const updateProjects = (newProjects: IProject[]): IProject[] => {
 	return getProjects();
 };
 
-let tasks: [] = [];
+let tasks: ITask[] = [];
 
-export const getTasks = (): [] => {
+export const getTasks = (): ITask[] => {
 	return tasks;
 }
 
-export const updateTasks = (newTasks: []): [] => {
+export const updateTasks = (newTasks: ITask[]): ITask[] => {
 	tasks = newTasks;
 	return getTasks();
 };

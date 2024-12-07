@@ -340,7 +340,7 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 						new Notice(`Please log in from settings first`)
 						return
 					}
-					this.plugin.tickTickSync?.backupTickTickAllResources()
+					this.plugin.service.backup()
 				})
 			);
 	}

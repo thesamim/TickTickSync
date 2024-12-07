@@ -1,10 +1,10 @@
 import TickTickSync from "@/main";
 import {Tick} from "@/api";
-import {getProjects, getSettings} from "@/settings";
+import {getProjects, getSettings, getTasks} from "@/settings";
 import {doWithLock} from "@/utils/locks";
-import {SyncMan} from "@/syncModule";
+import {SyncMan} from "@/services/syncModule";
 import {Editor, type MarkdownFileInfo, type MarkdownView, Notice, TFile} from "obsidian";
-import {CacheOperation} from "@/cacheOperation";
+import {CacheOperation} from "@/services/cacheOperation";
 import {FileOperation} from "@/fileOperation";
 import {log} from "@/utils/logging";
 
@@ -31,6 +31,11 @@ export class TickTickService {
 				log('debug', "Please login from settings.");
 				return false;
 			}
+			if (getSettings().inboxID.length === 0) {
+				log('warn', "Something is wrong with your inbox ID.");
+				//TODO re login or ask user?
+			}
+
 			this.api = new Tick({
 				baseUrl: getSettings().baseURL,
 				token: token,
@@ -47,6 +52,10 @@ export class TickTickService {
 			log('info', 'Error on initialization:', error);
 		}
 		return false;
+	}
+
+	backup() {
+		this.tickTickSync?.backupTickTickAllResources();
 	}
 
 	//MB can be static
@@ -94,6 +103,11 @@ export class TickTickService {
 	async getProjects() {
 		//TODO: add a check for valid data
 		return getProjects()
+	}
+
+	async getTasks(filter: string) {
+		log('debug', 'getTasks', filter);
+		return getTasks();
 	}
 
 	async deletedTaskCheck(filePath: string | null) {
@@ -160,6 +174,9 @@ export class TickTickService {
 		});
 	}
 
+	/*
+	 * called only from settings tab
+	 */
 	//TODO: refactor
 	async checkDataBase() {
 		// Add code here to handle exporting TickTick data
@@ -190,16 +207,13 @@ export class TickTickService {
 				const value = metadatas[key];
 				//console.log(value)
 				for (const taskDetails of value.TickTickTasks) {
-
 					//console.log(`${taskId}`)
 					let taskObject
-
 					try {
-						taskObject = await this.plugin.cacheOperation?.loadTaskFromCacheID(taskDetails.taskId)
+						taskObject = this.plugin.cacheOperation?.loadTaskFromCacheID(taskDetails.taskId)
 					} catch (error) {
-						console.error(`An error occurred while loading task cache: ${error.message}`);
+						log('error', 'An error occurred while loading task cache:', error)
 					}
-
 					if (!taskObject) {
 						// console.log(`The task data of the ${taskId} is empty.`)
 						//get from TickTick
@@ -214,7 +228,7 @@ export class TickTickService {
 								await this.plugin.cacheOperation?.deleteTaskIdFromMetadata(key, taskDetails.taskId)
 								continue
 							} else {
-								console.error(error);
+								log('error', 'An error occurred while loading task from api:', error)
 								continue
 							}
 						}
@@ -232,7 +246,7 @@ export class TickTickService {
 					console.log("Checking Renamed: ", key);
 					const value = metadatas[key];
 					//console.log(value)
-					const obsidianURL = this.plugin.taskParser?.getObsidianUrlFromFilepath(key)
+					const obsidianURL = this.plugin.taskParser.getObsidianUrlFromFilepath(key)
 					for (const taskDetail of value.TickTickTasks) {
 						//console.log(`${taskId}`)
 						let taskObject
@@ -251,7 +265,7 @@ export class TickTickService {
 							// console.log(oldContent)
 							// console.log(newContent)
 							try {
-								await this.plugin.tickTickSync?.updateTaskContent(key)
+								await this.tickTickSync?.updateTaskContent(key)
 							} catch (error) {
 								log('warn', `An error occurred while updating task description:`, error);
 							}

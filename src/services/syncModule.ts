@@ -1,9 +1,9 @@
 import TickTickSync from "@/main";
 import {App, Editor, type EditorPosition, type MarkdownFileInfo, MarkdownView, Notice, TFile, TFolder} from 'obsidian';
-import type {ITask} from './api/types/Task';
+import type {ITask} from '@/api/types/Task';
 import ObjectID from 'bson-objectid';
-import type {TaskDetail} from "./cacheOperation";
-import {TaskDeletionModal} from "./modals/TaskDeletionModal";
+import type {TaskDetail} from "@/services/cacheOperation";
+import {TaskDeletionModal} from "@/modals/TaskDeletionModal";
 import {getSettings} from "@/settings";
 
 type deletedTask = {
@@ -345,7 +345,7 @@ export class SyncMan {
 					try {
 						let updatedTask = await this.plugin.cacheOperation?.removeTaskItem(fileMetadata, task.taskId, deletedItems)
 						if (updatedTask) {
-							let taskURL = this.plugin.taskParser?.getObsidianUrlFromFilepath(filepath)
+							let taskURL = this.plugin.taskParser.getObsidianUrlFromFilepath(filepath)
 							if (taskURL) {
 								updatedTask.title = updatedTask.title + " " + taskURL;
 							}
@@ -430,14 +430,14 @@ export class SyncMan {
 		// 	console.log("Adding to: ", filePath)
 		// }
 
-		if ((!this.plugin.taskParser?.hasTickTickId(lineTxt) && this.plugin.taskParser?.hasTickTickTag(lineTxt))) {
+		if ((!this.plugin.taskParser.hasTickTickId(lineTxt) && this.plugin.taskParser.hasTickTickTag(lineTxt))) {
 			//Whether #ticktick is included, but not ticktickid: Task just added.
 			try {
-				const currentTask = await this.plugin.taskParser?.convertLineToTask(lineTxt, filePath, line, fileContent)
+				const currentTask = await this.plugin.taskParser.convertLineToTask(lineTxt, filePath, line, fileContent)
 				const newTask = await this.plugin.tickTickRestAPI?.AddTask(currentTask)
 				if (currentTask.parentId) {
 					let parentTask = await this.plugin.cacheOperation?.loadTaskFromCacheID(currentTask.parentId);
-					parentTask = this.plugin.taskParser?.addChildToParent(parentTask, currentTask.parentId);
+					parentTask = this.plugin.taskParser.addChildToParent(parentTask, currentTask.parentId);
 					parentTask = await this.plugin.tickTickRestAPI?.UpdateTask(parentTask);
 					await this.plugin.cacheOperation?.updateTaskToCacheByID(parentTask);
 				}

@@ -5,26 +5,21 @@ import {Editor, type MarkdownFileInfo, MarkdownView, Notice, Plugin, TFolder} fr
 
 //settings
 import {
-	DEFAULT_SETTINGS,
 	getProjects,
 	getSettings,
 	getTasks,
-	type ITickTickSyncSettings, updateProjects,
+	updateProjects,
 	updateSettings,
 	updateTasks
 } from './settings';
 //TickTick api
-import {TickTickRestAPI} from './TicktickRestAPI';
-import {TickTickSyncAPI} from './TicktickSyncAPI';
+import {TickTickRestAPI} from '@/services/TicktickRestAPI';
 //task parser
 import {TaskParser} from './taskParser';
 //cache task read and write
-import {CacheOperation} from './cacheOperation';
+import {CacheOperation} from '@/services/cacheOperation';
 //file operation
 import {FileOperation} from './fileOperation';
-
-//sync module
-import {SyncMan} from './syncModule';
 
 //import modals
 import {SetDefaultProjectForFileModal} from './modals/DefaultProjectModal';
@@ -35,25 +30,20 @@ import {TickTickService} from "@/services";
 import {QueryInjector} from "@/query/injector";
 import {log, logging, type LogOptions} from "@/utils/logging";
 import store from "@/store";
-import type {IProject} from "@/api/types/Project";
 
 
 export default class TickTickSync extends Plugin {
 
-	settings!: ITickTickSyncSettings;
-	service: TickTickService = new TickTickService(this);
+	readonly service: TickTickService = new TickTickService(this);
+	readonly taskParser: TaskParser = new TaskParser(this.app, this);
+	readonly fileOperation: FileOperation = new FileOperation(this.app, this);
+	readonly cacheOperation: CacheOperation = new CacheOperation(this.app, this);
+
+	readonly lastLines: Map<string, number> = new Map(); //lastLine object {path:line} is saved in lastLines map
+
 
 	tickTickRestAPI?: TickTickRestAPI;
-	tickTickSyncAPI: TickTickSyncAPI | undefined;
-	taskParser: TaskParser | undefined;
-	cacheOperation: CacheOperation | undefined;
-	fileOperation: FileOperation | undefined;
-	tickTickSync: SyncMan | undefined;
-	lastLines: Map<string, number>;
-	statusBar: HTMLElement;
-	syncLock: boolean;
-
-	initialized: boolean = false;
+	statusBar?: HTMLElement;
 
 	async onload() {
 		logging.registerConsoleLogger();
@@ -81,9 +71,6 @@ export default class TickTickSync extends Plugin {
 			"ticktick",
 			queryInjector.onNewBlock.bind(queryInjector),
 		);
-
-		//lastLine object {path:line} is saved in lastLines map
-		this.lastLines = new Map();
 
 		// if (this.settings.debugMode) {
 		// This creates an icon in the left ribbon.
@@ -313,9 +300,8 @@ export default class TickTickSync extends Plugin {
 			}
 			delete data.TickTickTasksData;
 			updateSettings(data);
-			this.settings = Object.assign({}, DEFAULT_SETTINGS, data);
 		} catch (error) {
-			console.error('Failed to load data:', error);
+			log('error', 'Failed to load data:', error);
 			return false; // Returning false indicates that the setting loading failed
 		}
 		return true; // Returning true indicates that the settings are loaded successfully
@@ -391,35 +377,23 @@ export default class TickTickSync extends Plugin {
 		const isProjectsSaved = await this.saveProjectsToCache();
 		if (!isProjectsSaved) {// invalid token or offline?
 			this.tickTickRestAPI = undefined;
-			this.tickTickSyncAPI = undefined;
-			this.taskParser = undefined;
-			this.taskParser = undefined;
-			this.cacheOperation = undefined;
-			this.fileOperation = undefined;
-			this.tickTickSync = undefined;
 			new Notice(`TickTickSync plugin initialization failed, please check userID and password in settings.`);
 			return false;
 		}
 
 		this.initializeModuleClass();
-		if (!this.initialized) {
-			//Create a backup folder to back up TickTick data
-			try {
-				//Back up all data before each startup
-				if (!getSettings().skipBackup) {
-					this.tickTickSync?.backupTickTickAllResources();
-				}
-			} catch (error) {
-				console.error(`error creating user data folder: ${error}`);
-				new Notice(`error creating user data folder`);
-				return false;
+		//Create a backup folder to back up TickTick data
+		try {
+			//Back up all data before each startup
+			if (!getSettings().skipBackup) {
+				this.service.backup();
 			}
-			//Initialize settings
-			this.initialized = true;
-			new Notice(`TickTickSync initialization successful. TickTick data has been backed up.`);
+		} catch (error) {
+			log('error', 'error creating user data folder:', error);
+			new Notice(`error creating user data folder`);
+			return false;
 		}
-
-		new Notice(`TickTickSync loaded successfully.`);
+		new Notice('TickTickSync loaded successfully.' + getSettings().skipBackup ? ' Skipping backup.' : 'TickTick data has been backed up.');
 		return true;
 	}
 
@@ -430,20 +404,6 @@ export default class TickTickSync extends Plugin {
 			// console.log("API wasn't inited?")
 			this.tickTickRestAPI = new TickTickRestAPI(this.app, this, null);
 		}
-
-		//initialize data read and write object
-		this.cacheOperation = new CacheOperation(this.app, this);
-		this.taskParser = new TaskParser(this.app, this);
-
-		//initialize file operation
-		this.fileOperation = new FileOperation(this.app, this);
-
-		//initialize TickTick sync api
-		//Todo: Do we really need it?
-		this.tickTickSyncAPI = new TickTickSyncAPI(this.app, this);
-
-		//initialize TickTick sync module
-		this.tickTickSync = new SyncMan(this.app, this);
 	}
 
 	async lineNumberCheck(): Promise<boolean> {
@@ -562,29 +522,26 @@ export default class TickTickSync extends Plugin {
 		if (!this.service.initialized) {
 			this.service.initialize();
 		}
-		if (this.tickTickRestAPI === undefined || this.tickTickSyncAPI === undefined || this.cacheOperation === undefined || this.fileOperation === undefined || this.tickTickSync === undefined || this.taskParser === undefined) {
+		if (this.tickTickRestAPI === undefined) {
 			this.initializeModuleClass();
 		}
 		return true;
 	}
 
 	async setStatusBarText() {
-		if (!(this.checkModuleClass())) {
-			return;
-		}
 		const markDownView = this.app.workspace.getActiveViewOfType(MarkdownView);
 		if (!markDownView || !markDownView.file) {
-			this.statusBar.setText('');
+			this.statusBar?.setText('');
 			return;
 		}
 
 		const filepath = markDownView.file.path;
-		const defaultProjectName = await this.cacheOperation?.getDefaultProjectNameForFilepath(filepath as string);
-		if (defaultProjectName === undefined) {
+		const defaultProjectName = await this.cacheOperation.getDefaultProjectNameForFilepath(filepath);
+		if (!defaultProjectName) {
 			// console.log(`projectName undefined`)
 			return;
 		}
-		this.statusBar.setText(defaultProjectName);
+		this.statusBar?.setText(defaultProjectName);
 
 	}
 

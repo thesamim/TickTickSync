@@ -12,7 +12,7 @@
 
 	let tasksPromise = getTasks(query);
 	async function getTasks(query: Query) {
-		return service.getProjects();
+		return service.getTasks(query.filter)
 	}
 </script>
 
@@ -23,7 +23,7 @@
 			Loading tasks...
 		{:then tasks}
 			{#each tasks as task}
-				{task.name}<br/>
+				{task.title}<br/>
 			{/each}
 		{:catch someError}
 			System error: {someError.message}.

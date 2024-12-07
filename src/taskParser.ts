@@ -359,7 +359,7 @@ export class TaskParser {
 		let description = '';
 		const priority = this.getTaskPriority(textWithoutIndentation);
 		if (filepath) {
-			let taskURL = this.plugin.taskParser?.getObsidianUrlFromFilepath(filepath);
+			let taskURL = this.plugin.taskParser.getObsidianUrlFromFilepath(filepath);
 			if (taskURL) {
 				description = taskURL;
 			}

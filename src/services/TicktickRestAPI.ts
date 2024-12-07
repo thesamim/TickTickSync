@@ -1,8 +1,8 @@
-import {Tick} from './api'
-import type {ITask} from "./api/types/Task";
+import {Tick} from '@/api'
+import type {ITask} from "@/api/types/Task";
 import {App, Notice} from 'obsidian';
 import TickTickSync from "@/main";
-import type {IProject} from './api/types/Project';
+import type {IProject} from '@/api/types/Project';
 import {getSettings, updateSettings} from "@/settings";
 
 export class TickTickRestAPI {
