@@ -3,7 +3,15 @@ import TickTickSync from "@/main";
 import type {ITask} from '@/api/types/Task';
 import type {IProject} from '@/api/types//Project';
 import {FoundDuplicatesModal} from "@/modals/FoundDuplicatesModal";
-import {getProjects, getSettings, getTasks, updateProjects, updateSettings, updateTasks} from "@/settings";
+import {
+	getProjectGroups,
+	getProjects,
+	getSettings,
+	getTasks,
+	updateProjects,
+	updateSettings,
+	updateTasks
+} from "@/settings";
 import {log} from "@/utils/logging";
 
 // type TaskDetail = {
@@ -597,7 +605,7 @@ export class CacheOperation {
 
 
 
-    async getProjectNameByIdFromCache(projectId: string, addFolder: boolean) : Promise<string | undefined> {
+    async getProjectNameByIdFromCache(projectId: string, addFolder: boolean = false) : Promise<string | undefined> {
         try {
             const savedProjects = getProjects()
 			const targetProject = savedProjects.find(obj => obj.id === projectId);

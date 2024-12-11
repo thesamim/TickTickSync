@@ -1,5 +1,5 @@
 import type {ITask} from "@/api/types/Task";
-import {IBatch, Tick} from '@/api'
+import {type IBatch, Tick} from '@/api'
 import {App, Notice} from 'obsidian';
 import TickTickSync from "@/main";
 import type {IProject} from '@/api/types/Project';
@@ -331,8 +331,8 @@ export class TickTickRestAPI {
 			}
 			//TODO: mb save after processing?
 			//checkpoint, may have changed. Save it if it has.
-			if (this.plugin.settings.checkPoint != this.api?.checkpoint) {
-				this.plugin.settings.checkPoint = <number>this.api?.checkpoint
+			if (getSettings().checkPoint != this.api?.checkpoint) {
+				getSettings().checkPoint = <number>this.api?.checkpoint
 				await this.plugin.saveSettings();
 			}
 			return result

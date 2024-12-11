@@ -105,6 +105,18 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 		this.addSyncDefaultFolderPath();
 
 		new Setting(containerEl)
+			.setName('Keep project folders')
+			.setDesc('Use the TickTick project folders in the Vault. Otherwise, keep everything in the default folder.')
+			.addToggle(component =>
+				component
+					.setValue(getSettings().keepProjectFolders)
+					.onChange(async (value) => {
+						updateSettings({keepProjectFolders: value});
+						await this.plugin.saveSettings()
+					})
+			)
+
+		new Setting(containerEl)
 			.setName('Default project')
 			.setDesc('New tasks are automatically synced to the default project. You can modify the project here.')
 			.addDropdown(component =>

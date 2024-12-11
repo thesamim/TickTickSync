@@ -4,7 +4,7 @@ import type {ITask} from '@/api/types/Task';
 import ObjectID from 'bson-objectid';
 import type {TaskDetail} from "@/services/cacheOperation";
 import {TaskDeletionModal} from "@/modals/TaskDeletionModal";
-import {getSettings} from "@/settings";
+import {getSettings, updateProjectGroups} from "@/settings";
 
 type deletedTask = {
 	taskId: string,
@@ -1010,11 +1010,11 @@ export class SyncMan {
 			const allResources = await this.plugin.tickTickRestAPI?.getAllResources();
 			if (!allResources){
 				console.error("probable network connection error.")
-				return;
+				return false;
 			}
 
-			if (allResources.projectGroups && this.plugin.settings.TickTickTasksData) {
-				this.plugin.settings.TickTickTasksData.projectGroups = allResources.projectGroups;
+			if (allResources.projectGroups) {
+				updateProjectGroups(allResources.projectGroups);
 			}
 
 			const allTaskDetails = allResources['syncTaskBean'];//await this.plugin.tickTickRestAPI?.getAllTasks();

@@ -226,11 +226,11 @@ export class FileOperation {
 				console.warn(`Folder ${folderPath} does not exit. It will be created`);
 				folder = await this.app.vault.createFolder(folderPath);
 			}
-			if (this.plugin.settings.keepProjectFolders && taskFile.includes('/')){
+			if (getSettings().keepProjectFolders && taskFile.includes('/')){
 				const groupName = taskFile.substring(0, taskFile.indexOf('/'));
-				const folderPath = (this.plugin.settings.TickTickTasksFilePath === '/' ?
+				const folderPath = (getSettings().TickTickTasksFilePath === '/' ?
 					'' :
-					(this.plugin.settings.TickTickTasksFilePath + '/'))
+					(getSettings().TickTickTasksFilePath + '/'))
 					+ groupName
 				const groupFolder = this.app.vault.getAbstractFileByPath(folderPath);
 				if (!(groupFolder instanceof TFolder)) {

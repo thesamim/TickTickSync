@@ -1,11 +1,6 @@
 import type {IProject} from "@/api/types/Project";
-import type {FileMetadata} from "@/cacheOperation";
+import type {FileMetadata} from "@/services/cacheOperation";
 import type {ITask} from "@/api/types/Task";
-
-const PROVIDER_OPTIONS: Record<string, string> =  {
-	ticktick: "ticktick.com",
-	dida365: "dida365.com"
-} as const;
 
 export interface ITickTickSyncSettings {
 	baseURL: string;
@@ -20,6 +15,7 @@ export interface ITickTickSyncSettings {
 	defaultProjectId: string;
 	defaultProjectName: string;
 	TickTickTasksFilePath: string;
+	keepProjectFolders: boolean;
 
 	debugMode: boolean;
 	logLevel: string;
@@ -47,6 +43,7 @@ export const DEFAULT_SETTINGS: ITickTickSyncSettings = {
 	defaultProjectId: "",
 	defaultProjectName: "Inbox",
 	TickTickTasksFilePath: "/",
+	keepProjectFolders: false,
 
 	inboxID: "",
 	inboxName: "",
