@@ -316,15 +316,15 @@ export class SyncMan {
 			const newHash = this.plugin.taskParser?.getLineHash(lineText);
 			//convertLineToTask has become a pretty expensive operation avoid it.
 			//let's see if the saved task has a lineHash.
-			const lineTask_ticktick_id = this.plugin.taskParser?.getTickTickIdFromLineText(lineText);
-			const savedTask = await this.plugin.cacheOperation?.loadTaskFromCacheID(lineTask_ticktick_id);
+			const lineTask_ticktick_id = this.plugin.taskParser.getTickTickIdFromLineText(lineText);
+			const savedTask = this.plugin.cacheOperation?.loadTaskFromCacheID(lineTask_ticktick_id);
 			if (savedTask) {
 				if (savedTask.lineHash) {
 					//it has one. Is it the same as this one being edited?
 					if (newHash == savedTask.lineHash) {
 						return false;
 					} else {
-						if (this.plugin.settings.debugMode) {
+						if (getSettings().debugMode) {
 							console.log('hashcheck failed.', '\n', lineText, '\n', savedTask.title, '\n', newHash, '\n', savedTask.lineHash);
 						}
 						bHashCheckFailed = true;
@@ -1220,7 +1220,7 @@ export class SyncMan {
 			const toBeProcessed = recentUpdates.map(task => task.id)
 			for (const task of recentUpdates) {
 				await this.plugin.fileOperation?.updateTaskInFile(task, toBeProcessed );
-				await this.plugin.cacheOperation?.updateTaskToCacheByID(task);
+				await this.plugin.cacheOperation?.updateTaskToCache(task);
 				bModifiedFileSystem = true;
 			}
 			if (bModifiedFileSystem) {

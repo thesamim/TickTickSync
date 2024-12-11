@@ -488,7 +488,7 @@ export class DateMan {
 		if (utcDate1.getTime() === utcDate2.getTime()) {
 			return false;
 		} else {
-			// if (this.plugin.settings.debugMode) {
+			// if (getSettings().debugMode) {
 			// 	// Calculate the difference in minutes
 			// 	const timeDifferenceInMilliseconds = Math.abs(utcDate2.getTime() - utcDate1.getTime());
 			// 	const days = Math.floor(timeDifferenceInMilliseconds / (1000 * 60 * 60 * 24));

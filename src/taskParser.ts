@@ -450,7 +450,7 @@ export class TaskParser {
 			//try the dataview version
 			result = REGEX.TickTick_ID_DV_NUM.exec(text);
 		}
-		return result ? result[1] : null;
+		return result ? result[1] : undefined;
 	}
 
 	isTaskOpen(line: string) {
@@ -604,7 +604,7 @@ export class TaskParser {
 	}
 
 	getObsidianUrlFromFilepath(filepath: string) {
-		// if (this.plugin.settings.debugMode) {
+		// if (getSettings().debugMode) {
 		// 	console.log("Getting OBS path for: ", filepath)
 		// }
 		const url = encodeURI(`obsidian://open?vault=${this.app.vault.getName()}&file=${filepath}`);

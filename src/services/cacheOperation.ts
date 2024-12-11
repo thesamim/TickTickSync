@@ -41,7 +41,7 @@ export class CacheOperation {
 
 
     async addTaskToMetadata(filepath: string, task: ITask) {
-		// if (this.plugin.settings.debugMode) {
+		// if (getSettings().debugMode) {
 		// 	console.log("Adding task to : ", filepath)
 		// }
         let metaData: FileMetadata = await this.getFileMetadata(filepath, task.projectId)
@@ -322,7 +322,7 @@ export class CacheOperation {
 			(projectId === getSettings().defaultProjectId)){ //highly unlikely, but just in case
 			//They don't have a file for the Inbox. If they have a default project, return that.
 			if (getSettings().defaultProjectName) {
-				// filePath = this.plugin.settings?.TickTickTasksFilePath +"/"+ this.plugin.settings.defaultProjectName + ".md"
+				// filePath = getSettings().TickTickTasksFilePath +"/"+ getSettings().defaultProjectName + ".md"
 				filePath = getSettings().defaultProjectName + ".md"
 				return filePath
 			}
@@ -399,7 +399,8 @@ export class CacheOperation {
     }
 
     //Read the task with the specified id
-	loadTaskFromCacheID(taskId: string) {
+	loadTaskFromCacheID(taskId?: string) {
+		if (!taskId) return undefined;
         try {
             const savedTasks = getTasks()
 			return savedTasks.find((task: ITask) => task.id === taskId);
@@ -424,7 +425,7 @@ export class CacheOperation {
 
 
     //Overwrite the task with the specified id in update
-    async updateTaskToCache(task: ITask, movedPath: string | null) {
+    async updateTaskToCache(task: ITask, movedPath: string | null = null) {
         try {
 			let filePath: string | null = ""
 			if (!movedPath) {

@@ -134,7 +134,7 @@ export class TickTickSyncAPI {
         // //get updated items activity
         // //result {count:number,events:[]}
         // async getUpdatedItemsActivity() {
-        //     const accessToken = this.plugin.settings.TickTickAPIToken
+        //     const accessToken = getSettings().TickTickAPIToken
         //     const url = 'https://api.TickTick.com/sync/v9/activity/get';
         //     const options = {
         //         method: 'POST',
@@ -184,7 +184,7 @@ export class TickTickSyncAPI {
         // //get completed items activity
         // //result {count:number,events:[]}
         // async getProjectsActivity() {
-        //     const accessToken = this.plugin.settings.TickTickAPIToken
+        //     const accessToken = getSettings().TickTickAPIToken
         //     const url = 'https://api.TickTick.com/sync/v9/activity/get';
         //     const options = {
         //         method: 'POST',
