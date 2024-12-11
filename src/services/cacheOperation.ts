@@ -29,6 +29,8 @@ export interface TaskDetail {
 	taskItems: string[];
 }
 
+const FILE_EXT = ".md";
+
 export class CacheOperation {
     app: App;
     plugin: TickTickSync;
@@ -44,9 +46,8 @@ export class CacheOperation {
 		// if (getSettings().debugMode) {
 		// 	console.log("Adding task to : ", filepath)
 		// }
-        let metaData: FileMetadata = await this.getFileMetadata(filepath, task.projectId)
-        let taskMeta: TaskDetail;
-        taskMeta = { taskId: task.id, taskItems: [] };
+        const metaData: FileMetadata = await this.getFileMetadata(filepath, task.projectId)
+        const taskMeta: TaskDetail = { taskId: task.id, taskItems: [] };
         if (task.items && task.items.length > 0) {
             task.items.forEach((item) => { 
                 taskMeta.taskItems.push(item.id)
@@ -307,39 +308,34 @@ export class CacheOperation {
 
         const metadatas = getSettings().fileMetadata
 
-
         //If this project is set as a default for a file, return that file.
         for (const key in metadatas) {
             const value = metadatas[key];
-            if (metadatas[key].defaultProjectId === projectId) {
+            if (value.defaultProjectId === projectId) {
                 return key;
             }
         }
-
-		let filePath = "";
 
 		if ((projectId === getSettings().inboxID) ||
 			(projectId === getSettings().defaultProjectId)){ //highly unlikely, but just in case
 			//They don't have a file for the Inbox. If they have a default project, return that.
 			if (getSettings().defaultProjectName) {
-				// filePath = getSettings().TickTickTasksFilePath +"/"+ getSettings().defaultProjectName + ".md"
-				filePath = getSettings().defaultProjectName + ".md"
-				return filePath
+				// filePath = this.plugin.settings?.TickTickTasksFilePath +"/"+ this.plugin.settings.defaultProjectName + ".md"
+				return getSettings().defaultProjectName + FILE_EXT;
 			}
 		}
         //otherwise, return the project name as a md file and hope for the best.
-        filePath = await this.getProjectNameByIdFromCache(projectId) + ".md"
-
+		const filePath = await this.getProjectNameByIdFromCache(projectId, getSettings().keepProjectFolders)
         if (!filePath) {
 			//Not a file that's in fileMetaData, not the inbox no default project set
-			let errmsg = `File path not found for ${projectId}, returning ${filePath} instead. `
+			const errmsg = `File path not found for ${projectId}, returning ${filePath} instead.`
 			console.warn(errmsg)
 			throw new Error(errmsg);
 		}
-		let errmsg = `File path not found for ${projectId}, returning ${filePath} instead. `
-		console.warn(errmsg)
+		// let errmsg = `File path not found for ${projectId}, returning ${filePath} instead. `
+		// console.warn(errmsg)
 
-        return filePath;
+		return filePath + FILE_EXT;
     }
 
     async setDefaultProjectIdForFilepath(filepath: string, defaultProjectId: string) {
@@ -399,7 +395,7 @@ export class CacheOperation {
     }
 
     //Read the task with the specified id
-	loadTaskFromCacheID(taskId?: string) {
+	loadTaskFromCacheID(taskId?: string) : ITask|undefined {
 		if (!taskId) return undefined;
         try {
             const savedTasks = getTasks()
@@ -601,13 +597,16 @@ export class CacheOperation {
 
 
 
-    async getProjectNameByIdFromCache(projectId: string) {
+    async getProjectNameByIdFromCache(projectId: string, addFolder: boolean) : Promise<string | undefined> {
         try {
             const savedProjects = getProjects()
-            const targetProject = savedProjects.find(obj => obj.id === projectId);
-            if (targetProject) {
-				return targetProject.name
+			const targetProject = savedProjects.find(obj => obj.id === projectId);
+			if (!targetProject) return undefined;
+			if (addFolder){
+				const groupName = getProjectGroups().find(g => g.id == targetProject.groupId)?.name;
+				if (groupName) return groupName + '/' + targetProject.name;
 			}
+			return targetProject.name
         } catch (error) {
             console.error(`Error finding project from Cache file: ${error}`);
         }

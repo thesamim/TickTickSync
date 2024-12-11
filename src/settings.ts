@@ -2,6 +2,11 @@ import type {IProject} from "@/api/types/Project";
 import type {FileMetadata} from "@/cacheOperation";
 import type {ITask} from "@/api/types/Task";
 
+const PROVIDER_OPTIONS: Record<string, string> =  {
+	ticktick: "ticktick.com",
+	dida365: "dida365.com"
+} as const;
+
 export interface ITickTickSyncSettings {
 	baseURL: string;
 	username?: string;
@@ -87,4 +92,15 @@ export const getTasks = (): ITask[] => {
 export const updateTasks = (newTasks: ITask[]): ITask[] => {
 	tasks = newTasks;
 	return getTasks();
+};
+
+let projectGroups: IProjectGroup[] = [];
+
+export const getProjectGroups = (): IProjectGroup[] => {
+	return projectGroups;
+}
+
+export const updateProjectGroups = (newProjectGroups: IProjectGroup[]): IProjectGroup[] => {
+	projectGroups = newProjectGroups;
+	return getProjectGroups();
 };

@@ -1005,8 +1005,19 @@ export class SyncMan {
 				console.error("probable network connection error.")
 				return false;
 			}
+
 			let bModifiedFileSystem = false;
-			let allTaskDetails = await this.plugin.tickTickRestAPI?.getAllTasks();
+			const allResources = await this.plugin.tickTickRestAPI?.getAllResources();
+			if (!allResources){
+				console.error("probable network connection error.")
+				return;
+			}
+
+			if (allResources.projectGroups && this.plugin.settings.TickTickTasksData) {
+				this.plugin.settings.TickTickTasksData.projectGroups = allResources.projectGroups;
+			}
+
+			const allTaskDetails = allResources['syncTaskBean'];//await this.plugin.tickTickRestAPI?.getAllTasks();
 			// console.log("All task details have been saved.", allTaskDetails);
 			let tasksFromTickTic = allTaskDetails.update;
 			let deletedTasks = allTaskDetails.delete;
@@ -1117,6 +1128,10 @@ export class SyncMan {
 			// this.dumpArray('== Add to Obsidian:', newTickTickTasks);
 			//download remote only tasks to Obsidian
 			if (newTickTickTasks.length > 0) {
+				//New Tasks, create their dateStruct
+				newTickTickTasks.forEach((newTickTickTask: ITask)=> {
+					this.plugin.dateMan?.addDateHolderToTask(newTickTickTask);
+				})
 				let result = await this.plugin.fileOperation?.addTasksToFile(newTickTickTasks)
 				if (result) {
 					// Sleep for 1 seconds

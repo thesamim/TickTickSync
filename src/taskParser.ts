@@ -45,7 +45,7 @@ interface dataviewTaskObject {
 const priorityEmojis = ['⏬', '🔽', '🔼', '⏫', '🔺'];
 const prioritySymbols = {
 	Highest: '🔺', High: '⏫', Medium: '🔼', Low: '🔽', Lowest: '⏬', None: ''
-};
+} as const;
 
 enum Priority {
 	Highest = '5', High = '5', Medium = '3', None = '0', Low = '1', Lowest = '0',
@@ -229,7 +229,7 @@ export class TaskParser {
 
 		taskContent = this.stripOBSUrl(taskContent);
 		taskContent = this.plugin.dateMan?.stripDatesFromLine(taskContent);
-	return (taskContent);
+		return (taskContent);
 	}
 
 	stripLineItemId(lineText: string) {

@@ -170,18 +170,19 @@ export class FileOperation {
     }
 
     // sync updated task content to file
-    async addTasksToFile(tasks: ITask[]): Promise<Boolean> {
-        //sort by project id and task id
-        tasks.sort((taskA, taskB) => (taskA.projectId.localeCompare(taskB.projectId) ||
-            taskA.id.localeCompare(taskB.id)));
-        //try not overwrite files while downloading a whole bunch of tasks. Create them first, then do the addtask mambo
+    async addTasksToFile(tasks: ITask[]): Promise<boolean> {
 		if (!tasks) {
 			console.error("No tasks to add.")
 			return false;
 		}
+		
+        //sort by project id and task id
+        tasks.sort((taskA, taskB) => (taskA.projectId.localeCompare(taskB.projectId) ||
+            taskA.id.localeCompare(taskB.id)));
+        //try not overwrite files while downloading a whole bunch of tasks. Create them first, then do the addtask mambo
         const projectIds = [...new Set(tasks.map(task => task.projectId))];
         for (const projectId of projectIds) {
-            let taskFile = await this.plugin.cacheOperation?.getFilepathForProjectId(projectId);
+            const taskFile = await this.plugin.cacheOperation?.getFilepathForProjectId(projectId);
 			let file;
             if (taskFile) {
                 file = this.app.vault.getAbstractFileByPath(taskFile);
@@ -225,10 +226,22 @@ export class FileOperation {
 				console.warn(`Folder ${folderPath} does not exit. It will be created`);
 				folder = await this.app.vault.createFolder(folderPath);
 			}
+			if (this.plugin.settings.keepProjectFolders && taskFile.includes('/')){
+				const groupName = taskFile.substring(0, taskFile.indexOf('/'));
+				const folderPath = (this.plugin.settings.TickTickTasksFilePath === '/' ?
+					'' :
+					(this.plugin.settings.TickTickTasksFilePath + '/'))
+					+ groupName
+				const groupFolder = this.app.vault.getAbstractFileByPath(folderPath);
+				if (!(groupFolder instanceof TFolder)) {
+					console.warn(`Folder ${folderPath} does not exit. It will be created`);
+					await this.app.vault.createFolder(folderPath);
+				}
+			}
 			new Notice(`Creating new file: ${folder.path}/${taskFile}`);
 			console.warn(`Creating new file: ${folder.path}/${taskFile}`);
 			taskFile = `${folder.path}/${taskFile}`;
-			let whoAdded = `${this.plugin.manifest.name} -- ${this.plugin.manifest.version}`;
+			const whoAdded = `${this.plugin.manifest.name} -- ${this.plugin.manifest.version}`;
 			try {
 				file = await this.app.vault.create(taskFile, `== Added by ${whoAdded} == `);
 			} catch (error) {

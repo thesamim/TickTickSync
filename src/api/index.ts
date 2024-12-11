@@ -20,6 +20,7 @@ const {
 	updateTaskEndPoint,
 	allTagsEndPoint,
 	allHabitsEndPoint,
+	allProjectGroupsEndPoint,
 	allProjectsEndPoint,
 	allTasksEndPoint,
 	signInEndPoint,
@@ -39,6 +40,14 @@ interface IoptionsProps {
 	checkPoint?: number;
 }
 
+export interface IBatch {
+	checkPoint: number;
+	inboxId: string;
+	projectGroups: any[];
+	projectProfiles: any[];
+	syncTaskBean: any;
+	tags: any[];
+}
 
 export class Tick {
 	username: string | undefined;
@@ -159,31 +168,25 @@ export class Tick {
 	async getInboxProperties(): Promise<boolean> {
 		try {
 			for (let i = 0; i < 10; i++) {
+				if (i !== 0) this.reset()
 				const url = `${this.apiUrl}/${allTasksEndPoint}` + this._checkpoint;
 				// console.log("url ", url)
-				// @ts-ignore
-				let response = await this.makeRequest('Get Inbox Properties', url, 'GET');
-				if (response) {
-					response['syncTaskBean'].update.forEach((task: any) => {
-						if (task.projectId == this.inboxProperties.id && task.sortOrder < this.inboxProperties.sortOrder) {
-							this.inboxProperties.sortOrder = task.sortOrder;
-						}
-					});
-					this.inboxProperties.sortOrder--;
-					return true;
-				} else {
-					if (i < 10) {
-						this.reset();
-					} else {
-						return false;
+				const response = await this.makeRequest('Get Inbox Properties', url, 'GET');
+				if (!response) continue
+
+				response['syncTaskBean'].update.forEach((task: any) => {
+					if (task.projectId == this.inboxProperties.id && task.sortOrder < this.inboxProperties.sortOrder) {
+						this.inboxProperties.sortOrder = task.sortOrder;
 					}
-				}
+				});
+				this.inboxProperties.sortOrder--;
+				return true;
 			}
 		} catch (e) {
 			console.error('Get Inbox Properties failed: ', e);
 			this.setError('Get Inbox Properties', null, e);
-			return false;
 		}
+		return false;
 	}
 
 	// FILTERS ===================================================================
@@ -202,18 +205,16 @@ export class Tick {
 
 	async getProjectGroups(): Promise<IProjectGroup[]> {
 		try {
-			const url = `${this.apiUrl}/${allTasksEndPoint}` + this._checkpoint;
+			const url = `${this.apiUrl}/${allProjectGroupsEndPoint}`;
 			const response = await this.makeRequest('Get Project Groups', url, 'GET', undefined);
 			if (response) {
-				return response['projectGroups'];
-			} else {
-				return [];
+				return response;
 			}
 		} catch (e) {
 			console.error('Get Project Groups failed: ', e);
 			this.setError('Get Project Groups', null, e);
-			return [];
 		}
+		return [];
 	}
 
 	async getProjects(): Promise<IProject[]> {
@@ -222,14 +223,12 @@ export class Tick {
 			const response = await this.makeRequest('Get Projects', url, 'GET', undefined);
 			if (response) {
 				return response;
-			} else {
-				return [];
 			}
 		} catch (e) {
 			console.error('Get Projects failed: ', e);
 			this.setError('Get Projects', null, e);
-			return [];
 		}
+		return [];
 	}
 
 
@@ -250,20 +249,23 @@ export class Tick {
 	}
 
 	// RESOURCES =================================================================
-	async getAllResources(): Promise<ITask[]> {
+	async getAllResources(): Promise<IBatch | null> {
 		try {
-			const url = `${this.apiUrl}/${allTasksEndPoint}` + this._checkpoint;
-			const response = await this.makeRequest('Get All Resources', url, 'GET', undefined);
-			if (response) {
-				return response;
-			} else {
-				return [];
+			let retry = 10; //TODO: really need to do this better. MB move to makeRequest and add delay?
+			while (retry > 0) {
+				const url = `${this.apiUrl}/${allTasksEndPoint}` + this._checkpoint;
+				const response = await this.makeRequest('Get All Resources', url, 'GET', undefined);
+				if (response) {
+					return response;
+				}
+				retry -= 1;
+				this.getPreviousCheckPoint();
 			}
 		} catch (e) {
 			console.error('Get All Resources failed: ', e);
 			this.setError('Get All Resources', null, e);
-			return [];
 		}
+		return null;
 	}
 
 	// TASKS =====================================================================
@@ -589,7 +591,7 @@ export class Tick {
 		}
 	}
 
-	async makeRequest(operation: string, url: string, method: string, body: any | undefined) {
+	async makeRequest(operation: string, url: string, method: string, body: any | undefined = undefined) {
 
 		let error = '';
 		this.lastError = undefined;
