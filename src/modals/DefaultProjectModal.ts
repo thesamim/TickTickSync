@@ -1,5 +1,6 @@
 import { App, Modal, Setting } from "obsidian";
-import TickTickSync from "../../main"
+import TickTickSync from "@/main"
+import {getProjects, getSettings} from "@/settings";
 
 
 interface MyProject {
@@ -26,13 +27,13 @@ export class SetDefaultProjectForFileModal extends Modal {
         contentEl.empty();
         contentEl.createEl('h5', { text: 'Set default project for TickTick tasks in the current file' });
 
-        this.defaultProjectId = await this.plugin.cacheOperation?.getDefaultProjectIdForFilepath(this.filepath)
-        this.defaultProjectName = await this.plugin.cacheOperation?.getProjectNameByIdFromCache(this.defaultProjectId)
+        this.defaultProjectId = await this.plugin.cacheOperation.getDefaultProjectIdForFilepath(this.filepath)
+        this.defaultProjectName = await this.plugin.cacheOperation.getProjectNameByIdFromCache(this.defaultProjectId)
         // console.log(this.defaultProjectId)
         // console.log(this.defaultProjectName)
-        const fileMetadata = this.plugin.settings.fileMetadata;
+        const fileMetadata = getSettings().fileMetadata;
         const defaultProjectIds = Object.values(fileMetadata).map(meta => meta.defaultProjectId);
-        const allowableProjects = this.plugin.settings.TickTickTasksData?.projects?.filter(project => !defaultProjectIds.includes(project.id));
+        const allowableProjects = getProjects().filter(project => !defaultProjectIds.includes(project.id));
         const myProjectsOptions: MyProject | undefined = allowableProjects.reduce((obj, item) => {
                 // console.log(obj, item.id, item.name)
                 obj[item.id] = item.name;
@@ -40,8 +41,6 @@ export class SetDefaultProjectForFileModal extends Modal {
         }, {}
 
         );
-
-
 
         new Setting(contentEl)
             .setName('Default project')
@@ -58,14 +57,10 @@ export class SetDefaultProjectForFileModal extends Modal {
                     })
 
             )
-
-
-
-
     }
 
     onClose() {
-        let { contentEl } = this;
+        const { contentEl } = this;
         contentEl.empty();
     }
 }

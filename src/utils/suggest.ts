@@ -1,8 +1,8 @@
 //borrowed from: https://github.com/SilentVoid13/Templater/
 // Credits go to Liam's Periodic Notes Plugin: https://github.com/liamcain/obsidian-periodic-notes
 
-import { ISuggestOwner, Scope } from "obsidian";
-import { createPopper, Instance as PopperInstance } from "@popperjs/core";
+import {type ISuggestOwner, Scope } from "obsidian";
+import { createPopper, type Instance as PopperInstance } from "@popperjs/core";
 
 const wrapAround = (value: number, size: number): number => {
     return ((value % size) + size) % size;

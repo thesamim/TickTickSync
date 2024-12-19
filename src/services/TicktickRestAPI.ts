@@ -1,22 +1,23 @@
-import {IBatch, Tick} from './api'
-import {ITask} from "./api/types/Task"
+import type {ITask} from "@/api/types/Task";
+import {type IBatch, Tick} from '@/api'
 import {App, Notice} from 'obsidian';
-import TickTickSync from "../main";
-import {IProject} from './api/types/Project';
+import TickTickSync from "@/main";
+import type {IProject} from '@/api/types/Project';
+import {getSettings, updateSettings} from "@/settings";
 
 export class TickTickRestAPI {
 	app: App;
 	plugin: TickTickSync;
 	api: Tick | null;
 	token: string;
-	baseUrl: string;
+	baseURL: string;
 
 	constructor(app: App, plugin: TickTickSync, api: Tick|null) {
 		//super(app,settings);
 		this.app = app;
 		this.plugin = plugin;
-		this.token = this.plugin.settings.token;
-		this.baseURL = this.plugin.settings.baseURL;
+		this.token = getSettings().token;
+		this.baseURL = getSettings().baseURL;
 
 		if (!this.token || this.token === "" ) {
 			new Notice("Please login from Settings.", 0)
@@ -24,7 +25,7 @@ export class TickTickRestAPI {
 			console.error("No Token")
 			throw new Error("API Not Initialized.")
 		} else {
-			if (this.plugin.settings.debugMode) {
+			if (getSettings().debugMode) {
 				console.log(JSON.stringify({
 					baseUrl: this.baseURL,
 					token: "[" + this.token.substring(0, 10) + "...]" + " len: " + this.token.length
@@ -32,15 +33,15 @@ export class TickTickRestAPI {
 			}
 			if (!api) {
 				this.api = new Tick({
-					baseUrl: this.plugin.settings.baseURL,
+					baseUrl: getSettings().baseURL,
 					token: this.token,
-					checkPoint: this.plugin.settings.checkPoint });
-				this.api.inboxProperties = {id: this.plugin.settings.inboxID, sortOrder: 0 }
-				this.plugin.settings.checkPoint = this.api.checkpoint;
+					checkPoint: getSettings().checkPoint });
+				this.api.inboxProperties = {id: getSettings().inboxID, sortOrder: 0 }
+				//this.plugin.settings.checkPoint = this.api.checkpoint;
 			} else {
 				this.api = api;
 			}
-			this.plugin.settings.apiInitialized = false;
+			//getSettings().apiInitialized = false;
 		}
 	}
 
@@ -51,7 +52,7 @@ export class TickTickRestAPI {
 			throw new Error("API Not Initialized. Please restart Obsidian.")
 		}
 
-		let apiInitialized = this.plugin.settings.apiInitialized;
+		let apiInitialized = getSettings().token //getSettings().apiInitialized;
 		if (!apiInitialized)
 			try {
 				const userSettings = await this.api?.getUserSettings();
@@ -60,18 +61,18 @@ export class TickTickRestAPI {
 
 					await this.api?.getInboxProperties()
 					let bSaveSettings = false;
-					if (this.plugin.settings.inboxID != this.api?.inboxId) {
+					if (getSettings().inboxID != this.api?.inboxId) {
 						//they've logged in with a different user id!
 						bSaveSettings = true;
 					}
-					this.plugin.settings.inboxID = this.api?.inboxId;
-					this.token = this.plugin.settings.token = this.api?.token;
+					//this.plugin.settings.inboxID = this.api?.inboxId;
+					//this.token = this.plugin.settings.token = this.api?.token;
 
 					//TickTick doesn't allow default Inbox to be renamed. This is safe to do.
-					this.plugin.settings.inboxName = "Inbox"
-					if (!this.plugin.settings.defaultProjectId) {
-						this.plugin.settings.defaultProjectId = this.api?.inboxId;
-						this.plugin.settings.defaultProjectName = "Inbox";
+					//updateSettings({inboxName: "Inbox"})
+					if (!getSettings().defaultProjectId) {
+						updateSettings({defaultProjectId: this.api?.inboxId,
+							defaultProjectName: "Inbox"});
 					}
 					if (bSaveSettings) {
 						await this.plugin.saveSettings();
@@ -79,24 +80,24 @@ export class TickTickRestAPI {
 				} else {
 					console.error(this.api?.lastError);
 				}
-				this.plugin.settings.apiInitialized = apiInitialized;
+				//updateSettings({apiInitialized: apiInitialized});
 
 				if (apiInitialized) {
-					if (this.plugin.settings.debugMode) {
+					if (getSettings().debugMode) {
 						console.log(`Logged In: ${apiInitialized}`);
 					}
 				} else {
 					new Notice("Login failed, please login through settings.")
 					console.error("Login failed! ");
-					this.plugin.settings.apiInitialized = false;
+					//updateSettings({apiInitialized: false});
 				}
 			} catch (error) {
 				console.error("Login failed! ", error);
-				this.plugin.settings.apiInitialized = false;
-				apiInitialized = false;
+				//updateSettings({apiInitialized: false});
+				//apiInitialized = false;
 				new Notice(`Login failed: ${error}\nPlease login again`)
 			} finally {
-				this.plugin.saveSettings();
+				await this.plugin.saveSettings();
 			}
 	}
 
@@ -220,7 +221,7 @@ export class TickTickRestAPI {
 
 
 	// get a task by Id
-	async getTaskById(taskId: string, projectId: string): Promise<ITask|null|undefined> {
+	async getTaskById(taskId: string, projectId?: string): Promise<ITask|null|undefined> {
 		await this.initializeAPI();
 		if (!taskId) {
 			throw new Error('taskId is required');
@@ -259,8 +260,7 @@ export class TickTickRestAPI {
 	async GetAllProjects(): Promise<IProject[]> {
 		await this.initializeAPI();
 		try {
-			const result = await this.api?.getProjects() ?? [];
-			return result
+			return await this.api?.getProjects() ?? []
 		} catch (error) {
 			console.error('Error get all projects', error);
 			return []
@@ -331,8 +331,8 @@ export class TickTickRestAPI {
 			}
 			//TODO: mb save after processing?
 			//checkpoint, may have changed. Save it if it has.
-			if (this.plugin.settings.checkPoint != this.api?.checkpoint) {
-				this.plugin.settings.checkPoint = <number>this.api?.checkpoint
+			if (getSettings().checkPoint != this.api?.checkpoint) {
+				getSettings().checkPoint = <number>this.api?.checkpoint
 				await this.plugin.saveSettings();
 			}
 			return result
@@ -353,8 +353,8 @@ export class TickTickRestAPI {
 				throw new Error("No Results.")
 			}
 			//checkpoint, may have changed. Save it if it has.
-			if (this.plugin.settings.checkPoint != this.api?.checkpoint) {
-				this.plugin.settings.checkPoint = <number>this.api?.checkpoint
+			if (getSettings().checkPoint != this.api?.checkpoint) {
+				updateSettings({checkPoint: <number>this.api?.checkpoint});
 				await this.plugin.saveSettings();
 			}
 			return (result)
