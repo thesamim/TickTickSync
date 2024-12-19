@@ -1,6 +1,7 @@
-import type {IProject} from "@/api/types/Project";
-import type {FileMetadata} from "@/services/cacheOperation";
 import type {ITask} from "@/api/types/Task";
+import type {IProject} from "@/api/types/Project";
+import type {IProjectGroup} from "@/api/types/ProjectGroup";
+import type {FileMetadata} from "@/services/cacheOperation";
 
 export interface ITickTickSyncSettings {
 	baseURL: string;
