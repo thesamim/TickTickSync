@@ -39,6 +39,7 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 
 		containerEl.createEl('hr');
 		containerEl.createEl('h1', {text: 'Access Control'});
+		let userLogin: string;
 		let userPassword: string;
 
 		new Setting(containerEl)
@@ -61,10 +62,9 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 			.setDesc('...')
 			.addText(text => text
 				.setPlaceholder('User Name')
-				.setValue(getSettings().username || "")
+				.setValue("")
 				.onChange(async (value) => {
-					updateSettings({username: value});
-					await this.saveSettings();
+					userLogin = value;
 				})
 			);
 
@@ -79,6 +79,8 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 				})
 			)
 
+		//MB add a checkbox (with warning about risk) to give the user the option to save the email address
+
 		new Setting(containerEl)
 			.setName("Login")
 			.setDesc(getSettings().token ? "You are logged in. You can re-login here." : "Please login here.")
@@ -87,7 +89,7 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 				loginBtn.setButtonText("Login");
 				loginBtn.setTooltip("Click To Login")
 				loginBtn.onClick( async () => {
-					await this.loginHandler(getSettings().baseURL, getSettings().username, userPassword)
+					await this.loginHandler(getSettings().baseURL, userLogin, userPassword)
 				})
 			})
 	}

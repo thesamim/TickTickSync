@@ -417,7 +417,7 @@ export class FileOperation {
     async updateTaskInFile(task: ITask, toBeProcessed: string[]) {
         const taskId = task.id
         // Get the task file path
-        const currentTask: ITask = await this.plugin.cacheOperation?.loadTaskFromCacheID(taskId)
+        const currentTask: ITask = this.plugin.cacheOperation?.loadTaskFromCacheID(taskId)
 
 		this.plugin.dateMan?.addDateHolderToTask(task, currentTask);
 

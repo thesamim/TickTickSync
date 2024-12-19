@@ -14,22 +14,14 @@ import {
 } from "@/settings";
 import {log} from "@/utils/logging";
 
-// type TaskDetail = {
-//     taskId: string,
-//     taskItems: string[]
-// }
-// type FileMetadata = {
-//     TickTickTasks: TaskDetail[];
-//     TickTickCount: number;
-//     defaultProjectId: string;
-// };
-
 export interface FileMetadata {
-	[fileName: string]: {
-		TickTickTasks: TaskDetail[];
-		TickTickCount: number;
-		defaultProjectId: string;
-	};
+	[fileName: string]: FileDetail;
+}
+
+export interface FileDetail  {
+	TickTickTasks: TaskDetail[];
+	TickTickCount: number;
+	defaultProjectId?: string;
 }
 
 export interface TaskDetail {
@@ -54,7 +46,7 @@ export class CacheOperation {
 		// if (getSettings().debugMode) {
 		// 	console.log("Adding task to : ", filepath)
 		// }
-        const metaData: FileMetadata = await this.getFileMetadata(filepath, task.projectId)
+        const metaData: FileDetail = await this.getFileMetadata(filepath, task.projectId)
         const taskMeta: TaskDetail = { taskId: task.id, taskItems: [] };
         if (task.items && task.items.length > 0) {
             task.items.forEach((item) => { 
@@ -66,7 +58,7 @@ export class CacheOperation {
     }
 
     async addTaskItemToMetadata(filepath: string, taskId: string, itemid: string, projectId: string) {
-        let metaData: FileMetadata = await this.getFileMetadata(filepath, projectId)
+        const metaData: FileDetail = await this.getFileMetadata(filepath, projectId)
         const task = metaData.TickTickTasks.find(task => task.taskId === taskId)
         task?.taskItems.push(itemid)
         metaData.TickTickCount = metaData.TickTickTasks.length;
@@ -74,40 +66,38 @@ export class CacheOperation {
 
     //This removes an Item from the metadata, and from the task
     //assumes file metadata has been looked up.
-    async removeTaskItem(fileMetaData: FileMetadata, taskId: string, taskItemIds: string[]) {
-        if (fileMetaData) {
-            const taskIndex = fileMetaData.TickTickTasks.findIndex(task => task.taskId === taskId);
-            if (taskIndex !== -1) {
-                const updatedMetaDataTask = fileMetaData.TickTickTasks[taskIndex];
-                let task = await this.loadTaskFromCacheID(taskId)
-				if (!task.items) {
-					return
-				}
-                let taskItems = task.items;
-                taskItemIds.forEach(taskItemId => {
-                    //delete from Task
-                    taskItems = taskItems.filter(item => item.id !== taskItemId);
-                });
-                //update will take care of metadata update.
-                task.items = taskItems;
-                task = await this.updateTaskToCache(task);
-                return task;
-            } else {
-                console.warn(`Task '${taskId}' not found in metadata`);
-            }
-
-        };
-        return null;
+    async removeTaskItem(fileMetaData: FileDetail, taskId: string, taskItemIds: string[]) {
+        if (!fileMetaData) {
+			return null;
+		}
+		const taskIndex = fileMetaData.TickTickTasks.findIndex(task => task.taskId === taskId);
+		if (taskIndex !== -1) {
+			const updatedMetaDataTask = fileMetaData.TickTickTasks[taskIndex];
+			let task = this.loadTaskFromCacheID(taskId)
+			if (!task || !task.items) {
+				return
+			}
+			let taskItems = task.items;
+			taskItemIds.forEach(taskItemId => {
+				//delete from Task
+				taskItems = taskItems.filter(item => item.id !== taskItemId);
+			});
+			//update will take care of metadata update.
+			task.items = taskItems;
+			task = await this.updateTaskToCache(task);
+			return task;
+		} else {
+			console.warn(`Task '${taskId}' not found in metadata`);
+		}
     }
 
 
-    async getFileMetadata(filepath: string, projectId: string | null): Promise<FileMetadata> {
-        let metaData = getSettings().fileMetadata[filepath];
-        if (!metaData) {
-            //Always return something.
-            metaData = await this.newEmptyFileMetadata(filepath, projectId);
+    async getFileMetadata(filepath: string, projectId?: string): Promise<FileDetail> {
+        const metaData = getSettings().fileMetadata[filepath];
+        if (metaData) {
+			return metaData;
         }
-        return metaData
+        return await this.newEmptyFileMetadata(filepath, projectId)
     }
 
     async getFileMetadatas() {
@@ -115,7 +105,7 @@ export class CacheOperation {
     }
 
 
-    async newEmptyFileMetadata(filepath: string, projectId: string | null): Promise<FileMetadata|null> {
+    async newEmptyFileMetadata(filepath: string, projectId?: string): Promise<FileDetail|null> {
 		//There's a case where we are making an entry for an undefined file. Not sure where it's coming from
 		// this should give us a clue.
 		if (!filepath) {
@@ -127,46 +117,43 @@ export class CacheOperation {
 			console.error("Not adding ", filepath, " to Metadata because it's a folder.");
 			return null;
 		}
-        const metadatas = getSettings().fileMetadata
-        if (metadatas[filepath]) {
+        const metadata = getSettings().fileMetadata
+        if (metadata[filepath]) {
             //todo: verify did doesn't break anything.
-            return metadatas[filepath]; //in case trying to clobber one.
+            return metadata[filepath]; //in case trying to clobber one.
         }
-        else {
-            metadatas[filepath] = {}
-        }
-        metadatas[filepath].TickTickTasks = [];
-        metadatas[filepath].TickTickCount = 0;
-        if (projectId) {
-            metadatas[filepath].defaultProjectId = projectId;
-        }
-        // Save the updated metadatas object back to the settings object
-		updateSettings({fileMetadata: metadatas});
+		metadata[filepath] = {
+			TickTickTasks: [],
+			TickTickCount: 0,
+			defaultProjectId: projectId
+		} as FileDetail;
+        // Save the updated metadata object back to the settings object
+		updateSettings({fileMetadata: metadata});
         await this.plugin.saveSettings();
         return getSettings().fileMetadata[filepath]
     }
 
-    async updateFileMetadata(filepath: string, newMetadata: FileMetadata) {
-        const metadatas = getSettings().fileMetadata
+    async updateFileMetadata(filepath: string, newMetadata: FileDetail) {
+        const metadata = getSettings().fileMetadata
 
-        // If the metadata object does not exist, create a new object and add it to metadatas
-        if (!metadatas[filepath]) {
-            metadatas[filepath] = {}
+        // If the metadata object does not exist, create a new object and add it to metadata
+        if (!metadata[filepath]) {
+            metadata[filepath] = {} as FileDetail;
         }
 
-        //Update attribute values ​​in the metadata object
-        metadatas[filepath].TickTickTasks = newMetadata.TickTickTasks;
-        metadatas[filepath].TickTickCount = newMetadata.TickTickCount;
+        //Update attribute values in the metadata object
+        metadata[filepath].TickTickTasks = newMetadata.TickTickTasks;
+        metadata[filepath].TickTickCount = newMetadata.TickTickCount;
 
-        // Save the updated metadatas object back to the settings object
-        updateSettings({fileMetadata: metadatas});
+        // Save the updated metadata object back to the settings object
+        updateSettings({fileMetadata: metadata});
         await this.plugin.saveSettings();
 
     }
 
     async deleteTaskIdFromMetadata(filepath: string, taskId: string) {
 
-        const metadata = await this.getFileMetadata(filepath, null)
+        const metadata = await this.getFileMetadata(filepath)
 		const oldTickTickTasks = metadata.TickTickTasks;
 
         const newTickTickTasks = oldTickTickTasks.filter(obj => obj.taskId !== taskId);
@@ -182,19 +169,18 @@ export class CacheOperation {
 		await this.deleteTaskIdFromMetadataByTaskId(task.id);
 		await this.addTaskToMetadata(filePath, task);
 	}
+
     async deleteTaskIdFromMetadataByTaskId(taskId: string) {
-
         const metadatas = await this.getFileMetadatas()
-        for (var file in metadatas) {
-            var tasks = metadatas[file].TickTickTasks;
-            var count = metadatas[file].TickTickCount;
-
-            if (tasks && tasks.find((task: TaskDetail) => task.taskId === taskId)) {
+        for (const file in metadatas) {
+			const tasks = metadatas[file].TickTickTasks;
+			if (tasks && tasks.find((task: TaskDetail) => task.taskId === taskId)) {
                 await this.deleteTaskIdFromMetadata(file, taskId)
                 break;
             }
         }
     }
+
     //delete filepath from filemetadata
     async deleteFilepathFromMetadata(filepath: string): Promise<FileMetadata> {
 		const fileMetaData: FileMetadata = getSettings().fileMetadata;
@@ -216,26 +202,27 @@ export class CacheOperation {
 
 	//Check for duplicates
 	checkForDuplicates(fileMetadata: FileMetadata) {
-		let taskIds = {};
-		let duplicates = {};
-
 		if (!fileMetadata) {
 			return;
 		}
+
+		const taskIds: Record<string, string> = {};
+		const duplicates: Record<string, string[]> = {};
+
 		for (const file in fileMetadata) {
-			fileMetadata[file].TickTickTasks.forEach(task => {
-				if (taskIds[task.taskId]) {
-					if (!duplicates[task.taskId]) {
-						duplicates[task.taskId] = [taskIds[task.taskId]];
-					}
-					duplicates[task.taskId].push(file);
-				} else {
+			fileMetadata[file].TickTickTasks?.forEach(task => {
+				if (!taskIds.hasOwnProperty(task.taskId)) {
 					taskIds[task.taskId] = file;
+					return;
 				}
+				if (!duplicates.hasOwnProperty(task.taskId)) {
+					duplicates[task.taskId] = [];
+				}
+				duplicates[task.taskId].push(file);
 			});
 		}
-		//Some day, may want to do something with all the taskids?
-		return {taskIds,duplicates};
+		//Some day, may want to do something with all the taskIds?
+		return {taskIds, duplicates};
 	}
 
     //Check errors in filemata where the filepath is incorrect.
@@ -243,27 +230,26 @@ export class CacheOperation {
         const metadatas = await this.getFileMetadatas()
         // console.log("md: ", metadatas)
 
-        for (const key in metadatas) {
-            let filepath = key
-            const value = metadatas[key];
+        for (const filepath in metadatas) {
+            const value = metadatas[filepath];
             // console.log("File: ", value)
-            let file = this.app.vault.getAbstractFileByPath(key)
+            const file = this.app.vault.getAbstractFileByPath(filepath)
             if (!file && (value.TickTickTasks?.length === 0 || !value.TickTickTasks)) {
-                console.error(`${key} does not exist and metadata is empty.`)
-                await this.deleteFilepathFromMetadata(key)
+                console.error(`${filepath} does not exist and metadata is empty.`)
+                await this.deleteFilepathFromMetadata(filepath)
                 continue
             }
             if (value.TickTickTasks?.length === 0 || !value.TickTickTasks) {
-                continue
+                continue;
             }
             //check if file exists
 
             if (!file) {
                 //search new filepath
                 // console.log(`file ${filepath} is not exist`)
-                const TickTickId1 = value.TickTickTasks[0]
+                const task1 = value.TickTickTasks[0]
                 // console.log(TickTickId1)
-                const searchResult = await this.plugin.fileOperation.searchFilepathsByTaskidInVault(TickTickId1)
+                const searchResult = await this.plugin.fileOperation.searchFilepathsByTaskidInVault(task1.taskId)
                 // console.log(`new file path is`)
                 // console.log(searchResult)
 

@@ -1,9 +1,8 @@
 import * as path from "path";
 import {resolve} from "path";
-import replace from "@rollup/plugin-replace";
 import builtins from "builtin-modules";
 import {svelte, vitePreprocess} from '@sveltejs/vite-plugin-svelte';
-import {loadEnv, type UserConfig} from "vite";
+import {type UserConfig} from "vite";
 import {viteStaticCopy} from "vite-plugin-static-copy";
 import tsConfigPaths from "vite-tsconfig-paths";
 import {configDefaults, defineConfig} from "vitest/config";

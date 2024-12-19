@@ -1,10 +1,19 @@
 import "@/static/index.css";
 import "@/static/styles.css";
 
-import {Editor, type MarkdownFileInfo, MarkdownView, Notice, Plugin, TFolder} from 'obsidian';
+import {MarkdownView, Plugin, Notice, TFolder} from 'obsidian';
+import type {Editor, MarkdownFileInfo} from 'obsidian';
 
 //settings
-import {getProjects, getSettings, getTasks, updateProjects, updateSettings, updateTasks} from './settings';
+import {
+	DEFAULT_SETTINGS,
+	getProjects,
+	getSettings,
+	getTasks,
+	updateProjects,
+	updateSettings,
+	updateTasks
+} from './settings';
 //TickTick api
 import {TickTickRestAPI} from '@/services/TicktickRestAPI';
 //task parser
@@ -43,8 +52,8 @@ export default class TickTickSync extends Plugin {
 	async onload() {
 		//We're doing too much at load time, and it's causing issues. Do it properly!
 
-		this.app.workspace.onLayoutReady(() => {
-			this.registerEvent(this.app.vault.on('create', this.pluginLoad(), this));
+		this.app.workspace.onLayoutReady(async () => {
+			await this.pluginLoad();
 		});
 
 	}
@@ -292,19 +301,20 @@ export default class TickTickSync extends Plugin {
 
 	async loadSettings() {
 		try {
-			const data = await this.loadData();
+			let data = await this.loadData();
 			try {
-				await this.migrateData(data);
+				data = await this.migrateData(data);
 			} catch (error) {
 				console.error('Failed to migrate data:', error);
 				return false; // Returning false indicates that the setting loading failed
 			}
-			if (data.TickTickTasksData) {
+			if (data?.TickTickTasksData) {
 				updateProjects(data.TickTickTasksData.projects);
 				updateTasks(data.TickTickTasksData.tasks);
+				delete data.TickTickTasksData;
 			}
-			delete data.TickTickTasksData;
-			updateSettings(data);
+			const settings = Object.assign(DEFAULT_SETTINGS, data);
+			updateSettings(settings);
 		} catch (error) {
 			log('error', 'Failed to load data:', error);
 			return false; // Returning false indicates that the setting loading failed
@@ -313,22 +323,27 @@ export default class TickTickSync extends Plugin {
 	}
 
 	private async migrateData(data: any) {
-		if (!data) return;
+		if (!data) return data;
 
 		const notableChanges: string [][] = [];
 		//TODO make more clean
 		//We're going to handle data structure conversions here.
 		if (!data.version) {
 			const fileMetaDataStructure = data.fileMetadata;
-			for (const file in fileMetaDataStructure) {
-				const oldTasksHolder = fileMetaDataStructure[file]; //an array of tasks.
-				let newTasksHolder = {};
-				newTasksHolder = {
-					TickTickTasks: oldTasksHolder.TickTickTasks.map((taskIDString) => ({
-						taskId: taskIDString, taskItems: [] //TODO: Validate that the assumption that the next sync will fill these correctly.
-					})), TickTickCount: oldTasksHolder.TickTickCount, defaultProjectId: oldTasksHolder.defaultProjectId
-				};
-				fileMetaDataStructure[file] = newTasksHolder;
+			if (Array.isArray(fileMetaDataStructure)){
+				for (const file in fileMetaDataStructure) {
+					const oldTasksHolder = fileMetaDataStructure[file]; //an array of tasks.
+					let newTasksHolder = {};
+					newTasksHolder = {
+						TickTickTasks: oldTasksHolder.TickTickTasks.map((taskIDString) => ({
+							taskId: taskIDString,
+							taskItems: [] //TODO: Validate that the assumption that the next sync will fill these correctly.
+						})),
+						TickTickCount: oldTasksHolder.TickTickCount,
+						defaultProjectId: oldTasksHolder.defaultProjectId
+					};
+					fileMetaDataStructure[file] = newTasksHolder;
+				}
 			}
 			//Force a sync
 			if (getSettings().token) {
@@ -339,6 +354,7 @@ export default class TickTickSync extends Plugin {
 			//get rid of username and password. we don't need them no more.
 			//delete data.username; //keep username for info
 			// @ts-ignore
+			delete data.username;
 			delete data.password;
 		}
 		if ((!data.version) || (isOlder(data.version, '1.0.36'))) {
@@ -362,6 +378,7 @@ export default class TickTickSync extends Plugin {
 			await this.saveSettings();
 		}
 
+		return data;
     }
 
 	async saveSettings() {

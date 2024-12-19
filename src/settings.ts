@@ -4,7 +4,6 @@ import type {ITask} from "@/api/types/Task";
 
 export interface ITickTickSyncSettings {
 	baseURL: string;
-	username?: string;
 	token?: string;
 	version?: string;
 	automaticSynchronizationInterval: number;

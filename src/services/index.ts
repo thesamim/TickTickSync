@@ -251,7 +251,7 @@ export class TickTickService {
 						//console.log(`${taskId}`)
 						let taskObject
 						try {
-							taskObject = await this.plugin.cacheOperation?.loadTaskFromCacheID(taskDetail.taskId)
+							taskObject = this.plugin.cacheOperation?.loadTaskFromCacheID(taskDetail.taskId)
 						} catch (error) {
 							log('warn', `An error occurred while loading task ${taskDetail.taskId} from cache:`, error);
 						}
@@ -321,7 +321,7 @@ export class TickTickService {
 
 		if (getSettings().SyncProject) {
 			newFilesToSync = Object.fromEntries(Object.entries(filesToSync).filter(([key, value]) =>
-				value.defaultProjectId == getSettings().SyncProject));
+				value.defaultProjectId === getSettings().SyncProject));
 		}
 
 		//Check for duplicates before we do anything
@@ -329,7 +329,7 @@ export class TickTickService {
 			const result = this.cacheOperation?.checkForDuplicates(newFilesToSync);
 			if (result?.duplicates && (JSON.stringify(result.duplicates) != "{}")) {
 				let dupText = '';
-				for (let duplicatesKey in result.duplicates) {
+				for (const duplicatesKey in result.duplicates) {
 					dupText += "Task: " + duplicatesKey + '\nin files: \n';
 					result.duplicates[duplicatesKey].forEach(file => {
 						dupText += file + "\n"

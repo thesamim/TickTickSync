@@ -1,6 +1,6 @@
-import { App } from 'obsidian';
-import TickTickSync from '@/main';
-import type {ITask} from './api/types/Task';
+import type { App } from 'obsidian';
+import type TickTickSync from '@/main';
+import type {ITask} from '@/api/types/Task';
 import {getSettings} from "@/settings";
 
 
