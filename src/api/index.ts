@@ -631,14 +631,14 @@ export class Tick {
 		const headers = {
 			// 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:131.0) Gecko/20100101 Firefox/131.0',
 			'Accept': '*/*',
-			'Accept-Language': 'en-US,en;q=0.5',
-			'Accept-Encoding': 'gzip, deflate, br, zstd',
-			'X-Csrftoken': '',
+			// 'Accept-Language': 'en-US,en;q=0.5',
+			// 'Accept-Encoding': 'gzip, deflate, br, zstd',
+			// 'X-Csrftoken': '',
 			'x-device': this.deviceAgent,
 			//"x-device": "{\"platform\":\"web\",\"os\":\"Windows 10\",\"device\":\"Firefox 117.0\",\"name\":\"\",\"version\":124.0.6367.243,\"id\":\"124.0.6367.243\",\"channel\":\"website\",\"campaign\":\"\",\"websocket\":\"\"}",
 			'Content-Type': 'application/json',
 			'X-Requested-With': 'XMLHttpRequest',
-			'Cookie' : this.cookieHeader
+			// 'Cookie' : this.cookieHeader
 		};
 
 		// console.log('Login headers', headers);
