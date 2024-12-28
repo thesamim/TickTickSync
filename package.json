@@ -1,6 +1,6 @@
 {
 	"name": "tickticksync",
-	"version": "1.0.40",
+	"version": "1.0.41",
 	"description": "Sync TickTick tasks to Obsidian, and Obsidian tasks to TickTick",
 	"main": "main.js",
 	"scripts": {
@@ -21,13 +21,14 @@
 	"author": "thesamim",
 	"license": "GNU GPLv3",
 	"dependencies": {
-		"obsidian": "latest",
 		"@popperjs/core": "2.11.8",
 		"@types/lowdb": "^1.0.15",
 		"bson-objectid": "2.0.4",
+		"crypto-hash": "^3.1.0",
 		"dependency-tree": "11.0.1",
 		"lodash-es": "^4.17.21",
-		"lowdb": "^7.0.1"
+		"lowdb": "^7.0.1",
+		"obsidian": "latest"
 	},
 	"repository": {
 		"type": "git",

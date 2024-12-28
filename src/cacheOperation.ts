@@ -332,7 +332,7 @@ export class CacheOperation {
 
         if (!filePath) {
 			//Not a file that's in fileMetaData, not the inbox no default project set
-			let errmsg = `File path not found for ${projectId}, returning ${filePath} instead. `
+			let errmsg = `File path not found for ${projectId}`
 			console.warn(errmsg)
 			throw new Error(errmsg);
 		}
@@ -606,7 +606,7 @@ export class CacheOperation {
 
 
 
-    async getProjectNameByIdFromCache(projectId: string) {
+    async getProjectNameByIdFromCache(projectId: string|null) {
         try {
             const savedProjects = this.plugin.settings.TickTickTasksData.projects
             const targetProject = savedProjects.find(obj => obj.id === projectId);

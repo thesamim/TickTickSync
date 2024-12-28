@@ -1,6 +1,7 @@
 import { App } from 'obsidian';
 import TickTickSync from '../main';
 import { ITask } from './api/types/Task';
+import {sha256} from 'crypto-hash';
 
 
 interface dataviewTaskObject {
@@ -757,12 +758,11 @@ export class TaskParser {
 		// 	// foo.forEach(tag => console.log(tag));
 	}
 
-	getLineHash(resultLine: string) {
-		// console.time("Line Hash")
-		const crypto = require('crypto');
-		const hash = crypto.createHash("sha256").update(resultLine).digest("hex");
-		// console.log("TRACETHIS hashing: ", resultLine, hash);
-		// console.timeEnd("Line Hash")
-		return hash
+	async getLineHash(resultLine: string) {
+		try {
+			return await sha256(resultLine);
+		} catch (e) {
+			console.error("Hashing error.", e);
+		}
 	}
 }

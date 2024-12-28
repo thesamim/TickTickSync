@@ -206,7 +206,7 @@ export class SyncMan {
 				let updatedText = await this.updateTaskLine(newTask, lineTxt, editor, cursor, fileContent, line, filePath);
 
 				//we want the line as it is in Obsidian.
-				newTask.lineHash = this.plugin.taskParser?.getLineHash(updatedText);
+				newTask.lineHash = await this.plugin.taskParser?.getLineHash(updatedText);
 				//newTask writes to cache
 				//Will handle meta data there.
 				await this.plugin.cacheOperation?.appendTaskToCache(newTask, filePath)
@@ -318,7 +318,7 @@ export class SyncMan {
 		let bHashCheckFailed;
 		if (this.plugin.taskParser?.hasTickTickId(lineText) && this.plugin.taskParser?.hasTickTickTag(lineText)) {
 
-			const newHash = this.plugin.taskParser?.getLineHash(lineText);
+			const newHash = await this.plugin.taskParser?.getLineHash(lineText);
 			//convertLineToTask has become a pretty expensive operation avoid it.
 			//let's see if the saved task has a lineHash.
 			const lineTask_ticktick_id = this.plugin.taskParser?.getTickTickIdFromLineText(lineText);
@@ -355,7 +355,7 @@ export class SyncMan {
 					await this.plugin.cacheOperation?.updateTaskToCache(savedTask, null);
 				}
 				if (!savedTask.lineHash) {
-					savedTask.lineHash = this.plugin.taskParser?.getLineHash(lineText);
+					savedTask.lineHash = await this.plugin.taskParser?.getLineHash(lineText);
 				}
 			}
 
@@ -598,7 +598,7 @@ export class SyncMan {
 			// from the line in Obsidian. Until I find that corner case, we're just going to reset the line hash here and
 			// be done.
 			if (!modified && bHashCheckFailed) {
-				const updatedHash = this.plugin.taskParser?.getLineHash(lineText)
+				const updatedHash = await this.plugin.taskParser?.getLineHash(lineText)
 				lineTask.lineHash = updatedHash;
 				await this.plugin.cacheOperation?.updateTaskToCache(lineTask, null);
 				await this.plugin.saveSettings();

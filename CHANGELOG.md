@@ -1,5 +1,14 @@
 ## CHANGELOG
 
+### 1.0.41
+
+Fix issue with Mobile Login
+Fix issue with Hash checking on Mobile
+
+### 1.0.40
+See [New Date/Time handling](https://github.com/thesamim/TickTickSync/wiki/Notable-Changes#changes-from-1036-to-1040----new-datetime-handling) for details.
+Slight performance improvement.
+
 ### 1.0.36
 Keep forgetting to update the change log. Here's everything since the last update. 
 **Full Changelog**: https://github.com/thesamim/TickTickSync/compare/1.0.20...1.0.36

@@ -773,8 +773,7 @@ export default class TickTickSync extends Plugin {
 				if (!file) {
 					console.log("File ", fileKey, " was deleted before last sync.");
 					await this.cacheOperation?.deleteFilepathFromMetadata(fileKey);
-					const toDelete = newFilesToSync.findIndex(fileKey)
-					newFilesToSync.splice(toDelete, 1)
+					delete newFilesToSync[fileKey]
 				}
 			}
 

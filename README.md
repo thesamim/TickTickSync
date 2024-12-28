@@ -106,6 +106,8 @@ Thanks to [LemurTech](https://github.com/LemurTech) and [zarb1n](https://github.
 
 Thanks to [jee-ee](https://github.com/jee-ee) for pointing out the change in Device ID processing.
 
+Thanks to [coneos](https://github.com/coneos) for pointing out the language disparity issue on mobile login.
+
 ## Disclaimer
 
 This plugin was built with the author's specific use cases in mind. Additional use cases can and will be considered.
