@@ -28,6 +28,11 @@ export interface ITickTickSyncSettings {
 
 
 	fileMetadata: FileMetadata;
+	TickTickTasksData: {
+		projects: IProject[];
+		projectGroups: IProjectGroup[];
+		tasks: ITask[];
+	}
 	//statistics: any;
 }
 
@@ -51,6 +56,11 @@ export const DEFAULT_SETTINGS: ITickTickSyncSettings = {
 
 
 	fileMetadata: {},
+	TickTickTasksData: {
+		projects: [],
+		tasks: [],
+	},
+
 	//statistics: {}
 }
 
@@ -69,35 +79,35 @@ export const updateSettings = (newSettings: Partial<ITickTickSyncSettings>): ITi
 
 //TODO move to store
 
-let projects: IProject[] = [];
+// let projects: IProject[] = [];
 
 export const getProjects = (): IProject[] => {
-	return projects;
+	return settings.TickTickTasksData.projects
 }
 
 export const updateProjects = (newProjects: IProject[]): IProject[] => {
-	projects = newProjects;
+	settings.TickTickTasksData.projects = newProjects;
 	return getProjects();
 };
 
-let tasks: ITask[] = [];
+// let tasks: ITask[] = [];
 
 export const getTasks = (): ITask[] => {
-	return tasks;
+	return settings.TickTickTasksData.tasks;
 }
 
 export const updateTasks = (newTasks: ITask[]): ITask[] => {
-	tasks = newTasks;
+	settings.TickTickTasksData.tasks = newTasks;
 	return getTasks();
 };
 
-let projectGroups: IProjectGroup[] = [];
+// let projectGroups: IProjectGroup[] = [];
 
 export const getProjectGroups = (): IProjectGroup[] => {
-	return projectGroups;
+	return settings.TickTickTasksData.projectGroups;
 }
 
 export const updateProjectGroups = (newProjectGroups: IProjectGroup[]): IProjectGroup[] => {
-	projectGroups = newProjectGroups;
+	settings.TickTickTasksData.projectGroups = newProjectGroups;
 	return getProjectGroups();
 };

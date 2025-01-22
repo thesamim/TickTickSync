@@ -9,7 +9,7 @@ import {
 	DEFAULT_SETTINGS,
 	getProjects,
 	getSettings,
-	getTasks,
+	getTasks, updateProjectGroups,
 	updateProjects,
 	updateSettings,
 	updateTasks
@@ -52,8 +52,8 @@ export default class TickTickSync extends Plugin {
 	async onload() {
 		//We're doing too much at load time, and it's causing issues. Do it properly!
 
-		this.app.workspace.onLayoutReady(async () => {
-			await this.pluginLoad();
+		this.app.workspace.onLayoutReady(() => {
+			this.registerEvent(this.app.vault.on('create', this.pluginLoad(), this));
 		});
 
 	}
@@ -86,18 +86,21 @@ export default class TickTickSync extends Plugin {
 			queryInjector.onNewBlock.bind(queryInjector),
 		);
 
-		// if (this.settings.debugMode) {
-		// This creates an icon in the left ribbon.
-		const ribbonIconEl = this.addRibbonIcon('sync', 'TickTickSync', async (evt: MouseEvent) => {
+
+		const ribbonIconEl = this.addRibbonIcon('sync', 'TTS Test', async (evt: MouseEvent) => {
 			// Called when the user clicks the icon.
 			await this.scheduledSynchronization();
 			new Notice(`Sync completed..`);
 		});
+
 		//Used for testing adhoc code.
 		// const ribbonIconEl1 = this.addRibbonIcon('check', 'TickTickSync', async (evt: MouseEvent) => {
-		// 	// Nothing to see here right now.
+			// // Nothing to see here right now.
+			// // updateTasks([])
+			// let foo =  {tasks: getTasks(), projects: getProjects()}
+			// log("debug", "What", foo)
 		// });
-		// }
+
 
 		this.registerEvents();
 		this.reloadInterval();
@@ -311,9 +314,10 @@ export default class TickTickSync extends Plugin {
 			if (data?.TickTickTasksData) {
 				updateProjects(data.TickTickTasksData.projects);
 				updateTasks(data.TickTickTasksData.tasks);
+				updateProjectGroups(data.TickTickTasksData.projectGroups);
 				delete data.TickTickTasksData;
 			}
-			const settings = Object.assign(DEFAULT_SETTINGS, data);
+			const settings = Object.assign({}, DEFAULT_SETTINGS, data);
 			updateSettings(settings);
 		} catch (error) {
 			log('error', 'Failed to load data:', error);
