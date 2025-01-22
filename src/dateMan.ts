@@ -393,7 +393,6 @@ export class DateMan {
 			}
 		}
 		return new Date(dateString);
-		;
 	}
 
 	getEmptydateHolder() {
