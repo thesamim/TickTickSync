@@ -1,6 +1,7 @@
-import { App } from 'obsidian';
-import TickTickSync from '../main';
-import { ITask } from './api/types/Task';
+import type { App } from 'obsidian';
+import type TickTickSync from '@/main';
+import type {ITask} from '@/api/types/Task';
+import {getSettings} from "@/settings";
 
 
 interface dataviewTaskObject {
@@ -115,7 +116,7 @@ const taskRegex = new RegExp(
 );
 /*End of stolen regex*/
 
-const REGEX = {
+export const REGEX = {
 	//hopefully tighter find.
 	TickTick_TAG: new RegExp(`^[\\s]*[-] \\[[x ]\\] [\\s\\S]*${keywords.TickTick_TAG}[\\s\\S]*$`, "i"),
 
@@ -228,7 +229,7 @@ export class TaskParser {
 
 		taskContent = this.stripOBSUrl(taskContent);
 		taskContent = this.plugin.dateMan?.stripDatesFromLine(taskContent);
-	return (taskContent);
+		return (taskContent);
 	}
 
 	stripLineItemId(lineText: string) {
@@ -302,7 +303,7 @@ export class TaskParser {
 		// When Full Vault Sync is enabled, we can tell the difference between items and subtasks
 		// everything is a subtask
 		// TODO: in the fullness of time, see if there's a way to differentiate.
-		if (!this.plugin.settings.enableFullVaultSync) {
+		if (!getSettings().enableFullVaultSync) {
 			for (let i = (lineNumber + 1); i <= lines.length; i++) {
 				const line = lines[i];
 				//console.log(line)
@@ -359,7 +360,7 @@ export class TaskParser {
 		}
 
 		const title = this.getTaskContentFromLineText(textWithoutIndentation);
-		if ((this.plugin.settings.debugMode) && (!projectId)) {
+		if ((getSettings().debugMode) && (!projectId)) {
 			console.error('Converting line to Object, could not find project Id: ', title);
 		}
 
@@ -367,7 +368,7 @@ export class TaskParser {
 		let taskURL = '';
 		const priority = this.getTaskPriority(textWithoutIndentation);
 		if (filepath) {
-			let url = this.plugin.taskParser?.getObsidianUrlFromFilepath(filepath);
+			let url = this.plugin.taskParser.getObsidianUrlFromFilepath(filepath);
 			if (url) {
 				taskURL = url;
 			}
@@ -389,7 +390,8 @@ export class TaskParser {
 			items: taskItems || [],
 			parentId: parentId || '',
 			dueDate: allDatesStruct?.dueDate?.isoDate || '',
-			startDate: actualStartDate,
+			startDate: actualStartDate || '',
+			completedTime: allDatesStruct?.completedTime?.isoDate || '',
 			isAllDay: allDatesStruct?.isAllDay || false,
 			tags: tags || [],
 			priority: Number(priority),
@@ -449,7 +451,7 @@ export class TaskParser {
 			//try the dataview version
 			result = REGEX.TickTick_ID_DV_NUM.exec(text);
 		}
-		return result ? result[1] : null;
+		return result ? result[1] : undefined;
 	}
 
 	isTaskOpen(line: string) {
@@ -603,7 +605,7 @@ export class TaskParser {
 	}
 
 	getObsidianUrlFromFilepath(filepath: string) {
-		// if (this.plugin.settings.debugMode) {
+		// if (getSettings().debugMode) {
 		// 	console.log("Getting OBS path for: ", filepath)
 		// }
 		const url = encodeURI(`obsidian://open?vault=${this.app.vault.getName()}&file=${filepath}`);
@@ -628,9 +630,9 @@ export class TaskParser {
 	createURL(newTaskId: string, projectId: string): string {
 		let url = '';
 		if (projectId) {
-			url = `https://${this.plugin.settings.baseURL}/webapp/#p/${projectId}/tasks/${newTaskId}`;
+			url = `https://${getSettings().baseURL}/webapp/#p/${projectId}/tasks/${newTaskId}`;
 		} else {
-			url = `https://${this.plugin.settings.baseURL}/webapp/#q/all/tasks/${newTaskId}`;
+			url = `https://${getSettings().baseURL}/webapp/#q/all/tasks/${newTaskId}`;
 		}
 		return url;
 	}
@@ -693,7 +695,7 @@ export class TaskParser {
 			// When Full Vault Sync is enabled, we can tell the difference between items and subtasks
 			// everything is a subtask
 			// TODO: in the fullness of time, see if there's a way to differentiate.
-			if (!this.plugin.settings.enableFullVaultSync) {
+			if (!getSettings().enableFullVaultSync) {
 				resultLine = `${resultLine} \n${completion} ${item.title} %%${item.id}%%`;
 			} else {
 				resultLine = `${resultLine} \n${completion} ${item.title}`;

@@ -1,7 +1,8 @@
 import {App, Notice, TFile, TFolder} from 'obsidian';
-import TickTickSync from "../main";
-import { ITask } from './api/types/Task';
+import TickTickSync from "@/main";
+import type {ITask} from './api/types/Task';
 import {TaskDeletionModal} from "./modals/TaskDeletionModal";
+import {getSettings} from "@/settings";
 
 
 export class FileOperation {
@@ -206,7 +207,7 @@ export class FileOperation {
             let result = await this.addProjectTasksToFile(file, projectTasks);
             // Sleep for 1 second
             await new Promise(resolve => setTimeout(resolve, 1000));
-            if (this.plugin.settings.debugMode) {
+            if (getSettings().debugMode) {
                 console.log("===", projectTasks, result ? "Completed add task." : "Failed add task")
             }
         }
@@ -219,24 +220,24 @@ export class FileOperation {
 		//the file doesn't exist. Create it.
 		try {
 			//TODO: Deal with Folders and sections in the fullness of time.
-			const folderPath = this.plugin.settings.TickTickTasksFilePath;
+			const folderPath = getSettings().TickTickTasksFilePath;
 			let folder = this.app.vault.getAbstractFileByPath(folderPath);
 			if (!(folder instanceof TFolder)) {
 				console.warn(`Folder ${folderPath} does not exit. It will be created`);
 				folder = await this.app.vault.createFolder(folderPath);
 			}
-			if (this.plugin.settings.keepProjectFolders && taskFile.includes('/')){
-				const groupName = taskFile.substring(0, taskFile.indexOf('/'));
-				const folderPath = (this.plugin.settings.TickTickTasksFilePath === '/' ?
-					'' :
-					(this.plugin.settings.TickTickTasksFilePath + '/'))
-					+ groupName
-				const groupFolder = this.app.vault.getAbstractFileByPath(folderPath);
-				if (!(groupFolder instanceof TFolder)) {
-					console.warn(`Folder ${folderPath} does not exit. It will be created`);
-					await this.app.vault.createFolder(folderPath);
-				}
-			}
+			// if (getSettings().keepProjectFolders && taskFile.includes('/')){
+			// 	const groupName = taskFile.substring(0, taskFile.indexOf('/'));
+			// 	const folderPath = (getSettings().TickTickTasksFilePath === '/' ?
+			// 		'' :
+			// 		(getSettings().TickTickTasksFilePath + '/'))
+			// 		+ groupName
+			// 	const groupFolder = this.app.vault.getAbstractFileByPath(folderPath);
+			// 	if (!(groupFolder instanceof TFolder)) {
+			// 		console.warn(`Folder ${folderPath} does not exit. It will be created`);
+			// 		await this.app.vault.createFolder(folderPath);
+			// 	}
+			// }
 			new Notice(`Creating new file: ${folder.path}/${taskFile}`);
 			console.warn(`Creating new file: ${folder.path}/${taskFile}`);
 			taskFile = `${folder.path}/${taskFile}`;
@@ -416,7 +417,7 @@ export class FileOperation {
     async updateTaskInFile(task: ITask, toBeProcessed: string[]) {
         const taskId = task.id
         // Get the task file path
-        const currentTask: ITask = await this.plugin.cacheOperation?.loadTaskFromCacheID(taskId)
+        const currentTask: ITask = this.plugin.cacheOperation?.loadTaskFromCacheID(taskId)
 
 		this.plugin.dateMan?.addDateHolderToTask(task, currentTask);
 

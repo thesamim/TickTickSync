@@ -12,7 +12,21 @@
 
 // https://forum.obsidian.md/t/task-time-editing-ux-ui-advice/86124/2?u=thesamim
 
-import { ITask } from './api/types/Task';
+//From https://publish.obsidian.md/tasks/Reference/Task+Formats/Tasks+Emoji+Format
+//
+// interface date_emoji_type {
+// 	created_date: string,
+// 	scheduled_date: string,
+// 	start_date: string,
+// 	due_date: string,
+// 	done_date: string,
+// 	cancelled_date: string
+// }
+//
+// https://forum.obsidian.md/t/task-time-editing-ux-ui-advice/86124/2?u=thesamim
+import type {ITask} from './api/types/Task';
+import {log} from "@/utils/logging";
+import {getSettings} from "@/settings";
 
 enum date_emoji {
 	createdTime = '➕',
@@ -240,7 +254,7 @@ export class DateMan {
 			}
 		}
 		if (task.completedTime) {
-			dates.completedTime = this.getDateAndTime(task.completedTime, task.isAllDay, date_emoji.completedTime);
+			dates.completedTime = this.getDateAndTime(task.completedTime, false, date_emoji.completedTime);
 		}
 		//Pick up the times that TickTick doesn't care about, but Obsidian does.
 		if (oldTask) {
@@ -305,8 +319,15 @@ export class DateMan {
 				}
 				// @ts-ignore
 				if (editedTaskDates[thisKey]) {
-					const bChanged= this.areDatesDifferent(editedTaskDates[thisKey].isoDate, cachedTaskDates[thisKey].isoDate)
+					let bChanged = false;
+					if (editedTaskDates[thisKey].hasATime) {
+						bChanged = this.areDatesDifferent(editedTaskDates[thisKey].isoDate, cachedTaskDates[thisKey].isoDate);
+					} else {
+						//just look at the date components
+						bChanged = !(editedTaskDates[thisKey]?.date == cachedTaskDates[thisKey]?.date)
+					}
 					if (bChanged) {
+						log("debug", "dateChanged", {key: thisKey, newDate: editedTaskDates[thisKey].isoDate, oldDate: cachedTaskDates[thisKey].isoDate});
 						return true;
 					}
 				} if (!editedTaskDates[thisKey] && cachedTaskDates[thisKey]) {
@@ -332,12 +353,14 @@ export class DateMan {
 	}
 
 	utcToLocal(utcDateString: string) {
+		// console.log("@@@@ in date string: ", utcDateString);
 		const date = new Date(utcDateString);
+
 		//Regardless of host date/time format, we want to parse for "en-US" format
 		const locale = 'en-US';
 		const hostTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 		const localDate = date.toLocaleString(locale, { timeZone: hostTimeZone });
-		//console.log("@@@@ local date string: ", localDate);
+		// console.log("@@@@ local date string: ", localDate);
 		const [datePart, timePart] = localDate.split(', ');
 		let [month, day, year] = datePart.split('/');
 		month = String(month).padStart(2, '0');
@@ -347,7 +370,8 @@ export class DateMan {
 			if (localDate.includes('PM')) {
 				hours = (Number(hours) + 12).toString();
 			} else if ((localDate.includes('AM') && hours === '12')) {
-				hours = '24';
+				//TODO: Should we add one to the day, or do they really mean beginning of the day?
+				hours = '00';
 			}
 			hours = String(hours).padStart(2, '0');
 			minutes = String(minutes).padStart(2, '0');
@@ -369,7 +393,6 @@ export class DateMan {
 			}
 		}
 		return new Date(dateString);
-		;
 	}
 
 	getEmptydateHolder() {
@@ -476,23 +499,23 @@ export class DateMan {
 		if (utcDate1.getTime() === utcDate2.getTime()) {
 			return false;
 		} else {
-			// if (this.plugin.settings.debugMode) {
-			// 	// Calculate the difference in minutes
-			// 	const timeDifferenceInMilliseconds = Math.abs(utcDate2.getTime() - utcDate1.getTime());
-			// 	const days = Math.floor(timeDifferenceInMilliseconds / (1000 * 60 * 60 * 24));
-			// 	const hours = Math.floor((timeDifferenceInMilliseconds % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-			// 	const minutes = Math.floor((timeDifferenceInMilliseconds % (1000 * 60 * 60)) / (1000 * 60));
-			//
-			// 	if (days > 0) {
-			// 		console.log(`The timestamps are ${days} days, ${hours} hours, and ${minutes} minutes apart.`);
-			// 	} else if (hours > 0) {
-			// 		console.log(`The timestamps are ${hours} hours and ${minutes} minutes apart.`);
-			// 	} else if (minutes > 0) {
-			// 		console.log(`The timestamps are ${minutes} minutes apart.`);
-			// 	} else {
-			// 		console.log(`The timestamps are different, but not calculatable..`);
-			// 	}
-			// }
+			if (getSettings().debugMode) {
+				// Calculate the difference in minutes
+				const timeDifferenceInMilliseconds = Math.abs(utcDate2.getTime() - utcDate1.getTime());
+				const days = Math.floor(timeDifferenceInMilliseconds / (1000 * 60 * 60 * 24));
+				const hours = Math.floor((timeDifferenceInMilliseconds % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+				const minutes = Math.floor((timeDifferenceInMilliseconds % (1000 * 60 * 60)) / (1000 * 60));
+
+				if (days > 0) {
+					console.log(`The timestamps are ${days} days, ${hours} hours, and ${minutes} minutes apart.`);
+				} else if (hours > 0) {
+					console.log(`The timestamps are ${hours} hours and ${minutes} minutes apart.`);
+				} else if (minutes > 0) {
+					console.log(`The timestamps are ${minutes} minutes apart.`);
+				} else {
+					console.log(`The timestamps are different, but not calculatable..`);
+				}
+			}
 			return true;
 		}
 	}
