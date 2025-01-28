@@ -226,18 +226,18 @@ export class FileOperation {
 				console.warn(`Folder ${folderPath} does not exit. It will be created`);
 				folder = await this.app.vault.createFolder(folderPath);
 			}
-			if (getSettings().keepProjectFolders && taskFile.includes('/')){
-				const groupName = taskFile.substring(0, taskFile.indexOf('/'));
-				const folderPath = (getSettings().TickTickTasksFilePath === '/' ?
-					'' :
-					(getSettings().TickTickTasksFilePath + '/'))
-					+ groupName
-				const groupFolder = this.app.vault.getAbstractFileByPath(folderPath);
-				if (!(groupFolder instanceof TFolder)) {
-					console.warn(`Folder ${folderPath} does not exit. It will be created`);
-					await this.app.vault.createFolder(folderPath);
-				}
-			}
+			// if (getSettings().keepProjectFolders && taskFile.includes('/')){
+			// 	const groupName = taskFile.substring(0, taskFile.indexOf('/'));
+			// 	const folderPath = (getSettings().TickTickTasksFilePath === '/' ?
+			// 		'' :
+			// 		(getSettings().TickTickTasksFilePath + '/'))
+			// 		+ groupName
+			// 	const groupFolder = this.app.vault.getAbstractFileByPath(folderPath);
+			// 	if (!(groupFolder instanceof TFolder)) {
+			// 		console.warn(`Folder ${folderPath} does not exit. It will be created`);
+			// 		await this.app.vault.createFolder(folderPath);
+			// 	}
+			// }
 			new Notice(`Creating new file: ${folder.path}/${taskFile}`);
 			console.warn(`Creating new file: ${folder.path}/${taskFile}`);
 			taskFile = `${folder.path}/${taskFile}`;
