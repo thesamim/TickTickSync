@@ -36,13 +36,11 @@
 		"bson-objectid": "^2.0.4",
 		"dependency-tree": "^11.0.1",
 		"eventemitter2": "^6.4.9",
-		"obsidian": "latest",
 		"yaml": "^2.6.1",
 		"lodash-es": "^4.17.21",
 		"lowdb": "^7.0.1",
 		"@types/lowdb": "^1.0.15",
 		"crypto-hash": "^3.1.0",
-		"dependency-tree": "11.0.1",
 		"obsidian": "latest"
 	},
 	"devDependencies": {
