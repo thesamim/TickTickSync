@@ -9,10 +9,10 @@
 // 	cancelled_date: string
 // }
 //
-
 // https://forum.obsidian.md/t/task-time-editing-ux-ui-advice/86124/2?u=thesamim
-
-import { ITask } from './api/types/Task';
+import type {ITask} from './api/types/Task';
+import {log} from "@/utils/logging";
+import {getSettings} from "@/settings";
 
 enum date_emoji {
 	createdTime = '➕',
@@ -240,14 +240,14 @@ export class DateMan {
 			}
 		}
 		if (task.completedTime) {
-			dates.completedTime = this.getDateAndTime(task.completedTime, task.isAllDay, date_emoji.completedTime);
+			dates.completedTime = this.getDateAndTime(task.completedTime, false, date_emoji.completedTime);
 		}
 		//Pick up the times that TickTick doesn't care about, but Obsidian does.
-		if (oldTask && oldTask.dateHolder) {
-			if ('cancelled_date' in oldTask.dateHolder && oldTask.dateHolder.cancelled_date) {
+		if (oldTask) {
+			if (oldTask.dateHolder.cancelled_date) {
 				dates.cancelled_date = oldTask.dateHolder.cancelled_date;
 			}
-			if ('createdTime' in oldTask.dateHolder && oldTask.dateHolder.createdTime) {
+			if (oldTask.dateHolder.createdTime) {
 				dates.createdTime = oldTask.dateHolder.createdTime;
 			}
 
@@ -305,8 +305,15 @@ export class DateMan {
 				}
 				// @ts-ignore
 				if (editedTaskDates[thisKey]) {
-					const bChanged= this.areDatesDifferent(editedTaskDates[thisKey].isoDate, cachedTaskDates[thisKey].isoDate)
+					let bChanged = false;
+					if (editedTaskDates[thisKey].hasATime) {
+						bChanged = this.areDatesDifferent(editedTaskDates[thisKey].isoDate, cachedTaskDates[thisKey].isoDate);
+					} else {
+						//just look at the date components
+						bChanged = !(editedTaskDates[thisKey]?.date == cachedTaskDates[thisKey]?.date)
+					}
 					if (bChanged) {
+						log("debug", "dateChanged", {key: thisKey, newDate: editedTaskDates[thisKey].isoDate, oldDate: cachedTaskDates[thisKey].isoDate});
 						return true;
 					}
 				} if (!editedTaskDates[thisKey] && cachedTaskDates[thisKey]) {
@@ -337,7 +344,6 @@ export class DateMan {
 		const locale = 'en-US';
 		const hostTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 		const localDate = date.toLocaleString(locale, { timeZone: hostTimeZone });
-		//console.log("@@@@ local date string: ", localDate);
 		const [datePart, timePart] = localDate.split(', ');
 		let [month, day, year] = datePart.split('/');
 		month = String(month).padStart(2, '0');
@@ -347,7 +353,8 @@ export class DateMan {
 			if (localDate.includes('PM')) {
 				hours = (Number(hours) + 12).toString();
 			} else if ((localDate.includes('AM') && hours === '12')) {
-				hours = '24';
+				//TODO: Should we add one to the day, or do they really mean beginning of the day?
+				hours = '00';
 			}
 			hours = String(hours).padStart(2, '0');
 			minutes = String(minutes).padStart(2, '0');
@@ -369,7 +376,6 @@ export class DateMan {
 			}
 		}
 		return new Date(dateString);
-		;
 	}
 
 	getEmptydateHolder() {
@@ -493,7 +499,6 @@ export class DateMan {
 			// 		console.log(`The timestamps are different, but not calculatable..`);
 			// 	}
 			// }
-			return true;
-		}
+        }
 	}
 }

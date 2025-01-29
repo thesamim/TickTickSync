@@ -1,5 +1,6 @@
 import {App, Modal, Plugin, Setting} from "obsidian";
-import TickTickSync from "../../main";
+import TickTickSync from "@/main";
+import {getSettings} from "@/settings";
 
 
 export class FoundDuplicatesModal extends Modal {
@@ -18,7 +19,7 @@ export class FoundDuplicatesModal extends Modal {
 		super(app);
 		this.plugin = plugin;
 		this.projects = projects;
-		this.message =  `The following duplicate Projects/Lists were found. On ${plugin.settings.baseURL},` +
+		this.message =  `The following duplicate Projects/Lists were found. On ${getSettings().baseURL},` +
 		`please either choose one of those to contain the tasks from both lists, or rename one of the lists.`;
 		this.onSubmit = onSubmit;
 	}

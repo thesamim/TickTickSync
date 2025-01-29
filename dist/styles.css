@@ -55,3 +55,37 @@ button.ts_button[disabled]:hover {
 	display: inline-block;
 }
 
+/*changes below from @gsdtr*/
+.code {
+	width: 500px;
+	height: 500px;
+	display: block
+}
+
+.config {
+	width: 500px;
+	height: 400px;
+	display: block
+}
+
+.go {
+	display: block;
+	float: right;
+	font-size: 18px
+}
+
+.result {
+	width: 500px;
+	height: 1000px;
+	display: block
+}
+
+.edit,
+.results {
+	float: left
+}
+.theme {
+	--color-base-20: #f6f6f6;
+	--input-shadow: inset 0 0 0 1px rgba(0, 0, 0, .12), 0 2px 3px 0 rgba(0, 0, 0, .05), 0 1px 1.5px 0 rgba(0, 0, 0, .03), 0 1px 2px 0 rgba(0, 0, 0, .04), 0 0 0 0 transparent;
+	--input-shadow-hover: inset 0 0 0 1px rgba(0, 0, 0, .17), 0 2px 3px 0 rgba(0, 0, 0, .1), 0 1px 1.5px 0 rgba(0, 0, 0, .03), 0 1px 2px 0 rgba(0, 0, 0, .04), 0 0 0 0 transparent;
+	--background-secondary: var(--color-base-20)
