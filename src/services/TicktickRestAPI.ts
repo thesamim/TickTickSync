@@ -1,9 +1,11 @@
-import type {ITask} from "@/api/types/Task";
-import {type IBatch, Tick} from '@/api'
-import {App, Notice} from 'obsidian';
-import TickTickSync from "@/main";
-import type {IProject} from '@/api/types/Project';
-import {getSettings, updateSettings} from "@/settings";
+import type { ITask } from '@/api/types/Task';
+import { type IBatch, Tick } from '@/api';
+import { App, Notice } from 'obsidian';
+import TickTickSync from '@/main';
+import type { IProject } from '@/api/types/Project';
+import { getSettings, updateSettings } from '@/settings';
+//logging
+import log from '@/utils/logger';
 
 export class TickTickRestAPI {
 	app: App;
@@ -12,31 +14,32 @@ export class TickTickRestAPI {
 	token: string;
 	baseURL: string;
 
-	constructor(app: App, plugin: TickTickSync, api: Tick|null) {
+	constructor(app: App, plugin: TickTickSync, api: Tick | null) {
 		//super(app,settings);
 		this.app = app;
 		this.plugin = plugin;
 		this.token = getSettings().token;
 		this.baseURL = getSettings().baseURL;
 
-		if (!this.token || this.token === "" ) {
-			new Notice("Please login from Settings.", 0)
+		if (!this.token || this.token === '') {
+			new Notice('Please login from Settings.', 0);
 			this.api = null;
-			console.error("No Token")
-			throw new Error("API Not Initialized.")
+			log.error('No Token');
+			throw new Error('API Not Initialized.');
 		} else {
 			if (getSettings().debugMode) {
-				console.log(JSON.stringify({
+				log.debug(JSON.stringify({
 					baseUrl: this.baseURL,
-					token: "[" + this.token.substring(0, 10) + "...]" + " len: " + this.token.length
+					token: '[' + this.token.substring(0, 10) + '...]' + ' len: ' + this.token.length
 				}));
 			}
 			if (!api) {
 				this.api = new Tick({
 					baseUrl: getSettings().baseURL,
 					token: this.token,
-					checkPoint: getSettings().checkPoint });
-				this.api.inboxProperties = {id: getSettings().inboxID, sortOrder: 0 }
+					checkPoint: getSettings().checkPoint
+				});
+				this.api.inboxProperties = { id: getSettings().inboxID, sortOrder: 0 };
 				//this.plugin.settings.checkPoint = this.api.checkpoint;
 			} else {
 				this.api = api;
@@ -46,20 +49,19 @@ export class TickTickRestAPI {
 	}
 
 
-
 	async initializeAPI() {
 		if (this.api === null || this.api === undefined) {
-			throw new Error("API Not Initialized. Please restart Obsidian.")
+			throw new Error('API Not Initialized. Please restart Obsidian.');
 		}
 
-		let apiInitialized = getSettings().token //getSettings().apiInitialized;
+		let apiInitialized = getSettings().token; //getSettings().apiInitialized;
 		if (!apiInitialized)
 			try {
 				const userSettings = await this.api?.getUserSettings();
 				if (userSettings) {
 					apiInitialized = true;
 
-					await this.api?.getInboxProperties()
+					await this.api?.getInboxProperties();
 					let bSaveSettings = false;
 					if (getSettings().inboxID != this.api?.inboxId) {
 						//they've logged in with a different user id!
@@ -71,31 +73,33 @@ export class TickTickRestAPI {
 					//TickTick doesn't allow default Inbox to be renamed. This is safe to do.
 					//updateSettings({inboxName: "Inbox"})
 					if (!getSettings().defaultProjectId) {
-						updateSettings({defaultProjectId: this.api?.inboxId,
-							defaultProjectName: "Inbox"});
+						updateSettings({
+							defaultProjectId: this.api?.inboxId,
+							defaultProjectName: 'Inbox'
+						});
 					}
 					if (bSaveSettings) {
 						await this.plugin.saveSettings();
 					}
 				} else {
-					console.error(this.api?.lastError);
+					log.error(this.api?.lastError);
 				}
 				//updateSettings({apiInitialized: apiInitialized});
 
 				if (apiInitialized) {
 					if (getSettings().debugMode) {
-						console.log(`Logged In: ${apiInitialized}`);
+						log.debug(`Logged In: ${apiInitialized}`);
 					}
 				} else {
-					new Notice("Login failed, please login through settings.")
-					console.error("Login failed! ");
+					new Notice('Login failed, please login through settings.');
+					log.error('Login failed! ');
 					//updateSettings({apiInitialized: false});
 				}
 			} catch (error) {
-				console.error("Login failed! ", error);
+				log.error('Login failed! ', error);
 				//updateSettings({apiInitialized: false});
 				//apiInitialized = false;
-				new Notice(`Login failed: ${error}\nPlease login again`)
+				new Notice(`Login failed: ${error}\nPlease login again`);
 			} finally {
 				await this.plugin.saveSettings();
 			}
@@ -138,7 +142,7 @@ export class TickTickRestAPI {
 		await this.initializeAPI();
 		try {
 			//TODO: ALL Tasks are fetched. Evaluate filtering.
-			// console.log("getting all tasks, look into filtering.")
+			// log.debug("getting all tasks, look into filtering.")
 			const result = await this.api?.getTasks();
 			return result;
 		} catch (error) {
@@ -158,16 +162,21 @@ export class TickTickRestAPI {
 			let updatedTask: ITask | null | undefined = {};
 			const saveDateHolder = taskToUpdate.dateHolder;
 			const updateResult = await this.api?.updateTask(taskToUpdate);
-			// console.log("update result: ", updateResult.id2error);
-			if (JSON.stringify(updateResult.id2error) === '{}')
-			{
-				// console.log('it is fine');
+			if (!updateResult) {
+				//bad shit happened.
+				log.error('Error', 'Update Failed.', this.api?.lastError, taskToUpdate);
+				const error = 'Error updating task: ' + this.api?.lastError;
+				throw new Error(error);
+			}
+			// log.debug("update result: ", updateResult.id2error);
+			if (JSON.stringify(updateResult.id2error) === '{}') {
+				// log.debug('it is fine');
 				//because of the due date BS, we need it back.
 				updatedTask = await this.getTaskById(taskToUpdate.id, taskToUpdate.projectId);
 				if (updatedTask) {
-					updatedTask.dateHolder = saveDateHolder
+					updatedTask.dateHolder = saveDateHolder;
 				} else {
-					console.error("Didn't get back the updated Task");
+					log.error('Didn\'t get back the updated Task');
 				}
 			}
 			return updatedTask;
@@ -184,14 +193,14 @@ export class TickTickRestAPI {
 			if (task) {
 				task.status = taskStatus;
 				const isSuccess = await this.api?.updateTask(task);
-				// console.log(`Task ${taskId} is reopened`)
-				return (isSuccess)
+				// log.debug(`Task ${taskId} is reopened`)
+				return (isSuccess);
 			} else {
 				return false;
 			}
 		} catch (error) {
-			console.error('Error modifying task:', error);
-			return
+			log.error('Error modifying task:', error);
+			return;
 		}
 	}
 
@@ -200,10 +209,10 @@ export class TickTickRestAPI {
 	async OpenTask(taskId: string, projectId: string) {
 		await this.initializeAPI();
 		try {
-			this.modifyTaskStatus(taskId, projectId, 0)
+			this.modifyTaskStatus(taskId, projectId, 0);
 		} catch (error) {
-			console.error('Error open a task:', error);
-			return
+			log.error('Error open a task:', error);
+			return;
 		}
 	}
 
@@ -214,14 +223,14 @@ export class TickTickRestAPI {
 			let result = this.modifyTaskStatus(taskId, projectId, 2);
 			return result;
 		} catch (error) {
-			console.error('Error closing task:', error);
+			log.error('Error closing task:', error);
 			throw error; // Throw an error so that the caller can catch and handle it
 		}
 	}
 
 
 	// get a task by Id
-	async getTaskById(taskId: string, projectId?: string): Promise<ITask|null|undefined> {
+	async getTaskById(taskId: string, projectId?: string): Promise<ITask | null | undefined> {
 		await this.initializeAPI();
 		if (!taskId) {
 			throw new Error('taskId is required');
@@ -248,7 +257,7 @@ export class TickTickRestAPI {
 		}
 		try {
 			const task = await this.api?.getTask(taskId, null);
-			const due = task?.dueDate ?? null
+			const due = task?.dueDate ?? null;
 			return due;
 		} catch (error) {
 			throw new Error(`Error get Task Due By ID: ${error.message}`);
@@ -260,10 +269,10 @@ export class TickTickRestAPI {
 	async GetAllProjects(): Promise<IProject[]> {
 		await this.initializeAPI();
 		try {
-			return await this.api?.getProjects() ?? []
+			return await this.api?.getProjects() ?? [];
 		} catch (error) {
-			console.error('Error get all projects', error);
-			return []
+			log.error('Error get all projects', error);
+			return [];
 		}
 	}
 
@@ -271,21 +280,21 @@ export class TickTickRestAPI {
 	async GetProjectGroups() {
 		await this.initializeAPI();
 		try {
-			const result = await this.api?.getProjectGroups()
+			const result = await this.api?.getProjectGroups();
 
 			if ((result?.length == 0) && (this.api?.lastError)) {
 				if (this.api?.lastError.statusCode != 200) {
 					let lastError = this.api?.lastError;
-					console.error("Error: ",  lastError.operation, lastError.statusCode, lastError.errorMessage);
-					throw new Error(lastError.errorMessage)
+					log.error('Error: ', lastError.operation, lastError.statusCode, lastError.errorMessage);
+					throw new Error(lastError.errorMessage);
 				}
 			}
-			return (result)
+			return (result);
 
 		} catch (error) {
-			console.error('Error get project groups', error);
-			new Notice("Unable to get project groups: " + error , 0)
-			return false
+			log.error('Error get project groups', error);
+			new Notice('Unable to get project groups: ' + error, 0);
+			return false;
 		}
 	}
 
@@ -295,11 +304,11 @@ export class TickTickRestAPI {
 		try {
 			const result = await this.api?.getUserSettings();
 
-			return (result)
+			return (result);
 
 		} catch (error) {
-			console.error('Error get user resources', error);
-			return []
+			log.error('Error get user resources', error);
+			return [];
 		}
 	}
 
@@ -309,36 +318,37 @@ export class TickTickRestAPI {
 		try {
 			const result = await this.api?.getAllCompletedItems();
 
-			return (result)
+			return (result);
 
 		} catch (error) {
-			console.error('Error get all completed items', error);
-			return []
+			log.error('Error get all completed items', error);
+			return [];
 		}
 	}
 
 	//TODO: Will need interpretation
 	async getAllResources(): Promise<IBatch | null> {
 		await this.initializeAPI();
-		if (!this.api){
-			console.error("getAllResources No API.")
+		if (!this.api) {
+			log.error('getAllResources No API.');
 			return null;
 		}
 		try {
 			const result = await this.api.getAllResources();
 			if (!result || (this.api.lastError && this.api.lastError.statusCode != 200)) {
-				throw new Error("getAllResources No Results.")
+				throw new Error('getAllResources No Results.');
 			}
-			//TODO: mb save after processing?
+
 			//checkpoint, may have changed. Save it if it has.
-			if (getSettings().checkPoint != this.api?.checkpoint) {
-				getSettings().checkPoint = <number>this.api?.checkpoint
+			if (getSettings().checkPoint != result.checkPoint) {
+				this.api.checkpoint = result.checkPoint;
+				getSettings().checkPoint = <number>this.api?.checkpoint;
 				await this.plugin.saveSettings();
 			}
-			return result
+			return result;
 
 		} catch (error) {
-			console.error('Error get all resources', error);
+			log.error('Error get all resources', error);
 		}
 		return null;
 	}
@@ -349,21 +359,17 @@ export class TickTickRestAPI {
 		try {
 			//This returns the SyncBean object, which has ALL the task details
 			const result = await this.api?.getTaskDetails();
-			if (!result || result.length === 0 && this.api?.lastError.statusCode!= 200) {
-				throw new Error("No Results.")
+			if (!result || result.length === 0 && this.api?.lastError.statusCode != 200) {
+				throw new Error('No Results.');
 			}
-			//checkpoint, may have changed. Save it if it has.
-			if (getSettings().checkPoint != this.api?.checkpoint) {
-				updateSettings({checkPoint: <number>this.api?.checkpoint});
-				await this.plugin.saveSettings();
-			}
-			return (result)
+			return (result);
 
 		} catch (error) {
-			console.error('Error get all Tasks', error);
-			return []
+			log.error('Error get all Tasks', error);
+			return [];
 		}
 	}
+
 	async exportData(): Promise<string> {
 		await this.initializeAPI();
 		//This is a CSV backup.
@@ -371,8 +377,8 @@ export class TickTickRestAPI {
 		if (!result) {
 			//TODO Assume if something bad happened, API done logged it.
 			let error = JSON.stringify(this.api?.lastError);
-			error = error.replace(/{/g, '\n').replace(/,/g, '\n')
-			throw new Error(`Back up failed ${error}`)
+			error = error.replace(/{/g, '\n').replace(/,/g, '\n');
+			throw new Error(`Back up failed ${error}`);
 		}
 		return result;
 	}
@@ -382,28 +388,32 @@ export class TickTickRestAPI {
 
 		let result = await this.api?.projectMove(task.id, fromProject, toProject);
 		if (!result) {
-			console.error("Project Moved Failed: ", this.api?.lastError)
+			log.error('Project Moved Failed: ', this.api?.lastError);
 		}
 
 		//Near as I can tell, this is redundant, but TickTick does it. I think it may be a
 		// sortorder thing, Just do it.
-		await this.api?.updateTask(task)
+		await this.api?.updateTask(task);
 
 	}
 
-	async moveTaskParent(taskId: string, newParentId: string, projectId: string ) {
+	async moveTaskParent(taskId: string, oldParentId: string, newParentId: string, projectId: string) {
 
-		const task = await this.api?.getTask(taskId, projectId);
+		if (oldParentId) {
+			//Turns out TT does not adjust the parent's children. We have to do it.
+			const task = this.plugin.cacheOperation.loadTaskFromCacheID(oldParentId);
+			// log.debug('childIds before filtering:', task?.childIds);
+			if (task?.childIds && task.childIds.length > 0) {
+				task.childIds = task.childIds.filter(id => id !== taskId);
+			}
 
-		//For some reason, ticktick updates the task with the new parent id first, then do the parentMove. Seems
-		//redundant to me, but there must be a reason. Right?
-		if (task) {
-			task.parentId = newParentId;
-			let result = await this.api?.updateTask(task);
-
-			result = await this.api?.parentMove(taskId, newParentId, projectId);
+			// log.debug('childIds after filtering:', task?.childIds);
+			const updateResult = await this.api?.updateTask(task);
+			// log.debug('updateResult', updateResult);
 		}
 
+		const moveResult = await this.api?.parentMove(taskId, newParentId, projectId);
+		// log.debug('moveResult of moveResult', moveResult);
 	}
 
 }

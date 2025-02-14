@@ -1,38 +1,44 @@
-import "@/static/index.css";
-import "@/static/styles.css";
+import '@/static/index.css';
+import '@/static/styles.css';
 
-import {MarkdownView, Plugin, Notice, TFolder} from 'obsidian';
-import type {Editor, MarkdownFileInfo} from 'obsidian';
+import type { Editor, MarkdownFileInfo } from 'obsidian';
+import { MarkdownView, Notice, Plugin, TFolder } from 'obsidian';
 
 //settings
 import {
 	DEFAULT_SETTINGS,
 	getProjects,
 	getSettings,
-	getTasks, updateProjectGroups,
+	getTasks,
+	updateProjectGroups,
 	updateProjects,
 	updateSettings,
 	updateTasks
 } from './settings';
+
+import { TickTickService } from '@/services';
 //TickTick api
-import {TickTickRestAPI} from '@/services/TicktickRestAPI';
+import { TickTickRestAPI } from '@/services/TicktickRestAPI';
 //task parser
-import {TaskParser} from './taskParser';
+import { TaskParser } from './taskParser';
 //cache task read and write
-import {CacheOperation} from '@/services/cacheOperation';
+import { CacheOperation } from '@/services/cacheOperation';
 //file operation
-import {FileOperation} from './fileOperation';
+import { FileOperation } from './fileOperation';
 
 //import modals
-import {SetDefaultProjectForFileModal} from './modals/DefaultProjectModal';
-import {LatestChangesModal} from "./modals/LatestChangesModal"
-import {isOlder} from "./utils/version";
-import {TickTickSyncSettingTab} from "./ui/settings";
-import {TickTickService} from "@/services";
-import {QueryInjector} from "@/query/injector";
-import {log, logging, type LogOptions} from "@/utils/logging";
-import store from "@/store";
-import {DateMan} from "@/dateMan";
+import { SetDefaultProjectForFileModal } from './modals/DefaultProjectModal';
+import { LatestChangesModal } from './modals/LatestChangesModal';
+
+//import utils
+import { isOlder } from './utils/version';
+import { TickTickSyncSettingTab } from './ui/settings';
+import { QueryInjector } from '@/query/injector';
+import store from '@/store';
+import { DateMan } from '@/dateMan';
+
+//logging
+import log from '@/utils/logger';
 
 
 export default class TickTickSync extends Plugin {
@@ -48,86 +54,18 @@ export default class TickTickSync extends Plugin {
 
 	tickTickRestAPI?: TickTickRestAPI;
 	statusBar?: HTMLElement;
+	private syncIntervalId?: number;
+	private logger: any;
 
 	async onload() {
 		//We're doing too much at load time, and it's causing issues. Do it properly!
 
-		this.app.workspace.onLayoutReady(() => {
-			this.registerEvent(this.app.vault.on('create', this.pluginLoad(), this));
+		this.app.workspace.onLayoutReady(async () => {
+			await this.pluginLoad();
 		});
 
 	}
 
-
-	private async pluginLoad() {
-		logging.registerConsoleLogger();
-		log('info', `loading plugin "${this.manifest.name}" v${this.manifest.version}`);
-
-		const isSettingsLoaded = await this.loadSettings();
-		if (!isSettingsLoaded) {
-			new Notice('Settings failed to load. Please reload the TickTickSync plugin.');
-			return;
-		}
-
-		this.reloadLogging();
-		// This adds a settings tab so the user can configure various aspects of the plugin
-		this.addSettingTab(new TickTickSyncSettingTab(this.app, this));
-
-		try {
-			await this.initializePlugin();
-		} catch (error) {
-			log('error', 'API Initialization Failed.', error);
-		}
-
-		store.service.set(this.service);
-		const queryInjector = new QueryInjector(this);
-		this.registerMarkdownCodeBlockProcessor(
-			"ticktick",
-			queryInjector.onNewBlock.bind(queryInjector),
-		);
-
-
-		const ribbonIconEl = this.addRibbonIcon('sync', 'TTS Test', async (evt: MouseEvent) => {
-			// Called when the user clicks the icon.
-			await this.scheduledSynchronization();
-			new Notice(`Sync completed..`);
-		});
-
-		//Used for testing adhoc code.
-		// const ribbonIconEl1 = this.addRibbonIcon('check', 'TickTickSync', async (evt: MouseEvent) => {
-			// // Nothing to see here right now.
-			// // updateTasks([])
-			// let foo =  {tasks: getTasks(), projects: getProjects()}
-			// log("debug", "What", foo)
-		// });
-
-
-		this.registerEvents();
-		this.reloadInterval();
-
-		// set default project for TickTick task in the current file
-		// This adds an editor command that can perform some operation on the current editor instance
-		this.addCommand({
-			id: 'set-default-project-for-TickTick-task-in-the-current-file',
-			name: 'Set default TickTick project for Tasks in the current file',
-			editorCallback: (editor: Editor, view: MarkdownView | MarkdownFileInfo) => {
-				if (!view || !view.file) {
-					new Notice(`No active file.`)
-					return;
-				}
-				const filepath = view.file.path;
-				new SetDefaultProjectForFileModal(this.app, this, filepath);
-			}
-		});
-
-		//display default project for the current file on status bar
-		// This adds a status bar item to the bottom of the app. Does not work on mobile apps.
-		this.statusBar = this.addStatusBarItem();
-
-		log('debug', `loaded plugin "${this.manifest.name}" v${this.manifest.version}`);
-	}
-
-	private syncIntervalId?: number;
 	reloadInterval() {
 		if (this.syncIntervalId) {
 			window.clearInterval(this.syncIntervalId);
@@ -141,14 +79,366 @@ export default class TickTickSync extends Plugin {
 	}
 
 	// Configure logging.
-	reloadLogging() {
-		const options: LogOptions = {
-			minLevels: {
-				'': getSettings().logLevel,
-				ticktick: getSettings().logLevel,
-			},
-		};
-		logging.configure(options);
+	// reloadLogging() {
+	// 	const options: LogOptions = {
+	// 		minLevels: {
+	// 			'': getSettings().logLevel,
+	// 			ticktick: getSettings().logLevel
+	// 		}
+	// 	};
+	// 	logging.configure(options);
+	// }
+
+	async onunload() {
+		if (this.syncIntervalId) {
+			window.clearInterval(this.syncIntervalId);
+		}
+		log.debug(`TickTickSync unloaded!`);
+	}
+
+	async loadSettings() {
+		try {
+			let data = await this.loadData();
+			try {
+				data = await this.migrateData(data);
+			} catch (error) {
+				log.error('Failed to migrate data:', error);
+				return false; // Returning false indicates that the setting loading failed
+			}
+			if (data?.TickTickTasksData) {
+				updateProjects(data.TickTickTasksData.projects);
+				updateTasks(data.TickTickTasksData.tasks);
+				updateProjectGroups(data.TickTickTasksData.projectGroups);
+				delete data.TickTickTasksData;
+			}
+			const settings = Object.assign({}, DEFAULT_SETTINGS, data);
+			updateSettings(settings);
+		} catch (error) {
+			log.error(`Failed to load data:( ${error})`);
+			return false; // Returning false indicates that the setting loading failed
+		}
+		return true; // Returning true indicates that the settings are loaded successfully
+	}
+
+	async saveSettings() {
+		try {
+			const settings = getSettings();
+			// Verify that the setting exists and is not empty
+			if (settings && Object.keys(settings).length > 0) {
+				await this.saveData( //TODO: migrate to getSettings
+					{
+						...settings,
+						TickTickTasksData: { 'projects': getProjects(), 'tasks': getTasks() }
+					});
+			} else {
+				log.warn('Settings are empty or invalid, not saving to avoid data loss.');
+			}
+		} catch (error) {
+			//Print or handle errors
+			log.error('Error saving settings:', error);
+		}
+	}
+
+	// return true of false
+	async initializePlugin(): Promise<boolean> {
+		if (!getSettings().token) {
+			return false;
+		}
+
+		const isProjectsSaved = await this.saveProjectsToCache();
+		if (!isProjectsSaved) {// invalid token or offline?
+			this.tickTickRestAPI = undefined;
+			new Notice(`TickTickSync plugin initialization failed, please check userID and password in settings.`);
+			return false;
+		}
+
+		this.initializeModuleClass();
+		//Create a backup folder to back up TickTick data
+		try {
+			//Back up all data before each startup
+			if (!getSettings().skipBackup) {
+				this.service.backup();
+			}
+		} catch (error) {
+			log.error('error creating user data folder: ', error);
+			new Notice(`error creating user data folder`);
+			return false;
+		}
+		new Notice('TickTickSync loaded successfully.' + getSettings().skipBackup ? ' Skipping backup.' : 'TickTick data has been backed up.');
+		return true;
+	}
+
+	initializeModuleClass() {
+		// log.debug("initializeModuleClass")
+		//initialize TickTick restapi
+		if (!this.tickTickRestAPI) {
+			// log.debug("API wasn't inited?")
+			this.tickTickRestAPI = new TickTickRestAPI(this.app, this, null);
+		}
+	}
+
+	async lineNumberCheck(): Promise<boolean> {
+		const markDownView = this.app.workspace.getActiveViewOfType(MarkdownView);
+		if (!markDownView) {
+			return false;
+		}
+
+		const cursor = markDownView?.editor.getCursor();
+		const line = cursor?.line;
+		//const lineText = view.editor.getLine(line)
+		const fileContent = markDownView.data;
+
+		//log.debug(line)
+		//const fileName = view.file?.name
+		const file = markDownView?.app.workspace.activeEditor?.file;
+		const fileName = file?.name;
+		const filepath = file?.path;
+
+		if (typeof this.lastLines === 'undefined' || typeof this.lastLines.get(fileName as string) === 'undefined') {
+			this.lastLines.set(fileName as string, line as number);
+			return false;
+		}
+
+		//log.debug(`filename is ${fileName}`)
+		if (this.lastLines.has(fileName as string) && line !== this.lastLines.get(fileName as string)) {
+			const lastLine = this.lastLines.get(fileName as string);
+			// if (this.settings.debugMode) {
+			// 	log.debug('Line changed!', `current line is ${line}`, `last line is ${lastLine}`);
+			// }
+
+			//Perform the operation you want
+			const lastLineText = markDownView.editor.getLine(lastLine as number);
+			// log.debug(lastLineText)
+			if (!(this.checkModuleClass())) {
+				return false;
+			}
+			this.lastLines.set(fileName as string, line as number);
+
+			return await this.service.lineModifiedTaskCheck(filepath as string, lastLineText, lastLine as number);
+		} else {
+			//log.debug('Line not changed');
+		}
+		return false;
+	}
+
+	async checkboxEventhandler(evt: MouseEvent, editor: Editor) {
+		const target = evt.target as HTMLInputElement;
+		const bOpenTask = target.checked;
+
+		if (editor) {
+			const cursor = editor.getCursor('from'); // Get the cursor position
+			const mouse = editor.posAtMouse(evt);
+			const line = mouse.line; // Line where the click occurred
+			const clickedText = editor.getLine(line); // Get the text at the clicked line
+			if (this.taskParser.isMarkdownTask(clickedText)) {
+				const taskId = this.taskParser.getTickTickId(clickedText);
+				if (taskId) {
+					if (bOpenTask) {
+						await this.service.closeTask(taskId);
+					} else {
+						await this.service.openTask(taskId);
+					}
+				} else {
+					const itemID = this.taskParser.getLineItemId(clickedText);
+					if (itemID) {
+						new Notice('Item will be updated on next sync');
+					}
+				}
+			}
+		}
+	}
+
+
+	//return true
+	checkModuleClass() {
+		if (!getSettings().token) {
+			new Notice(`Please login from settings.`);
+			return false;
+		}
+
+		if (!this.service.initialized) {
+			this.service.initialize();
+		}
+		if (this.tickTickRestAPI === undefined) {
+			this.initializeModuleClass();
+		}
+		return true;
+	}
+
+	async setStatusBarText() {
+		const markDownView = this.app.workspace.getActiveViewOfType(MarkdownView);
+		if (!markDownView || !markDownView.file) {
+			this.statusBar?.setText('');
+			return;
+		}
+
+		const filepath = markDownView.file.path;
+		let defaultProjectName = await this.cacheOperation.getDefaultProjectNameForFilepath(filepath);
+		if (!defaultProjectName) {
+			if (filepath.startsWith('Inbox')) {
+				defaultProjectName = 'Inbox';
+			} else {
+				defaultProjectName = 'No default Project';
+			}
+		}
+		this.statusBar?.setText(defaultProjectName);
+
+	}
+
+	async scheduledSynchronization() {
+		if (!this.checkModuleClass()) {
+			return;
+		}
+
+		const startTime = performance.now();
+		log.debug(`TickTick scheduled synchronization task started at ${new Date().toLocaleString()}`);
+		try {
+			await this.service.synchronization();
+		} catch (error) {
+			log.error('An error occurred: ', error);
+			new Notice(`An error occurred: ${error}`);
+		}
+		const endTime = performance.now();
+		log.debug(`TickTick scheduled synchronization task completed at ${new Date().toLocaleString()}, took ${(endTime - startTime).toFixed(2)} ms`);
+	}
+
+
+	// async oldCheckboxEventhandle(evt: MouseEvent) {
+	// 	if (!(this.checkModuleClass())) {
+	// 		return;
+	// 	}
+	//
+	//
+	// 	const target = evt.target as HTMLInputElement;
+	// 	const bOpenTask = target.checked;
+	// 	log.debug('Second: Checked: ', bOpenTask);
+	//
+	// 	//This breaks for subtasks if Tasks is installed. See: https://github.com/obsidian-tasks-group/obsidian-tasks/discussions/2685
+	// 	//hence the else.
+	// 	const taskElement = target.closest('div');
+	// 	if (taskElement) {
+	// 		const taskLine = taskElement.textContent;
+	// 		const taskId = this.taskParser?.getTickTickId(taskLine);
+	// 		if (taskId) {
+	// 			// let task = this.taskParser?.convertTextToTickTickTaskObject(tas)
+	// 			if (bOpenTask) {
+	// 				log.debug('it\'s open, close it.');
+	// 				this.tickTickSync?.closeTask(taskId);
+	// 			} else {
+	// 				log.debug('it\'s closed, open it.');
+	// 				this.tickTickSync?.reopenTask(taskId);
+	// 			}
+	// 		}
+	// 	} else {
+	// 		log.debug('#### TickTick_id not found -- do it the hard way.');
+	// 		//Start full-text search and check status updates
+	// 		try {
+	// 			log.debug('#### Full text modified??');
+	// 			let file = this.app.workspace.getActiveFile();
+	// 			let filePath = null;
+	// 			if (file instanceof TFile) {
+	// 				filePath = file.path;
+	// 			}
+	//
+	// 			if (!await this.checkAndHandleSyncLock()) return;
+	// 			await this.tickTickSync?.fullTextModifiedTaskCheck(filePath);
+	// 			await this.unlockSynclock();
+	// 		} catch (error) {
+	// 			log.error(`An error occurred while check modified tasks in the file: ${error}`);
+	// 			await this.unlockSynclock();
+	//
+	// 		}
+	// 	}
+	// }
+
+	async saveProjectsToCache(): Promise<boolean> {
+		if (!this.checkModuleClass()) {
+			return false;
+		}
+		let result = false;
+		const startTime = performance.now();
+		log.debug(`TickTick saveProjectsToCache started at ${new Date().toLocaleString()}`);
+		try {
+			result = await this.service.saveProjectsToCache();
+		} catch (error) {
+			log.error(`An error in saveProjectsToCache occurred:( ${error}`);
+			new Notice(`An error in saveProjectsToCache occurred: ${error}`);
+		}
+		const endTime = performance.now();
+		log.debug(`TickTick saveProjectsToCache completed at ${new Date().toLocaleString()}, took ${(endTime - startTime).toFixed(2)} ms`);
+		return result;
+	}
+
+	private async pluginLoad() {
+
+		log.info(`loading plugin "${this.manifest.name}" v${this.manifest.version}`);
+
+		const isSettingsLoaded = await this.loadSettings();
+		if (!isSettingsLoaded) {
+			new Notice('Settings failed to load. Please reload the TickTickSync plugin.');
+			return;
+		}
+
+		// This adds a settings tab so the user can configure various aspects of the plugin
+		this.addSettingTab(new TickTickSyncSettingTab(this.app, this));
+
+		try {
+			await this.initializePlugin();
+		} catch (error) {
+			log.error(`API Initialization Failed.( ${error})`);
+		}
+
+		store.service.set(this.service);
+		const queryInjector = new QueryInjector(this);
+		this.registerMarkdownCodeBlockProcessor(
+			'ticktick',
+			queryInjector.onNewBlock.bind(queryInjector)
+		);
+
+
+		const ribbonIconEl = this.addRibbonIcon('sync', 'TickTickSync', async (evt: MouseEvent) => {
+			// Called when the user clicks the icon.
+			await this.scheduledSynchronization();
+			new Notice(`Sync completed..`);
+		});
+
+		//Used for testing adhoc code.
+		const ribbonIconEl1 = this.addRibbonIcon('check', 'TTS Test', async (evt: MouseEvent) => {
+			// Nothing to see here right now.
+			// const { target } = evt;
+
+
+			log.warn('a Warning');
+			log.info('an Info');
+			log.trace('a Trace');
+			log.error('an Error');
+			log.debug('a log.debug');
+		});
+
+
+		this.registerEvents();
+		this.reloadInterval();
+
+		// set default project for TickTick task in the current file
+		// This adds an editor command that can perform some operation on the current editor instance
+		this.addCommand({
+			id: 'set-default-project-for-TickTick-task-in-the-current-file',
+			name: 'Set default TickTick project for Tasks in the current file',
+			editorCallback: (editor: Editor, view: MarkdownView | MarkdownFileInfo) => {
+				if (!view || !view.file) {
+					new Notice(`No active file.`);
+					return;
+				}
+				const filepath = view.file.path;
+				new SetDefaultProjectForFileModal(this.app, this, filepath);
+			}
+		});
+
+		//display default project for the current file on status bar
+		// This adds a status bar item to the bottom of the app. Does not work on mobile apps.
+		this.statusBar = this.addStatusBarItem();
+
+		log.info(`loaded plugin "${this.manifest.name}" v${this.manifest.version}`);
 	}
 
 	private registerEvents() {
@@ -164,7 +454,7 @@ export default class TickTickSync extends Plugin {
 			}
 
 			if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'PageUp', 'PageDown'].includes(evt.key)) {
-				// log('trace', `${evt.key} arrow key is released`);
+				//trace( `${evt.key} arrow key is released`);
 				if (!this.checkModuleClass()) {
 					return;
 				}
@@ -173,14 +463,14 @@ export default class TickTickSync extends Plugin {
 
 			if (['Delete', 'Backspace'].includes(evt.key)) {
 				try {
-					// log('trace', `${evt.key} arrow key is released`);
+					//trace( `${evt.key} arrow key is released`);
 					if (!(this.checkModuleClass())) {
 						return;
 					}
 					await this.service.deletedTaskCheck(null);
 					await this.saveSettings();
 				} catch (error) {
-					log('warn', `An error occurred while deleting tasks: ${error}`);
+					log.warn(`An error occurred while deleting tasks: ${error}`);
 				}
 
 			}
@@ -189,14 +479,19 @@ export default class TickTickSync extends Plugin {
 		// If the plugin hooks up any global DOM events (on parts of the app that doesn't belong to this plugin)
 		// Using this function will automatically remove the event listener when this plugin is disabled.
 		this.registerDomEvent(document, 'click', async (evt: MouseEvent) => {
+			//Here for future debugging.
+			const { target } = evt;
+
 			if (!getSettings().token) {
 				return;
 			}
 
 			const editor = this.app.workspace.activeEditor?.editor;
-			if (!editor || !editor.hasFocus()) {
-				return;
-			}
+
+			// if (!editor || !editor.hasFocus()) {
+			// 	log.debug("bail no focus");
+			// 	return;
+			// }
 
 			if (!(this.checkModuleClass())) {
 				return;
@@ -204,40 +499,41 @@ export default class TickTickSync extends Plugin {
 
 			await this.lineNumberCheck();
 
-			//Here for future debugging.
-			const {target} = evt;
 			if (target && target.type === 'checkbox') {
-				await this.checkboxEventhandle(evt);
+				await this.checkboxEventhandler(evt, editor);
 			}
-			// 	// this.tickTickSync?.fullTextModifiedTaskCheck()
-			//
-			// }
-
 		});
 
 
 		//hook editor-change event, if the current line contains #ticktick, it means there is a new task
+		//TODO: This gets called on every keystroke. Consider giving the user the option to only check for changes
+		//      keyup, or keyup and specific events (eg: enter, up-arrow, down-arrow)
+		//for now, we'll debounce it.
 		this.registerEvent(this.app.workspace.on('editor-change', async (editor: Editor, info: MarkdownView | MarkdownFileInfo) => {
-			try {
-				if (!getSettings().token) {
-					return;
-				}
+			let processTimeOut: ReturnType<typeof setTimeout>;
+			processTimeOut = setTimeout(async () => {
+				clearTimeout(processTimeOut);
+				try {
+					if (!getSettings().token) {
+						return;
+					}
 
-				//TODO: lineNumberCheck also triggers a line modified check. I suspect this is redundant and
-				//      inefficient when a new task is being added. I've added returns out of there, but I need for find if the last line check
-				//      is needed for an add.
-				await this.lineNumberCheck();
-				if (!(this.checkModuleClass())) {
-					return;
+					//TODO: lineNumberCheck also triggers a line modified check. I suspect this is redundant and
+					//      inefficient when a new task is being added. I've added returns out of there, but I need for find if the last line check
+					//      is needed for an add.
+					await this.lineNumberCheck();
+					if (!(this.checkModuleClass())) {
+						return;
+					}
+					if (getSettings().enableFullVaultSync) {
+						return;
+					}
+					await this.service.lineNewContentTaskCheck(editor, info);
+					await this.saveSettings();
+				} catch (error) {
+					log.error('An error occurred while check new task in line: ', error);
 				}
-				if (getSettings().enableFullVaultSync) {
-					return;
-				}
-				await this.service.lineContentNewTaskCheck(editor, info);
-				await this.saveSettings();
-			} catch (error) {
-				log('error', 'An error occurred while check new task in line:', error);
-			}
+			}, 1000);
 		}));
 
 		//Listen to the delete event
@@ -268,11 +564,11 @@ export default class TickTickSync extends Plugin {
 		//Listen for file modified events and execute fullTextNewTaskCheck
 		this.registerEvent(this.app.vault.on('modify', async (file) => {
 			try {
+				// log.debug('modified.', file.name);
 				if (!getSettings().token) {
 					return;
 				}
 				const filepath = file.path;
-				// console.log(`${filepath} is modified`)
 				//get current view
 				const activateFile = this.app.workspace.getActiveFile();
 				//To avoid conflicts, Do not check files being edited
@@ -283,7 +579,7 @@ export default class TickTickSync extends Plugin {
 
 				await this.service.fullTextNewTaskCheck(filepath);
 			} catch (error) {
-				log('error', 'An error occurred while modifying the file:', error);
+				log.error('An error occurred while modifying the file: ', error);
 				// You can add further error handling logic here. For example, you may want to
 				// revert certain operations, or alert the user about the error.
 			}
@@ -292,38 +588,6 @@ export default class TickTickSync extends Plugin {
 		this.registerEvent(this.app.workspace.on('active-leaf-change', async (leaf) => {
 			await this.setStatusBarText();
 		}));
-    }
-
-
-	async onunload() {
-		if (this.syncIntervalId) {
-			window.clearInterval(this.syncIntervalId);
-		}
-		log('debug', `TickTickSync unloaded!`);
-	}
-
-	async loadSettings() {
-		try {
-			let data = await this.loadData();
-			try {
-				data = await this.migrateData(data);
-			} catch (error) {
-				console.error('Failed to migrate data:', error);
-				return false; // Returning false indicates that the setting loading failed
-			}
-			if (data?.TickTickTasksData) {
-				updateProjects(data.TickTickTasksData.projects);
-				updateTasks(data.TickTickTasksData.tasks);
-				updateProjectGroups(data.TickTickTasksData.projectGroups);
-				delete data.TickTickTasksData;
-			}
-			const settings = Object.assign({}, DEFAULT_SETTINGS, data);
-			updateSettings(settings);
-		} catch (error) {
-			log('error', 'Failed to load data:', error);
-			return false; // Returning false indicates that the setting loading failed
-		}
-		return true; // Returning true indicates that the settings are loaded successfully
 	}
 
 	private async migrateData(data: any) {
@@ -334,7 +598,7 @@ export default class TickTickSync extends Plugin {
 		//We're going to handle data structure conversions here.
 		if (!data.version) {
 			const fileMetaDataStructure = data.fileMetadata;
-			if (Array.isArray(fileMetaDataStructure)){
+			if (Array.isArray(fileMetaDataStructure)) {
 				for (const file in fileMetaDataStructure) {
 					const oldTasksHolder = fileMetaDataStructure[file]; //an array of tasks.
 					let newTasksHolder = {};
@@ -383,232 +647,6 @@ export default class TickTickSync extends Plugin {
 		}
 
 		return data;
-    }
-
-	async saveSettings() {
-		try {
-			const settings = getSettings();
-			// Verify that the setting exists and is not empty
-			if (settings && Object.keys(settings).length > 0) {
-				await this.saveData( //TODO: migrate to getSettings
-					{
-						...settings,
-						TickTickTasksData: {"projects": getProjects(), "tasks": getTasks()}
-					});
-			} else {
-				log('warn', 'Settings are empty or invalid, not saving to avoid data loss.');
-			}
-		} catch (error) {
-			//Print or handle errors
-			log('error', 'Error saving settings:', error);
-		}
-	}
-
-
-	// return true of false
-	async initializePlugin(): Promise<boolean> {
-		if (!getSettings().token) {
-			return false;
-		}
-
-		const isProjectsSaved = await this.saveProjectsToCache();
-		if (!isProjectsSaved) {// invalid token or offline?
-			this.tickTickRestAPI = undefined;
-			new Notice(`TickTickSync plugin initialization failed, please check userID and password in settings.`);
-			return false;
-		}
-
-		this.initializeModuleClass();
-		//Create a backup folder to back up TickTick data
-		try {
-			//Back up all data before each startup
-			if (!getSettings().skipBackup) {
-				this.service.backup();
-			}
-		} catch (error) {
-			log('error', 'error creating user data folder:', error);
-			new Notice(`error creating user data folder`);
-			return false;
-		}
-		new Notice('TickTickSync loaded successfully.' + getSettings().skipBackup ? ' Skipping backup.' : 'TickTick data has been backed up.');
-		return true;
-	}
-
-	initializeModuleClass() {
-		// console.log("initializeModuleClass")
-		//initialize TickTick restapi
-		if (!this.tickTickRestAPI) {
-			// console.log("API wasn't inited?")
-			this.tickTickRestAPI = new TickTickRestAPI(this.app, this, null);
-		}
-	}
-
-	async lineNumberCheck(): Promise<boolean> {
-		const markDownView = this.app.workspace.getActiveViewOfType(MarkdownView);
-		if (!markDownView) {
-			return false;
-		}
-
-		const cursor = markDownView?.editor.getCursor();
-		const line = cursor?.line;
-		//const lineText = view.editor.getLine(line)
-		const fileContent = markDownView.data;
-
-		//console.log(line)
-		//const fileName = view.file?.name
-		const file = markDownView?.app.workspace.activeEditor?.file;
-		const fileName = file?.name;
-		const filepath = file?.path;
-
-		if (typeof this.lastLines === 'undefined' || typeof this.lastLines.get(fileName as string) === 'undefined') {
-			this.lastLines.set(fileName as string, line as number);
-			return false;
-		}
-
-		//console.log(`filename is ${fileName}`)
-		if (this.lastLines.has(fileName as string) && line !== this.lastLines.get(fileName as string)) {
-			const lastLine = this.lastLines.get(fileName as string);
-			// if (this.settings.debugMode) {
-			// 	console.log('Line changed!', `current line is ${line}`, `last line is ${lastLine}`);
-			// }
-
-			//Perform the operation you want
-			const lastLineText = markDownView.editor.getLine(lastLine as number);
-			// console.log(lastLineText)
-			if (!(this.checkModuleClass())) {
-				return false;
-			}
-			this.lastLines.set(fileName as string, line as number);
-			// try{
-
-			return await this.service.lineModifiedTaskCheck(filepath as string, lastLineText, lastLine as number, fileContent);
-
-			// }catch(error){
-			//     console.error(`An error occurred while check modified task in line text: ${error}`);
-			//     await this.unlockSynclock();
-			// }
-		} else {
-			//console.log('Line not changed');
-		}
-		return false;
-	}
-
-	async checkboxEventhandle(evt: MouseEvent) {
-		const target = evt.target as HTMLInputElement;
-		const bOpenTask = target.checked;
-
-		new Notice(`Task will be updated as ${bOpenTask ? 'closed' : 'opened'} on next Sync`);
-	}
-
-
-	// async oldCheckboxEventhandle(evt: MouseEvent) {
-	// 	if (!(this.checkModuleClass())) {
-	// 		return;
-	// 	}
-	//
-	//
-	// 	const target = evt.target as HTMLInputElement;
-	// 	const bOpenTask = target.checked;
-	// 	console.log('Second: Checked: ', bOpenTask);
-	//
-	// 	//This breaks for subtasks if Tasks is installed. See: https://github.com/obsidian-tasks-group/obsidian-tasks/discussions/2685
-	// 	//hence the else.
-	// 	const taskElement = target.closest('div');
-	// 	if (taskElement) {
-	// 		const taskLine = taskElement.textContent;
-	// 		const taskId = this.taskParser?.getTickTickIdFromLineText(taskLine);
-	// 		if (taskId) {
-	// 			// let task = this.taskParser?.convertTextToTickTickTaskObject(tas)
-	// 			if (bOpenTask) {
-	// 				console.log('it\'s open, close it.');
-	// 				this.tickTickSync?.closeTask(taskId);
-	// 			} else {
-	// 				console.log('it\'s closed, open it.');
-	// 				this.tickTickSync?.reopenTask(taskId);
-	// 			}
-	// 		}
-	// 	} else {
-	// 		console.log('#### TickTick_id not found -- do it the hard way.');
-	// 		//Start full-text search and check status updates
-	// 		try {
-	// 			console.log('#### Full text modified??');
-	// 			let file = this.app.workspace.getActiveFile();
-	// 			let filePath = null;
-	// 			if (file instanceof TFile) {
-	// 				filePath = file.path;
-	// 			}
-	//
-	// 			if (!await this.checkAndHandleSyncLock()) return;
-	// 			await this.tickTickSync?.fullTextModifiedTaskCheck(filePath);
-	// 			await this.unlockSynclock();
-	// 		} catch (error) {
-	// 			console.error(`An error occurred while check modified tasks in the file: ${error}`);
-	// 			await this.unlockSynclock();
-	//
-	// 		}
-	// 	}
-	// }
-
-	//return true
-	checkModuleClass() {
-		if (!getSettings().token){
-			new Notice(`Please login from settings.`);
-			return false;
-		}
-
-		if (!this.service.initialized) {
-			this.service.initialize();
-		}
-		if (this.tickTickRestAPI === undefined) {
-			this.initializeModuleClass();
-		}
-		return true;
-	}
-
-	async setStatusBarText() {
-		const markDownView = this.app.workspace.getActiveViewOfType(MarkdownView);
-		if (!markDownView || !markDownView.file) {
-			this.statusBar?.setText('');
-			return;
-		}
-
-		const filepath = markDownView.file.path;
-		const defaultProjectName = await this.cacheOperation.getDefaultProjectNameForFilepath(filepath);
-		if (!defaultProjectName) {
-			// console.log(`projectName undefined`)
-			return;
-		}
-		this.statusBar?.setText(defaultProjectName);
-
-	}
-
-	async scheduledSynchronization() {
-		if (!this.checkModuleClass()) {
-			return;
-		}
-		log('debug', `TickTick scheduled synchronization task started at ${new Date().toLocaleString()}`)
-		try {
-			await this.service.synchronization();
-		} catch (error) {
-			log('error', 'An error occurred:', error);
-			new Notice(`An error occurred: ${error}`);
-		}
-		log('debug', `TickTick scheduled synchronization task completed at ${new Date().toLocaleString()}`)
-	}
-
-	async saveProjectsToCache(): Promise<boolean> {
-		if (!this.checkModuleClass()) {
-			return false;
-		}
-		log('debug', `TickTick saveProjectsToCache started at ${new Date().toLocaleString()}`)
-		try {
-			return await this.service.saveProjectsToCache();
-		} catch (error) {
-			log('error', 'An error in saveProjectsToCache occurred:', error);
-			new Notice(`An error in saveProjectsToCache occurred: ${error}`);
-		}
-		log('debug', `TickTick saveProjectsToCache completed at ${new Date().toLocaleString()}`)
-		return false;
 	}
 
 	private async LatestChangesModal(notableChanges: string[][]) {

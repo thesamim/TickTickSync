@@ -1,4 +1,4 @@
-import {App, Modal, Setting} from "obsidian";
+import { App, Modal, Setting } from 'obsidian';
 
 
 export class LatestChangesModal extends Modal {
@@ -7,11 +7,10 @@ export class LatestChangesModal extends Modal {
 	confirmLabel = 'Got it.';
 	message = '';
 	result: boolean;
-	intro = "<p>The following are user experience affecting changes from prior versions of TickTickSync.</p><p><strong>Strongly</strong> recommend that you take a backup ASAP.</p>";
+	intro = '<p>The following are user experience affecting changes from prior versions of TickTickSync.</p><p><strong>Strongly</strong> recommend that you take a backup ASAP.</p>';
 	notableChanges: string[][];
 	onSubmit: (result: boolean) => void;
 	resolvePromise: (value: (PromiseLike<boolean> | boolean)) => void;
-
 
 
 	constructor(app: App, notableChanges: string[][], onSubmit: (result: boolean) => void) {
@@ -24,8 +23,8 @@ export class LatestChangesModal extends Modal {
 	 * Called automatically by the Modal class when modal is opened.
 	 */
 	onOpen() {
-		const notableChangesURL = "https://github.com/thesamim/TickTickSync/wiki/Notable-Changes#"
-		let {titleEl, contentEl} = this;
+		const notableChangesURL = 'https://github.com/thesamim/TickTickSync/wiki/Notable-Changes#';
+		let { titleEl, contentEl } = this;
 		titleEl.setText(this.title);
 
 		let changesText = contentEl.createEl('p');
@@ -33,22 +32,22 @@ export class LatestChangesModal extends Modal {
 		changesText = contentEl.createEl('ol');
 		this.notableChanges.forEach(notableChange => {
 			let lineItem = changesText.createEl('li');
-			lineItem.createEl("a", { href: `${notableChangesURL}${notableChange[2]}`, text: `${notableChange[0]}` });
+			lineItem.createEl('a', { href: `${notableChangesURL}${notableChange[2]}`, text: `${notableChange[0]}` });
 			let holder = lineItem.createEl('ol');
-			holder.createEl("p", {text: `${notableChange[1]}`})
-		})
+			holder.createEl('p', { text: `${notableChange[1]}` });
+		});
 
 		new Setting(contentEl)
-		.addButton( confirmBtn => {
-			confirmBtn.setClass('ts_button');
-			confirmBtn.setWarning();
-			confirmBtn.setButtonText(this.confirmLabel);
-			confirmBtn.onClick( () => {
-				this.result = true;
-				this.onSubmit(this.result);
-				this.close();
-			})
-		})
+			.addButton(confirmBtn => {
+				confirmBtn.setClass('ts_button');
+				confirmBtn.setWarning();
+				confirmBtn.setButtonText(this.confirmLabel);
+				confirmBtn.onClick(() => {
+					this.result = true;
+					this.onSubmit(this.result);
+					this.close();
+				});
+			});
 
 	}
 
@@ -58,9 +57,10 @@ export class LatestChangesModal extends Modal {
 	onClose() {
 		this.titleEl.empty();
 		this.contentEl.empty();
-		super.onClose()
+		super.onClose();
 		this.resolvePromise(this.result);
 	}
+
 	public showModal(): Promise<boolean> {
 		this.open();
 		return new Promise(

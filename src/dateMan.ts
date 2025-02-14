@@ -10,9 +10,8 @@
 // }
 //
 // https://forum.obsidian.md/t/task-time-editing-ux-ui-advice/86124/2?u=thesamim
-import type {ITask} from './api/types/Task';
-import {log} from "@/utils/logging";
-import {getSettings} from "@/settings";
+import type { ITask } from './api/types/Task';
+import log from '@/utils/logger';
 
 enum date_emoji {
 	createdTime = '➕',
@@ -59,7 +58,7 @@ export class DateMan {
 		Called when a task is being examined for changes, or ready for update. (Called from convertLineToTask.)
 	*/
 	parseDates(inString: string): date_holder_type {
-		// console.log('parseDates: ', inString);
+		// log.debug('parseDates: ', inString);
 		let myDateHolder = this.getEmptydateHolder();
 
 		//look for times at the beginning of the line and save them.
@@ -73,13 +72,13 @@ export class DateMan {
 			fromTime = times[1];
 			toTime = times[2];
 		}
-		// console.log('fromTime: ', fromTime, 'toTime: ', toTime);
+		// log.debug('fromTime: ', fromTime, 'toTime: ', toTime);
 
 		for (const [key, value] of Object.entries(date_emoji)) {
-			// console.log("--", dateEmojiKey, date_emoji[dateEmojiKey]);
+			// log.debug("--", dateEmojiKey, date_emoji[dateEmojiKey]);
 			let dateItem = this.extractDates(inString, value);
 			if (dateItem) {
-				// console.log(`TRACETHIS: ${key}: ${value}`, dateItem);
+
 				if ((key == 'scheduled_date') || (key == 'startDate')) {
 					if ((fromTime) && (!dateItem.hasATime)) {
 						//they entered a time. Put it back. Assume either scheduled OR start date are populated.
@@ -115,7 +114,7 @@ export class DateMan {
 				myDateHolder[key] = dateItem;
 			}
 		}
-		// console.log('TRACETHIS parseDates Result: ', myDateHolder);
+
 		return myDateHolder;
 	}
 
@@ -127,8 +126,8 @@ export class DateMan {
 
 
 	//Assume that dateholder is populated by the time we get here.
-	addDatesToLine(inString: string, task: ITask, direction: string | null): string {
-		// console.log('TRACETHIS Direction: ', direction, 'addDatesToLine - in :', inString, 'and the task DH is: ', task.dateHolder);
+	addDatesToLine(inString: string, task: ITask): string {
+
 		let dateStrings: string[] = [];
 		let startDatetimeString: string = '';
 		let dueDatetimeString: string = '';
@@ -137,35 +136,37 @@ export class DateMan {
 		if (task.dateHolder) {
 			dateKeys = Object.keys(task.dateHolder);
 		} else {
-			console.error("No DateHolder found: ", task.dateHolder);
+			log.warn('No DateHolder found: ', task.dateHolder);
+			//Task probably added to a file after a move, with no dates.
+			task.dateHolder = this.getEmptydateHolder();
 		}
 
 		// if (direction === 'OBSUpdating') {
-			if (dateKeys) {
-				for (let i = 0; i < dateKeys.length; i++) {
-					const thisKey = dateKeys[i];
-					if (thisKey == 'isAllDay') {
-						continue;
-					}
-					const thisDate = task.dateHolder[thisKey];
-					if (thisDate && thisDate.isoDate) {
-						// console.log('TRACETHIS here key is: ', thisKey, thisDate);
-						const thisTimeString = this.buildDateLineComponent(thisDate.isoDate, thisDate.emoji, dateStrings);
-						switch (thisKey) {
-							case 'scheduled_date':
-							case 'startDate':
-								//It's going to be one or the other, and we don't care.
-								startDatetimeString = thisTimeString;
-								break;
-							case 'dueDate':
-								dueDatetimeString = thisTimeString;
-								break;
-						}
+		if (dateKeys) {
+			for (let i = 0; i < dateKeys.length; i++) {
+				const thisKey = dateKeys[i];
+				if (thisKey == 'isAllDay') {
+					continue;
+				}
+				const thisDate = task.dateHolder[thisKey];
+				if (thisDate && thisDate.isoDate) {
+
+					const thisTimeString = this.buildDateLineComponent(thisDate.isoDate, thisDate.emoji, dateStrings);
+					switch (thisKey) {
+						case 'scheduled_date':
+						case 'startDate':
+							//It's going to be one or the other, and we don't care.
+							startDatetimeString = thisTimeString;
+							break;
+						case 'dueDate':
+							dueDatetimeString = thisTimeString;
+							break;
 					}
 				}
-			} else {
-				console.error('Date Holder Keys Not found.');
 			}
+		} else {
+			log.error('Date Holder Keys Not found.');
+		}
 
 		if (!task.isAllDay) {
 			let startOfTask = inString.indexOf(']', 0); //assume the first ] is where we want to start adding stuff.
@@ -182,7 +183,7 @@ export class DateMan {
 			}
 		}
 		// else {
-		// 	console.log('TRACETHIS Task was all day! Not going to mess with times.');
+
 		// }
 
 		if (dateStrings) {
@@ -190,7 +191,7 @@ export class DateMan {
 				inString += ' ' + dateString;
 			});
 		}
-		// console.log('TRACETHIS addDatesToLine - out :', inString);
+
 		return inString;
 	}
 
@@ -198,18 +199,18 @@ export class DateMan {
 	//      and also get the times right.
 	stripDatesFromLine(inString: string): string | null {
 		let retString;
-		// console.log('stripDatesFromLine - in :', inString);
+		// log.debug('stripDatesFromLine - in :', inString);
 		let datesRegEx = /[➕⏳🛫📅✅❌]\s(\d{4}-\d{2}-\d{2})(\s\d{1,}:\d{2})?/gus;
 		retString = inString.replace(datesRegEx, '');
-		// console.log('stripDatesFromLine - dates :', retString);
+		// log.debug('stripDatesFromLine - dates :', retString);
 		const times_regex = /\[\s*(\d{1,2}:\d{2})(?:\s*-\s*(\d{1,2}:\d{2}))?\s*\]/gus;
 		retString = retString.replace(times_regex, '');
-		// console.log('stripDatesFromLine - out :', retString);
+		// log.debug('stripDatesFromLine - out :', retString);
 		return retString;
 	}
 
-	addDateHolderToTask(task: ITask, oldTask: ITask|undefined) {
-		// console.log('addDateStructToTask:', task.title, task.isAllDay, task.dueDate, task.startDate);
+	addDateHolderToTask(task: ITask, oldTask: ITask | undefined) {
+		// log.debug('addDateStructToTask:', task.title, task.isAllDay, task.dueDate, task.startDate);
 
 		let dates = this.getEmptydateHolder();
 		if (!('isAllDay' in task)) {
@@ -253,7 +254,7 @@ export class DateMan {
 
 		}
 		task.dateHolder = dates;
-		// console.log('TRACETHIS addDateHolderToTask:', task.dateHolder);
+
 	}
 
 
@@ -263,7 +264,7 @@ export class DateMan {
 		const editedTaskDates = lineTask.dateHolder;
 		const cachedTaskDates = TickTickTask.dateHolder;
 		if (!editedTaskDates) {
-			// console.error('TRACETHIS edited Task has no dateholder');
+			log.error('Edited Task has no dateholder');
 			//Did it used to have some kind of date?
 			if (cachedTaskDates) {
 				const dateKeys = Object.keys(cachedTaskDates);
@@ -286,7 +287,7 @@ export class DateMan {
 			return false;
 		}
 		if (!cachedTaskDates) {
-			console.error('TRACETHIS cached Task has no dateholder');
+			log.error('Cached Task has no dateholder');
 			return true;
 		}
 		const dateKeys = Object.keys(editedTaskDates);
@@ -310,13 +311,18 @@ export class DateMan {
 						bChanged = this.areDatesDifferent(editedTaskDates[thisKey].isoDate, cachedTaskDates[thisKey].isoDate);
 					} else {
 						//just look at the date components
-						bChanged = !(editedTaskDates[thisKey]?.date == cachedTaskDates[thisKey]?.date)
+						bChanged = !(editedTaskDates[thisKey]?.date == cachedTaskDates[thisKey]?.date);
 					}
 					if (bChanged) {
-						log("debug", "dateChanged", {key: thisKey, newDate: editedTaskDates[thisKey].isoDate, oldDate: cachedTaskDates[thisKey].isoDate});
+						log.debug('dateChanged', {
+							key: thisKey,
+							newDate: editedTaskDates[thisKey].isoDate,
+							oldDate: cachedTaskDates[thisKey].isoDate
+						});
 						return true;
 					}
-				} if (!editedTaskDates[thisKey] && cachedTaskDates[thisKey]) {
+				}
+				if (!editedTaskDates[thisKey] && cachedTaskDates[thisKey]) {
 					//they had a date. They removed it. Force change.
 					return true;
 				}
@@ -365,7 +371,7 @@ export class DateMan {
 	}
 
 	cleanDate(dateString: string) {
-		// console.log('Clean Date: ', dateString);
+		// log.debug('Clean Date: ', dateString);
 		if (dateString.includes('+-')) {
 			dateString = dateString.replace('+-', '-');
 
@@ -428,7 +434,7 @@ export class DateMan {
 		dateStrings.push(dateString);
 
 		if (dateComponents[1]) {
-			// console.log('Date component: ' + dateComponents[1] + ' - ' + dateString);
+			// log.debug('Date component: ' + dateComponents[1] + ' - ' + dateString);
 			timeString = dateComponents[1];
 		}
 		return timeString;
@@ -436,14 +442,14 @@ export class DateMan {
 
 	private extractDates(inString: string, dateEmoji: string) {
 		// @ts-ignore
-		// console.log("TRACETHIS: ", inString, dateEmoji);
+
 		let dateItem: date_time_type | null = {};
 		const date_regex = `(${dateEmoji})\\s(\\d{4}-\\d{2}-\\d{2})\\s*(\\d{1,}:\\d{2})*`;
 
 		let dateData = inString.match(date_regex);
 
 		if (dateData) {
-			// console.log("TRACETHIS extractDates", dateEmoji, dateData);
+
 			let returnDate = null;
 			let bhasATime = false;
 			if (!dateData[3]) {
@@ -475,7 +481,7 @@ export class DateMan {
 	}
 
 
-	private areDatesDifferent(editedDate: string, cachedDate: string ) {
+	private areDatesDifferent(editedDate: string, cachedDate: string) {
 		const utcDate1 = this.cleanDate(editedDate);
 		const utcDate2 = this.cleanDate(cachedDate);
 
@@ -490,15 +496,15 @@ export class DateMan {
 			// 	const minutes = Math.floor((timeDifferenceInMilliseconds % (1000 * 60 * 60)) / (1000 * 60));
 			//
 			// 	if (days > 0) {
-			// 		console.log(`The timestamps are ${days} days, ${hours} hours, and ${minutes} minutes apart.`);
+			// 		log.debug(`The timestamps are ${days} days, ${hours} hours, and ${minutes} minutes apart.`);
 			// 	} else if (hours > 0) {
-			// 		console.log(`The timestamps are ${hours} hours and ${minutes} minutes apart.`);
+			// 		log.debug(`The timestamps are ${hours} hours and ${minutes} minutes apart.`);
 			// 	} else if (minutes > 0) {
-			// 		console.log(`The timestamps are ${minutes} minutes apart.`);
+			// 		log.debug(`The timestamps are ${minutes} minutes apart.`);
 			// 	} else {
-			// 		console.log(`The timestamps are different, but not calculatable..`);
+			// 		log.debug(`The timestamps are different, but not calculatable..`);
 			// 	}
 			// }
-        }
+		}
 	}
 }

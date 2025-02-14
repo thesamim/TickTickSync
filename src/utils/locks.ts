@@ -46,7 +46,8 @@ export async function doWithLock<T>(lockName: string, task: () => Promise<T>): P
 	// Create the lock, which is simply a promise. Obtain the promise's resolve method which
 	// we can use to "unlock" the lock, which signals to the next task in line that it can start.
 
-	let unlock = () => {};
+	let unlock = () => {
+	};
 
 	const newLock = new Promise<void>((resolve) => {
 		unlock = resolve;

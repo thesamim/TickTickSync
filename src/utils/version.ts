@@ -1,4 +1,3 @@
-
 export function isOlder(version1: string, version2: string) {
 	const v1 = version1.split('.');
 	const v2 = version2.split('.');

@@ -1,10 +1,10 @@
-export { ITag }
+export { ITag };
 
 interface ITag {
-  name: string
-  label: string
-  sortOrder: any
-  sortType: string
-  color: string
-  etag: string
+	name: string;
+	label: string;
+	sortOrder: any;
+	sortType: string;
+	color: string;
+	etag: string;
 }

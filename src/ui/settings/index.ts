@@ -1,12 +1,21 @@
-import {App, Notice, PluginSettingTab, SearchComponent, Setting, TFolder} from "obsidian";
-import {ConfirmFullSyncModal} from "@/modals/ConfirmFullSyncModal";
-import {FolderSuggest} from "@/utils/FolderSuggester";
-import TickTickSync from "@/main";
-import {getSettings, updateSettings} from "@/settings";
+import { App, Notice, PluginSettingTab, SearchComponent, Setting, TFolder } from 'obsidian';
+import { ConfirmFullSyncModal } from '@/modals/ConfirmFullSyncModal';
+import { FolderSuggest } from '@/utils/FolderSuggester';
+import TickTickSync from '@/main';
+import { getSettings, updateSettings } from '@/settings';
+//logging
+//Logging
+import log from '@/utils/logger';
 
-const PROVIDER_OPTIONS: Record<string, string> = {"ticktick.com": "TickTick", "dida365.com": "Dida365"} as const;
-const TAGS_BEHAVIOR: Record<number, string> = {1: "AND", 2: "OR"} as const;
-const LOG_LEVEL: Record<string, string> = {"trace": "trace", "debug": "debug", "info": "info", "warn": "warn", "error": "error"} as const;
+const PROVIDER_OPTIONS: Record<string, string> = { 'ticktick.com': 'TickTick', 'dida365.com': 'Dida365' } as const;
+const TAGS_BEHAVIOR: Record<number, string> = { 1: 'AND', 2: 'OR' } as const;
+const LOG_LEVEL: Record<string, string> = {
+	'trace': 'trace',
+	'debug': 'debug',
+	'info': 'info',
+	'warn': 'warn',
+	'error': 'error'
+} as const;
 
 export class TickTickSyncSettingTab extends PluginSettingTab {
 	private readonly plugin: TickTickSync;
@@ -17,10 +26,10 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 	}
 
 	async display(): Promise<void> {
-		const {containerEl} = this;
+		const { containerEl } = this;
 
 		containerEl.empty();
-		containerEl.createEl('h1', {text: 'TickTickSync Settings'});
+		containerEl.createEl('h1', { text: 'TickTickSync Settings' });
 
 		this.addAuthBlock(containerEl);
 
@@ -38,20 +47,20 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 	private addAuthBlock(containerEl: HTMLElement) {
 
 		containerEl.createEl('hr');
-		containerEl.createEl('h1', {text: 'Access Control'});
+		containerEl.createEl('h1', { text: 'Access Control' });
 		let userLogin: string;
 		let userPassword: string;
 
 		new Setting(containerEl)
-			.setName("TickTick/Dida")
-			.setDesc("Select home server")
+			.setName('TickTick/Dida')
+			.setDesc('Select home server')
 			.setHeading()
 			.addDropdown(component =>
 				component
 					.addOptions(PROVIDER_OPTIONS)
 					.setValue(getSettings().baseURL)
 					.onChange(async (value: string) => {
-						updateSettings({baseURL: value});
+						updateSettings({ baseURL: value });
 						await this.saveSettings();
 					})
 			);
@@ -62,7 +71,7 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 			.setDesc('...')
 			.addText(text => text
 				.setPlaceholder('User Name')
-				.setValue("")
+				.setValue('')
 				.onChange(async (value) => {
 					userLogin = value;
 				})
@@ -73,30 +82,30 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 			.setDesc('...')
 			.addText(text => text
 				.setPlaceholder('Password')
-				.setValue("")
+				.setValue('')
 				.onChange(async (value) => {
 					userPassword = value;
 				})
-			)
+			);
 
 		//MB add a checkbox (with warning about risk) to give the user the option to save the email address
 
 		new Setting(containerEl)
-			.setName("Login")
-			.setDesc(getSettings().token ? "You are logged in. You can re-login here." : "Please login here.")
+			.setName('Login')
+			.setDesc(getSettings().token ? 'You are logged in. You can re-login here.' : 'Please login here.')
 			.addButton(loginBtn => {
 				loginBtn.setClass('ts_login_button');
-				loginBtn.setButtonText("Login");
-				loginBtn.setTooltip("Click To Login")
-				loginBtn.onClick( async () => {
-					await this.loginHandler(getSettings().baseURL, userLogin, userPassword)
-				})
-			})
+				loginBtn.setButtonText('Login');
+				loginBtn.setTooltip('Click To Login');
+				loginBtn.onClick(async () => {
+					await this.loginHandler(getSettings().baseURL, userLogin, userPassword);
+				});
+			});
 	}
 
 	private async addSyncBlock(containerEl: HTMLElement) {
 		containerEl.createEl('hr');
-		containerEl.createEl('h1', {text: 'Sync control'});
+		containerEl.createEl('h1', { text: 'Sync control' });
 
 		const projects = await this.plugin.service.getProjects();
 		const myProjectsOptions: Record<string, string> = projects.reduce((obj, item) => {
@@ -126,49 +135,49 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 					.addOption(getSettings().defaultProjectId, getSettings().defaultProjectName)
 					.addOptions(myProjectsOptions)
 					.onChange(async (value) => {
-						getSettings().defaultProjectId = value
-						updateSettings({defaultProjectName: await this.plugin.cacheOperation?.getProjectNameByIdFromCache(value)})
-						const defaultProjectFileName = getSettings().defaultProjectName + ".md"
+						getSettings().defaultProjectId = value;
+						updateSettings({ defaultProjectName: await this.plugin.cacheOperation?.getProjectNameByIdFromCache(value) });
+						const defaultProjectFileName = getSettings().defaultProjectName + '.md';
 						//make sure the file exists.
 						const defaultProjectFile = await this.plugin.fileOperation?.getOrCreateDefaultFile(defaultProjectFileName);
 						if (defaultProjectFile) {
-							this.plugin.cacheOperation?.setDefaultProjectIdForFilepath(defaultProjectFile.path, getSettings().defaultProjectId)
+							this.plugin.cacheOperation?.setDefaultProjectIdForFilepath(defaultProjectFile.path, getSettings().defaultProjectId);
 						} else {
-							new Notice("Unable to create file for selected default project " + getSettings().defaultProjectName)
+							new Notice('Unable to create file for selected default project ' + getSettings().defaultProjectName);
 						}
-						await this.plugin.saveSettings()
+						await this.plugin.saveSettings();
 					})
-			)
+			);
 		containerEl.createEl('hr');
-		containerEl.createEl('h2', {text: 'Limit synchronization'});
+		containerEl.createEl('h2', { text: 'Limit synchronization' });
 		new Setting(containerEl)
-			.setDesc("To limit the tasks TickTickSync will synchronize from TickTick to " +
-				"Obsidian select a tag and/or project(list) below. If a tag is entered, only tasks with that tag will be " +
-				"synchronized. If a project(list) is selected, only tasks in that project will be synchronized. If " +
-				"both are chosen the behavior will be determined by your settings. See result below.")
+			.setDesc('To limit the tasks TickTickSync will synchronize from TickTick to ' +
+				'Obsidian select a tag and/or project(list) below. If a tag is entered, only tasks with that tag will be ' +
+				'synchronized. If a project(list) is selected, only tasks in that project will be synchronized. If ' +
+				'both are chosen the behavior will be determined by your settings. See result below.');
 
 		new Setting(containerEl)
 			.setName('Project')
 			.setDesc('Only tasks in this project will be synchronized.')
 			.addDropdown(component =>
 				component
-					.addOption("", "")
+					.addOption('', '')
 					.addOptions(myProjectsOptions)
 					.setValue(getSettings().SyncProject)
 					.onChange(async (value) => {
-						updateSettings({SyncProject: value});
+						updateSettings({ SyncProject: value });
 						const fileMetaData = getSettings().fileMetadata;
 						const defaultProjectFileEntry = Object.values(fileMetaData).find(obj => obj.defaultProjectId === getSettings().SyncProject);
 						if (!defaultProjectFileEntry) {
-							const noticeMsg = "Did not find a default Project File for Project " +
+							const noticeMsg = 'Did not find a default Project File for Project ' +
 								myProjectsOptions?.[value] +
-								". Please create a file and set it's default to this project, or select a file to be the default for this project."
-							new Notice(noticeMsg, 0)
+								'. Please create a file and set it\'s default to this project, or select a file to be the default for this project.';
+							new Notice(noticeMsg, 0);
 						}
-						await this.plugin.saveSettings()
+						await this.plugin.saveSettings();
 						await this.display();
 					})
-			)
+			);
 
 		new Setting(containerEl)
 			.setName('Tag Behavior')
@@ -178,10 +187,10 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 					.addOptions(TAGS_BEHAVIOR)
 					.setValue(String(getSettings().tagAndOr))
 					.onChange(async (value) => {
-						updateSettings({tagAndOr: parseInt(value)});
+						updateSettings({ tagAndOr: parseInt(value) });
 						await this.plugin.saveSettings();
 						await this.display();
-					}))
+					}));
 
 		let saveSettingsTimeout: ReturnType<typeof setTimeout>;
 		new Setting(containerEl)
@@ -192,16 +201,16 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 				.onChange(async (value) => {
 					clearTimeout(saveSettingsTimeout);
 					saveSettingsTimeout = setTimeout(async () => {
-						if (value.startsWith("#")) {
+						if (value.startsWith('#')) {
 							value = value.substring(1);
 						}
-						updateSettings({SyncTag: value});
+						updateSettings({ SyncTag: value });
 						await this.plugin.saveSettings();
 						explanationText.innerHTML = this.getProjectTagText(myProjectsOptions);
 					}, 1000);
 				})
-			)
-		const explanationText = containerEl.createEl('p', {text: 'Project/Tag selection result.'});
+			);
+		const explanationText = containerEl.createEl('p', { text: 'Project/Tag selection result.' });
 		explanationText.innerHTML = this.getProjectTagText(myProjectsOptions);
 
 		containerEl.createEl('hr');
@@ -213,22 +222,22 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 					.setPlaceholder('Sync interval')
 					.setValue(getSettings().automaticSynchronizationInterval.toString())
 					.onChange(async (value) => {
-						const intervalNum = Number(value)
+						const intervalNum = Number(value);
 						if (isNaN(intervalNum) || !Number.isInteger(intervalNum)) {
-							new Notice(`Wrong type, please enter a integer.`)
-							return
+							new Notice(`Wrong type, please enter a integer.`);
+							return;
 						}
 						if (intervalNum !== 0 && intervalNum < 20) {
-							new Notice(`The synchronization interval time cannot be less than 20 seconds.`)
-							return
+							new Notice(`The synchronization interval time cannot be less than 20 seconds.`);
+							return;
 						}
-						updateSettings({automaticSynchronizationInterval: intervalNum});
-						await this.saveSettings()
+						updateSettings({ automaticSynchronizationInterval: intervalNum });
+						await this.saveSettings();
 						this.plugin.reloadInterval();
 						new Notice('Settings have been updated.');
 						//
 					})
-			)
+			);
 
 
 		new Setting(containerEl)
@@ -241,37 +250,37 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 					.onChange(async (value) => {
 
 						if (!getSettings().enableFullVaultSync) {
-							const bConfirmation = await this.confirmFullSync()
+							const bConfirmation = await this.confirmFullSync();
 							if (bConfirmation) {
-								updateSettings({enableFullVaultSync: true})
-								await this.plugin.saveSettings()
-								new Notice("Full vault sync is enabled.")
+								updateSettings({ enableFullVaultSync: true });
+								await this.plugin.saveSettings();
+								new Notice('Full vault sync is enabled.');
 							} else {
-								updateSettings({enableFullVaultSync: false});
-								await this.plugin.saveSettings()
-								new Notice("Full vault sync not enabled.")
+								updateSettings({ enableFullVaultSync: false });
+								await this.plugin.saveSettings();
+								new Notice('Full vault sync not enabled.');
 							}
 							//TODO: if we don't do this, things get farckled.
 							await this.display();
 						} else {
-							updateSettings({enableFullVaultSync: value});
-							await this.plugin.saveSettings()
-							new Notice("Full vault sync is disabled.")
+							updateSettings({ enableFullVaultSync: value });
+							await this.plugin.saveSettings();
+							new Notice('Full vault sync is disabled.');
 						}
 					})
-			)
+			);
 	}
 
 	private addSyncDefaultFolderPath(): void {
 		let folderSearch: SearchComponent | undefined;
 		new Setting(this.containerEl)
-			.setName("Default folder location")
-			.setDesc("Folder to be used for TickTick Tasks.")
+			.setName('Default folder location')
+			.setDesc('Folder to be used for TickTick Tasks.')
 			.addSearch((cb) => {
 				folderSearch = cb;
 				new FolderSuggest(cb.inputEl);
-				cb.setPlaceholder("Example: folder1/folder2")
-					.setValue(getSettings().TickTickTasksFilePath)
+				cb.setPlaceholder('Example: folder1/folder2')
+					.setValue(getSettings().TickTickTasksFilePath);
 				// @ts-ignore
 				// maybe someday we'll style it.
 				// cb.containerEl.addClass("def-folder");
@@ -286,11 +295,11 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 					}
 					const updatedFolder = await this.validateNewFolder(newFolder);
 					if (getSettings().debugMode) {
-						console.log('updated folder: ', updatedFolder);
+						log.debug('updated folder: ', updatedFolder);
 					}
 					if (updatedFolder) {
-						folderSearch?.setValue(updatedFolder)
-						getSettings().TickTickTasksFilePath = updatedFolder
+						folderSearch?.setValue(updatedFolder);
+						getSettings().TickTickTasksFilePath = updatedFolder;
 						await this.plugin.saveSettings();
 					}
 
@@ -304,7 +313,7 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 			return;
 
 		containerEl.createEl('hr');
-		containerEl.createEl('h1', {text: 'Manual operations'});
+		containerEl.createEl('h1', { text: 'Manual operations' });
 
 		new Setting(containerEl)
 			.setName('Manual sync')
@@ -314,14 +323,14 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 				.onClick(async () => {
 					// Add code here to handle exporting TickTick data
 					if (!getSettings().token) {
-						new Notice(`Please log in from settings first`)
-						return
+						new Notice(`Please log in from settings first`);
+						return;
 					}
 					try {
-						await this.plugin.scheduledSynchronization()
-						new Notice(`Sync completed..`)
+						await this.plugin.scheduledSynchronization();
+						new Notice(`Sync completed..`);
 					} catch (error) {
-						new Notice(`An error occurred while syncing.:${error}`)
+						new Notice(`An error occurred while syncing.:${error}`);
 					}
 
 				})
@@ -335,8 +344,8 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 				.setButtonText('Check Database')
 				.onClick(async () => {
 					if (!getSettings().token) {
-						new Notice(`Please log in from settings first`)
-						return
+						new Notice(`Please log in from settings first`);
+						return;
 					}
 
 					await this.plugin.service.checkDataBase();
@@ -351,29 +360,29 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 				.onClick(() => {
 					// Add code here to handle exporting TickTick data
 					if (!getSettings().token) {
-						new Notice(`Please log in from settings first`)
-						return
+						new Notice(`Please log in from settings first`);
+						return;
 					}
-					this.plugin.service.backup()
+					this.plugin.service.backup();
 				})
 			);
 	}
 
 	private addDebugBlock(containerEl: HTMLElement) {
 		containerEl.createEl('hr');
-		containerEl.createEl('h1', {text: 'Debug options'});
+		containerEl.createEl('h1', { text: 'log.debug options' });
 
 		new Setting(containerEl)
-			.setName('Debug mode')
+			.setName('log.debug mode')
 			.setDesc('Allow access to developer settings.')
 			.addToggle(component =>
 				component
 					.setValue(getSettings().debugMode)
 					.onChange(async (value) => {
-						updateSettings({debugMode: value});
+						updateSettings({ debugMode: value });
 						await this.saveSettings(true);
 					})
-			)
+			);
 
 		if (!getSettings().debugMode) return;
 
@@ -385,10 +394,10 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 					.addOptions(LOG_LEVEL)
 					.setValue(getSettings().logLevel)
 					.onChange(async (value) => {
-						updateSettings({logLevel: value});
+						updateSettings({ logLevel: value });
 						await this.saveSettings(true);
-						this.plugin.reloadLogging();
-					}))
+						log.setLevel(value);
+					}));
 
 		new Setting(containerEl)
 			.setName('Skip backup')
@@ -397,10 +406,10 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 				component
 					.setValue(!!getSettings().skipBackup)
 					.onChange(async (value) => {
-						updateSettings({skipBackup: value});
+						updateSettings({ skipBackup: value });
 						await this.saveSettings();
 					})
-			)
+			);
 	}
 
 	/*
@@ -417,31 +426,34 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 	/*
 	
 	 */
-	
+
 	private async loginHandler(baseUrl?: string, username?: string, password?: string) {
 		if (!baseUrl || !username || !password ||
 			baseUrl.length < 1 || username.length < 1 || password.length < 1) {
-			new Notice("Please fill in both Username and Password")
+			new Notice('Please fill in both Username and Password');
 			return;
 		}
 
 		const info = await this.plugin.service.login(baseUrl, username, password);
 		if (!info) {
-			new Notice("Login Failed. ")
+			new Notice('Login Failed. ');
 			return;
 		}
 
 		const oldInboxId = getSettings().inboxID;
-		if (oldInboxId.length > 0 &&  oldInboxId != info.inboxId) {
+		if (oldInboxId.length > 0 && oldInboxId != info.inboxId) {
 			//they've logged in with a different user id ask user about it.
-			new Notice("You are logged in with a different user ID.")
+			new Notice('You are logged in with a different user ID.');
 		}
 		//if oldInboxId same as info.inboxId ask user about full re-syncing. set checkPoint to 0 to force full sync.
 
 		updateSettings({
 			token: info.token,
 			inboxID: info.inboxId,
+			inboxName: 'Inbox', //TODO: In the fullness of time find out how to get the Dida inbox name.
+			checkPoint: 0
 		});
+		this.plugin.tickTickRestAPI!.api!.checkpoint = 0;
 		await this.plugin.saveProjectsToCache();
 		await this.saveSettings(true);
 	}
@@ -452,7 +464,7 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 		const taskAndOr = getSettings().tagAndOr;
 
 		if (!project && !tag) {
-			return "No limitation.";
+			return 'No limitation.';
 		}
 		if (project && !tag) {
 			return `Only Tasks in <b>${project}</b> will be synchronized`;
@@ -467,7 +479,8 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 	}
 
 	private async confirmFullSync() {
-		const myModal = new ConfirmFullSyncModal(this.app, () => {});
+		const myModal = new ConfirmFullSyncModal(this.app, () => {
+		});
 		return await myModal.showModal();
 	}
 
@@ -481,16 +494,16 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 			//it doesn't exist, create it and return its path.
 			try {
 				newFolderFile = await this.app.vault.createFolder(newFolder);
-				new Notice(`New folder ${newFolderFile.path} created.`)
+				new Notice(`New folder ${newFolderFile.path} created.`);
 			} catch (error) {
-				new Notice(`Folder ${newFolder} creation failed: ${error}. Please correct and try again.`, 0)
+				new Notice(`Folder ${newFolder} creation failed: ${error}. Please correct and try again.`, 0);
 				return null;
 			}
 		}
 		if (newFolderFile instanceof TFolder) {
 			//they picked right, and the folder exists.
 			//new Notice(`Default folder is now ${newFolderFile.path}.`)
-			return newFolderFile.path
+			return newFolderFile.path;
 		}
 		return null;
 	}
