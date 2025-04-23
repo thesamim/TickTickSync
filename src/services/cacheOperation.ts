@@ -299,7 +299,7 @@ export class CacheOperation {
 			log.warn(errmsg);
 			throw new Error(errmsg);
 		}
-		// let errmsg = `File path not found for ${projectId}, returning ${filePath} instead. `
+		let errmsg = `File path not found for ${projectId}, returning ${filePath} instead. `
 		log.warn(errmsg);
 
 		// log.debug("returning : ", filePath + FILE_EXT);

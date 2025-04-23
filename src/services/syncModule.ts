@@ -353,11 +353,12 @@ export class SyncMan {
 				}
 			}
 
+			//TODO: Clean this up!
 			if (!savedTask) {
 				//Task in note, but not in cache. Assuming this would only happen in testing, delete the task from the note
-				log.error(`There is no task ${lineTask.id}, ${lineTask.title} in the local cache. It will be deleted from file ${filepath}`);
+				log.error(`There is no task for ${lineText.substring(0,10)} in the local cache. It will be deleted from file ${filepath}`);
 
-				new Notice(`There is no task ${lineTask.id}, ${lineTask.title} in the local cache. It will be deleted`);
+				new Notice(`There is no task ${lineText.substring(0,10)} in the local cache. It will be deleted`);
 				const file = this.plugin.app.vault.getAbstractFileByPath(filepath);
 				await this.plugin.fileOperation?.deleteTaskFromSpecificFile(file, lineTask, true);
 				return false;

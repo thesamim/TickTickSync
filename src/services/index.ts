@@ -82,7 +82,6 @@ export class TickTickService {
 				throw new Error(error.errorMessage);
 			}
 			//reset the checkpoint so next time they get ALL the tasks.
-			this.api!.checkpoint = 0
 			updateSettings({checkPoint: 0});
 			await this.plugin.saveSettings();
 			return result;

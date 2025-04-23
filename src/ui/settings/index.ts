@@ -373,7 +373,7 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 		containerEl.createEl('h1', { text: 'log.debug options' });
 
 		new Setting(containerEl)
-			.setName('log.debug mode')
+			.setName('Debug mode')
 			.setDesc('Allow access to developer settings.')
 			.addToggle(component =>
 				component
@@ -453,7 +453,9 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 			inboxName: 'Inbox', //TODO: In the fullness of time find out how to get the Dida inbox name.
 			checkPoint: 0
 		});
-		this.plugin.tickTickRestAPI!.api!.checkpoint = 0;
+		if (this.plugin.tickTickRestAPI && this.plugin.tickTickRestAPI.api) {
+			this.plugin.tickTickRestAPI!.api!.checkpoint = 0;
+		}
 		await this.plugin.saveProjectsToCache();
 		await this.saveSettings(true);
 	}
