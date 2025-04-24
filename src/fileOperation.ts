@@ -177,6 +177,7 @@ export class FileOperation {
 				file = this.app.vault.getAbstractFileByPath(taskFile);
 				if (!(file instanceof TFile)) {
 					file = await this.getOrCreateDefaultFile(taskFile);
+					log.debug('Creating new file: ', file.path);
 				}
 			}
 			let projectTasks = tasks.filter(task => task.projectId === projectId);
@@ -218,6 +219,8 @@ export class FileOperation {
 				log.warn(`Folder ${folderPath} does not exit. It will be created`);
 				folder = await this.app.vault.createFolder(folderPath);
 			}
+			//TODO: When we implement this, beware case sensitivity.!
+
 			// if (getSettings().keepProjectFolders && taskFile.includes('/')){
 			// 	const groupName = taskFile.substring(0, taskFile.indexOf('/'));
 			// 	const folderPath = (getSettings().TickTickTasksFilePath === '/' ?
@@ -226,7 +229,7 @@ export class FileOperation {
 			// 		+ groupName
 			// 	const groupFolder = this.app.vault.getAbstractFileByPath(folderPath);
 			// 	if (!(groupFolder instanceof TFolder)) {
-			log.warn(`Folder ${folderPath} does not exit. It will be created`);
+			// log.warn(`Folder ${folderPath} does not exit. It will be created`);
 			// 		await this.app.vault.createFolder(folderPath);
 			// 	}
 			// }
@@ -237,16 +240,28 @@ export class FileOperation {
 			try {
 				file = await this.app.vault.create(taskFile, `== Added by ${whoAdded} == `);
 			} catch (error) {
-				log.error('File creation failed: ', error);
 				if (error.message.includes('File already exists')) {
-					log.error('Attempting to find existing file');
-					//this has happened when we've had duplicated lists in TickTick.
-					//Until they fix it....
+					log.info('Attempting to find existing file', taskFile);
 					file = this.app.vault.getAbstractFileByPath(taskFile);
-					// if (file instanceof TFile) {
-					// 	const projectName = await this.plugin.cacheOperation?.getProjectNameByIdFromCache(projectId);
-					// 	// await this.app.vault.append(file, `\n====== Project **${projectName}** is probably duplicated in TickTick Adding tasks from other project here.  `)
-					// }
+					if (!file) {
+						const fileName = taskFile.split('/').pop();
+						if (fileName) {
+							//there's a file on the filesystem. But we can't get to it by name.
+							//try to find the file by name case insensitively
+							const files = this.app.vault.getMarkdownFiles()
+							for (const f of files) {
+								log.debug('Checking file', f.path);
+								if (f.path.toLowerCase() === fileName.toLowerCase()) {
+									log.debug('Found existing file', f.path);
+									file = f;
+									break;
+								}
+							}
+						}
+					}
+
+				} else {
+					throw error;
 				}
 			}
 			return file;
