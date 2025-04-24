@@ -398,22 +398,14 @@ export default class TickTickSync extends Plugin {
 
 		const ribbonIconEl = this.addRibbonIcon('sync', 'TickTickSync', async (evt: MouseEvent) => {
 			// Called when the user clicks the icon.
-			await this.scheduledSynchronization();
-			new Notice(`Sync completed..`);
+			await this.synchronizeNow();
 		});
 
-		//Used for testing adhoc code.
-		const ribbonIconEl1 = this.addRibbonIcon('check', 'TTS Test', async (evt: MouseEvent) => {
-			// Nothing to see here right now.
-			// const { target } = evt;
-
-
-			log.warn('a Warning');
-			log.info('an Info');
-			log.trace('a Trace');
-			log.error('an Error');
-			log.debug('a log.debug');
-		});
+		// //Used for testing adhoc code.
+		// const ribbonIconEl1 = this.addRibbonIcon('check', 'TTS Test', async (evt: MouseEvent) => {
+		// 	// Nothing to see here right now.
+		// 	// const { target } = evt;
+		// });
 
 
 		this.registerEvents();
@@ -423,7 +415,7 @@ export default class TickTickSync extends Plugin {
 		// This adds an editor command that can perform some operation on the current editor instance
 		this.addCommand({
 			id: 'set-default-project-for-TickTick-task-in-the-current-file',
-			name: 'Set default TickTick project for Tasks in the current file',
+			name: 'Set default TickTick project for current file',
 			editorCallback: (editor: Editor, view: MarkdownView | MarkdownFileInfo) => {
 				if (!view || !view.file) {
 					new Notice(`No active file.`);
@@ -433,12 +425,25 @@ export default class TickTickSync extends Plugin {
 				new SetDefaultProjectForFileModal(this.app, this, filepath);
 			}
 		});
+		this.addCommand({
+			id: 'tts-sync',
+			name: 'TickTick Sync Synchronize',
+			callback: async () => {
+				await this.synchronizeNow();
+			}
+		});
+
 
 		//display default project for the current file on status bar
 		// This adds a status bar item to the bottom of the app. Does not work on mobile apps.
 		this.statusBar = this.addStatusBarItem();
 
 		log.info(`loaded plugin "${this.manifest.name}" v${this.manifest.version}`);
+	}
+
+	private async synchronizeNow() {
+		await this.scheduledSynchronization();
+		new Notice(`Sync completed..`);
 	}
 
 	private registerEvents() {
