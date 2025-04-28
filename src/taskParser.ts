@@ -4,6 +4,7 @@ import type { ITask, ITaskItem } from '@/api/types/Task';
 import { getSettings } from '@/settings';
 import { sha256 } from 'crypto-hash';
 import type { FileMap, ITaskRecord } from '@/services/fileMap';
+import log from 'loglevel';
 
 interface dataviewTaskObject {
 	status: string;
@@ -376,27 +377,31 @@ export class TaskParser {
 			timeZone: timeZone,
 			dateHolder: allDatesStruct //Assume that there's a dateStruct of some kind
 		};
+
 		return task;
 
 	}
 
 	getNoteString(taskRecord: ITaskRecord) {
 		let bDescription = false;
-		let descriptionStrings = [...taskRecord.taskLines];
-		descriptionStrings.splice(0, 1); //get rid of the task, the rest is notes.
-		//TODO: need to differentiate between desc and content. For now, checking the first line content.
-		if (descriptionStrings[0].includes('Description')) {
-			bDescription = true;
+		let textContent = "";
+		if (!taskRecord.taskLines) {
+			let descriptionStrings = [...taskRecord.taskLines];
+			descriptionStrings.splice(0, 1); //get rid of the task, the rest is notes.
+			//TODO: need to differentiate between desc and content. For now, checking the first line content.
+			if (descriptionStrings[0].includes('Description')) {
+				bDescription = true;
+			}
+
+			//TODO if there's a notes preference need to account for it here.
+			//     for now, we're getting rid of the first line and the last line.
+
+			descriptionStrings.splice(0, 1);
+			descriptionStrings.splice(descriptionStrings.length - 1, 1);
+			descriptionStrings = descriptionStrings.map(line => line.replace(/^\t*\s{2}|^\s{2}/g, ''));
+
+			textContent = descriptionStrings.length > 0 ? descriptionStrings.join('\n') : '';
 		}
-
-		//TODO if there's a notes preference need to account for it here.
-		//     for now, we're getting rid of the first line and the last line.
-
-		descriptionStrings.splice(0, 1);
-		descriptionStrings.splice(descriptionStrings.length - 1, 1);
-		descriptionStrings = descriptionStrings.map(line => line.replace(/^\t*\s{2}|^\s{2}/g, ''));
-
-		const textContent = descriptionStrings.length > 0 ? descriptionStrings.join('\n') : '';
 		return { isDescription: bDescription, textContent: textContent };
 	}
 

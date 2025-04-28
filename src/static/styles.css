@@ -1,6 +1,26 @@
 /* Note To Self: This relies on task lines we care about being decorated with the .cm-tag-ticktick class */
+/*hide TickTick ID*/
 .cm-line:not(:hover):not(.cm-active):has(.cm-tag-ticktick) span.cm-comment {
 	display: none;
+}
+
+/*hide task item ID*/
+.HyperMD-task-line span.cm-comment {
+	display: none;
+}
+
+.dataview.inline-field-key[data-dv-key="ticktick_id"],
+.dataview.inline-field-key[data-dv-key="ticktick_id"] + span {
+	display: none;
+}
+
+.cm-line.cm-active span.cm-comment,
+.cm-line.cm-active .dataview.inline-field-key[data-dv-key="ticktick_id"],
+.cm-line.cm-active .dataview.inline-field-key[data-dv-key="ticktick_id"] + span,
+.cm-line:hover span.cm-comment,
+.cm-line:hover .dataview.inline-field-key[data-dv-key="ticktick_id"],
+.cm-line:hover .dataview.inline-field-key[data-dv-key="ticktick_id"] + span {
+	display: inline-block;
 }
 
 
@@ -42,20 +62,6 @@ button.ts_button[disabled]:hover {
 .project-table-border {
 	border: 2px solid var(--background-secondary);
 	padding: 10px;
-}
-
-.dataview.inline-field-key[data-dv-key="ticktick_id"],
-.dataview.inline-field-key[data-dv-key="ticktick_id"] + span {
-	display: none;
-}
-
-.cm-line.cm-active span.cm-comment,
-.cm-line.cm-active .dataview.inline-field-key[data-dv-key="ticktick_id"],
-.cm-line.cm-active .dataview.inline-field-key[data-dv-key="ticktick_id"] + span,
-.cm-line:hover span.cm-comment,
-.cm-line:hover .dataview.inline-field-key[data-dv-key="ticktick_id"],
-.cm-line:hover .dataview.inline-field-key[data-dv-key="ticktick_id"] + span {
-	display: inline-block;
 }
 
 /*changes below from @gsdtr*/

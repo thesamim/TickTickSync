@@ -72,13 +72,12 @@ export class DateMan {
 			fromTime = times[1];
 			toTime = times[2];
 		}
-		// log.debug('fromTime: ', fromTime, 'toTime: ', toTime);
+		log.debug('fromTime: ', fromTime, 'toTime: ', toTime);
 
 		for (const [key, value] of Object.entries(date_emoji)) {
 			// log.debug("--", dateEmojiKey, date_emoji[dateEmojiKey]);
-			let dateItem = this.extractDates(inString, value);
+			let dateItem = this.extractDates(key, inString, value);
 			if (dateItem) {
-
 				if ((key == 'scheduled_date') || (key == 'startDate')) {
 					if ((fromTime) && (!dateItem.hasATime)) {
 						//they entered a time. Put it back. Assume either scheduled OR start date are populated.
@@ -94,12 +93,13 @@ export class DateMan {
 						let timeToUSe = '';
 						if ((fromTime) && (toTime)) {
 							timeToUSe = toTime;
+							dateItem.hasATime = true;
 						} else if (fromTime) {
 							timeToUSe = fromTime;
+							dateItem.hasATime = true;
 						}
 						//they entered a time. Put it back. If they didn't, don't muck with it.
 						if (timeToUSe) {
-							dateItem.hasATime = true;
 							dateItem.time = timeToUSe;
 							const newDate = `${dateItem.date}T${timeToUSe}`;
 							dateItem.isoDate = this.formatDateToISO(new Date(newDate));
@@ -114,7 +114,6 @@ export class DateMan {
 				myDateHolder[key] = dateItem;
 			}
 		}
-
 		return myDateHolder;
 	}
 
@@ -339,7 +338,6 @@ export class DateMan {
 		if (isNaN(dateTime.getTime())) {
 			return 'Invalid Date';
 		}
-		const tzoffset = dateTime.getTimezoneOffset();
 		const convertedDate = new Date(dateTime.getTime());
 		return convertedDate.toISOString().replace(/Z$/, '+0000');
 	}
@@ -440,7 +438,7 @@ export class DateMan {
 		return timeString;
 	}
 
-	private extractDates(inString: string, dateEmoji: string) {
+	private extractDates(key: string, inString: string, dateEmoji: date_emoji) {
 		// @ts-ignore
 
 		let dateItem: date_time_type | null = {};
@@ -449,10 +447,20 @@ export class DateMan {
 		let dateData = inString.match(date_regex);
 
 		if (dateData) {
-
 			let returnDate = null;
 			let bhasATime = false;
 			if (!dateData[3]) {
+				// When TT schedules an all day event, it converts the due date to midnight of the next day.
+				// Meaning that when the date is displayed in TT it is reflecting the date adjusted to the time zone
+				// the user is seeing in the User interface, and it .
+				// Likewise in OBS the date is displayed to reflect the local timezone.
+				// In the fullness of time, figure out if there's a way around this.
+				// let timeToSet = '';
+				// if (key == 'dueDate') {
+				// 	timeToSet = '23:59';
+				// } else if ((key == 'scheduled_date') || (key == 'startDate')) {
+				// 	timeToSet = '00:01';
+				// }
 				returnDate = `${dateData[2]}T00:00:00.000`;
 				bhasATime = false;
 			} else {
@@ -467,6 +475,7 @@ export class DateMan {
 			}
 
 			returnDate = this.formatDateToISO(new Date(returnDate));
+			log.debug('returnDate	: ', returnDate);
 			dateItem = {
 				hasATime: bhasATime,
 				date: dateData[2],

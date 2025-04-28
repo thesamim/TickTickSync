@@ -39,6 +39,8 @@ import { DateMan } from '@/dateMan';
 
 //logging
 import log from '@/utils/logger';
+import { FileMap } from '@/services/fileMap';
+import type { ITask } from '@/api/types/Task';
 
 
 export default class TickTickSync extends Plugin {
@@ -370,14 +372,14 @@ export default class TickTickSync extends Plugin {
 	}
 
 	private async pluginLoad() {
-
-		log.info(`loading plugin "${this.manifest.name}" v${this.manifest.version}`);
-
 		const isSettingsLoaded = await this.loadSettings();
 		if (!isSettingsLoaded) {
 			new Notice('Settings failed to load. Please reload the TickTickSync plugin.');
 			return;
 		}
+		log.setLevel(getSettings().logLevel)
+		log.info(`loading plugin "${this.manifest.name}" v${this.manifest.version}`);
+
 
 		// This adds a settings tab so the user can configure various aspects of the plugin
 		this.addSettingTab(new TickTickSyncSettingTab(this.app, this));
@@ -401,7 +403,7 @@ export default class TickTickSync extends Plugin {
 			await this.synchronizeNow();
 		});
 
-		// //Used for testing adhoc code.
+		//Used for testing adhoc code.
 		// const ribbonIconEl1 = this.addRibbonIcon('check', 'TTS Test', async (evt: MouseEvent) => {
 		// 	// Nothing to see here right now.
 		// 	// const { target } = evt;
@@ -437,8 +439,6 @@ export default class TickTickSync extends Plugin {
 		//display default project for the current file on status bar
 		// This adds a status bar item to the bottom of the app. Does not work on mobile apps.
 		this.statusBar = this.addStatusBarItem();
-
-		log.info(`loaded plugin "${this.manifest.name}" v${this.manifest.version}`);
 	}
 
 	private async synchronizeNow() {
@@ -640,6 +640,11 @@ export default class TickTickSync extends Plugin {
 			//warn about the date/time foo
 			notableChanges.push(['New Date/Time Handling', 'Old date formats will be converted on the next synchronization operation.', 'priorTo1.0.40']);
 		}
+		if ((!data.version) || (isOlder(data.version, '1.1.1'))) {
+			//warn about the date/time foo
+			notableChanges.push(['Note Synchronization', 'TickTickSync will now synchronize Notes.', 'priorTo1.1.1']);
+		}
+
 
 		if (notableChanges.length > 0) {
 			await this.LatestChangesModal(notableChanges);
