@@ -7,8 +7,10 @@ import log from '@/utils/logger';
 
 export interface ITaskRecord {
 	ID?: string;
+	task: string;
 	taskLines: string[];
 	parentId?: string;
+	isNote: boolean;
 }
 
 export interface ITaskItemRecord {
@@ -156,10 +158,7 @@ export class FileMap {
 	}
 
 	getTaskRecord(id: string): ITaskRecord {
-		return {
-			taskLines: this.getTaskLines(id),
-			parentId: this.getParentId(id)
-		};
+		return this.getTaskLines(id);
 	}
 
 	getNumParentTabs(parentId: string) {
@@ -180,6 +179,7 @@ export class FileMap {
 				}
 			}
 		}
+		// log.debug(`Found ${taskItems}`);
 		return taskItems;
 	}
 
@@ -230,11 +230,11 @@ export class FileMap {
 	}
 
 	async getTaskRecordByLine(lineNumber: number) {
-		const taskRecord: ITaskRecord = {} as ITaskRecord;
+		let taskRecord: ITaskRecord = {} as ITaskRecord;
 		const parentId = this.getParentIDByIdx(lineNumber);
-		taskRecord.taskLines = this.getTaskLinesByIdx(lineNumber);
+		taskRecord = this.getTaskLinesByIdx(lineNumber, taskRecord);
 		taskRecord.parentId = parentId;
-
+		//TODO: Why did I think this was necessary?
 		//we're adding a task. The task notes, if any are going to be added
 		//back in when we do the inevitable update. Get rid of the original
 		//note lines here.
@@ -285,18 +285,20 @@ export class FileMap {
 
 	//returns Task lines (Task + notes/description with delimiters.)
 	private getTaskLines(id: string) {
+		let taskRecord: ITaskRecord = {} as ITaskRecord;
 		const taskIdx = this.getTaskIndex(id);
-		const taskLines = this.getTaskLinesByIdx(taskIdx);
-		return taskLines;
+		taskRecord = this.getTaskLinesByIdx(taskIdx, taskRecord);
+		return taskRecord;
 	}
 
-	private getTaskLinesByIdx(taskIdx: number) {
+	private getTaskLinesByIdx(taskIdx: number, taskRecord: ITaskRecord) {
 		const taskLines: string[] = [];
 		const numTabs = this.plugin.taskParser.getNumTabs(this.fileLines[taskIdx]);
+		taskRecord.parentId = this.getParentIDByIdx(taskIdx);
 		for (let i = taskIdx; i < this.fileLines.length; i++) {
 			const line = this.fileLines[i];
 			if (i === taskIdx) {
-				taskLines.push(line);
+				taskRecord.task = line;
 			} else {
 				//task lines added until we have a different indentation.
 				// (if more tabs, it's the next Item or Task. If less, it's the next task)
@@ -307,11 +309,35 @@ export class FileMap {
 				if (numTabs === lineTabsNum && !(this.plugin.taskParser.isMarkdownTask(line)) && line.startsWith(notePrefix)) {
 					taskLines.push(line);
 				} else {
+					//Do we have a Note or a description.
+					if (numTabs < lineTabsNum) {
+						if (this.plugin.taskParser.isMarkdownTask(line)) {
+							if (this.plugin.taskParser.getLineItemId(line)) {
+								//it's an item, so this is a description.
+								taskRecord.isNote = false;
+							} else if (this.plugin.taskParser.hasTickTickId(line)) {
+								//it's a child task
+								taskRecord.isNote = true;
+							}
+						} else {
+							//it's the next task or  next line.
+							taskRecord.isNote = true;
+						}
+					} else {
+						//we're on to something else.
+						taskRecord.isNote = true;
+					}
 					break;
 				}
 			}
 		}
-		return taskLines;
+		if (taskLines && taskLines.length > 0) {
+			taskRecord.taskLines = taskLines;
+			if (taskRecord.isNote == undefined) {
+				taskRecord.isNote = true;
+			}
+		}
+		return taskRecord;
 	}
 
 	private getParentId(id: string) {

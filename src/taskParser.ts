@@ -276,10 +276,10 @@ export class TaskParser {
 		if (taskRecord) {
 			if (taskRecord.taskLines.length > 1) {
 				const noteStruct = this.getNoteString(taskRecord);
-				if (noteStruct.isDescription) {
-					description = noteStruct.textContent;
-				} else {
+				if (noteStruct.isNote) {
 					content = noteStruct.textContent;
+				} else {
+					description = noteStruct.textContent;
 				}
 			}
 		} else {
@@ -383,41 +383,19 @@ export class TaskParser {
 	}
 
 	getNoteString(taskRecord: ITaskRecord) {
-		let bDescription = false;
 		let textContent = "";
-		if (!taskRecord.taskLines) {
+		if (taskRecord.taskLines) {
 			let descriptionStrings = [...taskRecord.taskLines];
-			descriptionStrings.splice(0, 1); //get rid of the task, the rest is notes.
-			//TODO: need to differentiate between desc and content. For now, checking the first line content.
-			if (descriptionStrings[0].includes('Description')) {
-				bDescription = true;
-			}
-
 			//TODO if there's a notes preference need to account for it here.
 			//     for now, we're getting rid of the first line and the last line.
-
 			descriptionStrings.splice(0, 1);
 			descriptionStrings.splice(descriptionStrings.length - 1, 1);
 			descriptionStrings = descriptionStrings.map(line => line.replace(/^\t*\s{2}|^\s{2}/g, ''));
-
 			textContent = descriptionStrings.length > 0 ? descriptionStrings.join('\n') : '';
 		}
-		return { isDescription: bDescription, textContent: textContent };
+		return { isNote: taskRecord.isNote, textContent: textContent };
 	}
-
-	getTaskItemsString(taskItemRecords: ITaskRecord[]) {
-		if (taskItemRecords) {
-			const taskLines = taskItemRecords.map(record => record.taskLines);
-			if (taskLines) {
-				return taskLines.join('\n');
-			} else {
-				return '';
-			}
-		}
-	}
-
 	hasTickTickTag(text: string) {
-
 		if (this.isMarkdownTask(text)) {
 			// log.debug("hasTickTickTag", `${text}
 			// ${REGEX.TickTick_TAG}

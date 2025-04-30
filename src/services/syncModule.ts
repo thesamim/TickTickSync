@@ -218,9 +218,9 @@ export class SyncMan {
 
 				//we want the line as it is in Obsidian.
 				const taskRecord = fileMap.getTaskRecord(newTask.id);
-				const taskString = fileMap.getTaskString(newTask.id);
-				const newHash = taskString + this.plugin.taskParser.getNoteString(taskRecord).textContent;
-				newTask.lineHash = await this.plugin.taskParser?.getLineHash(updatedText);
+				const taskString = taskRecord.task
+				const stringToHash = taskString + this.plugin.taskParser.getNoteString(taskRecord).textContent;
+				newTask.lineHash = await this.plugin.taskParser?.getLineHash(stringToHash);
 				await this.plugin.cacheOperation?.appendTaskToCache(newTask, filePath);
 				await this.plugin.saveSettings();
 			} catch (error) {
@@ -306,7 +306,7 @@ export class SyncMan {
 				log.error('Task Not Found in file map', fileMap.file, filepath, lineTask_ticktick_id);
 				return false;
 			}
-			if (!taskRecord.taskLines) {
+			if (!taskRecord.task) {
 				log.error('Task Not Found in file map', taskRecord, lineTask_ticktick_id);
 				return false;
 			}
@@ -1345,8 +1345,8 @@ export class SyncMan {
 			if (itemId) {
 				const oldItem = parentTask.items.find((item) => item.id == itemId);
 				if (oldItem) {
-					if (oldItem.title != newItem.description) {
-						oldItem.title = newItem?.description;
+					if (oldItem.title.trim() != newItem.description.trim()) {
+						oldItem.title = newItem?.description.trim();
 						oldItem.status = newItem?.status ? 2 : 0;
 						modified = true;
 					}

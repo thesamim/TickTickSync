@@ -41,6 +41,7 @@ import { DateMan } from '@/dateMan';
 import log from '@/utils/logger';
 import { FileMap } from '@/services/fileMap';
 import type { ITask } from '@/api/types/Task';
+import { waitFor } from '@/utils/locks';
 
 
 export default class TickTickSync extends Plugin {
@@ -63,6 +64,9 @@ export default class TickTickSync extends Plugin {
 		//We're doing too much at load time, and it's causing issues. Do it properly!
 
 		this.app.workspace.onLayoutReady(async () => {
+			//todo: detect end of sync and/or make sure there's not conflict somehow.
+			// log.debug(`TickTickSync onload pausing for 60 seconds to allow for sync to complete!`);
+			// await waitFor(60000)
 			await this.pluginLoad();
 		});
 
@@ -429,7 +433,7 @@ export default class TickTickSync extends Plugin {
 		});
 		this.addCommand({
 			id: 'tts-sync',
-			name: 'TickTick Sync Synchronize',
+			name: 'Synchronize',
 			callback: async () => {
 				await this.synchronizeNow();
 			}

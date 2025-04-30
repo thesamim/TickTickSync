@@ -2,55 +2,24 @@
 
 The TickTickSync plugin automatically creates tasks in TickTick and synchronizes task state between Obsidian and TickTick.
 
-**TickTickSync is now Mobile Compatible!**
+**TickTickSync is Mobile Compatible!**
 
 The plugin works best when the [Tasks](https://github.com/obsidian-tasks-group/obsidian-tasks) plugin is installed.
 
 ## Features
 
-- Any task created in Obsidian and tagged with #ticktick will be synchronized with TickTick
-- Any task created in TickTick will be synchronized to Obsidian, unless synchronization is limited. [details here](https://github.com/thesamim/TickTickSync/wiki/Documentation#limit-synchronization).
-- Updates are bi-directional
-- Tasks added or updated from Obsidian are synced to TickTick immediately.
-- Tasks added or updated from TickTick are synced on a configurable time interval.
-- Moving Tasks between Projects is now supported. Please see [Task movement documentation](https://github.com/thesamim/TickTickSync/wiki/Documentation#moving-tasks).
-- Moving Tasks between Parents is now supported.
+- Bidirectional synchronization of Tasks and Notes.
 - Date/Time compatibility with the [Tasks](https://github.com/obsidian-tasks-group/obsidian-tasks) plugin.   
 - Mobile Compatible.
 
- 🚩
->## **Very Important**
-> 
-> If you share a vault between Desktop and Mobile, it is critical that you use the same vault structure and TickTickSync settings everywhere you use your TickTick account. Differences
-> (eg: different folders, different default files, different default projects, etc) will cause unpredictable results.
-> 
-> If you share your files between Desktop and Mobile using an application that creates duplicate files when it encounters a conflict (eg: Syncthing), it is possible to trigger the duplication issue (see below.)
-> Strongly recommend handling those conflicts ASAP.
->
-🚩
+## Documentation
 
-⚠️ 
-> It is possible to create duplicate projects/lists in TickTick. TickTickSync will show a warning and ask you to rename/move one of the duplicates because duplicate lists mess up synchronization. All synchronization will stop until the issue is handled.
-> 
-⚠️
-
-
-## Notes
-1. TickTick lists are referred to as Projects in the plugin, and throughout documentation.
-2. TickTickSync [back ups](https://github.com/thesamim/TickTickSync/wiki/Documentation#backup-ticktick-data) are now CSV files that are compatible with TickTick's "Import Backups."
-3. **All Task Deletion operations must be confirmed.**
-4. TickTick only has four priorities (High, Medium, Low, None). Please see Priority in [Task Format](https://github.com/thesamim/TickTickSync/wiki/Documentation#task-format) for Task mapping of priority
-5. **Warning:** TickTickSync automatically creates .md files corresponding with the lists/projects created in TickTick and downloads all tasks to them.  
-   If the files are deleted in Obsidian while the TickTickSync plugin is active, those Tasks will be deleted from TickTick. If you accidentally confirm that deletion: 
-   To recover those tasks, go to the "[Trash](https://ticktick.com/webapp/#q/all/trash)" menu item on the TickTick interface and recover deleted tasks from there.
-6. TickTickSync supports Task Items and will **NOT** delete Task Content. However, as of now, it will not allow management of Task Content.
-7. A link to the containing file in Obsidian is added to the Task Title in TickTick, but the content field is not mangled. In the fullness of time content will be manageable in TickTickSync. Please watch this [issue](https://github.com/thesamim/TickTickSync/issues/10) for progress. 
-8. It is now possible control synchronization. Please see [details here](https://github.com/thesamim/TickTickSync/wiki/Documentation#limit-synchronization).
+Please see [Documentation](https://github.com/thesamim/TickTickSync/wiki/Documentation) in the Wiki.
 
 ## Known Issues
 
-1. The plugin only works with the [Tasks emoji formats](https://publish.obsidian.md/tasks/Reference/Task+Formats/About+Task+Formats). It will **not** work with the Dataview format. In the fullness of time, this plugin will be refactored to use Tasks functionality to support both.
-2. Because Tags can't have spaces, at this time it is not possible to add a task to a project with name that contains spaces. As a workaround `#folder_with_a_space` will be converted to `folder with a space` in TickTick
+1. The plugin only works with the [Tasks emoji formats](https://publish.obsidian.md/tasks/Reference/Task+Formats/About+Task+Formats). 
+2. Because Tags can't have spaces, at this time it is not possible to add a task to a project with a name that contains spaces. As a workaround `#folder_with_a_space` will be converted to `folder with a space` in TickTick
 3. If a file has a default project association (see [settings](https://github.com/thesamim/TickTickSync/wiki/Documentation#sync-control)), it is possible to create a task with a project tag other than the default project. The Task will be correctly synced to TickTick in the correct project. However, if the Task is then updated with subtasks, from TickTick, the subtasks will be synced to the project's default file rather than the file where the original parent task was created. **Additionally, the subtask will become the child of the last Task in that file.**
 
 ## Installation
@@ -84,9 +53,7 @@ If you would rather install the plugin manually, you can do the following:
 2.  Extract the downloaded zip file and copy the entire folder to your Obsidian plugins directory.
 3.  Enable the plugin in the Obsidian settings.
 
-## Documentation
 
-Please see [Documentation](https://github.com/thesamim/TickTickSync/wiki/Documentation) in the Wiki.
 
 
 ## Acknowledgements
@@ -107,6 +74,8 @@ Thanks to [LemurTech](https://github.com/LemurTech) and [zarb1n](https://github.
 Thanks to [jee-ee](https://github.com/jee-ee) for pointing out the change in Device ID processing.
 
 Thanks to [coneos](https://github.com/coneos) for pointing out the language disparity issue on mobile login.
+
+Thanks to [gsdstr](https://github.com/gsdstr) for the MAJOR refactor that will enhance TickTickSync future development.
 
 ## Disclaimer
 

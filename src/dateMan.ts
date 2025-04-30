@@ -72,7 +72,7 @@ export class DateMan {
 			fromTime = times[1];
 			toTime = times[2];
 		}
-		log.debug('fromTime: ', fromTime, 'toTime: ', toTime);
+		// log.debug('fromTime: ', fromTime, 'toTime: ', toTime);
 
 		for (const [key, value] of Object.entries(date_emoji)) {
 			// log.debug("--", dateEmojiKey, date_emoji[dateEmojiKey]);

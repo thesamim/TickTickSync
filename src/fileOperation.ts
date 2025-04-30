@@ -3,7 +3,7 @@ import TickTickSync from '@/main';
 import type { ITask } from './api/types/Task';
 import { TaskDeletionModal } from './modals/TaskDeletionModal';
 import { getSettings } from '@/settings';
-import { FileMap, type ITaskRecord } from '@/services/fileMap';
+import { FileMap } from '@/services/fileMap';
 import log from 'loglevel';
 
 export class FileOperation {
@@ -547,18 +547,6 @@ export class FileOperation {
 		const resultLines = fileMap.getFileLines();
 		this.plugin.lastLines.set(file.path, resultLines.length);
 		return resultLines;
-	}
-
-
-	private async getLineAndTaskRecord(task: ITask, numParentTabs: number) {
-		const lineText = await this.plugin.taskParser?.convertTaskToLine(task, numParentTabs);
-		const taskRecord: Partial<ITaskRecord> = {
-			ID: task.id,
-			type: 'Task',
-			taskLines: lineText.split('\n'), //Will contain Task AND Note Lines.
-			parent: task.parentId
-		};
-		return { lineText, taskRecord };
 	}
 
 	private hasChildren(currentTask: ITask) {
