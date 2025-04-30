@@ -1,8 +1,10 @@
 import type { App } from 'obsidian';
 import type TickTickSync from '@/main';
-import type {ITask} from '@/api/types/Task';
-import {getSettings} from "@/settings";
-import {sha256} from 'crypto-hash';
+import type { ITask, ITaskItem } from '@/api/types/Task';
+import { getSettings } from '@/settings';
+import { sha256 } from 'crypto-hash';
+import type { FileMap, ITaskRecord } from '@/services/fileMap';
+import log from 'loglevel';
 
 interface dataviewTaskObject {
 	status: string;
@@ -24,23 +26,6 @@ interface dataviewTaskObject {
 	parent: number;
 	blockId: string;
 }
-
-
-// interface TickTickTaskObject {
-//     content: string;
-//     description?: string;
-//     project_id?: string;
-//     section_id?: string;
-//     parent_id?: string;
-//     order?: number | null;
-//     tags?: string[];
-//     priority?: number | null;
-//     due_string?: string;
-//     due_date?: string;
-//     due_lang?: string;
-//     assignee_id?: string;
-// }
-
 
 const priorityEmojis = ['⏬', '🔽', '🔼', '⏫', '🔺'];
 const prioritySymbols = {
@@ -82,8 +67,8 @@ const priorityMapping = [{ ticktick: 0, obsidian: null }, { ticktick: 0, obsidia
 //borrowed from https://github.com/moremeyou/Obsidian-Tag-Buddy
 const tag_regex = /(?<=^|\s)(#(?=[^\s#.'’,;!?:]*[^\d\s#.'’,;!?:])[^\s#.'’,;!?:]+)(?=[.,;!?:'’\s]|$)|(?<!`)```(?!`)/g; // fix for number-only and typographic apostrophy's
 // const due_date_regex = `(${keywords.DUE_DATE})\\s(\\d{4}-\\d{2}-\\d{2})(\\s\\d{1,}:\\d{2})?`
-const due_date_regex =       `(${keywords.DUE_DATE})\\s(\\d{4}-\\d{2}-\\d{2})\\s*(\\d{1,}:\\d{2})*`;
-const due_date_strip_regex =        `[${keywords.DUE_DATE}]\\s\\d{4}-\\d{2}-\\d{2}(\\s\\d{1,}:\\d{2}|)`;
+const due_date_regex = `(${keywords.DUE_DATE})\\s(\\d{4}-\\d{2}-\\d{2})\\s*(\\d{1,}:\\d{2})*`;
+const due_date_strip_regex = `[${keywords.DUE_DATE}]\\s\\d{4}-\\d{2}-\\d{2}(\\s\\d{1,}:\\d{2}|)`;
 const completion_date_regex = `(${keywords.TASK_COMPLETE})\\s(\\d{4}-\\d{2}-\\d{2})\\s*(\\d{1,}:\\d{2})*`;
 const completion_date_strip_regex = `${keywords.TASK_COMPLETE}\\s\\d{4}-\\d{2}-\\d{2}(\\s*\\d{1,}:\\d{2}|)`;
 
@@ -93,7 +78,7 @@ const completion_date_strip_regex = `${keywords.TASK_COMPLETE}\\s\\d{4}-\\d{2}-\
 * Will ask for forgiveness in the fullness of time.
 *
 * */
-const status_regex  = "^\\s*(-|\\*)\\s+\\[(x| )\\]\\s"
+const status_regex = '^\\s*(-|\\*)\\s+\\[(x| )\\]\\s';
 
 const indentationRegex = /^([\s\t>]*)/;
 
@@ -105,20 +90,20 @@ const checkboxRegex = /\[(.)\]/u;
 
 // Matches the rest of the task after the checkbox.
 const afterCheckboxRegex = / *(.*)/u;
-
+const taskIDRegex = / %%(.*)%%/u;
 const taskRegex = new RegExp(
 	indentationRegex.source +
 	listMarkerRegex.source +
 	' +' +
 	checkboxRegex.source +
 	afterCheckboxRegex.source,
-	'u',
+	'u'
 );
 /*End of stolen regex*/
 
 export const REGEX = {
 	//hopefully tighter find.
-	TickTick_TAG: new RegExp(`^[\\s]*[-] \\[[x ]\\] [\\s\\S]*${keywords.TickTick_TAG}[\\s\\S]*$`, "i"),
+	TickTick_TAG: new RegExp(`^[\\s]*[-] \\[[x ]\\] [\\s\\S]*${keywords.TickTick_TAG}[\\s\\S]*$`, 'i'),
 
 	TickTick_ID: /\[ticktick_id::\s*[\d\S]+\]/,
 	TickTick_ID_NUM: /\[ticktick_id::\s*(.*?)\]/,
@@ -149,11 +134,11 @@ export const REGEX = {
 	BLANK_LINE: /^\s*$/,
 	TickTick_EVENT_DATE: /(\d{4})-(\d{2})-(\d{2})/,
 	ITEM_LINE: /\[(.*?)\]\s*(.*?)\s*%%(.*?)%%/,
-	REMOVE_ITEM_ID: /\s%%[^\[](.*?)[^\]]%%/g
+	LINE_ITEM_ID: /%%(?!\[ticktick_id::\s)[a-f0-9]{24}%%/g
 };
 
 export class TaskParser {
-    app: App;
+	app: App;
 	plugin: TickTickSync;
 
 	constructor(app: App, plugin: TickTickSync) {
@@ -163,13 +148,14 @@ export class TaskParser {
 	}
 
 	//convert a task object to a task line.
-	async convertTaskToLine(task: ITask, direction: string): Promise<string> {
-		let resultLine = '';
+	async convertTaskToLine(task: ITask, numTabs: number): Promise<string> {
+
+		const tabs = '\t'.repeat(numTabs);
+		let resultLine = tabs;
 
 		task.title = this.stripOBSUrl(task.title);
 
-		resultLine = `- [${task.status > 0 ? 'x' : ' '}] ${task.title}`;
-
+		resultLine += `- [${task.status > 0 ? 'x' : ' '}] ${task.title}`;
 
 
 		//add Tags
@@ -185,14 +171,23 @@ export class TaskParser {
 		resultLine = this.addPriorityToLine(resultLine, task);
 
 		//add dates
-		resultLine = this.plugin.dateMan?.addDatesToLine(resultLine, task, direction);
+		resultLine = this.plugin.dateMan?.addDatesToLine(resultLine, task);
 
 
-		if (task.items && task.items.length > 0) {
-			resultLine = this.addItems(resultLine, task.items);
+		//TODO: can either have description or note, somewhere we're adding both at some point.
+		if (this.plugin.taskParser.hasDescription(task)) {
+			resultLine = this.addNote(resultLine, task.desc, numTabs, 'Description');
 		}
-		return resultLine;
 
+		if (this.plugin.taskParser.hasNote(task)) {
+			resultLine = this.addNote(resultLine, task.content, numTabs, 'Note');
+		}
+
+		if (this.plugin.taskParser.hasItems(task)) {
+			resultLine = this.addItems(resultLine, task.items, numTabs);
+		}
+
+		return resultLine;
 	}
 
 	stripOBSUrl(title: string): string {
@@ -233,7 +228,7 @@ export class TaskParser {
 	}
 
 	stripLineItemId(lineText: string) {
-		let line = lineText.replace(REGEX.REMOVE_ITEM_ID, '')
+		let line = lineText.replace(REGEX.LINE_ITEM_ID, '');
 		return line;
 	}
 
@@ -243,7 +238,7 @@ export class TaskParser {
 		tags.forEach((tag: string) => {
 			//TickTick tag, if present, will be added at the end.
 			if (!tag.match(regEx)) {
-				if (tag.includes("-")) {
+				if (tag.includes('-')) {
 					tag = tag.replace(/-/g, '/');
 				}
 				resultLine = resultLine + ' #' + tag;
@@ -253,79 +248,60 @@ export class TaskParser {
 	}
 
 	//convert line text to a task object
-	async convertLineToTask(lineText: string, filepath: string, lineNumber?: number, fileContent?: string) {
+	async convertLineToTask(lineText: string, lineNumber: number, filepath: string, fileMap: FileMap, inTaskRecord: ITaskRecord | null) {
 		let hasParent = false;
 		let parentId = null;
 		let parentTaskObject = null;
 		let taskItems = [];
-		const lines = fileContent.split('\n');
-		const lineTextTabIndentation = this.getTabIndentation(lineText);
+		const lineTextTabIndentation = this.getNumTabs(lineText);
 		let textWithoutIndentation = this.removeTaskIndentation(lineText);
 
-		const TickTick_id = this.getTickTickIdFromLineText(textWithoutIndentation);
+		const TickTick_id = this.getTickTickId(textWithoutIndentation);
 
-		//Strip dates.
-		// console.log("sending: ", textWithoutIndentation, this.plugin.dateMan);
-		const allDatesStruct =  this.plugin.dateMan?.parseDates(textWithoutIndentation);
-		// console.log("And we have: ", textWithoutIndentation);
+		const allDatesStruct = this.plugin.dateMan?.parseDates(textWithoutIndentation);
 
-		//Detect parentID
-		if (lineTextTabIndentation > 0) {
-			for (let i = (lineNumber - 1); i >= 0; i--) {
-				//console.log(`Checking the indentation of line ${i}`)
-				const line = lines[i];
-				//console.log(line)
-				//If it is a blank line, it means there is no parent
-				if (this.isLineBlank(line)) {
-					break;
-				}
-				//If the number of tabs is greater than or equal to the current line, skip
-				if (this.getTabIndentation(line) >= lineTextTabIndentation) {
-					//console.log(`Indentation is ${this.getTabIndentation(line)}`)
-					continue;
-				}
-				if ((this.getTabIndentation(line) < lineTextTabIndentation)) {
-					//console.log(`Indentation is ${this.getTabIndentation(line)}`)
-					if (this.hasTickTickId(line)) {
-						parentId = this.getTickTickIdFromLineText(line);
-						hasParent = true;
-						// console.log(`parent id is ${parentId}`)
-						parentTaskObject = await this.plugin.cacheOperation?.loadTaskFromCacheID(parentId);
-						break;
-					} else {
-						break;
-					}
+		let taskRecord: ITaskRecord;
+
+		if (inTaskRecord) {
+			taskRecord = inTaskRecord;
+		} else {
+			if (TickTick_id) {
+				taskRecord = fileMap.getTaskRecord(TickTick_id);
+			} else {
+				taskRecord = await fileMap.getTaskRecordByLine(lineNumber);
+			}
+		}
+		let description = null;
+		let content = null;
+		if (taskRecord) {
+			if (taskRecord.taskLines.length > 1) {
+				const noteStruct = this.getNoteString(taskRecord);
+				if (noteStruct.isNote) {
+					content = noteStruct.textContent;
+				} else {
+					description = noteStruct.textContent;
 				}
 			}
+		} else {
+		}
+		//Detect parentID
+		if (lineTextTabIndentation > 0) {
+			parentId = taskRecord.parentId;
+			hasParent = true;
+			// log.debug(`parent id is ${parentId}`)
+			parentTaskObject = this.plugin.cacheOperation?.loadTaskFromCacheID(parentId);
 		}
 
 		//find task items
-		// When Full Vault Sync is enabled, we can tell the difference between items and subtasks
+		// When Full Vault Sync is enabled, we can't tell the difference between items and subtasks
 		// everything is a subtask
 		// TODO: in the fullness of time, see if there's a way to differentiate.
 		if (!getSettings().enableFullVaultSync) {
-			for (let i = (lineNumber + 1); i <= lines.length; i++) {
-				const line = lines[i];
-				//console.log(line)
-				//If it is a blank line, it means there is no parent
-				if (this.isLineBlank(line)) {
-					break;
+			const taskLineItems = fileMap.getTaskItems(TickTick_id);
+			if (taskLineItems && taskLineItems.length > 0) {
+				for (const taskLineItem in taskLineItems) {
+					taskItems.push(this.getItemFromLine(taskLineItems[taskLineItem]));
 				}
-				//If the number of tabs is greater than or equal to the current line, it's an item
-				if (this.getTabIndentation(line) > lineTextTabIndentation) {
-					//console.log(`Indentation is ${this.getTabIndentation(line)}`)
-					if (this.hasTickTickId(line)) {
-						//it's another task bail
-						break;
-					}
-					const item = this.getItemFromLine(line);
-					taskItems.push(item);
-				} else {
-					//we're either done with items, or onto the next task or blank line.
-					//we're done.
-					break;
-				}
-
 			}
 		}
 
@@ -361,7 +337,7 @@ export class TaskParser {
 
 		const title = this.getTaskContentFromLineText(textWithoutIndentation);
 		if ((getSettings().debugMode) && (!projectId)) {
-			console.error('Converting line to Object, could not find project Id: ', title);
+			log.error('Converting line to Object, could not find project Id: ', title);
 		}
 
 		const isCompleted = this.isTaskCheckboxChecked(textWithoutIndentation);
@@ -376,17 +352,18 @@ export class TaskParser {
 		}
 
 		let actualStartDate = allDatesStruct?.startDate ?
-										allDatesStruct?.startDate.isoDate : //there's a start date
-										allDatesStruct?.scheduled_date ?
-										allDatesStruct?.scheduled_date.isoDate //there's a scheduled date
-										: ''; //there are neither start date nor scheduled date.
+			allDatesStruct?.startDate.isoDate : //there's a start date
+			allDatesStruct?.scheduled_date ?
+				allDatesStruct?.scheduled_date.isoDate //there's a scheduled date
+				: ''; //there are neither start date nor scheduled date.
 		const task: ITask = {
 			id: TickTick_id || '',
 			projectId: projectId,
 			//RSN We're going to have to figure putting it Items or in Description.
 			title: title.trim() + ' ' + taskURL,
 			//content: ??
-			// content: description,
+			content: content ? content : '',
+			desc: description ? description : '',
 			items: taskItems || [],
 			parentId: parentId || '',
 			dueDate: allDatesStruct?.dueDate?.isoDate || '',
@@ -400,15 +377,27 @@ export class TaskParser {
 			timeZone: timeZone,
 			dateHolder: allDatesStruct //Assume that there's a dateStruct of some kind
 		};
-		// console.log("TRACETHIS FINAL: ", task.title, "\nDue Date: ", task.dueDate, "\nStart DAte: ", task.startDate, "\nisAllDay: ", task.isAllDay);
+
 		return task;
 
 	}
 
+	getNoteString(taskRecord: ITaskRecord) {
+		let textContent = "";
+		if (taskRecord.taskLines) {
+			let descriptionStrings = [...taskRecord.taskLines];
+			//TODO if there's a notes preference need to account for it here.
+			//     for now, we're getting rid of the first line and the last line.
+			descriptionStrings.splice(0, 1);
+			descriptionStrings.splice(descriptionStrings.length - 1, 1);
+			descriptionStrings = descriptionStrings.map(line => line.replace(/^\t*\s{2}|^\s{2}/g, ''));
+			textContent = descriptionStrings.length > 0 ? descriptionStrings.join('\n') : '';
+		}
+		return { isNote: taskRecord.isNote, textContent: textContent };
+	}
 	hasTickTickTag(text: string) {
-
 		if (this.isMarkdownTask(text)) {
-			// console.log("hasTickTickTag", `${text}
+			// log.debug("hasTickTickTag", `${text}
 			// ${REGEX.TickTick_TAG}
 			// ${REGEX.TickTick_TAG.test(text)}`);
 			return REGEX.TickTick_TAG.test(text);
@@ -424,6 +413,24 @@ export class TaskParser {
 			result = REGEX.TickTick_ID_DV_NUM.test(text);
 		}
 		return (result);
+	}
+
+	getLineItemId(text: string) {
+		if (!text) {
+			log.error('No Text passed to getLineItemId');
+			return undefined;
+		}
+		let res = text.match(REGEX.LINE_ITEM_ID);
+		let lineItemId;
+		if (res) {
+			lineItemId = res[0].slice(2, -2);
+			// log.debug("\nResult: ", res);
+		}
+		return lineItemId;
+	}
+
+	isTickTickTask(text: string) {
+		return this.hasTickTickId(text);
 	}
 
 	addTickTickId(line: string, ticktick_id: string) {
@@ -445,8 +452,8 @@ export class TaskParser {
 		return result ? result[1] : null;
 	}
 
-	getTickTickIdFromLineText(text: string) {
-        let result = REGEX.TickTick_ID_NUM.exec(text);
+	getTickTickId(text: string) {
+		let result = REGEX.TickTick_ID_NUM.exec(text);
 		if (!result) {
 			//try the dataview version
 			result = REGEX.TickTick_ID_DV_NUM.exec(text);
@@ -459,14 +466,14 @@ export class TaskParser {
 		if (result) {
 			return (result[2].search(/[xX]/) < 0);
 		} else {
-			throw new Error(`Status not found in line: ${line}`)
+			throw new Error(`Status not found in line: ${line}`);
 		}
 	}
 
 
 	//get all tags from task text
 	getAllTagsFromLineText(lineText: string) {
-		// console.log("Line Text: ", lineText);
+		// log.debug("Line Text: ", lineText);
 		// let tags = lineText.matchAll(REGEX.ALL_TAGS);
 
 		// if (tags) {
@@ -476,7 +483,7 @@ export class TaskParser {
 		const tags = [...lineText.matchAll(REGEX.ALL_TAGS)];
 		let tagArray = tags.map(tag => tag[0].replace('#', ''));
 		tagArray = tagArray.map(tag => tag.replace(/\//g, '-'));
-		// tagArray.forEach(tag => console.log("#### get all tags", tag))
+		// tagArray.forEach(tag => log.debug("#### get all tags", tag))
 
 		return tagArray;
 	}
@@ -510,8 +517,8 @@ export class TaskParser {
 		}
 		//Whether content is modified?
 		let areTagsSame = lineTaskTags.length === TickTickTaskTags.length
-									&& lineTaskTags.sort().every((val, index) =>
-										val === TickTickTaskTags.sort()[index]);
+			&& lineTaskTags.sort().every((val, index) =>
+				val === TickTickTaskTags.sort()[index]);
 		return !(areTagsSame);
 	}
 
@@ -519,16 +526,28 @@ export class TaskParser {
 	isStatusChanged(lineTask: Object, TickTickTask: Object) {
 		//Whether status is modified?
 		const statusModified = (lineTask.status === TickTickTask.status);
-		//console.log(lineTask)
-		//console.log(TickTickTask)
+		//log.debug(lineTask)
+		//log.debug(TickTickTask)
 		return (!statusModified);
 	}
 
 	isParentIdChanged(lineTask: ITask, TickTickTask: ITask): boolean {
 		let lineParentId = lineTask.parentId ? lineTask.parentId : '';
 		let cacheParentId = TickTickTask.parentId ? TickTickTask.parentId : '';
-
 		return (lineParentId != cacheParentId);
+	}
+
+	isChildrenChanged(lineTask: ITask, TickTickTask: ITask): boolean {
+		if (!lineTask.childIds && !TickTickTask.childIds) {
+			return false;
+		} else if (!lineTask.childIds && TickTickTask.childIds) {
+			return true;
+		} else if (lineTask.childIds && !TickTickTask.childIds) {
+			return true;
+		}
+
+		return lineTask?.childIds.length != TickTickTask?.childIds.length;
+
 	}
 
 
@@ -536,7 +555,7 @@ export class TaskParser {
 	isProjectIdChanged(lineTask: ITask, TickTickTask: ITask) {
 		//project whether to modify
 		// if (!(lineTask.projectId === TickTickTask.projectId)) {
-		// 	console.log("line: ", lineTask.projectId, "saved; ", TickTickTask.projectId)
+		// 	log.debug("line: ", lineTask.projectId, "saved; ", TickTickTask.projectId)
 		// }
 		return !(lineTask.projectId === TickTickTask.projectId);
 	}
@@ -546,14 +565,14 @@ export class TaskParser {
 		return (REGEX.TASK_INDENTATION.test(text));
 	}
 
-	//console.log(getTabIndentation(" - [x] This is a task without tabs")); // 0
-	getTabIndentation(lineText: string) {
+	//log.debug(getNumTabs(" - [x] This is a task without tabs")); // 0
+	getNumTabs(lineText: string) {
 		const match = REGEX.TAB_INDENTATION.exec(lineText);
 		return match ? match[1].length : 0;
 	}
 
 	getTabs(lineText: string) {
-		const numTabs = this.getTabIndentation(lineText);
+		const numTabs = this.getNumTabs(lineText);
 		let tabs = '';
 		for (let i = 0; i < numTabs; i++) {
 			tabs = tabs + '\t';
@@ -574,7 +593,7 @@ export class TaskParser {
 
 
 	//Determine the number of tab characters
-	//console.log(getTabIndentation("\t\t- [x] This is a task with two tabs")); // 2
+	//log.debug(getNumTabs("\t\t- [x] This is a task with two tabs")); // 2
 
 	//remove task indentation
 	removeTaskIndentation(text) {
@@ -588,25 +607,27 @@ export class TaskParser {
 	}
 
 	isMarkdownTask(str: string): boolean {
-		const forRealRegex = taskRegex;
-		return forRealRegex.test(str);
+		if (str) {
+			const forRealRegex = taskRegex;
+			return forRealRegex.test(str);
+		}
+		return false;
 	}
 
 	addTickTickTag(str: string): string {
 		//TODO: assumption that there is at least one space before. validate.
-		if (str.charAt(str.length - 1) === ' ')
-		{
+		if (str.charAt(str.length - 1) === ' ') {
 			str = (str + `${keywords.TickTick_TAG}`);
 		} else {
 			str = (str + ` ${keywords.TickTick_TAG} `);
 		}
 
-		return  str;
+		return str;
 	}
 
 	getObsidianUrlFromFilepath(filepath: string) {
 		// if (getSettings().debugMode) {
-		// 	console.log("Getting OBS path for: ", filepath)
+		// log.debug("Getting OBS path for: ", filepath)
 		// }
 		const url = encodeURI(`obsidian://open?vault=${this.app.vault.getName()}&file=${filepath}`);
 		const obsidianUrl = `[${filepath}](${url})`;
@@ -647,19 +668,20 @@ export class TaskParser {
 		return mapping ? mapping.ticktick : null;
 	}
 
-	taskFromLine(line: string)  {
+	//Returns the Item WITHOUT task ID
+	taskFromLine(line: string) {
 		let matches = taskRegex.exec(line);
 		if (!matches) {
 			return null;
 		}
 
-		let checkBox = matches[3] || "";
+		let checkBox = matches[3] || '';
 
 		//Anything other than 'x' is a not done state. Deal with it accordingly.
 		//https://publish.obsidian.md/tasks/Getting+Started/Statuses
 		const status = checkBox == 'x';
-		// console.log("TRACETHIS taskFromLine: ", line, "STATUS [", status, "]");
-		let description = matches[4] || "";
+		let description = matches[4] || '';
+		description = description.replace(taskIDRegex, '');
 		let indent = matches[1] ? matches[1].length : 0;
 
 		return {
@@ -668,6 +690,81 @@ export class TaskParser {
 			description,
 			indent
 		};
+	}
+
+	//                   with tag management.
+	getAllTags() {
+		// 	const tags = Object.keys(this.app.metadataCache.getTags())
+		// 	tags.forEach(tag => log.debug(tag))
+		// 	// foo.forEach(tag => log.debug(tag));
+	}
+
+	async getLineHash(resultLine: string) {
+		try {
+			return await sha256(resultLine);
+		} catch (e) {
+			log.error('Hashing error.', e);
+		}
+	}
+
+	hasNote(task: ITask) {
+		return ((task.content) && (task.content.length > 0));
+	}
+
+	hasDescription(task: ITask) {
+		return ((task.desc) && (task.desc.length > 0));
+	}
+
+	hasItems(task: ITask): boolean {
+		return ((task.items) && (task.items.length > 0));
+	}
+
+	// //Trust either Task plugin or Ticktick to do the completion dates.
+	// addCompletionDate(line: string, completedTime: string|undefined): string {
+	// 	if (completedTime) {
+	// 		const completionTime = this.plugin.dateMan?.utcToLocal(completedTime)
+	// 		line = line + ` ${keywords.TASK_COMPLETE} ` + completionTime;
+	// 		return line
+	// 	} else {
+	// 		return line;
+	// 	}
+	// }
+
+	//Note to future me: I wanted to get all the known tags in Obsidian to something clever
+
+	areNotesChanged(newNoteString: string, oldNoteString: string) {
+		// Check if arrays have different lengths
+		// log.debug(newNoteString, oldNoteString);
+		if (newNoteString.length !== oldNoteString.length) {
+			return true;  // strings are different, save some time.
+		}
+		const newNote = newNoteString.split('\n');
+		const oldNote = oldNoteString.split('\n');
+		// Check if elements are different
+		for (let i = 0; i < newNote.length; i++) {
+			if (newNote[i] !== oldNote[i]) {
+				return true;  // Arrays are different
+			}
+		}
+
+		return false;  // Arrays are exactly the same
+	}
+
+	areItemsChanged(newItems: ITaskItem[], oldItems: ITaskItem[]) {
+		if (newItems?.length != oldItems?.length) {
+			return true;
+		}
+		newItems.sort((a, b) => a.id.localeCompare(b.id));
+		oldItems.sort((a, b) => a.id.localeCompare(b.id));
+
+		for (let i = 0; i < newItems.length; i++) {
+			if ((newItems[i].id !== newItems[i].id) ||
+				(newItems[i].status !== newItems[i].status) ||
+				(newItems[i].title !== newItems[i].title)) {
+				return true;  // Arrays are different
+			}
+		}
+
 	}
 
 	protected parsePriority(p: string): Priority {
@@ -688,35 +785,51 @@ export class TaskParser {
 		}
 	}
 
-	private addItems(resultLine: string, items: any[]): string {
+	private addItems(resultLine: string, items: any[], numTabs: number): string {
 		//TODO count indentations?
 		items.forEach(item => {
 			let completion = item.status > 0 ? '- [x]' : '- [ ]';
-			// When Full Vault Sync is enabled, we can tell the difference between items and subtasks
+			// When Full Vault Sync is enabled, we can't tell the difference between items and subtasks
 			// everything is a subtask
 			// TODO: in the fullness of time, see if there's a way to differentiate.
+			const tabs = '\t'.repeat(numTabs + 1);
+			resultLine = `${resultLine} \n${tabs}${completion} ${item.title} `;
 			if (!getSettings().enableFullVaultSync) {
-				resultLine = `${resultLine} \n${completion} ${item.title} %%${item.id}%%`;
-			} else {
-				resultLine = `${resultLine} \n${completion} ${item.title}`;
+				resultLine = `${resultLine} %%${item.id}%%`;
 			}
 		});
+		// log("trace", resultLine)
 		return resultLine;
 	}
 
-	//TODO: This is redundant with taskFromLine. And the status is sus.
-	// But I don't want to make too many changes right now
+	private addNote(resultLine: string, content: string, numbTabs: number, type: string) {
+		//TODO figure out Note presentation
+		//admonitions just don't work in indented tasks. Until I sort out the presentation, keep it simple until I
+		//get all the functionality sorted out,
+		const prefix = '\n' + '\t'.repeat(numbTabs) + '  ';
+		// resultLine = `${resultLine}${prefix}=== start ${type} ${this.getTickTickId(resultLine)}`;
+		resultLine = `${resultLine}${prefix}-------------------------------------------------------------`;
+		const noteLines = content.split('\n');
+		noteLines.forEach(item => {
+			resultLine = `${resultLine}${prefix}${item}`;
+		});
+		resultLine = `${resultLine}${prefix}-------------------------------------------------------------`;
+		// resultLine = `${resultLine}${prefix}=== end ${type}  ${this.getTickTickId(resultLine)}`;
+		return resultLine;
+	}
+
+	//Returns the Item with task ID and all. taskFromLine returns the description WITHOUT the ID.
 	private getItemFromLine(itemLine: string) {
 
 		const matches = REGEX.ITEM_LINE.exec(itemLine);
-		let item = {};
+		let item: ITaskItem = {};
 		if (matches) {
 
 			const status = matches[1];
 			const text = matches[2];
 			const id = matches[3];
 
-			const itemStatus = ' ' ? 0 : 2;
+			const itemStatus = status ? 0 : 2;
 
 			item = {
 				id: id, title: text, status: itemStatus
@@ -729,41 +842,16 @@ export class TaskParser {
 	private addPriorityToLine(resultLine: string, task: ITask) {
 		let priority = this.translateTickTickToObsidian(task.priority);
 		if (priority != null) {
-			// console.log("task pri: ", task.priority, " emoji num: ", priority, priorityEmojis[priority])
-			// console.log("task pri: ", task.priority, " emoji num: ", priority)
+			// log.debug("task pri: ", task.priority, " emoji num: ", priority, priorityEmojis[priority])
+			// log.debug("task pri: ", task.priority, " emoji num: ", priority)
 			resultLine = `${resultLine} ${priority}`;
 		}
 		// else
 		// {
-		//     console.log("task pri: ", task.priority, " undefined: ", priority)
+		//     log.debug("task pri: ", task.priority, " undefined: ", priority)
 		// }
 		return resultLine;
 	}
 
-	// //Trust either Task plugin or Ticktick to do the completion dates.
-	// addCompletionDate(line: string, completedTime: string|undefined): string {
-	// 	if (completedTime) {
-	// 		const completionTime = this.plugin.dateMan?.utcToLocal(completedTime)
-	// 		line = line + ` ${keywords.TASK_COMPLETE} ` + completionTime;
-	// 		return line
-	// 	} else {
-	// 		return line;
-	// 	}
-	// }
 
-	//Note to future me: I wanted to get all the known tags in Obsidian to something clever
-	//                   with tag management.
-	getAllTags() {
-		// 	const tags = Object.keys(this.app.metadataCache.getTags())
-		// 	tags.forEach(tag => console.log(tag))
-		// 	// foo.forEach(tag => console.log(tag));
-	}
-
-	async getLineHash(resultLine: string) {
-		try {
-			return await sha256(resultLine);
-		} catch (e) {
-			console.error("Hashing error.", e);
-		}
-	}
 }

@@ -1,10 +1,21 @@
-import TickTickSync from "@/main";
-import {App, Editor, type EditorPosition, type MarkdownFileInfo, MarkdownView, Notice, TFile, TFolder} from 'obsidian';
-import type {ITask} from '@/api/types/Task';
+import TickTickSync from '@/main';
+import {
+	App,
+	Editor,
+	type EditorPosition,
+	type MarkdownFileInfo,
+	MarkdownView,
+	Notice,
+	TFile,
+	TFolder
+} from 'obsidian';
+import type { ITask } from '@/api/types/Task';
 import ObjectID from 'bson-objectid';
-import type {TaskDetail} from "@/services/cacheOperation";
-import {TaskDeletionModal} from "@/modals/TaskDeletionModal";
-import {getSettings, updateProjectGroups} from "@/settings";
+import type { TaskDetail } from '@/services/cacheOperation';
+import { TaskDeletionModal } from '@/modals/TaskDeletionModal';
+import { getSettings, updateProjectGroups } from '@/settings';
+import { FileMap, type ITaskItemRecord } from '@/services/fileMap';
+import log from 'loglevel';
 
 type deletedTask = {
 	taskId: string,
@@ -15,6 +26,7 @@ export class SyncMan {
 	private readonly app: App;
 	private readonly plugin: TickTickSync;
 
+
 	constructor(app: App, plugin: TickTickSync) {
 		//super(app,settings,tickTickRestAPI,ticktickSyncAPI,taskParser,cacheOperation);
 		this.app = app;
@@ -23,34 +35,34 @@ export class SyncMan {
 
 	async deletedTaskCheck(file_path: string | null): Promise<void> {
 
-		let file
-		let currentFileValue
-		let view
-		let filepath
+		let file;
+		let currentFileValue;
+		let view;
+		let filepath;
 
 		if (file_path) {
-			file = this.app.vault.getAbstractFileByPath(file_path)
+			file = this.app.vault.getAbstractFileByPath(file_path);
 			if ((file) && (file instanceof TFolder)) {
 				//leave folders alone.
 				return;
 			}
-			filepath = file_path
+			filepath = file_path;
 			if (file instanceof TFile) {
-				currentFileValue = await this.app.vault.read(file)
+				currentFileValue = await this.app.vault.read(file);
 			}
 		} else {
 			view = this.app.workspace.getActiveViewOfType(MarkdownView);
 			//const editor = this.app.workspace.activeEditor?.editor
-			file = this.app.workspace.getActiveFile()
-			filepath = file?.path
+			file = this.app.workspace.getActiveFile();
+			filepath = file?.path;
 			//Use view.data instead of vault.read. vault.read is delayed
-			currentFileValue = view?.data
+			currentFileValue = view?.data;
 		}
 
-		let fileMetadata = await this.plugin.cacheOperation?.getFileMetadata(filepath, null)
-		// console.log("fileMetaData: ", fileMetadata)
+		let fileMetadata = await this.plugin.cacheOperation?.getFileMetadata(filepath, null);
+		// log.debug("fileMetaData: ", fileMetadata)
 		if (!fileMetadata || !fileMetadata.TickTickTasks) {
-			// console.log('fileMetaData has no task')
+			// log.debug('fileMetaData has no task')
 			return;
 		}
 
@@ -58,13 +70,13 @@ export class SyncMan {
 		let fileMetadata_TickTickTasks: TaskDetail[] = fileMetadata.TickTickTasks;
 		if (currentFileValue) {
 			const currentFileValueWithOutFileMetadata = currentFileValue.replace(/^---[\s\S]*?---\n/, '');
-			const deletedTaskIds = await this.findMissingTaskIds(currentFileValueWithOutFileMetadata, fileMetadata_TickTickTasks, filepath)
-			const numDeletedTasks = deletedTaskIds.length
+			const deletedTaskIds = await this.findMissingTaskIds(currentFileValueWithOutFileMetadata, fileMetadata_TickTickTasks, filepath);
+			const numDeletedTasks = deletedTaskIds.length;
 			if (numDeletedTasks > 0) {
 
 				await this.deleteTasksByIds(deletedTaskIds);
 				//update filemetadata so we don't try to delete items for deleted tasks.
-				fileMetadata = await this.plugin.cacheOperation?.getFileMetadata(filepath, null)
+				fileMetadata = await this.plugin.cacheOperation?.getFileMetadata(filepath, null);
 				if (!fileMetadata || !fileMetadata.TickTickTasks) {
 					return;
 				}
@@ -85,35 +97,36 @@ export class SyncMan {
 				if (deletedItems.length > 0) {
 					//this will remove items, update the file metadata and update the cache in one swell foop.
 					try {
-						let updatedTask = await this.plugin.cacheOperation?.removeTaskItem(fileMetadata, task.taskId, deletedItems)
+						let updatedTask = await this.plugin.cacheOperation?.removeTaskItem(fileMetadata, task.taskId, deletedItems);
 						if (updatedTask) {
-							let taskURL = this.plugin.taskParser.getObsidianUrlFromFilepath(filepath)
+							let taskURL = this.plugin.taskParser.getObsidianUrlFromFilepath(filepath);
 							if (taskURL) {
-								updatedTask.title = updatedTask.title + " " + taskURL;
+								updatedTask.title = updatedTask.title + ' ' + taskURL;
 							}
 							let updateResult = await this.plugin.tickTickRestAPI?.UpdateTask(updatedTask);
 						}
 					} catch (error) {
-						console.error("Task Item removal failed: ", error);
+						log.error('Task Item removal failed: ', error);
 					}
 				}
 			}
-			// console.log("deleted items: ", deletedItems)
+			// log.debug("deleted items: ", deletedItems)
 
 		} else {
 			//We had a file. There is no content. User deleted ALL tasks, all items will be deleted as a side effect.
 			const deletedTaskIDs = fileMetadata_TickTickTasks.map((taskDetail) => taskDetail.taskId);
 			if (deletedTaskIDs.length > 0) {
 				//TODO: Assuming that if they for real deleted everything, it will get caught on the next sync
-				console.error("Content not readable.", currentFileValue, filepath, " file is possibly open elsewhere?");
-				new Notice(`All content from ${file.name} APPEARS to have been removed.\n` +
-					"If this is correct, please confirm task deletion. Otherwise, cancel task deletion.", 0)
+				log.error('Content not readable.', currentFileValue, filepath, ' file could open elsewhere or deleted.');
+				new Notice(`All content from ${file_path} APPEARS to have been removed.\n` +
+					'If this is correct, please confirm task deletion. Otherwise, cancel task deletion.', 0);
 
 				await this.deleteTasksByIds(deletedTaskIDs);
 			}
 		}
 
 	}
+
 	async findMissingTaskIds(currentContent: string, taskDetails: TaskDetail[], filePath: string) {
 
 		// Extract all taskIds from the currentContent, considering the specific structure.
@@ -124,73 +137,76 @@ export class SyncMan {
 		// Filter and extract taskIds from taskDetails
 		let missingTaskIds = taskDetails
 			.filter((taskDetail) => !existingTaskIds.has(taskDetail.taskId))
-			.map((taskDetail: TaskDetail) => taskDetail.taskId)// Explicitly create an array of strings
+			.map((taskDetail: TaskDetail) => taskDetail.taskId);// Explicitly create an array of strings
 
 		//ok, but if they're just being moved? See if we can find them elsewhere first.
 		//
 		if (missingTaskIds && missingTaskIds.length > 0) {
-			let saveTheseTasks: string[] = []
+			let saveTheseTasks: string[] = [];
 			for (const taskId of missingTaskIds) {
-				const location = await this.plugin.cacheOperation?.findTaskInFiles(taskId)
+				const location = await this.plugin.cacheOperation?.findTaskInFiles(taskId);
 				if (location) {
 					saveTheseTasks.push(taskId);
 				}
 			}
-			// console.log("== saved:", saveTheseTasks)
+			// log.debug("== saved:", saveTheseTasks)
 			missingTaskIds = missingTaskIds
 				.filter((taskId) => {
-						return !saveTheseTasks.includes(taskId)
+						return !saveTheseTasks.includes(taskId);
 					}
-			 	)
-			// console.log("==", filePath, "sanitized", missingTaskIds)
+				);
+			// log.debug("==", filePath, "sanitized", missingTaskIds)
 		}
 		// else {
-		// 	console.log("== nothing missing.")
+		// 	log.debug("== nothing missing.")
 		// }
 		return missingTaskIds;
 	}
 
-	async lineContentNewTaskCheck(editor: Editor, view: MarkdownView | MarkdownFileInfo): Promise<boolean> {
+	async lineNewContentTaskCheck(editor: Editor, view: MarkdownView | MarkdownFileInfo): Promise<boolean> {
 		//const editor = this.app.workspace.activeEditor?.editor
 		//const view =this.app.workspace.getActiveViewOfType(MarkdownView)
-		const filepath = view.file?.path
-		const fileContent = view?.data
-		const cursor = editor.getCursor()
-		const line = cursor.line
-		const linetxt = editor.getLine(line)
-		let before = fileContent?.length
+		const filepath = view.file?.path;
+		const fileContent = view?.data;
+		const cursor = editor.getCursor();
+		const line = cursor.line;
+		const linetxt = editor.getLine(line);
+		let before = fileContent?.length;
 		await this.addTask(linetxt, filepath, line, fileContent, editor, cursor);
-		let after = fileContent?.length
-		// console.log(" : ", before, after, (before != after))
-		return   (before != after);
+		let after = fileContent?.length;
+		// log.debug(" : ", before, after, (before != after))
+		return (before != after);
 	}
 
 	async addTask(lineTxt: string, filePath: string, line: number, fileContent: string, editor: Editor | null, cursor: EditorPosition | null) {
 		//Add task
 		// if (getSettings().debugMode) {
-		// 	console.log("Adding to: ", filePath)
+		// 	log.debug("Adding to: ", filePath)
 		// }
 
 		if ((!this.plugin.taskParser.hasTickTickId(lineTxt) && this.plugin.taskParser.hasTickTickTag(lineTxt))) {
 			//Whether #ticktick is included, but not ticktickid: Task just added.
 			try {
-				const currentTask = await this.plugin.taskParser.convertLineToTask(lineTxt, filePath, line, fileContent)
-				const newTask = await this.plugin.tickTickRestAPI?.AddTask(currentTask)
-				// console.log("TRACETHIS New Task: ", newTask);
+				const file = this.app.vault.getAbstractFileByPath(filePath) as TFile;
+				const fileMap = new FileMap(this.app, this.plugin, file);
+				await fileMap.init();
+
+				const currentTask = await this.plugin.taskParser.convertLineToTask(lineTxt, line, filePath, fileMap, null);
+				const newTask = await this.plugin.tickTickRestAPI?.AddTask(currentTask) as ITask;
 				if (currentTask.parentId) {
-					let parentTask = await this.plugin.cacheOperation?.loadTaskFromCacheID(currentTask.parentId);
+					let parentTask = this.plugin.cacheOperation?.loadTaskFromCacheID(currentTask.parentId);
 					parentTask = this.plugin.taskParser.addChildToParent(parentTask, currentTask.parentId);
 					parentTask = await this.plugin.tickTickRestAPI?.UpdateTask(parentTask);
 					await this.plugin.cacheOperation?.updateTaskToCache(parentTask);
 				}
-				const {id: ticktick_id, projectId: ticktick_projectId, url: ticktick_url} = newTask;
-				//console.log(newTask);
-				new Notice(`new task ${newTask.title} id is ${newTask.id}`)
+				const { id: ticktick_id, projectId: ticktick_projectId, url: ticktick_url } = newTask;
+				//log.debug(newTask);
+				new Notice(`new task ${newTask.title} id is ${newTask.id}`);
 
 				//If the task is completed
 				if (currentTask.status != 0) {
-					await this.plugin.tickTickRestAPI?.CloseTask(newTask.id)
-					await this.plugin.cacheOperation?.closeTaskToCacheByID(ticktick_id)
+					await this.plugin.tickTickRestAPI?.CloseTask(newTask.id);
+					await this.plugin.cacheOperation?.closeTaskToCacheByID(ticktick_id);
 
 				}
 
@@ -201,14 +217,15 @@ export class SyncMan {
 				let updatedText = await this.updateTaskLine(newTask, lineTxt, editor, cursor, fileContent, line, filePath);
 
 				//we want the line as it is in Obsidian.
-				newTask.lineHash = await this.plugin.taskParser?.getLineHash(updatedText);
-				//newTask writes to cache
-				//Will handle meta data there.
-				await this.plugin.cacheOperation?.appendTaskToCache(newTask, filePath)
-				await this.plugin.saveSettings()
+				const taskRecord = fileMap.getTaskRecord(newTask.id);
+				const taskString = taskRecord.task
+				const stringToHash = taskString + this.plugin.taskParser.getNoteString(taskRecord).textContent;
+				newTask.lineHash = await this.plugin.taskParser?.getLineHash(stringToHash);
+				await this.plugin.cacheOperation?.appendTaskToCache(newTask, filePath);
+				await this.plugin.saveSettings();
 			} catch (error) {
-				console.error('Error adding task:', error);
-				console.error(`The error occurred in file: ${filePath}`)
+				log.error('Error adding task:', error);
+				log.error(`The error occurred in file: ${filePath}`);
 				return fileContent;
 			}
 
@@ -216,131 +233,134 @@ export class SyncMan {
 		return fileContent;
 	}
 
-	//get the TickTick data into the task line.
-	private async updateTaskLine(newTask: ITask, lineTxt: string, editor: Editor | null, cursor: EditorPosition | null, fileContent: string, line: number| null, filePath: string) {
-		let newTaskCopy = {...newTask}
-		newTaskCopy.items = []
-		// console.log("TRACETHIS: dateStruct in: ", newTask.dateHolder);
-		let text = await this.plugin.taskParser?.convertTaskToLine(newTaskCopy, "OBSUpdating");
-		const tabs = this.plugin.taskParser?.getTabs(lineTxt);
-		text = tabs + text;
-
-		if (editor && cursor) {
-			const from = { line: cursor.line, ch: 0 };
-			const to = { line: cursor.line, ch: lineTxt.length };
-			editor?.replaceRange(text, from, to);
-			return text;
-		} else {
-			try {
-				// save file
-				const lines = fileContent.split('\n');
-				lines[line] = text;
-				const file = this.app.vault.getAbstractFileByPath(filePath);
-				const newContent = lines.join('\n');
-				await this.app.vault.modify(file, newContent);
-				// console.error("Modified: ", file?.path, new Date().toISOString());
-				return newContent;
-			} catch (error) {
-				console.error(error);
-				return text;
-			}
-		}
-	}
-
 	async fullTextNewTaskCheck(file_path: string): Promise<boolean> {
-		let file
-		let currentFileValue
-		let view
+		let file;
+		let currentFileValue;
+		let view;
 		let filepath = null;
 		let editor = null;
 		let cursor = null;
 
 		if (file_path) {
-			file = this.app.vault.getAbstractFileByPath(file_path)
+			file = this.app.vault.getAbstractFileByPath(file_path);
 			if ((file) && (file instanceof TFolder)) {
 				//leave folders alone.
 				return false;
 			}
 			if (file) {
-				filepath = file_path
-				currentFileValue = await this.app.vault.read(file)
+				filepath = file_path;
+				currentFileValue = await this.app.vault.read(file);
 			} else {
-				console.error(`File: ${file_path} not found. Removing from Meta Data`)
+				log.error(`File: ${file_path} not found. Removing from Meta Data`);
 				await this.plugin.cacheOperation?.deleteFilepathFromMetadata(file_path);
 				return false;
 			}
 		} else {
 			const workspace = this.app.workspace;
 			view = workspace.getActiveViewOfType(MarkdownView);
-			editor = workspace.activeEditor?.editor
-			file = workspace.getActiveFile()
-			filepath = file?.path
+			editor = workspace.activeEditor?.editor;
+			file = workspace.getActiveFile();
+			filepath = file?.path;
 			//Use view.data instead of vault.read. vault.read is delayed
-			currentFileValue = view?.data
+			currentFileValue = view?.data;
 		}
 
 		if (getSettings().enableFullVaultSync) {
-			//console.log('full vault sync enabled')
-			//console.log(filepath)
-			// console.log("Called from sync.")
-			await this.plugin.fileOperation?.addTickTickTagToFile(filepath)
+			//log.debug('full vault sync enabled')
+			//log.debug(filepath)
+			// log.debug("Called from sync.")
+			await this.plugin.fileOperation?.addTickTickTagToFile(filepath);
 		}
 
-		const content = currentFileValue
-		const lines = content.split('\n')
+		const content = currentFileValue;
+		const lines = content.split('\n');
 		for (let line = 0; line < lines.length; line++) {
-			const linetxt = lines[line]
+			const linetxt = lines[line];
 			currentFileValue = await this.addTask(linetxt, filepath, line, currentFileValue, editor, cursor);
 		}
 		return true;
 	}
 
-
-	async lineModifiedTaskCheck(filepath: string | undefined, lineText: string, lineNumber: number | undefined, fileContent: string): Promise<boolean> {
+	//Deal with Tasks and Task Items here because they are single line entities.
+	async lineModifiedTaskCheck(filepath: string | undefined, lineText: string, lineNumber: number | undefined, fileMap: FileMap): Promise<boolean> {
 		let modified = false;
 		if (getSettings().enableFullVaultSync) {
 			//new empty metadata
-			let metadata = await this.plugin.cacheOperation?.getFileMetadata(filepath)
+			let metadata = await this.plugin.cacheOperation?.getFileMetadata(filepath);
 			//TODO: I'm pretty sure this is redundant. Don't feel like taking it out now because it's been here forever and it works.
 			if (!metadata) {
 				//But if we still don't have anything bail the F out.
 				return false;
 			}
-			await this.plugin.saveSettings()
+			await this.plugin.saveSettings();
 		}
 
 		//check task
 		let bHashCheckFailed;
 		if (this.plugin.taskParser?.hasTickTickId(lineText) && this.plugin.taskParser?.hasTickTickTag(lineText)) {
-			const newHash = await this.plugin.taskParser?.getLineHash(lineText);
+			const lineTask_ticktick_id = this.plugin.taskParser.getTickTickId(lineText);
+			//get notes if any
+			const taskRecord = fileMap.getTaskRecord(lineTask_ticktick_id);
+
+			if (!taskRecord) {
+				log.error('Task Not Found in file map', fileMap.file, filepath, lineTask_ticktick_id);
+				return false;
+			}
+			if (!taskRecord.task) {
+				log.error('Task Not Found in file map', taskRecord, lineTask_ticktick_id);
+				return false;
+			}
+
+			let taskNotes = '';
+			if (taskRecord.taskLines && taskRecord.taskLines.length > 1) {
+				const noteStruct = this.plugin.taskParser.getNoteString(taskRecord);
+				//right now we don't care if it's a description or a note. We just need to check for a change.
+				taskNotes = noteStruct.textContent;
+			}
+
+			const newHash = await this.plugin.taskParser?.getLineHash(lineText + taskNotes);
 			//convertLineToTask has become a pretty expensive operation avoid it.
 			//let's see if the saved task has a lineHash.
-			const lineTask_ticktick_id = this.plugin.taskParser.getTickTickIdFromLineText(lineText);
+
 			const savedTask = this.plugin.cacheOperation?.loadTaskFromCacheID(lineTask_ticktick_id);
+
+			let projectModified = false;
+			let projectMoved = false;
+			let oldFilePath = '';
 			if (savedTask) {
 				if (savedTask.lineHash) {
 					//it has one. Is it the same as this one being edited?
 					if (newHash == savedTask.lineHash) {
-						return false;
+						bHashCheckFailed = false;
+						//but maybe the task moved. Check here.
+						const __ret = await this.checkForMoves(lineTask_ticktick_id, filepath);
+						projectMoved = __ret.projectMoved;
+						oldFilePath = __ret.oldFilePath;
+						const bParentchanged = (taskRecord.parentId ? taskRecord.parentId : '') != (savedTask.parentId ? savedTask.parentId : '');
+						if (!projectMoved && !bParentchanged) {
+							return false;
+						} else {
+							log.debug('Task Moved.', '\npm', projectMoved, '\npc', bParentchanged, '\n taskrecordparentid: ',
+								taskRecord.parentId, '\n savedtaskparentid: ', savedTask.parentId, '\n', lineText,
+								'\n', savedTask.title, '\n', newHash, '\n', savedTask.lineHash);
+						}
 					} else {
 						if (getSettings().debugMode) {
-							console.log('hashcheck failed.', '\n', lineText, '\n', savedTask.title, '\n', newHash, '\n', savedTask.lineHash);
+							log.debug('Task Hash Changed.', '\n', lineText, '\n', savedTask.title, '\n', newHash, '\n', savedTask.lineHash);
 						}
 						bHashCheckFailed = true;
 					}
 				}
 			}
-			const lineTask = await this.plugin.taskParser?.convertLineToTask(lineText, filepath, lineNumber, fileContent);
-			// console.log("TRACETHIS: 1", lineTask.dateHolder);
 
+			//TODO: Clean this up!
 			if (!savedTask) {
 				//Task in note, but not in cache. Assuming this would only happen in testing, delete the task from the note
-				console.error(`There is no task ${lineTask.id}, ${lineTask.title} in the local cache. It will be deleted`);
+				log.error(`There is no task for ${lineText.substring(0,10)} in the local cache. It will be deleted from file ${filepath}`);
 
-				new Notice(`There is no task ${lineTask.id}, ${lineTask.title} in the local cache. It will be deleted`);
-				//TODO: If there is no task in cache, we can't tell how many items there are. How did the task from from cache in the first place?
-				//TODO: Give them the opportunity to add to cache and TT?
-				await this.plugin.fileOperation?.deleteTaskFromSpecificFile(filepath, lineTask.id, lineTask.title, lineTask.items?.length, true);
+				new Notice(`There is no task ${lineText.substring(0,10)} in the local cache. It will be deleted`);
+				const file = this.plugin.app.vault.getAbstractFileByPath(filepath);
+				await this.plugin.fileOperation?.deleteTaskFromSpecificFile(file, lineTask, true);
 				return false;
 			} else {
 				//this should only be necessary for a while, until they update all tasks
@@ -349,9 +369,11 @@ export class SyncMan {
 					await this.plugin.cacheOperation?.updateTaskToCache(savedTask, null);
 				}
 				if (!savedTask.lineHash) {
-					savedTask.lineHash = await this.plugin.taskParser?.getLineHash(lineText);
+					savedTask.lineHash = await this.plugin.taskParser?.getLineHash(newHash);
 				}
 			}
+
+			const lineTask = await this.plugin.taskParser?.convertLineToTask(lineText, lineNumber, filepath, fileMap, taskRecord);
 
 			//Check whether the content has been modified
 			const lineTaskTitle = lineTask.title;
@@ -363,28 +385,27 @@ export class SyncMan {
 			const tagsModified = this.plugin.taskParser?.isTagsChanged(lineTask, savedTask);
 			//project whether to modify
 
-			const projectModified = this.plugin.taskParser?.isProjectIdChanged(lineTask, savedTask);
-			//Check if task has been in moved inside Obsidian
-			const oldFilePath = await this.plugin.cacheOperation?.isProjectMoved(lineTask, filepath);
-			let projectMoved = false;
-			if (oldFilePath) {
-				projectMoved = true;
-			}
 
 			//Whether status is modified?
 			const statusModified = this.plugin.taskParser?.isStatusChanged(lineTask, savedTask);
 
 			//any dates modified
 			const someDatesModified = this.plugin.dateMan?.areDatesChanged(lineTask, savedTask);
-			// console.log("TRACETHIS: 2", lineTask.dateHolder);
-
 
 			const parentIdModified = this.plugin.taskParser?.isParentIdChanged(lineTask, savedTask);
 			//check priority
 			const priorityModified = !(lineTask.priority == savedTask.priority);
 
-			const taskItemsModified = lineTask.items?.length != savedTask.items?.length;
 
+			const taskItemsModified = this.plugin.taskParser.areItemsChanged(lineTask.items, savedTask.items);
+
+			let notesModidified = false;
+			//TODO: Should only have content or desc. Checking for both anyway.
+			if (lineTask.content) {
+				notesModidified = this.plugin.taskParser.areNotesChanged(lineTask.content, savedTask.content);
+			} else if (lineTask.desc) {
+				notesModidified = this.plugin.taskParser.areNotesChanged(lineTask.desc, savedTask.desc);
+			}
 
 			try {
 				let contentChanged = false;
@@ -395,11 +416,12 @@ export class SyncMan {
 				let parentIdChanged = false;
 				let priorityChanged = false;
 				let taskItemsChanged = false;
+				let notesChanged = false;
 
 
 				if (titleModified) {
 					if (getSettings().debugMode) {
-						console.log(`Title modified for task ${lineTask_ticktick_id}\n"New:" ${lineTask.title}\n"Cached:" ${savedTask.title}`);
+						log.debug(`Title modified for task ${lineTask_ticktick_id}\n"New:" ${lineTask.title}\n"Cached:" ${savedTask.title}`);
 					}
 					// savedTask.title = lineTaskTitle
 					contentChanged = true;
@@ -407,7 +429,7 @@ export class SyncMan {
 
 				if (tagsModified) {
 					if (getSettings().debugMode) {
-						console.log(`Tags modified for task ${lineTask_ticktick_id}, , ${lineTask.tags}, ${savedTask.tags}`);
+						log.debug(`Tags modified for task ${lineTask_ticktick_id}, , ${lineTask.tags}, ${savedTask.tags}`);
 					}
 					// savedTask.tags = lineTask.tags
 					tagsChanged = true;
@@ -416,10 +438,10 @@ export class SyncMan {
 
 				if (someDatesModified) {
 					if (getSettings().debugMode) {
-						console.log(`Due date modified for task ${lineTask_ticktick_id}`);
-						console.log("new: ", lineTask.dueDate, "old: ", savedTask.dueDate);
+						log.debug(`Dates modified for task ${lineTask_ticktick_id}`);
+						// log.debug('new: ', lineTask.dueDate, 'old: ', savedTask.dueDate);
 					}
-					//console.log(savedTask.due.date)
+					//log.debug(savedTask.due.date)
 					// savedTask.dueDate = lineTask.dueDate
 					datesChanged = true;
 				}
@@ -429,13 +451,13 @@ export class SyncMan {
 
 				if (projectModified || projectMoved) {
 
-					// console.log(`Project id modified for task ${lineTask_ticktick_id}, ${lineTask.projectId}, ${savedTask.projectId}`)
+					// log.debug(`Project id modified for task ${lineTask_ticktick_id}, ${lineTask.projectId}, ${savedTask.projectId}`)
 					await this.plugin.tickTickRestAPI?.moveTaskProject(lineTask, savedTask.projectId, lineTask.projectId);
 
 					let noticeMessage = '';
 					if (projectModified) {
 						if (getSettings().debugMode) {
-							console.log('Project Modified');
+							log.debug('Project Modified');
 						}
 						noticeMessage = `Task ${lineTask_ticktick_id}: ${lineTaskTitle} has moved from ` +
 							`${await this.plugin.cacheOperation?.getProjectNameByIdFromCache(savedTask.projectId)} to ` +
@@ -443,7 +465,7 @@ export class SyncMan {
 							`If any children were moved, they will be updated to ${getSettings().baseURL} on the next Sync event`;
 					} else if (projectMoved) {
 						if (getSettings().debugMode) {
-							console.log('Project Moved');
+							log.debug('Project Moved');
 						}
 						noticeMessage = `Task ${lineTask_ticktick_id}: ${lineTaskTitle} has moved from ` +
 							`${oldFilePath} to ` +
@@ -452,7 +474,7 @@ export class SyncMan {
 					}
 					new Notice(noticeMessage, 0);
 					if (getSettings().debugMode) {
-						console.log(noticeMessage);
+						log.debug(noticeMessage);
 					}
 
 					// savedTask.projectId = lineTask.projectId
@@ -468,11 +490,11 @@ export class SyncMan {
 						`used to be a child of:\n${oldParent ? oldParent.title.trim() : 'No old parent found'}\n` +
 						`but is now a child of:\n${newParent ? newParent.title.trim() : 'No new parent found.'}\n` +
 						`If any children were moved, they will be updated to ${getSettings().baseURL} on the next Sync event`;
-					await this.plugin.tickTickRestAPI?.moveTaskParent(lineTask_ticktick_id, lineTask.parentId, lineTask.projectId);
+					await this.plugin.tickTickRestAPI?.moveTaskParent(lineTask_ticktick_id, savedTask.parentId, lineTask.parentId, lineTask.projectId);
 
 					new Notice(noticeMessage, 0);
 					if (getSettings().debugMode) {
-						console.log(noticeMessage);
+						log.debug(noticeMessage);
 					}
 
 					// savedTask.parentId = lineTask.parentId
@@ -487,27 +509,42 @@ export class SyncMan {
 
 				if (taskItemsModified) {
 					if (getSettings().debugMode) {
-						console.log('Number of items changed: ', lineTask.items?.length, savedTask.items?.length);
+						log.debug('Number of items changed: ', lineTask.items?.length, savedTask.items?.length);
 					}
 					taskItemsChanged = true;
+				}
+				if (notesModidified) {
+					if (getSettings().debugMode) {
+						if (lineTask.content) {
+							log.debug('Notes changed: ', lineTask.content, savedTask.content);
+						} else {
+							log.debug('Desc changed: ', lineTask.desc, savedTask.desc);
+						}
+					}
+					notesChanged = true;
 				}
 
 
 				if (contentChanged || tagsChanged || datesChanged ||
-					projectChanged || parentIdChanged || priorityChanged || parentIdChanged || taskItemsChanged) {
-					//console.log(updatedContent)
+					projectChanged || parentIdChanged || priorityChanged || parentIdChanged || taskItemsChanged || notesChanged) {
+					//log.debug(updatedContent)
 					savedTask.modifiedTime = this.plugin.dateMan?.formatDateToISO(new Date());
 
-					// console.log("TRACETHIS: 3", lineTask.dateHolder);
+					// log.debug("TRACETHIS: 3", lineTask.dateHolder);
 					const saveDateHolder = lineTask.dateHolder; //because it's going to get clobered when we refetch the tas,
 					const updatedTask = <ITask>await this.plugin.tickTickRestAPI?.UpdateTask(lineTask);
 					//TODO: This feels Kludgy AF. examine ways to get past this.
 					updatedTask.dateHolder = saveDateHolder;
 					updatedTask.lineHash = newHash;
-					// console.log("TRACETHIS, should have a dateholder", updatedTask);
 
-					await this.updateTaskLine(updatedTask, lineText, null, null, fileContent, lineNumber, filepath);
-
+					//TODO: Should we do ths again?
+					//      UpdatedTaskLine is needed when something we're doing needs to reflected in TickTick
+					//      I don't think we need to do this anymore.
+					//
+					// const fileContent = fileMap.getFileLines()?.join('\n');
+					//
+					// await this.updateTaskLine(updatedTask, lineText, null, null, fileContent, lineNumber, filepath);
+					//
 
 					if (!projectChanged) {
 						await this.plugin.cacheOperation?.updateTaskToCache(updatedTask, null);
@@ -516,22 +553,22 @@ export class SyncMan {
 					}
 					modified = true;
 				}
-				// console.log(result)
+				// log.debug(result)
 
 				if (statusModified) {
 					if (getSettings().debugMode) {
-						console.log(`Status modified for task ${lineTask_ticktick_id}`);
+						log.debug(`Status modified for task ${lineTask_ticktick_id}`);
 					}
 					if (lineTask.status != 0) {
 						if (getSettings().debugMode) {
-							console.log(`task completed`);
+							log.debug(`task completed`);
 						}
 						this.plugin.tickTickRestAPI?.CloseTask(lineTask.id, lineTask.projectId);
 						await this.plugin.cacheOperation?.closeTaskToCacheByID(lineTask.id);
 					} else {
 
 						if (getSettings().debugMode) {
-							console.log(`task not completed`);
+							log.debug(`task not completed`);
 						}
 						this.plugin.tickTickRestAPI?.OpenTask(lineTask.id, lineTask.projectId);
 						await this.plugin.cacheOperation?.reopenTaskToCacheByID(lineTask.id);
@@ -542,14 +579,14 @@ export class SyncMan {
 
 
 				if (contentChanged || tagsChanged || datesChanged ||
-					projectChanged || parentIdChanged || priorityChanged || parentIdChanged || taskItemsChanged) {
+					projectChanged || parentIdChanged || priorityChanged || parentIdChanged || taskItemsChanged || notesChanged) {
 
-					// console.log(lineTask)
-					// console.log(savedTask)
+					// log.debug(lineTask)
+					// log.debug(savedTask)
 					//`Task ${lastLineTaskticktickId} was modified`
 					await this.plugin.saveSettings();
 					let message = `Task ${lineTask_ticktick_id} is updated.`;
-					// console.log("#####", message);
+					// log.debug("#####", message);
 					new Notice(message);
 
 					if (contentChanged) {
@@ -576,154 +613,40 @@ export class SyncMan {
 					if (taskItemsChanged) {
 						message += '\nTask Items changed';
 					}
+					if (notesChanged) {
+						message += '\nNotes Changed';
+					}
 
 
 					if (getSettings().debugMode) {
-						console.log('Task Changed: ', lineTask.id, '\n', message);
+						log.debug('Task Changed: ', lineTask.id, '\n', message);
 					}
 
 				} else {
-					//console.log(`Task ${lineTask_ticktick_id} did not change`);
+					//log.debug(`Task ${lineTask_ticktick_id} did not change`);
 				}
 
 			} catch (error) {
-				console.error('Error updating task:', error);
+				log.error('Error updating task:', error);
 			}
 			//There's a corner case somewhere, where the line content hash that's saved is not the line content hash
 			// from the line in Obsidian. Until I find that corner case, we're just going to reset the line hash here and
 			// be done.
 			if (!modified && bHashCheckFailed) {
-				const updatedHash = await this.plugin.taskParser?.getLineHash(lineText)
+				const updatedHash = await this.plugin.taskParser?.getLineHash(lineText + taskNotes);
 				lineTask.lineHash = updatedHash;
 				await this.plugin.cacheOperation?.updateTaskToCache(lineTask, null);
 				await this.plugin.saveSettings();
-				console.log(`Updated hash: ${updatedHash}`);
+				log.debug(`Updated hash: ${updatedHash}`);
 			}
 		} else if (!getSettings().enableFullVaultSync) {
-			modified = await this.handleTaskItem(lineText, filepath, fileContent, lineNumber);
-		}
-
-		return modified
-	}
-
-	private async handleTaskItem(lineText: string, filepath: string, fileContent: string, lineNumber: number): Promise<boolean> {
-		let modified = false;
-		let added = false;
-		//it's a task. Is it a task item?
-		//is it a task at all?
-		if (!this.plugin.taskParser?.isMarkdownTask(lineText)) {
-			//Nah Brah. Bail.
-			return false;
-		}
-		let parsedItem = this.plugin.taskParser?.taskFromLine(lineText);
-		if (getSettings().debugMode) {
-			if (!parsedItem) {
-				console.error(`Task construction failed in line: ${lineText}`)
+			if (this.plugin.taskParser.isMarkdownTask(lineText)) {
+				modified = await this.handleTaskItem(lineText, fileMap, lineNumber);
 			}
 		}
-		if (!parsedItem.description) {
-			//empty item. Bail.
-			return false;
-		}
-		let tabs = parsedItem?.indent;
-		let content = parsedItem?.description;
-		if (content?.trim().length == 0) {
-			//they hit enter, but haven't typed anything yet.
-			// it will get added when they actually type something
-			modified = false
-			return modified;
-		}
-		const thisLineStatus = parsedItem?.status;
-		let parentTask: ITask = null;
-		if (tabs > 0) {//must be indented at least once.
-			const lines = fileContent.split('\n');
-			let itemId = "";
-			let regex = /%%(.*)%%/;
-			let match = regex.exec(content);
-			if (match) {
-				itemId = match[1];
-			}
 
-			for (let i = lineNumber - 1; i >= 0; i--) {
-				const line = lines[i];
-				if (this.plugin.taskParser?.hasTickTickId(line) && this.plugin.taskParser?.hasTickTickTag(line)) {
-					const ticktickid = this.plugin.taskParser.getTickTickIdFromLineText(line);
-					parentTask = await this.plugin.cacheOperation?.loadTaskFromCacheID(ticktickid);
-					if (parentTask && parentTask.items) { //we have some items.
-						if (itemId) {
-							const oldItem = parentTask.items.find((item) => item.id === itemId);
-							if (oldItem) {
-								content = content.replace(regex, ""); //We just want content now.
-								//TODO deal with "Won't do" which is -1
-								const oldItemStatus = oldItem.status != 0;
-								if (content.trim() != oldItem.title.trim()) {
-									// console.log(`[${content}] vs [${oldItem.title}] and ${thisLineStatus} vs ${oldItemStatus}`)
-									oldItem.title = content;
-									modified = true;
-								}
-								if (thisLineStatus != oldItemStatus) {
-									// console.log(`[${content}] vs [${oldItem.title}] and ${thisLineStatus} vs ${oldItemStatus}`)
-									oldItem.status = thisLineStatus ? 2 : 0;
-									modified = true;
-								}
-								break;
-							} else {
-								//TODO: Should ought to do something about this. Like either delete it from TT or
-								//      delete it from OBS. Or something.
-								console.error("item ID", itemId," ", content.trim(), " not found in", parentTask.title)
-								break;
-							}
-						} else {
-							const Oid = ObjectID();
-							const OidHexString = Oid.toHexString();
-							parentTask.items.push({
-								id: OidHexString,
-								title: content,
-								status: thisLineStatus ? 2 : 0
-							})
-							const updatedItemContent = `${lineText} %%${OidHexString}%%`
-							//Update the line in the file.
-							try {
-								const markDownView = this.app.workspace.getActiveViewOfType(MarkdownView);
-								const editor = markDownView?.app.workspace.activeEditor?.editor;
-								const from = {line: lineNumber, ch: 0};
-								const to = {line: lineNumber, ch: updatedItemContent.length};
-								editor?.setLine(lineNumber, updatedItemContent);
-							} catch (error) {
-								console.error(`Error updating item: ${error}`)
-							}
-							added = true;
-							break;
-						}
-
-					} else {
-						if (getSettings().debugMode) {
-							console.log(`parent didn't have items.`)
-						}
-						break;
-					}
-					break;
-				}
-			}
-			if (modified || added) {
-				//do the update mambo. cache and api.
-				if (parentTask) {
-					parentTask.modifiedTime = this.plugin.dateMan?.formatDateToISO(new Date());
-					await this.plugin.cacheOperation?.updateTaskToCache(parentTask);
-					let taskURL = this.plugin.taskParser?.getObsidianUrlFromFilepath(filepath)
-					if (taskURL) {
-						parentTask.title = parentTask.title + " " + taskURL;
-					}
-					const result = await this.plugin.tickTickRestAPI?.UpdateTask(parentTask)
-					const action = added ? "added" : "modified";
-					new Notice(`new Item ${content} ${action}`)
-					modified = true;
-				}
-			}
-		}
 		return modified;
 	}
-
 
 	async deleteTaskItemCheck(filepath: string, lineText: string, lineNumber: number, fileContent: string): Promise<void> {
 
@@ -751,10 +674,10 @@ export class SyncMan {
 				for (let i = lineNumber - 1; i >= 0; i--) {
 					const line = lines[i];
 					if (this.plugin.taskParser?.hasTickTickId(line) && this.plugin.taskParser?.hasTickTickTag(line)) {
-						const ticktickid = this.plugin.taskParser.getTickTickIdFromLineText(line);
+						const ticktickid = this.plugin.taskParser.getTickTickId(line);
 						parentTask = await this.plugin.cacheOperation?.loadTaskFromCacheID(ticktickid);
 						if (parentTask && parentTask.items) { //we have some items. Let's assume the order is the same?
-							let itemId = "";
+							let itemId = '';
 							let regex = /%%(.*)%%/;
 							let match = regex.exec(content);
 							if (match) {
@@ -767,11 +690,11 @@ export class SyncMan {
 								break;
 							} else {
 								//was it not added in the first place? Assume it will sort itself out on the next go around
-								console.log(`${itemId} Not found.`)
+								log.debug(`${itemId} Not found.`);
 								break;
 							}
 						} else {
-							console.log(`parent didn't have items.`)
+							// log.debug(`parent didn't have items.`);
 							break;
 						}
 
@@ -781,7 +704,7 @@ export class SyncMan {
 					//do the update mambo. cache and api.
 					//TODO: Verify that pushing an item with title and status will just matically add it.
 					parentTask.modifiedTime = this.plugin.dateMan?.formatDateToISO(new Date());
-					const result = await this.plugin.tickTickRestAPI?.UpdateTask(parentTask)
+					const result = await this.plugin.tickTickRestAPI?.UpdateTask(parentTask);
 					await this.plugin.cacheOperation?.updateTaskToCache(parentTask);
 				}
 
@@ -791,72 +714,67 @@ export class SyncMan {
 		}
 	}
 
-	async fullTextModifiedTaskCheck(file_path: string | null): Promise<void> {
-
-		let file;
-		let currentFileValue;
-		let view;
-		let filepath;
-
+	async fullTextModifiedTaskCheck(filepath: string | null): Promise<void> {
 		try {
-			if (file_path) {
-				file = this.app.vault.getAbstractFileByPath(file_path);
+			let file;
+			let currentFileValue;
+			let view;
+			if (filepath) {
+				file = this.app.vault.getAbstractFileByPath(filepath);
 				if ((file) && (file instanceof TFolder)) {
 					//leave folders alone.
 					return;
 				}
-				filepath = file_path;
-				currentFileValue = await this.app.vault.read(file);
 			} else {
 				view = this.app.workspace.getActiveViewOfType(MarkdownView);
 				file = this.app.workspace.getActiveFile();
 				filepath = file?.path;
-				currentFileValue = view?.data;
 			}
 
-			const content = currentFileValue;
-
 			let hasModifiedTask = false;
-			const lines = content.split('\n');
 
+			const fileMap = new FileMap(this.app, this.plugin, file);
+			await fileMap.init();
+
+			const lines: string [] = fileMap.getFileLines().split('\n');
+
+			//TODO: maybe sort a way to do the whole check in one swell foop.
 			for (let i = 0; i < lines.length; i++) {
 				const line = lines[i];
 				if (this.plugin.taskParser?.isMarkdownTask(line)) {
 					try {
-						await this.lineModifiedTaskCheck(filepath, line, i, content);
+						//TODO: use as service?
+						await this.lineModifiedTaskCheck(filepath, line, i, fileMap);
 						hasModifiedTask = true;
 					} catch (error) {
-						console.error('Error modifying task:', error);
-						continue;
+						log.error('Error modifying task:', error);
 					}
 				}
 			}
 
-			//todo: what was I thinking?
+
+			//TODO: at some point, I had a notion to simplify the change handling, this is an after effect.
 			if (hasModifiedTask) {
 				try {
 					// Perform necessary actions on the modified content and file meta data
 				} catch (error) {
-					console.error('Error processing modified content:', error);
+					log.error('Error processing modified content:', error);
 				}
 			}
 		} catch (error) {
-			console.error('Error:', error);
+			log.error('Error:', error);
 		}
 	}
-
 
 	// Close a task by calling API and updating JSON file
 	async closeTask(taskId: string): Promise<void> {
 		try {
 			let projectId = await this.plugin.cacheOperation?.closeTaskToCacheByID(taskId);
 			await this.plugin.tickTickRestAPI?.CloseTask(taskId, projectId);
-			await this.plugin.fileOperation?.completeTaskInTheFile(taskId)
-
-			this.plugin.saveSettings()
-			new Notice(`Task ${taskId} is closed.`)
+			this.plugin.saveSettings();
+			new Notice(`Task ${taskId} is closed.`);
 		} catch (error) {
-			console.error('Error closing task:', error);
+			log.error('Error closing task:', error);
 			throw error; // Throw an error so that the caller can catch and handle it
 		}
 	}
@@ -864,18 +782,17 @@ export class SyncMan {
 	//open task
 	async reopenTask(taskId: string): Promise<void> {
 		try {
-			let projectId = await this.plugin.cacheOperation?.reopenTaskToCacheByID(taskId)
-			await this.plugin.tickTickRestAPI?.OpenTask(taskId, projectId)
-			await this.plugin.fileOperation.uncompleteTaskInTheFile(taskId)
+			let projectId = await this.plugin.cacheOperation?.reopenTaskToCacheByID(taskId);
+			await this.plugin.tickTickRestAPI?.OpenTask(taskId, projectId);
+			await this.plugin.fileOperation.uncompleteTaskInTheFile(taskId);
 
-			this.plugin.saveSettings()
-			new Notice(`Task ${taskId} is reopened.`)
+			this.plugin.saveSettings();
+			new Notice(`Task ${taskId} is reopened.`);
 		} catch (error) {
-			console.error('Error opening task:', error);
+			log.error('Error opening task:', error);
 			throw error; // Throw an error so that the caller can catch and handle it
 		}
 	}
-
 
 	/**
 	 * Delete the task with the specified ID from the task list and update the JSON file
@@ -885,9 +802,9 @@ export class SyncMan {
 	async deleteTasksByIds(taskIds: string[]): Promise<string[]> {
 		const deletedTaskIds = [];
 
-		const bConfirm = await this.confirmDeletion(taskIds, "The tasks were removed from the file");
+		const bConfirm = await this.confirmDeletion(taskIds, 'The tasks were removed from the file');
 		if (!bConfirm) {
-			new Notice("Tasks will not be deleted. Please rectify the issue before the next sync.", 0)
+			new Notice('Tasks will not be deleted. Please rectify the issue before the next sync.', 0);
 			return [];
 		}
 
@@ -899,93 +816,92 @@ export class SyncMan {
 					response = await this.plugin.tickTickRestAPI?.deleteTask(taskId, projectId);
 				}
 				if (response) {
-					//console.log(`Task ${taskId} deleted successfully`);
-					new Notice(`Task ${taskId} is deleted.`)
+					//log.debug(`Task ${taskId} deleted successfully`);
+					new Notice(`Task ${taskId} is deleted.`);
 				}
 				//TODO: Verify that we are not over deleting.
 				//We may end up with stray tasks, that are not in ticktick. if we're here, just delete them anyway.
 				deletedTaskIds.push(taskId); // Add the deleted task ID to the array
 
 			} catch (error) {
-				console.error(`Failed to delete task ${taskId}: ${error}`);
-				// You can add better error handling methods, such as throwing exceptions or logging here, etc.
+				log.error(`Failed to delete task ${taskId}: ${error}`);
+				// You can add better error handling methods, such as throwing errors or logging here, etc.
 			}
 		}
 
 		if (!deletedTaskIds.length) {
 			if (getSettings().debugMode) {
-				console.log("Task not deleted");
+				log.debug('Task not deleted:', deletedTaskIds);
 			}
 			return [];
 		}
 
 		await this.plugin.cacheOperation?.deleteTaskFromCacheByIDs(deletedTaskIds); // Update JSON file
-		this.plugin.saveSettings()
-		//console.log(`A total of ${deletedTaskIds.length} tasks were deleted`);
+		this.plugin.saveSettings();
+		//log.debug(`A total of ${deletedTaskIds.length} tasks were deleted`);
 
 
 		return deletedTaskIds;
 	}
 
-
-	//TODO: Determine deletion candidate
 	// Synchronize completed task status to Obsidian file
 	async syncCompletedTaskStatusToObsidian(unSynchronizedEvents) {
 		// Get unsynchronized events
-		//console.log(unSynchronizedEvents)
+		//log.debug(unSynchronizedEvents)
 		try {
 
 			// Handle unsynchronized events and wait for all processing to complete
-			const processedEvents = []
+			const processedEvents = [];
 			for (const e of unSynchronizedEvents) { //If you want to modify the code so that completeTaskInTheFile(e.object_id) is executed in order, you can change the Promise.allSettled() method to use a for...of loop to handle unsynchronized events . Specific steps are as follows:
-				//console.log(`Completing ${e.object_id}`)
-				await this.plugin.fileOperation.completeTaskInTheFile(e.object_id)
-				await this.plugin.cacheOperation?.closeTaskToCacheByID(e.object_id)
-				new Notice(`Task ${e.object_id} is closed.`)
-				processedEvents.push(e)
+				//log.debug(`Completing ${e.object_id}`)
+				await this.plugin.fileOperation.completeTaskInTheFile(e.object_id);
+				await this.plugin.cacheOperation?.closeTaskToCacheByID(e.object_id);
+				new Notice(`Task ${e.object_id} is closed.`);
+				processedEvents.push(e);
 			}
 
 			// Save events to the local database."
 			//const allEvents = [...savedEvents, ...unSynchronizedEvents]
 			//TODO: This is just wrong. Probably delete this function or fix this~
-			await this.plugin.cacheOperation?.appendTaskToCache(processedEvents)
-			this.plugin.saveSettings()
+			await this.plugin.cacheOperation?.appendTaskToCache(processedEvents);
+			this.plugin.saveSettings();
 
 
 		} catch (error) {
-			console.error('Error synchronizing task status:', error)
+			log.error('Error synchronizing task status:', error);
 		}
 	}
 
-
-	// Synchronize completed task status to Obsidian file
 	//TODO: Determine deletion candidate
 	async syncUncompletedTaskStatusToObsidian(unSynchronizedEvents) {
 
-		//console.log(unSynchronizedEvents)
+		//log.debug(unSynchronizedEvents)
 
 		try {
 
 			// Handle unsynchronized events and wait for all processing to complete
-			const processedEvents = []
+			const processedEvents = [];
 			for (const e of unSynchronizedEvents) { //If you want to modify the code so that uncompleteTaskInTheFile(e.object_id) is executed in order, you can change the Promise.allSettled() method to use a for...of loop to handle unsynchronized events . Specific steps are as follows:
-				//console.log(`uncheck task: ${e.object_id}`)
-				await this.plugin.fileOperation.uncompleteTaskInTheFile(e.object_id)
-				await this.plugin.cacheOperation?.reopenTaskToCacheByID(e.object_id)
-				new Notice(`Task ${e.object_id} is reopened.`)
-				processedEvents.push(e)
+				//log.debug(`uncheck task: ${e.object_id}`)
+				await this.plugin.fileOperation.uncompleteTaskInTheFile(e.object_id);
+				await this.plugin.cacheOperation?.reopenTaskToCacheByID(e.object_id);
+				new Notice(`Task ${e.object_id} is reopened.`);
+				processedEvents.push(e);
 			}
 
 
 			// Merge new events into existing events and save to JSON
 			//const allEvents = [...savedEvents, ...unSynchronizedEvents]
 			//TODO: This is just wrong. Probably delete this function or fix this!
-			await this.plugin.cacheOperation?.appendTaskToCache(processedEvents)
-			await this.plugin.saveSettings()
+			await this.plugin.cacheOperation?.appendTaskToCache(processedEvents);
+			await this.plugin.saveSettings();
 		} catch (error) {
-			console.error('Error synchronizing task status:', error)
+			log.error('Error synchronizing task status:', error);
 		}
 	}
+
+
+	//TODO: Determine deletion candidate
 
 	/*
 	 * Synchronizes the tasks between TickTick and Obsidian.
@@ -1001,14 +917,14 @@ export class SyncMan {
 		try {
 			const res = await this.plugin.saveProjectsToCache();
 			if (!res) {
-				console.error("probable network connection error.")
+				log.error('probable network connection error.');
 				return false;
 			}
 
 			let bModifiedFileSystem = false;
 			const allResources = await this.plugin.tickTickRestAPI?.getAllResources();
-			if (!allResources){
-				console.error("probable network connection error.")
+			if (!allResources) {
+				log.error('probable network connection error.');
 				return false;
 			}
 
@@ -1016,8 +932,8 @@ export class SyncMan {
 				updateProjectGroups(allResources.projectGroups);
 			}
 
-			const allTaskDetails = allResources['syncTaskBean'];//await this.plugin.tickTickRestAPI?.getAllTasks();
-			// console.log("All task details have been saved.", allTaskDetails);
+			const allTaskDetails = allResources['syncTaskBean'];
+
 			let tasksFromTickTic = allTaskDetails.update;
 			let deletedTasks = allTaskDetails.delete;
 			// this.dumpArray("tick Tick ", tasksFromTickTic)
@@ -1026,11 +942,11 @@ export class SyncMan {
 			//TODO: Filtering deleted tasks would take an act of congress. Just warn the user in Readme.
 
 			let syncTag: string = getSettings().SyncTag;
-			if (syncTag)  {
+			if (syncTag) {
 				//TODO: In the fullness of time we need to look at Tag Labels not Tag Names.
 				//because TickTick only stores lowercase tags.;
 				syncTag.toLowerCase();
-				if (syncTag.includes("/")) {
+				if (syncTag.includes('/')) {
 					syncTag = syncTag.replace(/\//g, '-');
 				}
 			}
@@ -1038,7 +954,7 @@ export class SyncMan {
 			if (syncTag && getSettings().SyncProject) {
 
 				//Check for AND/OR presences to determine processing.
-				const AndOrIndicator = getSettings().tagAndOr
+				const AndOrIndicator = getSettings().tagAndOr;
 
 				// AND selected. They want only tasks with the tag in the project.
 				if (AndOrIndicator == 1) {
@@ -1084,61 +1000,68 @@ export class SyncMan {
 			}
 
 			// this.dumpArray('== remote:', tasksFromTickTic);
-			let tasksInCache = await this.plugin.cacheOperation?.loadTasksFromCache()
+			let tasksInCache = await this.plugin.cacheOperation?.loadTasksFromCache();
 			// this.dumpArray("cache", tasksInCache)
 
 			if (getSettings().debugMode) {
 				if (tasksFromTickTic) {
-					console.log("We have: ", tasksFromTickTic.length, " tasks on " + this.plugin.tickTickRestAPI?.api?.apiUrl)
+					log.debug('We have: ', tasksFromTickTic.length, ' recent tasks on ' + this.plugin.tickTickRestAPI?.api?.apiUrl);
 					const closedTasks = tasksFromTickTic.filter(task => task.status != 0);
 					const openTasks = tasksFromTickTic.filter(task => task.status === 0);
-					console.log('openTasks', openTasks.length, 'closedTasks', closedTasks.length);
+					log.debug('openTasks', openTasks.length, 'closedTasks', closedTasks.length);
 				} else {
-					console.log("No tasks found.");
+					log.debug('No tasks found.');
 				}
 				if (tasksInCache) {
-					console.log("There are: ", tasksInCache.length, " tasks in Cache.");
+					log.debug('There are: ', tasksInCache.length, ' tasks in Cache.');
 				} else {
-					console.log("There are no tasks in cache.");
+					log.debug('There are no tasks in cache.');
 				}
 
 			}
 
-			tasksFromTickTic = tasksFromTickTic.sort((a, b) => (a.id > b.id) ? 1 : ((b.id > a.id) ? -1 : 0))
-			// console.log("num remote tasks: ", tasksFromTickTic.length)
 
 			// this.dumpArray('== local:', tasksInCache);
 
 			if (tasksInCache) {
-				tasksInCache = tasksInCache.sort((a, b) => (a.id > b.id) ? 1 : ((b.id > a.id) ? -1 : 0))
-				// console.log("local tasks: ", tasksInCache.length);
+				tasksInCache = tasksInCache.sort((a, b) => (a.id > b.id) ? 1 : ((b.id > a.id) ? -1 : 0));
+				// log.debug("local tasks: ", tasksInCache.length);
 			} else {
 				tasksInCache = [];
 			}
 			if (tasksFromTickTic) {
-				tasksFromTickTic = tasksFromTickTic.sort((a, b) => (a.id > b.id) ? 1 : ((b.id > a.id) ? -1 : 0))
-				// console.log("local tasks: ", tasksInCache.length);
+				tasksFromTickTic = tasksFromTickTic.sort((a, b) => (a.id > b.id) ? 1 : ((b.id > a.id) ? -1 : 0));
+				// log.debug("local tasks: ", tasksInCache.length);
 			} else {
 				tasksFromTickTic = [];
 			}
-			// Check for new tasks in TickTick
 
-			const newTickTickTasks = tasksFromTickTic.filter(task => !tasksInCache.some(t => t.id === task.id));
+			// Check for new tasks in TickTick
+			//TODO: Pretty sure this is a corner case, but if we have tasks in cache, but nothing in fileMetadata, then
+			//      the files got deleted at some point. We want to force creation of the files....
+			//      VERIFY: This doesn't bite us in the ass.
+
+			let newTickTickTasks = [];
+			if (Object.keys(getSettings().fileMetadata).length === 0) {
+				newTickTickTasks = tasksFromTickTic;
+			} else {
+				newTickTickTasks = tasksFromTickTic.filter(task => !tasksInCache.some(t => t.id === task.id));
+			}
+
 			// this.dumpArray('== Add to Obsidian:', newTickTickTasks);
 			//download remote only tasks to Obsidian
 			if (newTickTickTasks.length > 0) {
 				//New Tasks, create their dateStruct
-				newTickTickTasks.forEach((newTickTickTask: ITask)=> {
+				newTickTickTasks.forEach((newTickTickTask: ITask) => {
 					this.plugin.dateMan?.addDateHolderToTask(newTickTickTask);
-				})
-				let result = await this.plugin.fileOperation?.addTasksToFile(newTickTickTasks)
+				});
+				let result = await this.plugin.fileOperation?.addTasksToFile(newTickTickTasks, false);
 				if (result) {
 					// Sleep for 1 seconds
 					await new Promise(resolve => setTimeout(resolve, 1000));
 				}
 				bModifiedFileSystem = true;
 			}
-
 
 
 			// Check for deleted tasks in TickTick
@@ -1150,19 +1073,36 @@ export class SyncMan {
 
 
 			if (reallyDeletedTickTickTasks.length > 0) {
-				const taskTitlesForConfirmation = reallyDeletedTickTickTasks.map((task: ITask) => task.id)
+				const taskTitlesForConfirmation = reallyDeletedTickTickTasks.map((task: ITask) => task.id);
 
-				const bConfirm = await this.confirmDeletion(taskTitlesForConfirmation, "tasks deleted from TickTick");
+				const bConfirm = await this.confirmDeletion(taskTitlesForConfirmation, 'tasks deleted from TickTick');
 
 				if (bConfirm) {
+					//Need to have deletes in parentage order else everything goes Tango Uniform
+					reallyDeletedTickTickTasks.sort((left, right) => {
+						if (!left.parentId && right.parentId) {
+							return -1;
+						} else if (left.parentId && !right.parentId) {
+							return 1;
+						} else {
+							return 0;
+						}
+					});
 					for (const task of reallyDeletedTickTickTasks) {
 						try {
 							await this.plugin.fileOperation?.deleteTaskFromFile(task);
 						} catch (error) {
-							console.log("Tasks with no associated file found.")
+							//Assume that the file is goine, but we're trying to clear cache anyway.
+							log.debug('Task deletion failed.', error);
 						}
-						await this.plugin.cacheOperation?.deleteTaskFromCache(task.id)
-						bModifiedFileSystem = true;
+						try {
+							await this.plugin.cacheOperation?.deleteTaskFromCache(task.id);
+							bModifiedFileSystem = true;
+						} catch (error) {
+							log.debug('Task deletion failed.', error);
+							bModifiedFileSystem = true;
+						}
+
 					}
 
 				}
@@ -1216,121 +1156,146 @@ export class SyncMan {
 			});
 
 
-
-			//Need to have updates in parentage order else everything goes Tango Uniform
-			recentUpdates.sort((left, right) => {
-				if (!left.parentId && right.parentId) {
-					return -1;
-				} else if (left.parentId && !right.parentId) {
-					return 1;
-				} else {
-					return 0;
+			if (recentUpdates.length > 0) {
+				// this.dumpArray('== Update in  Obsidian:', recentUpdates)
+				let result = await this.plugin.fileOperation?.addTasksToFile(recentUpdates, true);
+				if (result) {
+					// Sleep for 1 seconds
+					await new Promise(resolve => setTimeout(resolve, 1000));
+					bModifiedFileSystem = true;
 				}
-			});
 
 
-			// this.dumpArray('== Update in  Obsidian:', recentUpdates);
-
-			const toBeProcessed = recentUpdates.map(task => task.id)
-			for (const task of recentUpdates) {
-				await this.plugin.fileOperation?.updateTaskInFile(task, toBeProcessed );
-				await this.plugin.cacheOperation?.updateTaskToCache(task);
-				bModifiedFileSystem = true;
-			}
-			if (bModifiedFileSystem) {
-				// Sleep for 5 second
-				await new Promise(resolve => setTimeout(resolve, 5000));
-			}
-
-
-			await this.plugin.saveSettings();
-			//If we just farckled the file system, stop Syncing to avoid race conditions.
-			if (getSettings().debugMode) {
-				console.log(bModifiedFileSystem ? "File System Modified." : "No synchronization changes.")
+				await this.plugin.saveSettings();
+				//If we just farckled the file system, stop Syncing to avoid race conditions.
+				if (getSettings().debugMode) {
+					log.debug(bModifiedFileSystem ? 'File System Modified.' : 'No synchronization changes.');
+				}
 			}
 			return bModifiedFileSystem;
 
 		} catch (err) {
-			console.error('An error occurred while synchronizing:', err);
+			log.error('An error occurred while synchronizing:', err);
 		}
 		return false;
 	}
 
+
+	// Synchronize completed task status to Obsidian file
+
 	dumpArray(which: string, arrayIn: ITask[]) {
-		console.log(which)
-		arrayIn.forEach(item => {
-					console.log(' ',
-						item);
-			// console.log(' ',
-			// 	item.id, '--',
-			// 	// item.title,
-			// 	// item.parentId,
-			// 	// item.childIds,
-			// 	'modification time: ', item.modifiedTime);
-			}
-		)
+		log.debug(which, arrayIn);
+		// arrayIn.forEach(item => {
+		// 		log.debug(' ', item);
+		// 		// log.debug(' ',
+		// 		// 	item.id, '--',
+		// 		// 	// item.title,
+		// 		// 	// item.parentId,
+		// 		// 	// item.childIds,
+		// 		// 	'modification time: ', item.modifiedTime);
+		// 	}
+		// );
 
 	}
 
-	///End of Test
-
-
 	async backupTickTickAllResources() {
 		try {
-			// console.log("backing up.")
+			// log.debug("backing up.")
 			// if (this.plugin.tickTickSyncAPI) {
-			// console.log("It's defined", this.plugin.tickTickSyncAPI)
+			// log.debug("It's defined", this.plugin.tickTickSyncAPI)
 			// }
-			const bkupData = await this.plugin.tickTickRestAPI?.exportData()
+			const bkupData = await this.plugin.tickTickRestAPI?.exportData();
 
 			if (bkupData) {
 				const now: Date = new Date();
 				const timeString: string = `${now.getFullYear()}${now.getMonth() + 1}${now.getDate()}${now.getHours()}${now.getMinutes()}${now.getSeconds()}`;
 
-				const name = "ticktick-backup-" + timeString + ".csv"
+				const name = 'ticktick-backup-' + timeString + '.csv';
 
-				await this.app.vault.create(name, bkupData)
-				//console.log(`ticktick backup successful`)
-				new Notice(`TickTick backup data is saved in the path ${name}`)
+				await this.app.vault.create(name, bkupData);
+				//log.debug(`ticktick backup successful`)
+				new Notice(`TickTick backup data is saved in the path ${name}`);
 			}
 		} catch (error) {
-			console.error("An error occurred while creating TickTick backup", error);
-			new Notice("An error occurred while creating TickTick backup" + error, 0);
+			log.error('An error occurred while creating TickTick backup', error);
+			new Notice('An error occurred while creating TickTick backup' + error, 0);
 		}
 
 	}
 
-
 	//After renaming the file, check all tasks in the file and update all links.
 	async updateTaskContent(filepath: string) {
-		const metadata = await this.plugin.cacheOperation?.getFileMetadata(filepath)
+		const metadata = await this.plugin.cacheOperation?.getFileMetadata(filepath);
 		if (!metadata || !metadata.TickTickTasks) {
-			return
+			return;
 		}
-		const taskURL = this.plugin.taskParser?.getObsidianUrlFromFilepath(filepath)
+		const taskURL = this.plugin.taskParser?.getObsidianUrlFromFilepath(filepath);
 		try {
 			for (const taskDetail of metadata.TickTickTasks) {
 				const task = await this.plugin.cacheOperation?.loadTaskFromCacheID(taskDetail.taskId);
 				if (task) {
 
 
-					task.title = task.title + " " + taskURL;
-					const updatedTask = await this.plugin.tickTickRestAPI?.UpdateTask(task)
+					task.title = task.title + ' ' + taskURL;
+					const updatedTask = await this.plugin.tickTickRestAPI?.UpdateTask(task);
 					//Cache the title without the URL because that's what we're going to do content compares on.
-					updatedTask.title = await this.plugin.taskParser?.stripOBSUrl(updatedTask.title)
+					updatedTask.title = await this.plugin.taskParser?.stripOBSUrl(updatedTask.title);
 					await this.plugin.cacheOperation?.updateTaskToCache(updatedTask);
 				} else {
-					const error = "Task: " +  taskDetail +  "from file: " +  filepath +  "not found.";
+					const error = 'Task: ' + taskDetail + 'from file: ' + filepath + 'not found.';
 					throw new Error(error);
 				}
 			}
 		} catch (error) {
-			console.error('An error occurred in updateTaskDescription:', error);
+			log.error('An error occurred in updateTaskDescription:', error);
 		}
 
 
 	}
 
+	///End of Test
+
+	private async checkForMoves(taskId: string, filepath: string) {
+		let projectMoved = false;
+		const oldFilePath = await this.plugin.cacheOperation.getFilepathForTask(taskId);
+		if (oldFilePath && oldFilePath !== filepath) {
+			projectMoved = true;
+		}
+		return { projectMoved, oldFilePath };
+	}
+
+	//get the TickTick data into the task line.
+	private async updateTaskLine(newTask: ITask, lineTxt: string, editor: Editor | null, cursor: EditorPosition | null, fileContent: string, line: number | null, filePath: string) {
+		let newTaskCopy = { ...newTask };
+		newTaskCopy.items = [];
+
+		const numTabs = this.plugin.taskParser.getNumTabs(lineTxt);
+		let text = await this.plugin.taskParser?.convertTaskToLine(newTaskCopy, numTabs);
+
+		//WTF did I want to do that??
+		// text = '\t'.repeat(numTabs) + text;
+
+		if (editor && cursor) {
+			const from = { line: cursor.line, ch: 0 };
+			const to = { line: cursor.line, ch: lineTxt.length };
+			editor?.replaceRange(text, from, to);
+			return text;
+		} else {
+			try {
+				// save file
+				const lines = fileContent.split('\n');
+				lines[line] = text;
+				const file = this.app.vault.getAbstractFileByPath(filePath);
+				const newContent = lines.join('\n');
+				await this.app.vault.modify(file, newContent);
+				// log.error("Modified: ", file?.path, new Date().toISOString());
+				return newContent;
+			} catch (error) {
+				log.error(error);
+				return text;
+			}
+		}
+	}
 
 	private async confirmDeletion(taskIds: string[], reason: string) {
 		const tasksTitles = await this.plugin.cacheOperation?.getTaskTitles(taskIds);
@@ -1344,6 +1309,119 @@ export class SyncMan {
 		return bConfirmation;
 	}
 
+
+	private async handleTaskItem(lineText: string, fileMap: FileMap, lineNumber: number | undefined) {
+		let modified = false;
+		let added = false;
+		//it's a task. Is it a task item?
+		//is it a task at all?
+		if (!this.plugin.taskParser?.isMarkdownTask(lineText)) {
+			//Nah Brah. Bail.
+			return false;
+		}
+		let currentObject: ITaskItemRecord;
+		const lineItemId = this.plugin.taskParser.getLineItemId(lineText);
+		if (lineItemId) {
+			currentObject = fileMap.getTaskItemRecord(lineItemId);
+		} else {
+			if (lineNumber) {
+				currentObject = fileMap.getTaskItemRecordByLine(lineNumber);
+			}
+		}
+
+		if (!currentObject) {
+			//a text line of no interest.
+			log.warn('Item not found in file map: ', lineText);
+			return false;
+		}
+
+		const parentID = currentObject.parentId;
+		const itemId = currentObject.ID;
+
+		const newItem = this.plugin.taskParser?.taskFromLine(lineText);
+
+		const parentTask = this.plugin.cacheOperation?.loadTaskFromCacheID(parentID);
+		if (parentTask && parentTask.items) { //we have some items.
+			if (itemId) {
+				const oldItem = parentTask.items.find((item) => item.id == itemId);
+				if (oldItem) {
+					if (oldItem.title.trim() != newItem.description.trim()) {
+						oldItem.title = newItem?.description.trim();
+						oldItem.status = newItem?.status ? 2 : 0;
+						modified = true;
+					}
+				} else {
+					//TODO: Assume that there's a timing issue, and assume that this item really needs to live
+					log.warn('', newItem, 'not found in parent items. Forcibly adding...');
+					// parentTask.items.push({
+					//   id: itemId,
+					//   title: newItem?.description,
+					//   status: newItem?.status ? 2 : 0
+					// });
+				}
+			} else {
+				const Oid = ObjectID();
+				const OidHexString = Oid.toHexString();
+				parentTask.items.push({
+					id: OidHexString,
+					title: newItem?.description,
+					status: newItem?.status ? 2 : 0
+				});
+				const updatedItemContent = `${lineText} %%${OidHexString}%%`;
+				//Update the line in the file.
+				try {
+					const markDownView = this.app.workspace.getActiveViewOfType(MarkdownView);
+					const editor = markDownView?.app.workspace.activeEditor?.editor;
+					const from = { line: lineNumber, ch: 0 };
+					const to = { line: lineNumber, ch: updatedItemContent.length };
+					editor?.setLine(lineNumber, updatedItemContent);
+				} catch (error) {
+					log.error(`Error updating item: ${error}`);
+				}
+				added = true;
+			}
+
+		} else {
+			if (getSettings().debugMode) {
+				// log.debug(`parent didn't have items.`);
+			}
+		}
+
+		if (modified || added) {
+			//do the update mambo. cache and api.
+			if (parentTask) {
+				const filepath = fileMap.getFilePath();
+				modified = await this.updateTask(parentTask, filepath.path);
+				if (modified) {
+					await this.plugin.cacheOperation?.updateTaskToCache(parentTask, filepath.path);
+				}
+			}
+		}
+
+		return modified;
+	}
+
+	private async updateTask(parentTask: ITask, filepath: string) {
+		parentTask.modifiedTime = this.plugin.dateMan?.formatDateToISO(new Date());
+		await this.plugin.cacheOperation?.updateTaskToCache(parentTask);
+		let taskURL = this.plugin.taskParser?.getObsidianUrlFromFilepath(filepath);
+		if (taskURL) {
+			parentTask.title = parentTask.title + ' ' + taskURL;
+		}
+		const result = await this.plugin.tickTickRestAPI?.UpdateTask(parentTask);
+		const updateFailed = !result;
+		new Notice(`Task ${parentTask.title} modified.`);
+		return !updateFailed;
+	}
+
+	private findTaskOrItemByLineNumber(tasks, lineNumber) {
+		for (let task of tasks) {
+			if (lineNumber >= task.startLine && lineNumber <= task.endLine) {
+				return task;
+			}
+		}
+		return null; // Return null if no task or item is found for the given line number
+	}
 
 
 }

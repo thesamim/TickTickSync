@@ -1,12 +1,13 @@
-import TickTickSync from "@/main";
+import TickTickSync from '@/main';
 import QueryError from './QueryError.svelte';
 import QueryRoot from './QueryRoot.svelte';
-import {type MarkdownPostProcessorContext, MarkdownRenderChild} from "obsidian";
-import {type Component, mount, unmount} from "svelte";
-import {parseQuery} from "@/query/parser";
+import { type MarkdownPostProcessorContext, MarkdownRenderChild } from 'obsidian';
+import { type Component, mount, unmount } from 'svelte';
+import { parseQuery } from '@/query/parser';
 
 export class QueryInjector {
 	private readonly plugin: TickTickSync;
+
 	constructor(plugin: TickTickSync) {
 		this.plugin = plugin;
 	}
@@ -17,16 +18,16 @@ export class QueryInjector {
 
 		try {
 			const [query, warnings] = parseQuery(source);
-		// 	applyReplacements(query, ctx);
-		//
-		// 	// debug({
-		// 	// 	msg: "Parsed query",
-		// 	// 	context: query,
-		// 	// });
-		//
+			// 	applyReplacements(query, ctx);
+			//
+			// 	// log.debug({
+			// 	// 	msg: "Parsed query",
+			// 	// 	context: query,
+			// 	// });
+			//
 			child = new QueryRender(el, this.plugin, QueryRoot, { query, warnings }, true);
 		} catch (e) {
-			console.error(e);
+			log.error(e);
 			child = new QueryRender(el, this.plugin, QueryError, { error: e }, false);
 		}
 
@@ -50,7 +51,7 @@ class QueryRender<T extends object> extends MarkdownRenderChild {
 		plugin: TickTickSync,
 		component: Component,
 		props: T,
-		interceptEditButton: boolean,
+		interceptEditButton: boolean
 	) {
 		super(container);
 		this.plugin = plugin;
@@ -82,24 +83,24 @@ class QueryRender<T extends object> extends MarkdownRenderChild {
 	}
 
 	onload(): void {
-	// 	if (this.containerEl.parentElement !== null) {
-	// 		this.observer.observe(this.containerEl.parentElement, { childList: true });
-	// 	}
-	//
-	// 	const Component = this.component;
-	// 	this.reactRoot.render(
-	// 		<MarkdownEditButtonContext.Provider value={this.store}>
-	// 		<RenderChildContext.Provider value={this}>
-	// 		<PluginContext.Provider value={this.plugin}>
-	// 			<Component {...this.props} />
-	// 	</PluginContext.Provider>
-	// 	</RenderChildContext.Provider>
-	// 	</MarkdownEditButtonContext.Provider>,
-	// );
+		// 	if (this.containerEl.parentElement !== null) {
+		// 		this.observer.observe(this.containerEl.parentElement, { childList: true });
+		// 	}
+		//
+		// 	const Component = this.component;
+		// 	this.reactRoot.render(
+		// 		<MarkdownEditButtonContext.Provider value={this.store}>
+		// 		<RenderChildContext.Provider value={this}>
+		// 		<PluginContext.Provider value={this.plugin}>
+		// 			<Component {...this.props} />
+		// 	</PluginContext.Provider>
+		// 	</RenderChildContext.Provider>
+		// 	</MarkdownEditButtonContext.Provider>,
+		// );
 
 		//GOOGLE: "Svelte 5 Components are no longer classes"
 		const Component = this.component;
-		this.root  = mount(Component, {
+		this.root = mount(Component, {
 			target: this.containerEl,
 			props: this.props
 		});

@@ -1,7 +1,7 @@
-import type {ITask} from "@/api/types/Task";
-import type {IProject} from "@/api/types/Project";
-import type {IProjectGroup} from "@/api/types/ProjectGroup";
-import type {FileMetadata} from "@/services/cacheOperation";
+import type { ITask } from '@/api/types/Task';
+import type { IProject } from '@/api/types/Project';
+import type { IProjectGroup } from '@/api/types/ProjectGroup';
+import type { FileMetadata } from '@/services/cacheOperation';
 
 export interface ITickTickSyncSettings {
 	baseURL: string;
@@ -32,7 +32,7 @@ export interface ITickTickSyncSettings {
 		projects: IProject[];
 		projectGroups: IProjectGroup[];
 		tasks: ITask[];
-	}
+	};
 	//statistics: any;
 }
 
@@ -42,27 +42,27 @@ export const DEFAULT_SETTINGS: ITickTickSyncSettings = {
 	enableFullVaultSync: false,
 	tagAndOr: 1,
 	debugMode: false,
-	logLevel: "info",
-	SyncProject: "",
-	SyncTag: "",
-	defaultProjectId: "",
-	defaultProjectName: "Inbox",
-	TickTickTasksFilePath: "/",
+	logLevel: 'info',
+	SyncProject: '',
+	SyncTag: '',
+	defaultProjectId: '',
+	defaultProjectName: 'Inbox',
+	TickTickTasksFilePath: '/',
 	keepProjectFolders: false,
 
-	inboxID: "",
-	inboxName: "",
+	inboxID: '',
+	inboxName: 'Inbox',
 	checkPoint: 0,
 
 
 	fileMetadata: {},
 	TickTickTasksData: {
 		projects: [],
-		tasks: [],
-	},
+		tasks: []
+	}
 
 	//statistics: {}
-}
+};
 
 //two places for settings, move all ref from main to here
 
@@ -70,7 +70,7 @@ let settings: ITickTickSyncSettings = { ...DEFAULT_SETTINGS };
 
 export const getSettings = (): ITickTickSyncSettings => {
 	return settings;
-}
+};
 
 export const updateSettings = (newSettings: Partial<ITickTickSyncSettings>): ITickTickSyncSettings => {
 	settings = { ...settings, ...newSettings } as const;
@@ -82,8 +82,8 @@ export const updateSettings = (newSettings: Partial<ITickTickSyncSettings>): ITi
 // let projects: IProject[] = [];
 
 export const getProjects = (): IProject[] => {
-	return settings.TickTickTasksData.projects
-}
+	return settings.TickTickTasksData.projects;
+};
 
 export const updateProjects = (newProjects: IProject[]): IProject[] => {
 	settings.TickTickTasksData.projects = newProjects;
@@ -94,7 +94,7 @@ export const updateProjects = (newProjects: IProject[]): IProject[] => {
 
 export const getTasks = (): ITask[] => {
 	return settings.TickTickTasksData.tasks;
-}
+};
 
 export const updateTasks = (newTasks: ITask[]): ITask[] => {
 	settings.TickTickTasksData.tasks = newTasks;
@@ -105,7 +105,7 @@ export const updateTasks = (newTasks: ITask[]): ITask[] => {
 
 export const getProjectGroups = (): IProjectGroup[] => {
 	return settings.TickTickTasksData.projectGroups;
-}
+};
 
 export const updateProjectGroups = (newProjectGroups: IProjectGroup[]): IProjectGroup[] => {
 	settings.TickTickTasksData.projectGroups = newProjectGroups;

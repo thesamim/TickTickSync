@@ -3,8 +3,12 @@ import { date_holder_type } from '../../dateMan';
 export interface ITask {
 	id: string;
 	projectId: string;
+	childIds: string[];
+	parentId: string;
 	sortOrder: any;
 	title: string;
+	//New to the game: The Task Description. It's not the content, the title or the items!
+	desc: string;
 	content: string;
 	startDate: string;
 	dueDate: string;
@@ -21,7 +25,7 @@ export interface ITask {
 	repeatTaskId?: string;
 	priority: number;
 	status: number;
-	items: any[];
+	items: ITaskItem[];
 	progress: number;
 	modifiedTime: string;
 	etag?: string;
@@ -37,12 +41,17 @@ export interface ITask {
 	local?: boolean;
 	remindTime?: any;
 	tags?: any[];
-	childIds: string[];
-	parentId: string;
 	//This is not a TickTick data element. It must be managed separately.
 	dateHolder: date_holder_type;
 	lineHash: string;
 }
+
+export interface ITaskItem {
+	id: string,
+	title: string,
+	status: number
+}
+
 
 export interface IUpdate {
 	'add': ITask[],

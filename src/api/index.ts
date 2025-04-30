@@ -2,14 +2,16 @@
 import { Platform, requestUrl, type RequestUrlParam, type RequestUrlResponse } from 'obsidian';
 import { UAParser } from 'ua-parser-js';
 import ObjectID from 'bson-objectid';
-import type {IProjectGroup} from './types/ProjectGroup';
-import type {IProject, ISections} from './types/Project';
+import type { IProjectGroup } from './types/ProjectGroup';
+import type { IProject, ISections } from './types/Project';
 // import { ITag } from './types/Tag';
 // import { ITag } from './types/Tag';
-import type {ITask} from './types/Task';
+import type { ITask } from './types/Task';
 // import { IFilter } from './types/Filter';
 // import { IHabit } from './types/Habit';
 import { API_ENDPOINTS } from './utils/get-api-endpoints';
+import log from 'loglevel';
+import { getSettings, updateSettings } from '@/settings';
 
 const {
 	ticktickServer,
@@ -58,9 +60,9 @@ export class Tick {
 	token: string;
 	apiUrl: string;
 	loginUrl: string;
-	private originUrl: string;
-	cookies:	string[];
+	cookies: string[];
 	cookieHeader: string;
+	private originUrl: string;
 
 
 //Dear Future me: the check is a checkpoint based thing. As in: give me everything after a certain checkpoint
@@ -88,11 +90,12 @@ export class Tick {
 			this.loginUrl = `${protocol}${ticktickServer}${apiVersion}`;
 			this.originUrl = `${protocol}${ticktickServer}`;
 		}
-		if (!checkPoint) {
-			//Checkpoint back end processing has changed again. Let's get a new one.
-			this.getPreviousCheckPoint()
-		} else {
+
+		if (checkPoint != undefined) {
 			this._checkpoint = checkPoint;
+		} else {
+			//Checkpoint back end processing has changed again. Let's get a new one.
+			this.getPreviousCheckPoint();
 		}
 
 	}
@@ -131,8 +134,10 @@ export class Tick {
 				password: this.password
 			};
 			const response = await this.makeRequest('Login', url, 'POST', body);
-			console.log('Signed in Response: ', response);
+			log.debug('Signed in Response: ', response);
 			if (response && response.token) {
+				//Force reset checkpoint so they'll get ALL tasks.
+				this._checkpoint = 0;
 				//token userId userCode username teamPro proEndDate needSubscribe inboxId teamUser activeTeamUser freeTrial pro ds
 				return {
 					token: response.token,
@@ -141,7 +146,7 @@ export class Tick {
 			}
 		} catch (error) {
 			this.setError('Login', null, error);
-			console.error(error);
+			log.error(error);
 		}
 		return null;
 	}
@@ -158,7 +163,7 @@ export class Tick {
 				return null;
 			}
 		} catch (e) {
-			console.error('Get Inbox Properties failed: ', e);
+			log.error('Get Inbox Properties failed: ', e);
 			this.setError('Get Inbox Properties', null, e);
 			return null;
 		}
@@ -168,11 +173,11 @@ export class Tick {
 	async getInboxProperties(): Promise<boolean> {
 		try {
 			for (let i = 0; i < 10; i++) {
-				if (i !== 0) this.reset()
+				if (i !== 0) this.reset();
 				const url = `${this.apiUrl}/${allTasksEndPoint}` + this._checkpoint;
-				// console.log("url ", url)
+				// log.debug("url ", url)
 				const response = await this.makeRequest('Get Inbox Properties', url, 'GET');
-				if (!response) continue
+				if (!response) continue;
 
 				response['syncTaskBean'].update.forEach((task: any) => {
 					if (task.projectId == this.inboxProperties.id && task.sortOrder < this.inboxProperties.sortOrder) {
@@ -183,7 +188,7 @@ export class Tick {
 				return true;
 			}
 		} catch (e) {
-			console.error('Get Inbox Properties failed: ', e);
+			log.error('Get Inbox Properties failed: ', e);
 			this.setError('Get Inbox Properties', null, e);
 		}
 		return false;
@@ -211,7 +216,7 @@ export class Tick {
 				return response;
 			}
 		} catch (e) {
-			console.error('Get Project Groups failed: ', e);
+			log.error('Get Project Groups failed: ', e);
 			this.setError('Get Project Groups', null, e);
 		}
 		return [];
@@ -225,7 +230,7 @@ export class Tick {
 				return response;
 			}
 		} catch (e) {
-			console.error('Get Projects failed: ', e);
+			log.error('Get Projects failed: ', e);
 			this.setError('Get Projects', null, e);
 		}
 		return [];
@@ -242,7 +247,7 @@ export class Tick {
 				return [];
 			}
 		} catch (e) {
-			console.error('Get Project Sections failed: ', e);
+			log.error('Get Project Sections failed: ', e);
 			this.setError('Get Project Sections', null, e);
 			return [];
 		}
@@ -253,6 +258,8 @@ export class Tick {
 		try {
 			let retry = 10; //TODO: really need to do this better. MB move to makeRequest and add delay?
 			while (retry > 0) {
+				const checkpointDate = new Date(this._checkpoint);
+				log.debug('Get All Resources', this._checkpoint? "as of: " + checkpointDate.toISOString() : 'from the beginning of time. ');
 				const url = `${this.apiUrl}/${allTasksEndPoint}` + this._checkpoint;
 				const response = await this.makeRequest('Get All Resources', url, 'GET', undefined);
 				if (response) {
@@ -262,7 +269,7 @@ export class Tick {
 				this.getPreviousCheckPoint();
 			}
 		} catch (e) {
-			console.error('Get All Resources failed: ', e);
+			log.error('Get All Resources failed: ', e);
 			this.setError('Get All Resources', null, e);
 		}
 		return null;
@@ -277,8 +284,14 @@ export class Tick {
 				const response = await this.makeRequest('Get Task Details', url, 'GET', undefined);
 				if (response) {
 					const numReturns = response['syncTaskBean'].update.length;
-					// console.log('Got: ', numReturns);
+					// log.debug('Got: ', numReturns);
 					if (numReturns > 0) {
+						//checkpoint, may have changed. Save it if it has.
+						if (getSettings().checkPoint != response.checkPoint) {
+							this._checkpoint = response.checkPoint;
+							getSettings().checkPoint = <number>this._checkpoint;
+							updateSettings({ checkPoint: this._checkpoint});
+						}
 						return response['syncTaskBean'];
 					} else {
 						retry -= 1;
@@ -291,7 +304,7 @@ export class Tick {
 			}
 			return [];
 		} catch (e) {
-			console.error('Get Tasks Details failed: ', e);
+			log.error('Get Tasks Details failed: ', e);
 			this.setError('Get Tasks', null, e);
 			return [];
 		}
@@ -307,7 +320,7 @@ export class Tick {
 				const url = `${this.apiUrl}/${allTasksEndPoint}` + this._checkpoint;
 				const response = await this.makeRequest('Get Tasks', url, 'GET', undefined);
 				if (response) {
-					console.log("Got: ", response['syncTaskBean'].update.length);
+					log.debug('Got: ', response['syncTaskBean'].update.length);
 					return response['syncTaskBean'].update;
 				} else {
 					if (retry > 0) {
@@ -319,7 +332,7 @@ export class Tick {
 				}
 			}
 		} catch (e) {
-			console.error('Get Tasks failed: ', e);
+			log.error('Get Tasks failed: ', e);
 			this.setError('Get Tasks', null, e);
 			return [];
 		}
@@ -340,7 +353,7 @@ export class Tick {
 				return null;
 			}
 		} catch (e) {
-			console.error('Get Tasks failed: ', e);
+			log.error('Get Tasks failed: ', e);
 			this.setError('Get Tasks', null, e);
 			return null;
 		}
@@ -356,7 +369,7 @@ export class Tick {
 				return [];
 			}
 		} catch (e) {
-			console.error('Get All Completed Items failed: ', e);
+			log.error('Get All Completed Items failed: ', e);
 			this.setError('Get All Completed Tasks', null, e);
 			return [];
 		}
@@ -376,6 +389,7 @@ export class Tick {
 				sortOrder: jsonOptions.sortOrder ? jsonOptions.sortOrder : this.inboxProperties.sortOrder,
 				title: jsonOptions.title,
 				content: jsonOptions.content ? jsonOptions.content : '',
+				desc: jsonOptions.desc ? jsonOptions.desc : '',
 				startDate: jsonOptions.startDate ? jsonOptions.startDate : null,
 				dueDate: jsonOptions.dueDate ? jsonOptions.dueDate : null,
 				timeZone: jsonOptions.timeZone ? jsonOptions.timeZone : 'America/New_York', // This needs to be updated to grab dynamically
@@ -413,7 +427,7 @@ export class Tick {
 				return [];
 			}
 		} catch (e) {
-			console.error('Add Task failed: ', e);
+			log.error('Add Task failed: ', e);
 			this.setError('Add Task', null, e);
 			return [];
 		}
@@ -434,6 +448,7 @@ export class Tick {
 				sortOrder: jsonOptions.sortOrder ? jsonOptions.sortOrder : this.inboxProperties.sortOrder,
 				title: jsonOptions.title,
 				content: jsonOptions.content ? jsonOptions.content : '',
+				desc: jsonOptions.desc ? jsonOptions.desc : '',
 				startDate: jsonOptions.startDate ? jsonOptions.startDate : null,
 				dueDate: jsonOptions.dueDate ? jsonOptions.dueDate : null,
 				timeZone: jsonOptions.timeZone ? jsonOptions.timeZone : 'America/New_York', // This needs to be updated to grab dynamically
@@ -476,7 +491,7 @@ export class Tick {
 				return null;
 			}
 		} catch (e) {
-			console.error('Update Task failed: ', e);
+			log.error('Update Task failed: ', e);
 			this.setError('Update Task', null, e);
 			return null;
 		}
@@ -511,7 +526,7 @@ export class Tick {
 				return null;
 			}
 		} catch (e) {
-			console.error('Delete Task  failed: ', e);
+			log.error('Delete Task  failed: ', e);
 			this.setError('Delete Task Tasks', null, e);
 			return null;
 		}
@@ -538,7 +553,7 @@ export class Tick {
 				return null;
 			}
 		} catch (e) {
-			console.error('Export failed: ', e);
+			log.error('Export failed: ', e);
 			this.setError('Export', null, e);
 			return null;
 		}
@@ -564,7 +579,7 @@ export class Tick {
 				return null;
 			}
 		} catch (e) {
-			console.error('Project Move failed: ', e);
+			log.error('Project Move failed: ', e);
 			this.setError('Project Move', null, e);
 			return null;
 		}
@@ -585,7 +600,7 @@ export class Tick {
 				//todo: error handle.
 			}
 		} catch (e) {
-			console.error('Parent Move failed: ', e);
+			log.error('Parent Move failed: ', e);
 			this.setError('Parent Move', null, e);
 			return null;
 		}
@@ -601,27 +616,27 @@ export class Tick {
 				requestOptions = this.createLoginRequestOptions(url, body);
 			} else {
 				if (!this.cookieHeader) {
-					this.cookieHeader = localStorage.getItem("TTS_Cookies")
+					this.cookieHeader = localStorage.getItem('TTS_Cookies');
 				}
 				requestOptions = this.createRequestOptions(method, url, body);
 			}
-			// console.log(requestOptions)
+			// log.debug(requestOptions)
 			const result = await requestUrl(requestOptions);
-			//console.log(operation, result)
+			//log.debug(operation, result)
 			if (result.status != 200) {
 				this.setError(operation, result, null);
 				return null;
 			}
 			// if (operation == 'Login') {
-				this.cookies =
-					(result.headers["set-cookie"] as unknown as string[]) ?? [];
-				this.cookieHeader = this.cookies.join("; ") + ";";
-				localStorage.setItem("TTS_Cookies", this.cookieHeader);
+			this.cookies =
+				(result.headers['set-cookie'] as unknown as string[]) ?? [];
+			this.cookieHeader = this.cookies.join('; ') + ';';
+			localStorage.setItem('TTS_Cookies', this.cookieHeader);
 			// }
 			return result.json;
-		} catch (exception) {
-			this.setError(operation, null, exception);
-			console.error(exception);
+		} catch (error) {
+			this.setError(operation, null, error);
+			log.error(error);
 			return null;
 		}
 
@@ -637,11 +652,11 @@ export class Tick {
 			'x-device': this.deviceAgent,
 			//"x-device": "{\"platform\":\"web\",\"os\":\"Windows 10\",\"device\":\"Firefox 117.0\",\"name\":\"\",\"version\":124.0.6367.243,\"id\":\"124.0.6367.243\",\"channel\":\"website\",\"campaign\":\"\",\"websocket\":\"\"}",
 			'Content-Type': 'application/json',
-			'X-Requested-With': 'XMLHttpRequest',
+			'X-Requested-With': 'XMLHttpRequest'
 			// 'Cookie' : this.cookieHeader
 		};
 
-		// console.log('Login headers', headers);
+		// log.debug('Login headers', headers);
 
 		const options: RequestUrlParam = {
 			method: 'POST',
@@ -661,10 +676,10 @@ export class Tick {
 			'User-Agent': `${this.userAgent}`,
 			'x-device': `${this.deviceAgent}`,
 			// 'Cookie': 't=' + `${this.token}` + '; AWSALB=pSOIrwzvoncz4ZewmeDJ7PMpbA5nOrji5o1tcb1yXSzeEDKmqlk/maPqPiqTGaXJLQk0yokDm0WtcoxmwemccVHh+sFbA59Mx1MBjBFVV9vACQO5HGpv8eO5pXYL; AWSALBCORS=pSOIrwzvoncz4ZewmeDJ7PMpbA5nOrji5o1tcb1yXSzeEDKmqlk/maPqPiqTGaXJLQk0yokDm0WtcoxmwemccVHh+sFbA59Mx1MBjBFVV9vACQO5HGpv8eO5pXYL',
-			'Cookie' : 't=' + `${this.token}` + ";" + this.cookieHeader,
+			'Cookie': 't=' + `${this.token}` + ';' + this.cookieHeader,
 			't': `${this.token}`
 		};
-		// console.log("Regular headers\n", method, "\n", url, "\n", headers);
+		// log.debug("Regular headers\n", method, "\n", url, "\n", headers);
 		const options: RequestUrlParam = {
 			method: method,
 			url: url,
@@ -691,14 +706,14 @@ export class Tick {
 				try {
 					errorMessage = response.json;
 				} catch (e) {
-					console.log('Bad JSON response');
-					console.log('Trying Text.');
+					log.debug('Bad JSON response');
+					log.debug('Trying Text.');
 					try {
 						errorMessage = this.extractTitleContent(response.text);
-						console.error('Error: ', errorMessage);
+						log.error('Error: ', errorMessage);
 					} catch (e) {
-						console.log('Bad text response');
-						console.log('No error message.');
+						log.debug('Bad text response');
+						log.debug('No error message.');
 						errorMessage = 'No Error message received.';
 					}
 				}
@@ -713,7 +728,7 @@ export class Tick {
 			} else {
 				errorMessage = 'Unknown Error';
 			}
-			console.error(operation, errorMessage);
+			log.error(operation, errorMessage);
 			this._lastError = { operation, statusCode, errorMessage };
 		}
 	}
@@ -727,11 +742,11 @@ export class Tick {
 	//      is actually going to work.
 	private getPreviousCheckPoint() {
 		let dtDate = new Date();
-		// console.log("Date: ", dtDate)
+		// log.debug("Date: ", dtDate)
 		dtDate.setDate(dtDate.getDate() - 15);
-		// console.log("Date: ", dtDate)
+		// log.debug("Date: ", dtDate)
 		this._checkpoint = dtDate.getTime();
-		console.warn('Check point has been changed.', this._checkpoint);
+		log.debug('Checkpoint has been changed.', this._checkpoint);
 		return this._checkpoint;
 	}
 
@@ -745,27 +760,27 @@ export class Tick {
 	}
 
 	private getUserAgent() {
-		// console.log("Agent: ", navigator.userAgent);
-		// console.log("Navigator Platform: ", navigator.platform);
-		// console.log("Platform: ", Platform);
-		// console.log("ua Parser: ", UAParser(navigator.userAgent));
+		// log.debug("Agent: ", navigator.userAgent);
+		// log.debug("Navigator Platform: ", navigator.platform);
+		// log.debug("Platform: ", Platform);
+		// log.debug("ua Parser: ", UAParser(navigator.userAgent));
 		return navigator.userAgent;
 	}
 
 	private getXDevice() {
-		console.log("'generatedID': ", this.generateRandomID());
+		// log.debug('\'generatedID\': ', this.generateRandomID());
 		const randomID = this.generateRandomID();
 		//TickTick wants a version number equal to or greater than 6070. I thought it was random. It's not.
-		const randomVersion = 6070
+		const randomVersion = 6070;
 		const uaObject = UAParser(navigator.userAgent);
 
 		let xDeviceObject = {
 			//TickTick won't take anything but web
 			platform: 'web',//`${this.getPlatform()}`,
 			//TickTick won't take anything but a Windows variant apparently.
-			os: "Windows 10", //`${uaObject.os.name} ${uaObject.os.version}`,
+			os: 'Windows 10', //`${uaObject.os.name} ${uaObject.os.version}`,
 			//TickTick doesn't care about the device name.
-			device: "Firefox 117.0", //`${uaObject.browser.name} ${uaObject.browser.version}`,
+			device: 'Firefox 117.0', //`${uaObject.browser.name} ${uaObject.browser.version}`,
 			name: '', //"${uaObject.engine.name}",
 			version: randomVersion,
 			id: randomID,
@@ -804,8 +819,8 @@ export class Tick {
 
 		//leftover from one of the old iterations.
 		if (result) {
-			if (result.includes("-")) {
-				localStorage.removeItem("TTS_UniqueID");
+			if (result.includes('-')) {
+				localStorage.removeItem('TTS_UniqueID');
 				result = null;
 			}
 		}
@@ -831,10 +846,10 @@ export class Tick {
 	}
 
 	private generateRandomVersion() {
-			let number;
-			do {
-				number = Math.floor(Math.random() * 4000) + 6000; // Generates a number between 6000 and 9999
-			} while (number < 6000 || number > 9999);
-			return number;
+		let number;
+		do {
+			number = Math.floor(Math.random() * 4000) + 6000; // Generates a number between 6000 and 9999
+		} while (number < 6000 || number > 9999);
+		return number;
 	}
 }
