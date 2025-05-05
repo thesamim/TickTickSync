@@ -331,8 +331,9 @@ export class FileMap {
 				}
 			}
 		}
+		//empty task lines better than no task lines.
+		taskRecord.taskLines = taskLines;
 		if (taskLines && taskLines.length > 0) {
-			taskRecord.taskLines = taskLines;
 			if (taskRecord.isNote == undefined) {
 				taskRecord.isNote = true;
 			}
