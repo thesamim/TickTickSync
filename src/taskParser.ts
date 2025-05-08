@@ -293,15 +293,10 @@ export class TaskParser {
 		}
 
 		//find task items
-		// When Full Vault Sync is enabled, we can't tell the difference between items and subtasks
-		// everything is a subtask
-		// TODO: in the fullness of time, see if there's a way to differentiate.
-		if (!getSettings().enableFullVaultSync) {
-			const taskLineItems = fileMap.getTaskItems(TickTick_id);
-			if (taskLineItems && taskLineItems.length > 0) {
-				for (const taskLineItem in taskLineItems) {
-					taskItems.push(this.getItemFromLine(taskLineItems[taskLineItem]));
-				}
+		const taskLineItems = fileMap.getTaskItems(TickTick_id);
+		if (taskLineItems && taskLineItems.length > 0) {
+			for (const taskLineItem in taskLineItems) {
+				taskItems.push(this.getItemFromLine(taskLineItems[taskLineItem]));
 			}
 		}
 
@@ -794,9 +789,7 @@ export class TaskParser {
 			// TODO: in the fullness of time, see if there's a way to differentiate.
 			const tabs = '\t'.repeat(numTabs + 1);
 			resultLine = `${resultLine} \n${tabs}${completion} ${item.title} `;
-			if (!getSettings().enableFullVaultSync) {
-				resultLine = `${resultLine} %%${item.id}%%`;
-			}
+			resultLine = `${resultLine} %%${item.id}%%`;
 		});
 		// log("trace", resultLine)
 		return resultLine;

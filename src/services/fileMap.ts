@@ -184,7 +184,7 @@ export class FileMap {
 	}
 
 	getFilePath() {
-		return this.file;
+		return this.file.path;
 	}
 
 	//this relies on the caller passing a proper ID. It could be a task ID or a Item ID, we don't discriminate.
@@ -196,16 +196,18 @@ export class FileMap {
 		return this.fileLines[this.getTaskIndex(taskId)];
 	}
 
-	async init() {
+	async init(inFileContent: string|null = null) {
 
-		let fileLines: string [] = [];
-
-		const fileContent = await this.app.vault.read(this.file);
-
+		let fileContent;
+		if (!!inFileContent) {
+			fileContent = inFileContent;
+		} else {
+			fileContent = await this.app.vault.read(this.file);
+		}
 		if (fileContent) {
 			this.fileLines = fileContent.split('\n');
 		} else {
-			log.warn(`Possibly empty file. ${this.file.name}`);
+			log.debug(`File ${this.file.name} is empty.`);
 		}
 
 	}
@@ -461,6 +463,37 @@ export class FileMap {
 
 
 		return moveMap;
+	}
+
+	/**
+	 * Mark all tasks as TickTick Tasks
+	 * called only when enableFullVaultSync is true.
+	 */
+	markAllTasks() {
+		let modified = false;
+		const lines = this.fileLines;
+		for (let i = 0; i < lines.length; i++) {
+			const line = lines[i];
+			if (!this.plugin.taskParser?.isMarkdownTask(line)) {
+				continue;
+			}
+			//if content is empty
+			if (this.plugin.taskParser?.getTaskContentFromLineText(line) == '') {
+				continue;
+			}
+			if (!this.plugin.taskParser?.hasTickTickId(line)
+				&& !this.plugin.taskParser?.hasTickTickTag(line)
+				&& !(this.plugin.taskParser?.getLineItemId(line))) {
+				let newLine = this.plugin.taskParser?.addTickTickTag(line);
+				lines[i] = newLine;
+				modified = true;
+			}
+		}
+		return modified;
+	}
+
+	modifyTask(text: string, line: number ) {
+		this.fileLines[line] = text;
 	}
 }
 

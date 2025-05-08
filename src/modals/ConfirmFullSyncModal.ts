@@ -3,8 +3,8 @@ import { App, Modal, Setting } from 'obsidian';
 
 export class ConfirmFullSyncModal extends Modal {
 	title = 'Full Vault Task Sync Confirmation';
-	message = 'Are you sure you want to Sync ALL tasks. \n' +
-		'Tasks that are currently "Items" of tasks will be ' +
+	message = 'Are you sure you want to Sync ALL tasks? \n' +
+		'Tasks that are currently "Items" of tasks MAY be ' +
 		'converted to "Sub Tasks" of the containing Tasks.\n' +
 		'The "Items" will not be deleted.\nPlease proceed with Caution.';
 	cancelLabel = 'Cancel';

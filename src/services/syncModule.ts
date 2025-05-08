@@ -172,26 +172,25 @@ export class SyncMan {
 		const line = cursor.line;
 		const linetxt = editor.getLine(line);
 		let before = fileContent?.length;
-		await this.addTask(linetxt, filepath, line, fileContent, editor, cursor);
+		const fileMap = new FileMap(this.app, this.plugin, view.file)
+		await fileMap.init(fileContent);
+		await this.addTask(linetxt, line, editor, cursor, fileMap);
 		let after = fileContent?.length;
 		// log.debug(" : ", before, after, (before != after))
 		return (before != after);
 	}
 
-	async addTask(lineTxt: string, filePath: string, line: number, fileContent: string, editor: Editor | null, cursor: EditorPosition | null) {
+	async addTask(lineTxt: string, line: number, editor: Editor | null, cursor: EditorPosition | null, fileMap: FileMap): Promise<void> {
 		//Add task
-		// if (getSettings().debugMode) {
-		// 	log.debug("Adding to: ", filePath)
-		// }
+		if (!lineTxt || lineTxt.length == 0) {
+			return;
+		}
 
 		if ((!this.plugin.taskParser.hasTickTickId(lineTxt) && this.plugin.taskParser.hasTickTickTag(lineTxt))) {
 			//Whether #ticktick is included, but not ticktickid: Task just added.
 			try {
-				const file = this.app.vault.getAbstractFileByPath(filePath) as TFile;
-				const fileMap = new FileMap(this.app, this.plugin, file);
-				await fileMap.init();
 
-				const currentTask = await this.plugin.taskParser.convertLineToTask(lineTxt, line, filePath, fileMap, null);
+				const currentTask = await this.plugin.taskParser.convertLineToTask(lineTxt, line, fileMap.getFilePath(), fileMap, null);
 				const newTask = await this.plugin.tickTickRestAPI?.AddTask(currentTask) as ITask;
 				if (currentTask.parentId) {
 					let parentTask = this.plugin.cacheOperation?.loadTaskFromCacheID(currentTask.parentId);
@@ -199,13 +198,13 @@ export class SyncMan {
 					parentTask = await this.plugin.tickTickRestAPI?.UpdateTask(parentTask);
 					await this.plugin.cacheOperation?.updateTaskToCache(parentTask);
 				}
-				const { id: ticktick_id, projectId: ticktick_projectId, url: ticktick_url } = newTask;
+				const ticktick_id  = newTask.id;
 				//log.debug(newTask);
 				new Notice(`new task ${newTask.title} id is ${newTask.id}`);
 
 				//If the task is completed
 				if (currentTask.status != 0) {
-					await this.plugin.tickTickRestAPI?.CloseTask(newTask.id);
+					await this.plugin.tickTickRestAPI?.CloseTask(newTask.id, newTask.projectId);
 					await this.plugin.cacheOperation?.closeTaskToCacheByID(ticktick_id);
 
 				}
@@ -214,23 +213,21 @@ export class SyncMan {
 				newTask.dateHolder = currentTask.dateHolder;
 
 				//Get TickTickID and links after updating.
-				let updatedText = await this.updateTaskLine(newTask, lineTxt, editor, cursor, fileContent, line, filePath);
+				await this.updateTaskLine(newTask, lineTxt, editor, cursor, line, fileMap);
 
 				//we want the line as it is in Obsidian.
 				const taskRecord = fileMap.getTaskRecord(newTask.id);
 				const taskString = taskRecord.task
 				const stringToHash = taskString + this.plugin.taskParser.getNoteString(taskRecord).textContent;
 				newTask.lineHash = await this.plugin.taskParser?.getLineHash(stringToHash);
-				await this.plugin.cacheOperation?.appendTaskToCache(newTask, filePath);
+				await this.plugin.cacheOperation?.appendTaskToCache(newTask, fileMap.getFilePath());
 				await this.plugin.saveSettings();
 			} catch (error) {
 				log.error('Error adding task:', error);
-				log.error(`The error occurred in file: ${filePath}`);
-				return fileContent;
+				log.error(`The error occurred in file: ${fileMap.getFilePath()}`);
 			}
 
 		}
-		return fileContent;
 	}
 
 	async fullTextNewTaskCheck(file_path: string): Promise<boolean> {
@@ -249,34 +246,35 @@ export class SyncMan {
 			}
 			if (file) {
 				filepath = file_path;
-				currentFileValue = await this.app.vault.read(file);
 			} else {
 				log.error(`File: ${file_path} not found. Removing from Meta Data`);
 				await this.plugin.cacheOperation?.deleteFilepathFromMetadata(file_path);
 				return false;
 			}
 		} else {
-			const workspace = this.app.workspace;
-			view = workspace.getActiveViewOfType(MarkdownView);
-			editor = workspace.activeEditor?.editor;
-			file = workspace.getActiveFile();
-			filepath = file?.path;
-			//Use view.data instead of vault.read. vault.read is delayed
-			currentFileValue = view?.data;
+			throw new Error('No file path provided');
+			// const workspace = this.app.workspace;
+			// view = workspace.getActiveViewOfType(MarkdownView);
+			// editor = workspace.activeEditor?.editor;
+			// file = workspace.getActiveFile();
+			// filepath = file?.path;
+			// //Use view.data instead of vault.read. vault.read is delayed
+			// currentFileValue = view?.data;
 		}
+		const fileMap = new FileMap(this.app, this.plugin, file);
+		await fileMap.init();
 
 		if (getSettings().enableFullVaultSync) {
-			//log.debug('full vault sync enabled')
-			//log.debug(filepath)
-			// log.debug("Called from sync.")
-			await this.plugin.fileOperation?.addTickTickTagToFile(filepath);
+			log.debug('full vault sync enabled')
+			log.debug(filepath)
+			log.debug("Called from sync.")
+			await this.plugin.fileOperation?.addTickTickTagToFile(fileMap);
 		}
 
-		const content = currentFileValue;
-		const lines = content.split('\n');
+		const lines = fileMap.getFileLines().split('\n');
 		for (let line = 0; line < lines.length; line++) {
 			const linetxt = lines[line];
-			currentFileValue = await this.addTask(linetxt, filepath, line, currentFileValue, editor, cursor);
+			await this.addTask(linetxt, line, editor, cursor, fileMap);
 		}
 		return true;
 	}
@@ -639,11 +637,12 @@ export class SyncMan {
 				await this.plugin.saveSettings();
 				log.debug(`Updated hash: ${updatedHash}`);
 			}
-		} else if (!getSettings().enableFullVaultSync) {
+		} else {
 			if (this.plugin.taskParser.isMarkdownTask(lineText)) {
 				modified = await this.handleTaskItem(lineText, fileMap, lineNumber);
 			}
 		}
+
 
 		return modified;
 	}
@@ -1265,15 +1264,13 @@ export class SyncMan {
 	}
 
 	//get the TickTick data into the task line.
-	private async updateTaskLine(newTask: ITask, lineTxt: string, editor: Editor | null, cursor: EditorPosition | null, fileContent: string, line: number | null, filePath: string) {
+
+	private async updateTaskLine(newTask: ITask, lineTxt: string, editor: Editor | null, cursor: EditorPosition | null, line: number | null, fileMap: FileMap) {
 		let newTaskCopy = { ...newTask };
 		newTaskCopy.items = [];
 
 		const numTabs = this.plugin.taskParser.getNumTabs(lineTxt);
 		let text = await this.plugin.taskParser?.convertTaskToLine(newTaskCopy, numTabs);
-
-		//WTF did I want to do that??
-		// text = '\t'.repeat(numTabs) + text;
 
 		if (editor && cursor) {
 			const from = { line: cursor.line, ch: 0 };
@@ -1283,16 +1280,13 @@ export class SyncMan {
 		} else {
 			try {
 				// save file
-				const lines = fileContent.split('\n');
-				lines[line] = text;
-				const file = this.app.vault.getAbstractFileByPath(filePath);
-				const newContent = lines.join('\n');
-				await this.app.vault.modify(file, newContent);
+				fileMap.modifyTask(text, line);
+				//It would be more efficient to do one update when all is processed....
+				const file = this.app.vault.getAbstractFileByPath(fileMap.getFilePath());
+				await this.app.vault.modify(file, fileMap.getFileLines());
 				// log.error("Modified: ", file?.path, new Date().toISOString());
-				return newContent;
 			} catch (error) {
 				log.error(error);
-				return text;
 			}
 		}
 	}
@@ -1353,11 +1347,11 @@ export class SyncMan {
 				} else {
 					//TODO: Assume that there's a timing issue, and assume that this item really needs to live
 					log.warn('', newItem, 'not found in parent items. Forcibly adding...');
-					// parentTask.items.push({
-					//   id: itemId,
-					//   title: newItem?.description,
-					//   status: newItem?.status ? 2 : 0
-					// });
+					parentTask.items.push({
+					  id: itemId,
+					  title: newItem?.description,
+					  status: newItem?.status ? 2 : 0
+					});
 				}
 			} else {
 				const Oid = ObjectID();
@@ -1391,9 +1385,9 @@ export class SyncMan {
 			//do the update mambo. cache and api.
 			if (parentTask) {
 				const filepath = fileMap.getFilePath();
-				modified = await this.updateTask(parentTask, filepath.path);
+				modified = await this.updateTask(parentTask, filepath);
 				if (modified) {
-					await this.plugin.cacheOperation?.updateTaskToCache(parentTask, filepath.path);
+					await this.plugin.cacheOperation?.updateTaskToCache(parentTask, filepath);
 				}
 			}
 		}

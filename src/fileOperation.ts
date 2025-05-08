@@ -78,40 +78,12 @@ export class FileOperation {
 	}
 
 	//add #TickTick at the end of task line, if full vault sync enabled
-	async addTickTickTagToFile(filepath: string) {
-		// Get the file object and update the content
-		const file = this.app.vault.getAbstractFileByPath(filepath);
-		if ((file) && (file instanceof TFolder)) {
-			//leave folders alone.
-			return;
-		}
+	async addTickTickTagToFile(fileMap: FileMap) {
 
-		const content = await this.app.vault.read(file);
-		const lines = content.split('\n');
-		let modified = false;
 
-		for (let i = 0; i < lines.length; i++) {
-			const line = lines[i];
-			if (!this.plugin.taskParser?.isMarkdownTask(line)) {
-				continue;
-			}
-			//if content is empty
-			if (this.plugin.taskParser?.getTaskContentFromLineText(line) == '') {
-				log.debug('Line content is empty');
-				continue;
-			}
-			if (!this.plugin.taskParser?.hasTickTickId(line) && !this.plugin.taskParser?.hasTickTickTag(line)) {
-				let newLine = this.plugin.taskParser?.addTickTickTag(line);
-				//strip item id in case it was an item before
-				newLine = this.plugin.taskParser?.stripLineItemId(newLine);
-				lines[i] = newLine;
-				modified = true;
-			}
-		}
-
-		if (modified) {
-			const newContent = lines.join('\n');
-			await this.app.vault.modify(file, newContent);
+		if (fileMap.markAllTasks()) {
+			const newContent = fileMap.getFileLines()
+			await this.app.vault.modify(fileMap.file, newContent);
 			new Notice('New Tasks will be added to TickTick on next Sync.');
 			// log.error("Modified: ", file?.path, new Date().toISOString());
 		}
@@ -828,8 +800,9 @@ export class FileOperation {
 				while (taskMap[currentId] && ('parentId' in taskMap[currentId]) && taskMap[currentId].parentId) {
 					level++;
 					//This happened once. It caused an infinite loop. Throw an error.
-					if (level > 5) {
-						new Notice('A circular Parent-Child dependency was found. Please fix in TickTick');
+					if (level > 6) {
+						log.debug("this is the issue: ", currentId, " ", taskMap[currentId].parentId, "")
+						new Notice('A circular Parent-Child dependency was found. Please fix in TickTick by checking parent-child relationships.');
 						throw new Error('Circular Parent-Child dependency was found.');
 					}
 					currentId = taskMap[currentId].parentId;

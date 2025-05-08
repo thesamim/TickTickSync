@@ -299,12 +299,13 @@ export class TickTickService {
 					for (const v of files) {
 
 						if (v.extension == 'md') {
-							log.debug('Now looking at: ', v);
 							try {
 								log.debug(`Scanning file ${v.path}`);
 								await this.plugin.fileOperation?.addTickTickLinkToFile(v.path);
 								if (getSettings().enableFullVaultSync) {
-									await this.plugin.fileOperation?.addTickTickTagToFile(v.path);
+									const fileMap = new FileMap(this.plugin.app, this.plugin, v);
+									await fileMap.init();
+									await this.plugin.fileOperation?.addTickTickTagToFile(fileMap);
 								}
 							} catch (error) {
 								log.error(`An error occurred while check new tasks in the file: ${v.path}`, error);
@@ -323,6 +324,8 @@ export class TickTickService {
 				log.warn(`An error occurred while scanning the vault.:`, error);
 			}
 		});
+
+		log.debug('Done checking data.');
 	}
 
 	/*
