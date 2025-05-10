@@ -205,8 +205,6 @@ export class FileMap {
 		}
 		if (fileContent) {
 			this.fileLines = fileContent.split('\n');
-		} else {
-			log.debug(`File ${this.file.name} is empty.`);
 		}
 	}
 

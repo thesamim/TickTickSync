@@ -323,7 +323,7 @@ export class FileOperation {
 		if (bConfirmDialog) {
 			const bConfirm = await this.confirmDeletion(task.title + 'in File: ' + filePath);
 			if (!bConfirm) {
-				new Notice('Tasks will not be deleted. Please rectify the issue before the next sync.', 0);
+				new Notice('Tasks will not be deleted. Please rectify the issue before the next sync.', 5000);
 				return [];
 			}
 		}
@@ -565,7 +565,7 @@ export class FileOperation {
 			}
 		}
 
-		new Notice(message, 0);
+		new Notice(message, 5000);
 
 	}
 
@@ -640,7 +640,7 @@ export class FileOperation {
 			}
 		}
 
-		new Notice(message, 0);
+		new Notice(message, 5000);
 	}
 
 	//TODO: Get rid of extraneous sorts!

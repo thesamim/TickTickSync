@@ -373,7 +373,7 @@ export class SyncMan {
 				//Task in note, but not in cache. Assuming this would only happen in testing, delete the task from the note
 				log.error(`There is no task for ${lineText.substring(0,10)} in the local cache. It will be deleted from file ${filepath}`);
 
-				new Notice(`There is no task ${lineText.substring(0,10)} in the local cache. It will be deleted`);
+				new Notice(`There is no task ${this.plugin.taskParser.getTaskContentFromLineText(lineText)} in the local cache. It will be deleted`);
 				const file = this.plugin.app.vault.getAbstractFileByPath(filepath);
 				await this.plugin.fileOperation?.deleteTaskFromSpecificFile(file, lineTask, true);
 				return false;
@@ -475,7 +475,7 @@ export class SyncMan {
 						`${oldFilePath} to ` +
 						`${filepath} \n` +
 						`If any children were moved, they will be updated to ${getSettings().baseURL} on the next Sync event`;
-					new Notice(noticeMessage, 0);
+					new Notice(noticeMessage, 5000);
 					if (getSettings().debugMode) {
 						log.debug(noticeMessage);
 					}
@@ -494,7 +494,7 @@ export class SyncMan {
 						`If any children were moved, they will be updated to ${getSettings().baseURL} on the next Sync event`;
 					await this.plugin.tickTickRestAPI?.moveTaskParent(lineTask_ticktick_id, savedTask.parentId, lineTask.parentId, lineTask.projectId);
 
-					new Notice(noticeMessage, 0);
+					new Notice(noticeMessage, 5000);
 					if (getSettings().debugMode) {
 						log.debug(noticeMessage);
 					}
@@ -807,7 +807,7 @@ export class SyncMan {
 
 		const bConfirm = await this.confirmDeletion(taskIds, 'The tasks were removed from the file');
 		if (!bConfirm) {
-			new Notice('Tasks will not be deleted. Please rectify the issue before the next sync.', 0);
+			new Notice('Tasks will not be deleted. Please rectify the issue before the next sync.', 5000);
 			return [];
 		}
 
@@ -1221,7 +1221,7 @@ export class SyncMan {
 			}
 		} catch (error) {
 			log.error('An error occurred while creating TickTick backup', error);
-			new Notice('An error occurred while creating TickTick backup' + error, 0);
+			new Notice('An error occurred while creating TickTick backup' + error, 5000);
 		}
 
 	}
@@ -1259,9 +1259,9 @@ export class SyncMan {
 	///End of Test
 
 	private async checkForMoves(taskId: string, filepath: string) {
+
 		let projectMoved = false;
 		const oldFilePath = await this.plugin.cacheOperation.getFilepathForTask(taskId);
-
 		if (oldFilePath && oldFilePath !== filepath) {
 			projectMoved = true;
 		}

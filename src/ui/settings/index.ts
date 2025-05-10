@@ -172,7 +172,7 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 							const noticeMsg = 'Did not find a default Project File for Project ' +
 								myProjectsOptions?.[value] +
 								'. Please create a file and set it\'s default to this project, or select a file to be the default for this project.';
-							new Notice(noticeMsg, 0);
+							new Notice(noticeMsg, 5000);
 						}
 						await this.plugin.saveSettings();
 						await this.display();
@@ -498,7 +498,7 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 				newFolderFile = await this.app.vault.createFolder(newFolder);
 				new Notice(`New folder ${newFolderFile.path} created.`);
 			} catch (error) {
-				new Notice(`Folder ${newFolder} creation failed: ${error}. Please correct and try again.`, 0);
+				new Notice(`Folder ${newFolder} creation failed: ${error}. Please correct and try again.`, 5000);
 				return null;
 			}
 		}

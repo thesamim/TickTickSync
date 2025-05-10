@@ -78,7 +78,7 @@ export class TickTickService {
 			if (!result) {
 				error = api.lastError;
 				const errorString = 'Login Failed. ' + JSON.stringify(error.errorMessage, null, 4);
-				new Notice(errorString, 0);
+				new Notice(errorString, 5000);
 				throw new Error(error.errorMessage);
 			}
 			//reset the checkpoint so next time they get ALL the tasks.
@@ -376,7 +376,7 @@ export class TickTickService {
 					'\nPlease open an issue in the TickTickSync repository if you continue to see this issue.' +
 					'\n\nTo prevent data corruption. Sync is aborted.';
 				log.error('Metadata Duplicates: ', result.duplicates);
-				new Notice(msg, 0);
+				new Notice(msg, 5000);
 				return;
 			}
 
@@ -390,19 +390,25 @@ export class TickTickService {
 						dupText += file + '\n';
 					});
 				}
-				const msg =
-					'Found duplicates in Files.\n\n' +
-					`${dupText}` +
-					'\nPlease fix manually. This causes unpredictable results' +
-					'\nPlease open an issue in the TickTickSync repository if you continue to see this issue.' +
-					'\n\nTo prevent data corruption. Sync is aborted.';
-				new Notice(msg, 0);
+				const message = document.createDocumentFragment();
+				message.appendChild(document.createTextNode('Found duplicates in Files.                                                             '));
+				message.appendChild(document.createElement('br'));
+				message.appendChild(document.createTextNode(`${dupText}`));
+				message.appendChild(document.createElement('br'));
+				message.appendChild(document.createTextNode('Please fix manually to avoid unpredictable results.'));
+				message.appendChild(document.createElement('br'));
+				message.appendChild(document.createElement('br'));
+				message.appendChild(document.createTextNode('Please open an issue in the TickTickSync repository if you continue to see this issue.'));
+				message.appendChild(document.createElement('br'));
+				message.appendChild(document.createElement('br'));
+				message.appendChild(document.createTextNode('Sync is aborted to prevent data corruption.'));
+				new Notice(message, 0);
 				log.error('Duplicates in file: ', dupText);
 				return;
 			}
 		} catch (error) {
 			log.error(error);
-			new Notice(`Duplicate check failed:  ${Error}`, 0);
+			new Notice(`Duplicate check failed:  ${Error}`, 5000);
 			return;
 		}
 
