@@ -14,7 +14,7 @@ import ObjectID from 'bson-objectid';
 import type { TaskDetail } from '@/services/cacheOperation';
 import { TaskDeletionModal } from '@/modals/TaskDeletionModal';
 import { getSettings, updateProjectGroups } from '@/settings';
-import { FileMap, type ITaskItemRecord } from '@/services/fileMap';
+import { FileMap, getTitle, type ITaskItemRecord } from '@/services/fileMap';
 import log from 'loglevel';
 
 type deletedTask = {
@@ -73,7 +73,6 @@ export class SyncMan {
 			const deletedTaskIds = await this.findMissingTaskIds(currentFileValueWithOutFileMetadata, fileMetadata_TickTickTasks, filepath);
 			const numDeletedTasks = deletedTaskIds.length;
 			if (numDeletedTasks > 0) {
-
 				await this.deleteTasksByIds(deletedTaskIds);
 				//update filemetadata so we don't try to delete items for deleted tasks.
 				fileMetadata = await this.plugin.cacheOperation?.getFileMetadata(filepath, null);
@@ -114,7 +113,26 @@ export class SyncMan {
 
 		} else {
 			//We had a file. There is no content. User deleted ALL tasks, all items will be deleted as a side effect.
-			const deletedTaskIDs = fileMetadata_TickTickTasks.map((taskDetail) => taskDetail.taskId);
+			let deletedTaskIDs = fileMetadata_TickTickTasks.map((taskDetail) => taskDetail.taskId);
+			//But first check if the tasks are elsewhere.
+			if (deletedTaskIDs.length > 0) {
+				let saveTheseTasks: string[] = [];
+				for (const taskId of deletedTaskIDs) {
+					const location = await this.plugin.cacheOperation?.findTaskInFiles(taskId);
+					if (location) {
+						log.debug('== found:', taskId, location);
+						saveTheseTasks.push(taskId);
+					}
+				}
+				// log.debug("== saved:", saveTheseTasks)
+				deletedTaskIDs = deletedTaskIDs
+					.filter((taskId) => {
+							return !saveTheseTasks.includes(taskId);
+						}
+					);
+
+			}
+			//They're really really gone. RIP
 			if (deletedTaskIDs.length > 0) {
 				//TODO: Assuming that if they for real deleted everything, it will get caught on the next sync
 				log.error('Content not readable.', currentFileValue, filepath, ' file could open elsewhere or deleted.');
@@ -146,6 +164,7 @@ export class SyncMan {
 			for (const taskId of missingTaskIds) {
 				const location = await this.plugin.cacheOperation?.findTaskInFiles(taskId);
 				if (location) {
+					log.debug("Task found in different file:", taskId, location)
 					saveTheseTasks.push(taskId);
 				}
 			}
@@ -265,9 +284,6 @@ export class SyncMan {
 		await fileMap.init();
 
 		if (getSettings().enableFullVaultSync) {
-			log.debug('full vault sync enabled')
-			log.debug(filepath)
-			log.debug("Called from sync.")
 			await this.plugin.fileOperation?.addTickTickTagToFile(fileMap);
 		}
 
@@ -322,7 +338,6 @@ export class SyncMan {
 
 			const savedTask = this.plugin.cacheOperation?.loadTaskFromCacheID(lineTask_ticktick_id);
 
-			let projectModified = false;
 			let projectMoved = false;
 			let oldFilePath = '';
 			if (savedTask) {
@@ -331,16 +346,16 @@ export class SyncMan {
 					if (newHash == savedTask.lineHash) {
 						bHashCheckFailed = false;
 						//but maybe the task moved. Check here.
-						const __ret = await this.checkForMoves(lineTask_ticktick_id, filepath);
+						const __ret = await this. checkForMoves(lineTask_ticktick_id, filepath);
 						projectMoved = __ret.projectMoved;
 						oldFilePath = __ret.oldFilePath;
 						const bParentchanged = (taskRecord.parentId ? taskRecord.parentId : '') != (savedTask.parentId ? savedTask.parentId : '');
 						if (!projectMoved && !bParentchanged) {
 							return false;
 						} else {
-							log.debug('Task Moved.', '\npm', projectMoved, '\npc', bParentchanged, '\n taskrecordparentid: ',
-								taskRecord.parentId, '\n savedtaskparentid: ', savedTask.parentId, '\n', lineText,
-								'\n', savedTask.title, '\n', newHash, '\n', savedTask.lineHash);
+							log.debug('Task Moved.', {projectMoved: projectMoved, parentChanged: bParentchanged, taskrecordparentid: taskRecord.parentId,
+								savedtaskparentid: savedTask.parentId, lineText: lineText,
+								savedTaskTitle: savedTask.title, newHash: newHash, oldHash: savedTask.lineHash});
 						}
 					} else {
 						if (getSettings().debugMode) {
@@ -350,6 +365,8 @@ export class SyncMan {
 					}
 				}
 			}
+
+			const lineTask = await this.plugin.taskParser?.convertLineToTask(lineText, lineNumber, filepath, fileMap, taskRecord);
 
 			//TODO: Clean this up!
 			if (!savedTask) {
@@ -371,7 +388,7 @@ export class SyncMan {
 				}
 			}
 
-			const lineTask = await this.plugin.taskParser?.convertLineToTask(lineText, lineNumber, filepath, fileMap, taskRecord);
+
 
 			//Check whether the content has been modified
 			const lineTaskTitle = lineTask.title;
@@ -447,34 +464,21 @@ export class SyncMan {
 				//let's not lose the time zone!
 				lineTask.timeZone = savedTask.timeZone;
 
-				if (projectModified || projectMoved) {
-
+				if (projectMoved) {
 					// log.debug(`Project id modified for task ${lineTask_ticktick_id}, ${lineTask.projectId}, ${savedTask.projectId}`)
 					await this.plugin.tickTickRestAPI?.moveTaskProject(lineTask, savedTask.projectId, lineTask.projectId);
-
 					let noticeMessage = '';
-					if (projectModified) {
-						if (getSettings().debugMode) {
-							log.debug('Project Modified');
-						}
-						noticeMessage = `Task ${lineTask_ticktick_id}: ${lineTaskTitle} has moved from ` +
-							`${await this.plugin.cacheOperation?.getProjectNameByIdFromCache(savedTask.projectId)} to ` +
-							`${await this.plugin.cacheOperation?.getProjectNameByIdFromCache(lineTask.projectId)} \n` +
-							`If any children were moved, they will be updated to ${getSettings().baseURL} on the next Sync event`;
-					} else if (projectMoved) {
-						if (getSettings().debugMode) {
-							log.debug('Project Moved');
-						}
-						noticeMessage = `Task ${lineTask_ticktick_id}: ${lineTaskTitle} has moved from ` +
-							`${oldFilePath} to ` +
-							`${filepath} \n` +
-							`If any children were moved, they will be updated to ${getSettings().baseURL} on the next Sync event`;
+					if (getSettings().debugMode) {
+						log.debug('Project Moved');
 					}
+					noticeMessage = `Task ${lineTask_ticktick_id}: ${this.plugin.taskParser.getTaskContentFromLineText(lineTaskTitle)} has moved from ` +
+						`${oldFilePath} to ` +
+						`${filepath} \n` +
+						`If any children were moved, they will be updated to ${getSettings().baseURL} on the next Sync event`;
 					new Notice(noticeMessage, 0);
 					if (getSettings().debugMode) {
 						log.debug(noticeMessage);
 					}
-
 					// savedTask.projectId = lineTask.projectId
 					projectChanged = true;
 				}
@@ -1257,6 +1261,7 @@ export class SyncMan {
 	private async checkForMoves(taskId: string, filepath: string) {
 		let projectMoved = false;
 		const oldFilePath = await this.plugin.cacheOperation.getFilepathForTask(taskId);
+
 		if (oldFilePath && oldFilePath !== filepath) {
 			projectMoved = true;
 		}
@@ -1322,10 +1327,13 @@ export class SyncMan {
 				currentObject = fileMap.getTaskItemRecordByLine(lineNumber);
 			}
 		}
-
 		if (!currentObject) {
 			//a text line of no interest.
 			log.warn('Item not found in file map: ', lineText);
+			return false;
+		}
+
+		if ((!currentObject.parentId || currentObject.parentId === '' || currentObject.parentId.length < 1)) {
 			return false;
 		}
 

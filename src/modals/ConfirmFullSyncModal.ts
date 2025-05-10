@@ -4,6 +4,8 @@ import { App, Modal, Setting } from 'obsidian';
 export class ConfirmFullSyncModal extends Modal {
 	title = 'Full Vault Task Sync Confirmation';
 	message = 'Are you sure you want to Sync ALL tasks? \n' +
+		'Indented Tasks created in Obsidian will be created as subtasks in TickTick\n ' +
+		'Task Items created in TickTick will still be Task Items. This is the only way to create Task Items when Full Vault Sync is enabled.\n' +
 		'Tasks that are currently "Items" of tasks MAY be ' +
 		'converted to "Sub Tasks" of the containing Tasks.\n' +
 		'The "Items" will not be deleted.\nPlease proceed with Caution.';
@@ -25,7 +27,10 @@ export class ConfirmFullSyncModal extends Modal {
 		const { titleEl, contentEl } = this;
 
 		titleEl.setText(this.title);
-		contentEl.createEl('p', { text: this.message });
+		const arrMessage = this.message.split('\n');
+		arrMessage.forEach(message => {
+		contentEl.createEl('p', { text: message });
+		})
 
 		new Setting(contentEl).addButton(cancelBtn => {
 			cancelBtn.setClass('ts_button');

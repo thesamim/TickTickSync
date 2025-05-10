@@ -197,7 +197,6 @@ export class FileMap {
 	}
 
 	async init(inFileContent: string|null = null) {
-
 		let fileContent;
 		if (!!inFileContent) {
 			fileContent = inFileContent;
@@ -209,7 +208,6 @@ export class FileMap {
 		} else {
 			log.debug(`File ${this.file.name} is empty.`);
 		}
-
 	}
 
 	getTaskItemRecord(lineItemId: string) {
@@ -357,8 +355,10 @@ export class FileMap {
 			if (this.plugin.taskParser.isMarkdownTask(line)) {
 				const lineNumbTabs = this.plugin.taskParser.getNumTabs(this.fileLines[i]);
 				const tempTickTickId = this.plugin.taskParser.getTickTickId(line);
-				if (tempTickTickId && (lineNumbTabs < childNumTabs)) {
-					tickTickId = tempTickTickId;
+				if (lineNumbTabs < childNumTabs) {
+					//found the parent. If tempTickTickId is null, it's a task that has not been added yet.
+					// We'll deal with it later.'
+					tickTickId = tempTickTickId? tempTickTickId : '';
 					break;
 				}
 			}

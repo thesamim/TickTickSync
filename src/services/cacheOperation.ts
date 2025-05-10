@@ -6,6 +6,7 @@ import { FoundDuplicatesModal } from '@/modals/FoundDuplicatesModal';
 import { getProjects, getSettings, getTasks, updateProjects, updateSettings, updateTasks } from '@/settings';
 //Logging
 import log from '@/utils/logger';
+import { FileMap } from '@/services/fileMap';
 
 
 export interface FileMetadata {
@@ -719,11 +720,12 @@ export class CacheOperation {
 	async findTaskInFiles(taskId: string): Promise<string | null> {
 		const markdownFiles = this.app.vault.getMarkdownFiles();
 		for (const file of markdownFiles) {
-			const listItemsCache: ListItemCache[] = this.app.metadataCache.getFileCache(file)?.listItems ?? [];
+			const fileMap = new FileMap(this.app, this.plugin, file);
+			await fileMap.init()
+			const taskIdx  = fileMap.getTaskIndex(taskId)
 
-			const taskList = await this.findInFile(file, listItemsCache);
 			//returning the first file we find.
-			if (taskList.includes(taskId)) {
+			if (taskIdx !== -1) {
 				return file.path;
 			}
 		}
@@ -784,7 +786,7 @@ export class CacheOperation {
 
 	private async showFoundDuplicatesModal(app, plugin, projects: IProject[]) {
 		const myModal = new FoundDuplicatesModal(app, plugin, projects, (result) => {
-			this.ret = result;
+			const ret = result;
 		});
 		return await myModal.showModal();
 	}

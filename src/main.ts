@@ -526,15 +526,17 @@ export default class TickTickSync extends Plugin {
 					if (!getSettings().token) {
 						return;
 					}
+					if (getSettings().enableFullVaultSync) {
+						//we'll deal with modifications on full sync
+						return;
+					}
+
 
 					//TODO: lineNumberCheck also triggers a line modified check. I suspect this is redundant and
 					//      inefficient when a new task is being added. I've added returns out of there, but I need for find if the last line check
 					//      is needed for an add.
 					await this.lineNumberCheck();
 					if (!(this.checkModuleClass())) {
-						return;
-					}
-					if (getSettings().enableFullVaultSync) {
 						return;
 					}
 					await this.service.lineNewContentTaskCheck(editor, info);
