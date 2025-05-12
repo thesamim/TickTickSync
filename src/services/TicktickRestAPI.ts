@@ -22,7 +22,7 @@ export class TickTickRestAPI {
 		this.baseURL = getSettings().baseURL;
 
 		if (!this.token || this.token === '') {
-			new Notice('Please login from Settings.', 0);
+			new Notice('Please login from Settings.', 5000);
 			this.api = null;
 			log.error('No Token');
 			throw new Error('API Not Initialized.');
@@ -293,7 +293,7 @@ export class TickTickRestAPI {
 
 		} catch (error) {
 			log.error('Error get project groups', error);
-			new Notice('Unable to get project groups: ' + error, 0);
+			new Notice('Unable to get project groups: ' + error, 5000);
 			return false;
 		}
 	}

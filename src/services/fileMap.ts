@@ -184,7 +184,7 @@ export class FileMap {
 	}
 
 	getFilePath() {
-		return this.file;
+		return this.file.path;
 	}
 
 	//this relies on the caller passing a proper ID. It could be a task ID or a Item ID, we don't discriminate.
@@ -196,18 +196,16 @@ export class FileMap {
 		return this.fileLines[this.getTaskIndex(taskId)];
 	}
 
-	async init() {
-
-		let fileLines: string [] = [];
-
-		const fileContent = await this.app.vault.read(this.file);
-
+	async init(inFileContent: string|null = null) {
+		let fileContent;
+		if (!!inFileContent) {
+			fileContent = inFileContent;
+		} else {
+			fileContent = await this.app.vault.read(this.file);
+		}
 		if (fileContent) {
 			this.fileLines = fileContent.split('\n');
-		} else {
-			log.warn(`Possibly empty file. ${this.file.name}`);
 		}
-
 	}
 
 	getTaskItemRecord(lineItemId: string) {
@@ -355,8 +353,10 @@ export class FileMap {
 			if (this.plugin.taskParser.isMarkdownTask(line)) {
 				const lineNumbTabs = this.plugin.taskParser.getNumTabs(this.fileLines[i]);
 				const tempTickTickId = this.plugin.taskParser.getTickTickId(line);
-				if (tempTickTickId && (lineNumbTabs < childNumTabs)) {
-					tickTickId = tempTickTickId;
+				if (lineNumbTabs < childNumTabs) {
+					//found the parent. If tempTickTickId is null, it's a task that has not been added yet.
+					// We'll deal with it later.'
+					tickTickId = tempTickTickId? tempTickTickId : '';
 					break;
 				}
 			}
@@ -461,6 +461,37 @@ export class FileMap {
 
 
 		return moveMap;
+	}
+
+	/**
+	 * Mark all tasks as TickTick Tasks
+	 * called only when enableFullVaultSync is true.
+	 */
+	markAllTasks() {
+		let modified = false;
+		const lines = this.fileLines;
+		for (let i = 0; i < lines.length; i++) {
+			const line = lines[i];
+			if (!this.plugin.taskParser?.isMarkdownTask(line)) {
+				continue;
+			}
+			//if content is empty
+			if (this.plugin.taskParser?.getTaskContentFromLineText(line) == '') {
+				continue;
+			}
+			if (!this.plugin.taskParser?.hasTickTickId(line)
+				&& !this.plugin.taskParser?.hasTickTickTag(line)
+				&& !(this.plugin.taskParser?.getLineItemId(line))) {
+				let newLine = this.plugin.taskParser?.addTickTickTag(line);
+				lines[i] = newLine;
+				modified = true;
+			}
+		}
+		return modified;
+	}
+
+	modifyTask(text: string, line: number ) {
+		this.fileLines[line] = text;
 	}
 }
 

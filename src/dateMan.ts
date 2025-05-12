@@ -475,7 +475,6 @@ export class DateMan {
 			}
 
 			returnDate = this.formatDateToISO(new Date(returnDate));
-			log.debug('returnDate	: ', returnDate);
 			dateItem = {
 				hasATime: bhasATime,
 				date: dateData[2],
