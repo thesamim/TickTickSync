@@ -354,7 +354,8 @@ export class DateMan {
 		day = String(day).padStart(2, '0');
 		if (timePart) {
 			let [hours, minutes] = timePart.split(':');
-			if (localDate.includes('PM')) {
+			log.debug('utcToLocal: ', {utcDateString: utcDateString, hours: hours, minutes: minutes, localDate: localDate.toString()})
+			if (localDate.includes('PM' ) && hours !== '12') {
 				hours = (Number(hours) + 12).toString();
 			} else if ((localDate.includes('AM') && hours === '12')) {
 				//TODO: Should we add one to the day, or do they really mean beginning of the day?
@@ -496,6 +497,7 @@ export class DateMan {
 		if (utcDate1.getTime() === utcDate2.getTime()) {
 			return false;
 		} else {
+			return true;
 			// if (this.plugin.settings.debugMode) {
 			// 	// Calculate the difference in minutes
 			// 	const timeDifferenceInMilliseconds = Math.abs(utcDate2.getTime() - utcDate1.getTime());
