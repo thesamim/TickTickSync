@@ -5,8 +5,15 @@ import { TAbstractFile, TFolder } from 'obsidian';
 import { TextInputSuggest } from './suggest';
 
 export class FolderSuggest extends TextInputSuggest<TFolder> {
+	private app: any;
+	constructor(inputEl: HTMLInputElement, app: any) {
+		super(inputEl);
+		this.inputEl = inputEl;
+		this.app = app;
+	}
+
 	getSuggestions(inputStr: string): TFolder[] {
-		const abstractFiles = app.vault.getAllLoadedFiles();
+		const abstractFiles = this.app.vault.getAllLoadedFiles();
 		const folders: TFolder[] = [];
 		const lowerCaseInputStr = inputStr.toLowerCase();
 

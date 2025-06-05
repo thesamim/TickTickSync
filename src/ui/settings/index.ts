@@ -1,4 +1,4 @@
-import { App, Notice, PluginSettingTab, SearchComponent, Setting, TFolder } from 'obsidian';
+import { App, Notice, Plugin, PluginSettingTab, SearchComponent, Setting, TFolder } from 'obsidian';
 import { ConfirmFullSyncModal } from '@/modals/ConfirmFullSyncModal';
 import { FolderSuggest } from '@/utils/FolderSuggester';
 import TickTickSync from '@/main';
@@ -6,6 +6,11 @@ import { getSettings, updateSettings } from '@/settings';
 //logging
 //Logging
 import log from '@/utils/logger';
+import { init } from '@/ui/settings/settingsstore';
+import { mount, type SvelteComponent, unmount } from 'svelte';
+import TickTickSyncSettings from '@/ui/settings/TickTickSyncSettings.svelte';
+import Counter from '@/ui/settings/Counter.svelte';
+import SettingsTab from '@/ui/settings/svelte/SettingsTab.svelte';
 
 const PROVIDER_OPTIONS: Record<string, string> = { 'ticktick.com': 'TickTick', 'dida365.com': 'Dida365' } as const;
 const TAGS_BEHAVIOR: Record<number, string> = { 1: 'AND', 2: 'OR' } as const;
@@ -19,25 +24,30 @@ const LOG_LEVEL: Record<string, string> = {
 
 export class TickTickSyncSettingTab extends PluginSettingTab {
 	private readonly plugin: TickTickSync;
+	private view: SvelteComponent;
+	private settingsComponent: any;
 
 	constructor(app: App, plugin: TickTickSync) {
 		super(app, plugin);
 		this.plugin = plugin;
+		init(this.plugin);
 	}
 
 	async display(): Promise<void> {
 		const { containerEl } = this;
 
 		containerEl.empty();
-		containerEl.createEl('h1', { text: 'TickTickSync Settings' });
-
-		this.addAuthBlock(containerEl);
-
-		await this.addSyncBlock(containerEl);
-
-		this.addManualBlock(containerEl);
-
-		this.addDebugBlock(containerEl);
+		this.settingsComponent = mount(SettingsTab, {
+			target: containerEl,
+			props: {
+				app: this.app,
+				plugin: this.plugin,
+			}
+		});
+	}
+	async hide() {
+		super.hide();
+		unmount(this.settingsComponent);
 	}
 
 	/*
@@ -278,9 +288,9 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 			.setDesc('Folder to be used for TickTick Tasks.')
 			.addSearch((cb) => {
 				folderSearch = cb;
-				new FolderSuggest(cb.inputEl);
+				new FolderSuggest(cb.inputEl, this.app);
 				cb.setPlaceholder('Example: folder1/folder2')
-					.setValue(getSettings().TickTickTasksFilePath);
+						.setValue(getSettings().TickTickTasksFilePath);
 				// @ts-ignore
 				// maybe someday we'll style it.
 				// cb.containerEl.addClass("def-folder");
@@ -486,7 +496,7 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 		return await myModal.showModal();
 	}
 
-	private async validateNewFolder(newFolder: string) {
+	async validateNewFolder(newFolder: string) {
 		//remove leading slash if it exists.
 		if (newFolder && (newFolder.length > 1) && (/^[/\\]/.test(newFolder))) {
 			newFolder = newFolder.substring(1);
