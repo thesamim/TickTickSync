@@ -11,6 +11,8 @@
 		"node_modules/*"
 	],
 	"compilerOptions": {
+		"verbatimModuleSyntax": true,
+		"skipLibCheck": true,
 		"types": [
 			"svelte",
 			"node"

@@ -66,7 +66,7 @@ export const DEFAULT_SETTINGS: ITickTickSyncSettings = {
 
 //two places for settings, move all ref from main to here
 
-let settings: ITickTickSyncSettings = { ...DEFAULT_SETTINGS };
+export let settings: ITickTickSyncSettings = { ...DEFAULT_SETTINGS };
 
 export const getSettings = (): ITickTickSyncSettings => {
 	return settings;
