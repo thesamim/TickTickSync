@@ -2,11 +2,10 @@
   import { App } from 'obsidian';
   import type TickTickSync from '@/main';
   import AccessControlLogin from './AccessControlLogin.svelte';
-  // import SyncControlSettings from './SyncControlSettings.svelte';
   import ManualSyncOperations from './ManualSyncOperations.svelte';
   import DebugOptionsSettings from './DebugOptionsSettings.svelte';
-  import SyncControlSettingsComponent from '@/ui/settings/svelte/SyncControlSettingsComponent.svelte';
-  
+  import DynamicSectionsManager from '@/ui/settings/svelte/sections/DynamicSectionsManager.svelte';
+
   export let app: App;
   export let plugin: TickTickSync;
 
@@ -36,11 +35,12 @@
     {/each}
   </nav>
 
+
   <div class="tab-content">
     {#if activeTab === 'access'}
       <AccessControlLogin {plugin} />
     {:else if activeTab === 'sync'}
-      <SyncControlSettingsComponent {plugin} {app} />
+      <DynamicSectionsManager {plugin} {app} />
     {:else if activeTab === 'manual'}
       <ManualSyncOperations {plugin} />
     {:else if activeTab === 'debug'}
