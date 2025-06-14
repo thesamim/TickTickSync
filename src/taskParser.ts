@@ -353,6 +353,8 @@ export class TaskParser {
 				allDatesStruct?.scheduled_date.isoDate //there's a scheduled date
 				: allDatesStruct?.dueDate ? //there are neither start date nor scheduled date.
 					allDatesStruct?.dueDate.isoDate : '';  //use the due date if there is one.
+
+    
 		const task: ITask = {
 			id: TickTick_id || '',
 			projectId: projectId,
