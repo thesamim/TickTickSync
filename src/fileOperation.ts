@@ -173,7 +173,7 @@ export class FileOperation {
 				} else {
 					opString = 'adding';
 				}
-				log.debug('===', projectTasks, result ? 'Completed ' + opString + ' task(s).' : ' Failed ' + opString + ' task(s).');
+				log.debug('===', taskFile, projectTasks, result ? 'Completed ' + opString + ' task(s).' : ' Failed ' + opString + ' task(s).');
 			}
 		}
 		return true;

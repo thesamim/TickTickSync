@@ -174,13 +174,14 @@ export class TaskParser {
 		resultLine = this.plugin.dateMan?.addDatesToLine(resultLine, task);
 
 
-		//TODO: can either have description or note, somewhere we're adding both at some point.
-		if (this.plugin.taskParser.hasDescription(task)) {
-			resultLine = this.addNote(resultLine, task.desc, numTabs, 'Description');
-		}
+		if (getSettings().syncNotes) {
+			if (this.plugin.taskParser.hasDescription(task)) {
+				resultLine = this.addNote(resultLine, task.desc, numTabs, 'Description');
+			}
 
-		if (this.plugin.taskParser.hasNote(task)) {
-			resultLine = this.addNote(resultLine, task.content, numTabs, 'Note');
+			if (this.plugin.taskParser.hasNote(task)) {
+				resultLine = this.addNote(resultLine, task.content, numTabs, 'Note');
+			}
 		}
 
 		if (this.plugin.taskParser.hasItems(task)) {
@@ -353,6 +354,7 @@ export class TaskParser {
 				: allDatesStruct?.dueDate ? //there are neither start date nor scheduled date.
 					allDatesStruct?.dueDate.isoDate : '';  //use the due date if there is one.
 
+    
 		const task: ITask = {
 			id: TickTick_id || '',
 			projectId: projectId,
@@ -715,17 +717,6 @@ export class TaskParser {
 	hasItems(task: ITask): boolean {
 		return ((task.items) && (task.items.length > 0));
 	}
-
-	// //Trust either Task plugin or Ticktick to do the completion dates.
-	// addCompletionDate(line: string, completedTime: string|undefined): string {
-	// 	if (completedTime) {
-	// 		const completionTime = this.plugin.dateMan?.utcToLocal(completedTime)
-	// 		line = line + ` ${keywords.TASK_COMPLETE} ` + completionTime;
-	// 		return line
-	// 	} else {
-	// 		return line;
-	// 	}
-	// }
 
 	//Note to future me: I wanted to get all the known tags in Obsidian to something clever
 

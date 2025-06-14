@@ -416,10 +416,12 @@ export class SyncMan {
 
 			let notesModidified = false;
 			//TODO: Should only have content or desc. Checking for both anyway.
-			if (lineTask.content) {
-				notesModidified = this.plugin.taskParser.areNotesChanged(lineTask.content, savedTask.content);
-			} else if (lineTask.desc) {
-				notesModidified = this.plugin.taskParser.areNotesChanged(lineTask.desc, savedTask.desc);
+			if (getSettings().syncNotes) {
+				if (lineTask.content) {
+					notesModidified = this.plugin.taskParser.areNotesChanged(lineTask.content, savedTask.content);
+				} else if (lineTask.desc) {
+					notesModidified = this.plugin.taskParser.areNotesChanged(lineTask.desc, savedTask.desc);
+				}
 			}
 
 			try {

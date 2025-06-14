@@ -16,6 +16,7 @@ export interface ITickTickSyncSettings {
 	defaultProjectName: string;
 	TickTickTasksFilePath: string;
 	keepProjectFolders: boolean;
+	syncNotes: boolean;
 
 	debugMode: boolean;
 	logLevel: string;
@@ -49,6 +50,7 @@ export const DEFAULT_SETTINGS: ITickTickSyncSettings = {
 	defaultProjectName: 'Inbox',
 	TickTickTasksFilePath: '/',
 	keepProjectFolders: false,
+	syncNotes: true,
 
 	inboxID: '',
 	inboxName: 'Inbox',
@@ -66,7 +68,7 @@ export const DEFAULT_SETTINGS: ITickTickSyncSettings = {
 
 //two places for settings, move all ref from main to here
 
-let settings: ITickTickSyncSettings = { ...DEFAULT_SETTINGS };
+export let settings: ITickTickSyncSettings = { ...DEFAULT_SETTINGS };
 
 export const getSettings = (): ITickTickSyncSettings => {
 	return settings;

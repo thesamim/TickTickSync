@@ -35,11 +35,11 @@ export class ConfirmFullSyncModal extends Modal {
 		new Setting(contentEl).addButton(cancelBtn => {
 			cancelBtn.setClass('ts_button');
 			cancelBtn.setButtonText(this.cancelLabel);
-			cancelBtn.onClick(() => {
-				this.result = false;
-				this.onSubmit(this.result);
-				this.close();
-			});
+				cancelBtn.onClick(() => {
+					this.result = false;
+					this.onSubmit(this.result);
+					this.close();
+				});
 		})
 			.addButton(confirmBtn => {
 				confirmBtn.setClass('ts_button');

@@ -77,6 +77,8 @@ Thanks to [coneos](https://github.com/coneos) for pointing out the language disp
 
 Thanks to [gsdstr](https://github.com/gsdstr) for the MAJOR refactor that will enhance TickTickSync future development.
 
+Thanks to [mProjectsCode](https://github.com/mProjectsCode) for his contribution to the Svelte documentation!
+
 ## Disclaimer
 
 This plugin was built with the author's specific use cases in mind. Additional use cases can and will be considered.

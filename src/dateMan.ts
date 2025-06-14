@@ -354,7 +354,6 @@ export class DateMan {
 		day = String(day).padStart(2, '0');
 		if (timePart) {
 			let [hours, minutes] = timePart.split(':');
-			log.debug('utcToLocal: ', {utcDateString: utcDateString, hours: hours, minutes: minutes, localDate: localDate.toString()})
 			if (localDate.includes('PM' ) && hours !== '12') {
 				hours = (Number(hours) + 12).toString();
 			} else if ((localDate.includes('AM') && hours === '12')) {
