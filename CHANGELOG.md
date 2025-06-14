@@ -1,5 +1,21 @@
 ## CHANGELOG
 
+### 1.1.4
+
+Fix incorrect detection of 1200 time in 24 hour format
+
+### 1.1.3
+
+Full Vault sync Fixes.
+
+### 1.1.2
+
+Fix issue with invalid line detection.
+
+### 1.1.1
+
+Note Synchronization introduced.
+
 ### 1.0.41
 
 Fix issue with Mobile Login
