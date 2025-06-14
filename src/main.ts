@@ -231,6 +231,10 @@ export default class TickTickSync extends Plugin {
 		const target = evt.target as HTMLInputElement;
 		const bOpenTask = target.checked;
 
+		if (target.className !== 'task-list-item-checkbox') {
+			return;
+		}
+
 		if (editor) {
 			const cursor = editor.getCursor('from'); // Get the cursor position
 			const mouse = editor.posAtMouse(evt);
@@ -513,13 +517,13 @@ export default class TickTickSync extends Plugin {
 			}
 		});
 
-
+		let processTimeOut: ReturnType<typeof setTimeout>;
 		//hook editor-change event, if the current line contains #ticktick, it means there is a new task
 		//TODO: This gets called on every keystroke. Consider giving the user the option to only check for changes
 		//      keyup, or keyup and specific events (eg: enter, up-arrow, down-arrow)
 		//for now, we'll debounce it.
 		this.registerEvent(this.app.workspace.on('editor-change', async (editor: Editor, info: MarkdownView | MarkdownFileInfo) => {
-			let processTimeOut: ReturnType<typeof setTimeout>;
+
 			processTimeOut = setTimeout(async () => {
 				clearTimeout(processTimeOut);
 				try {

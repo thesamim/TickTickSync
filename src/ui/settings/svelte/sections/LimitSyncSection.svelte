@@ -4,7 +4,7 @@
 	import { getSettings, updateSettings } from '@/settings';
 	import { onMount } from 'svelte';
 	import { Notice } from 'obsidian';
-	import { TAGS_BEHAVIOR } from '@/ui/settings/constants.svelte';
+	import { TAGS_BEHAVIOR } from '@/ui/settings/svelte/constants.svelte.js';
 
 	export let open = false;
 	export let plugin;
@@ -17,10 +17,11 @@
 	$: tagAndOrString = tagAndOr.toString();
 	let syncTag = '';
 	let folder = '';
+	let debounceTimeout: ReturnType<typeof setTimeout>;
+
 	const dispatch = createEventDispatcher();
 
 	function handleHeaderClick() {
-		console.log('LimitSyncSection toggle fired');
 		dispatch('toggle');
 	}
 
@@ -32,7 +33,6 @@
 	};
 
 	async function handleSyncProjectChange(value: string) {
-		console.log('handleSyncProjectChange: ', value);
 		updateSettings({ SyncProject: value });
 		selectedSyncProject = value;
 
@@ -77,8 +77,8 @@
 	function handleSyncTagChange(value: string) {
 		syncTag = value;
 		updateSettings({ SyncTag: value });
-		clearTimeout(saveSettingsTimeout);
-		saveSettingsTimeout = setTimeout(async () => {
+		if (debounceTimeout) clearTimeout(debounceTimeout);
+		debounceTimeout = setTimeout(async () => {
 			await plugin.saveSettings();
 		}, 800);
 	}

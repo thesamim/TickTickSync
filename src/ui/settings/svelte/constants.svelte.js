@@ -7,3 +7,9 @@ export const LOG_LEVEL = {
 	'warn': 'warn',
 	'error': 'error'
 };
+export const NOTE_SEPERATOR =
+	{
+		'none': 'none',
+		'line': 'line',
+		'callout':	'callout'
+	};

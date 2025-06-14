@@ -1,8 +1,8 @@
 <script lang="ts">
 	import CollapsibleSection from '@/ui/settings/svelte/sections/CollapsibleSection.svelte';
 	import { createEventDispatcher } from 'svelte';
-	import { onMount } from 'svelte';
 	import { getSettings, updateSettings } from '@/settings';
+	import { Notice } from 'obsidian';
 
 	export let open = false;
 	export let plugin;
@@ -13,12 +13,10 @@
 	const dispatch = createEventDispatcher();
 
 	function handleHeaderClick() {
-		console.log('auto sync toggle fired');
 		dispatch('toggle');
 	}
 
 	async function handleAutomaticSynchronizationIntervalChange(value: string) {
-		console.log('handleAutomaticSynchronizationIntervalChange: ', value);
 		const intervalNum = Number(value);
 		if (isNaN(intervalNum) || !Number.isInteger(intervalNum)) {
 			new Notice(`Wrong type, please enter a integer.`);

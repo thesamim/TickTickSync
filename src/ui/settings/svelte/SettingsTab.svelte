@@ -4,7 +4,8 @@
   import AccessControlLogin from './AccessControlLogin.svelte';
   import ManualSyncOperations from './ManualSyncOperations.svelte';
   import DebugOptionsSettings from './DebugOptionsSettings.svelte';
-  import DynamicSectionsManager from '@/ui/settings/svelte/sections/DynamicSectionsManager.svelte';
+  import NotesSection from './NotesSection.svelte';
+  import SyncControlSettings from '@/ui/settings/svelte/sections/SyncControlSettings.svelte';
 
   export let app: App;
   export let plugin: TickTickSync;
@@ -17,7 +18,9 @@
     access: 'Access Control',
     sync: 'Sync Control',
     manual: 'Manual Operations',
-    debug: 'Debug Options'
+    debug: 'Debug Options',
+	  notes: 'Notes'
+
   };
 </script>
 <div class="ticktick-settings">
@@ -40,11 +43,13 @@
     {#if activeTab === 'access'}
       <AccessControlLogin {plugin} />
     {:else if activeTab === 'sync'}
-      <DynamicSectionsManager {plugin} {app} />
+      <SyncControlSettings {plugin} {app} />
     {:else if activeTab === 'manual'}
       <ManualSyncOperations {plugin} />
     {:else if activeTab === 'debug'}
       <DebugOptionsSettings {plugin} />
+	{:else if activeTab === 'notes'}
+		<NotesSection {plugin} />
     {/if}
   </div>
 </div>

@@ -16,7 +16,6 @@
   let openSection: string = 'defaults';
 
   function handleToggle(sectionKey: string) {
-	  console.log('toggle', sectionKey);
     openSection = openSection === sectionKey ? '' : sectionKey;
   }
 </script>

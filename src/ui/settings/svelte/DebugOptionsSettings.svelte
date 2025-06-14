@@ -3,7 +3,7 @@
 	import type TickTickSync from '@/main';
 	import log from '@/utils/logger';
 	import { onMount } from 'svelte';
-	import {LOG_LEVEL} from '@/ui/settings/constants.svelte';
+	import {LOG_LEVEL} from '@/ui/settings/svelte/constants.svelte.js';
 
 	export let plugin: TickTickSync;
 

@@ -8,7 +8,6 @@
 	const dispatch = createEventDispatcher();
 
 	function toggle() {
-		console.log('CollapsibleSection dispatching headerClick');
 		dispatch('headerClick');
 	}
 

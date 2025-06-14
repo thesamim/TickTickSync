@@ -27,7 +27,6 @@
 				search.setValue(myProjectsOptions);
 				new FolderSuggest(search.inputEl, app);
 				search.onChange((value) => {
-					folder = value;
 					if (debounceTimeout) clearTimeout(debounceTimeout);
 
 					debounceTimeout = setTimeout(async () => {
@@ -49,9 +48,38 @@
 		}, {});
 	}
 
+	async function validateNewFolder(newFolder: string) {
+		//remove leading slash if it exists.
+		if (!newFolder) {
+			return null;
+		}
+
+		if (newFolder && (newFolder.length > 1) && (/^[/\\]/.test(newFolder))) {
+			newFolder = newFolder.substring(1);
+		}
+
+		let newFolderFile = app.vault.getAbstractFileByPath(newFolder);
+		if (!newFolderFile) {
+			//it doesn't exist, create it and return its path.
+			try {
+				newFolderFile = await app.vault.createFolder(newFolder);
+				new Notice(`New folder ${newFolderFile.path} created.`);
+			} catch (error) {
+				new Notice(`Folder ${newFolder} creation failed: ${error}. Please correct and try again.`, 5000);
+				return null;
+			}
+		}
+		if (newFolderFile instanceof TFolder) {
+			//they picked right, and the folder exists.
+			//new Notice(`Default folder is now ${newFolderFile.path}.`)
+			return newFolderFile.path;
+		}
+		return null;
+	}
+
+
 	async function handleDefaultProjectChange(value: string) {
 		getSettings().defaultProjectId = value;
-		console.log('handleDefaultProjectChange: ', value);
 		if (value && value !== '') {
 			updateSettings({ defaultProjectName: await plugin.cacheOperation?.getProjectNameByIdFromCache(value) });
 			const defaultProjectFileName = getSettings().defaultProjectName + '.md';

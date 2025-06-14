@@ -2,7 +2,7 @@
   import { onMount, onDestroy } from 'svelte';
   import type TickTickSync from '@/main';
   import { getSettings, updateSettings } from '@/settings';
-  import { PROVIDER_OPTIONS, TAGS_BEHAVIOR, LOG_LEVEL } from './constants.svelte.js'; // Create as needed
+  import { PROVIDER_OPTIONS, TAGS_BEHAVIOR, LOG_LEVEL } from './svelte/constants.svelte.js'; // Create as needed
 
   // Props from Obsidian plugin
   export let plugin: TickTickSync;
