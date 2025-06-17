@@ -1,8 +1,8 @@
 import { App, TFile } from 'obsidian';
 import type { ITask } from '@/api/types/Task';
 import type TickTickSync from '@/main';
+
 //logging
-import log from '@/utils/logger';
 
 
 export interface ITaskRecord {
@@ -196,7 +196,7 @@ export class FileMap {
 		return this.fileLines[this.getTaskIndex(taskId)];
 	}
 
-	async init(inFileContent: string|null = null) {
+	async init(inFileContent: string | null = null) {
 		let fileContent;
 		if (!!inFileContent) {
 			fileContent = inFileContent;
@@ -246,6 +246,37 @@ export class FileMap {
 		return taskRecord;
 	}
 
+	/**
+	 * Mark all tasks as TickTick Tasks
+	 * called only when enableFullVaultSync is true.
+	 */
+	markAllTasks() {
+		let modified = false;
+		const lines = this.fileLines;
+		for (let i = 0; i < lines.length; i++) {
+			const line = lines[i];
+			if (!this.plugin.taskParser?.isMarkdownTask(line)) {
+				continue;
+			}
+			//if content is empty
+			if (this.plugin.taskParser?.getTaskContentFromLineText(line) == '') {
+				continue;
+			}
+			if (!this.plugin.taskParser?.hasTickTickId(line)
+				&& !this.plugin.taskParser?.hasTickTickTag(line)
+				&& !(this.plugin.taskParser?.getLineItemId(line))) {
+				let newLine = this.plugin.taskParser?.addTickTickTag(line);
+				lines[i] = newLine;
+				modified = true;
+			}
+		}
+		return modified;
+	}
+
+	modifyTask(text: string, line: number) {
+		this.fileLines[line] = text;
+	}
+
 	private fixChildTabs(childID: string, parentIdx: number) {
 		let newParentTabs = this.plugin.taskParser.getTabs(this.fileLines[parentIdx]);
 		newParentTabs += '\t';
@@ -263,20 +294,29 @@ export class FileMap {
 		return this.getTaskEndLineByIdx(parentIdx);
 	}
 
-	private getTaskEndLineByIdx(parentIdx: number) {
-		const parentTabs = this.plugin.taskParser.getTabs(this.fileLines[parentIdx]);
-		for (let i = parentIdx + 1; i < this.fileLines.length; i++) {
+	private getTaskEndLineByIdx(taskIdx: number) {
+		const taskTabs = this.plugin.taskParser.getTabs(this.fileLines[taskIdx]);
+		const numTaskTabs = taskTabs.length;
+		const notePrefix = taskTabs + '  ';
+		for (let i = taskIdx + 1; i < this.fileLines.length; i++) {
 			const line = this.fileLines[i];
-			const lineTabs = this.plugin.taskParser.getTabs(line);
-			//First line having a different number of tabs is the end of the task.
-			if ((this.plugin.taskParser.isMarkdownTask(line) && this.plugin.taskParser.hasTickTickId(line))) {
+			const numLineTabs = this.plugin.taskParser.getNumTabs(line);
+			//We found the next Task. or something less indented.
+			if ((this.plugin.taskParser.isMarkdownTask(line)
+					&& this.plugin.taskParser.hasTickTickId(line))
+				|| ( numLineTabs < numTaskTabs )) {
 				//return the previous line.
 				return i - 1;
 			}
-			//or alternatively we're on a line that's not part of this task.
-			if ((!this.plugin.taskParser.isMarkdownTask(line) && (lineTabs != parentTabs) && (!line.startsWith('  ')))) {
+			//are we still in the same task?
+			if ((this.plugin.taskParser.isMarkdownTask(line) && this.plugin.taskParser.getLineItemId(line))
+				|| line.startsWith(notePrefix)) {
+				continue;
+			}
+			if ((numLineTabs < numTaskTabs) || (!line.startsWith(notePrefix))) {
 				return i - 1;
 			}
+
 		}
 		return this.fileLines.length - 1;
 	}
@@ -301,10 +341,11 @@ export class FileMap {
 				//task lines added until we have a different indentation.
 				// (if more tabs, it's the next Item or Task. If less, it's the next task)
 				// (if we hit a markdown task of any kind, we're done.)'
-				const LineTabs = this.plugin.taskParser.getTabs(line);
-				const lineTabsNum = LineTabs.length;
-				const notePrefix = LineTabs + '  ';
-				if (numTabs === lineTabsNum && !(this.plugin.taskParser.isMarkdownTask(line)) && line.startsWith(notePrefix)) {
+				const lineTabs = this.plugin.taskParser.getTabs(line);
+				const lineTabsNum = lineTabs.length;
+				const notePrefix = lineTabs + '  ';
+				if (numTabs === lineTabsNum && !(this.plugin.taskParser.isMarkdownTask(line))
+					&& line.startsWith(notePrefix)) {
 					taskLines.push(line);
 				} else {
 					//Do we have a Note or a description.
@@ -356,7 +397,7 @@ export class FileMap {
 				if (lineNumbTabs < childNumTabs) {
 					//found the parent. If tempTickTickId is null, it's a task that has not been added yet.
 					// We'll deal with it later.'
-					tickTickId = tempTickTickId? tempTickTickId : '';
+					tickTickId = tempTickTickId ? tempTickTickId : '';
 					break;
 				}
 			}
@@ -461,37 +502,6 @@ export class FileMap {
 
 
 		return moveMap;
-	}
-
-	/**
-	 * Mark all tasks as TickTick Tasks
-	 * called only when enableFullVaultSync is true.
-	 */
-	markAllTasks() {
-		let modified = false;
-		const lines = this.fileLines;
-		for (let i = 0; i < lines.length; i++) {
-			const line = lines[i];
-			if (!this.plugin.taskParser?.isMarkdownTask(line)) {
-				continue;
-			}
-			//if content is empty
-			if (this.plugin.taskParser?.getTaskContentFromLineText(line) == '') {
-				continue;
-			}
-			if (!this.plugin.taskParser?.hasTickTickId(line)
-				&& !this.plugin.taskParser?.hasTickTickTag(line)
-				&& !(this.plugin.taskParser?.getLineItemId(line))) {
-				let newLine = this.plugin.taskParser?.addTickTickTag(line);
-				lines[i] = newLine;
-				modified = true;
-			}
-		}
-		return modified;
-	}
-
-	modifyTask(text: string, line: number ) {
-		this.fileLines[line] = text;
 	}
 }
 

@@ -654,6 +654,10 @@ export default class TickTickSync extends Plugin {
 			//warn about the date/time foo
 			notableChanges.push(['Note Synchronization', 'TickTickSync will now synchronize Notes.', 'priorTo1.1.1']);
 		}
+		if ((!data.version) || (isOlder(data.version, '1.1.7'))) {
+			notableChanges.push(['Note and Default Project Settings', 'Note and Default Project settings improvements.', 'priorTo1.1.7']);
+		}
+
 
 
 		if (notableChanges.length > 0) {
