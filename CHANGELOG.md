@@ -1,5 +1,18 @@
 ## CHANGELOG
 
+### 1.1.7
+
+Fix default project handling.
+
+### 1.1.6
+
+Feature: allow disabling of Notes Sync
+Feature: Shiny new tabbed interface for settings
+
+### 1.1.5
+
+Fix Due Date update
+
 ### 1.1.4
 
 Fix incorrect detection of 1200 time in 24 hour format

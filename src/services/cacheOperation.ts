@@ -257,9 +257,8 @@ export class CacheOperation {
 
 	async getDefaultProjectIdForFilepath(filepath: string) {
 		const metadatas = getSettings().fileMetadata;
-		if (!metadatas[filepath] || metadatas[filepath].defaultProjectId === undefined) {
+		if (!metadatas[filepath] || !metadatas[filepath].defaultProjectId) {
 			let defaultProjectId = getSettings().defaultProjectId;
-			log.warn(`${filepath} does not exist and metadata is empty.`, 'defaultProjectId', defaultProjectId);
 			if (!defaultProjectId) {
 				defaultProjectId = getSettings().inboxID;
 			}
@@ -300,7 +299,7 @@ export class CacheOperation {
 			log.warn(errmsg);
 			throw new Error(errmsg);
 		}
-		let errmsg = `File path not found for ${projectId}, returning ${filePath} instead. `
+		let errmsg = `File path not found for ${projectId}, returning ${filePath} instead. `;
 		log.warn(errmsg);
 
 		// log.debug("returning : ", filePath + FILE_EXT);
@@ -717,12 +716,12 @@ export class CacheOperation {
 		return false;
 	}
 
-	async findTaskInFiles(taskId: string): Promise<string | null> {
+	async findTaskInFilesTrash(taskId: string): Promise<string | null> {
 		const markdownFiles = this.app.vault.getMarkdownFiles();
 		for (const file of markdownFiles) {
 			const fileMap = new FileMap(this.app, this.plugin, file);
-			await fileMap.init()
-			const taskIdx  = fileMap.getTaskIndex(taskId)
+			await fileMap.init();
+			const taskIdx = fileMap.getTaskIndex(taskId);
 
 			//returning the first file we find.
 			if (taskIdx !== -1) {
@@ -730,6 +729,22 @@ export class CacheOperation {
 			}
 		}
 		return null;
+	}
+
+	findTaskInFiles(taskId: string): string | null {
+		const fileMetadata = getSettings().fileMetadata;
+		const files = Object.keys(fileMetadata);
+		let retFile = null;
+		files.forEach(file => {
+			const tasks = fileMetadata[file].TickTickTasks;
+			for (const task of tasks) {
+				if (task.taskId === taskId) {
+					retFile = file;
+					return;
+				}
+			}
+		});
+		return retFile;
 	}
 
 	protected async newEmptyFileMetadata(filepath: string, projectId?: string): Promise<FileDetail | undefined> {

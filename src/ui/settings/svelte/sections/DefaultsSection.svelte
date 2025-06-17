@@ -1,10 +1,9 @@
 <script lang="ts">
 	import CollapsibleSection from '@/ui/settings/svelte/sections/CollapsibleSection.svelte';
-	import { onMount } from 'svelte';
+	import { createEventDispatcher, onMount } from 'svelte';
 	import { getSettings, updateSettings } from '@/settings';
 	import { Notice, Setting, TFolder } from 'obsidian';
 	import { FolderSuggest } from '@/utils/FolderSuggester';
-	import { createEventDispatcher } from 'svelte';
 
 	export let open = false;
 	export let plugin;
@@ -114,8 +113,10 @@
 		<div class="setting-item">
 			<div class="setting-item-info">
 				<div class="setting-item-name">Default Project</div>
-				<div class="setting-item-description">New tasks are automatically synced to the default project. You can
-					modify the project here.
+				<div class="setting-item-description"> Tasks are added to the default project associated with a file. If
+					tasks are added to a file with no default project association the will be added to the <span
+						class="setting-item-name"> {defaultProjectId ? myProjectsOptions[defaultProjectId] : 'Inbox' }
+						</span>	project.
 				</div>
 			</div>
 			<div class="setting-item-control">
@@ -137,7 +138,9 @@
 		<div class="setting-item">
 			<div class="setting-item-info">
 				<div class="setting-item-name">Default folder location</div>
-				<div class="setting-item-description">Folder to be used for TickTick Tasks.</div>
+				<div class="setting-item-description">If not set, TickTickSync saves Task files to the root folder
+					("/"). To choose an alternative directory, search for or type in the new folder name.
+				</div>
 			</div>
 			<div class="setting-item-control flex-container">
 				<div

@@ -82,7 +82,7 @@ export class FileOperation {
 
 
 		if (fileMap.markAllTasks()) {
-			const newContent = fileMap.getFileLines()
+			const newContent = fileMap.getFileLines();
 			await this.app.vault.modify(fileMap.file, newContent);
 			new Notice('New Tasks will be added to TickTick on next Sync.');
 			// log.error("Modified: ", file?.path, new Date().toISOString());
@@ -134,34 +134,46 @@ export class FileOperation {
 			log.error('No tasks to add.');
 			return false;
 		}
-
-
 		//sort by project id and task id
-		tasks.sort((taskA, taskB) => (taskA.projectId.localeCompare(taskB.projectId) ||
-			taskA.id.localeCompare(taskB.id)));
-		//try not overwrite files while downloading a whole bunch of tasks. Create them first, then do the addtask mambo
+		tasks.sort((taskA, taskB) =>
+			(taskA.projectId.localeCompare(taskB.projectId) ||
+				taskA.id.localeCompare(taskB.id)));
+
 		const projectIds = [...new Set(tasks.map(task => task.projectId))];
-		// log.debug('projectIds', projectIds);
+
 		for (const projectId of projectIds) {
-			const taskFile = await this.plugin.cacheOperation?.getFilepathForProjectId(projectId);
-			let file;
-			if (taskFile) {
-				file = this.app.vault.getAbstractFileByPath(taskFile);
-				if (!(file instanceof TFile)) {
-					file = await this.getOrCreateDefaultFile(taskFile);
-					log.debug('Creating new file: ', file.path);
+			let result;
+			let taskFile: string | null = null;
+			let projectTasks = tasks.filter(task => task.projectId === projectId);
+			if (projectId !== getSettings().defaultProjectId) {
+				taskFile = await this.plugin.cacheOperation?.getFilepathForProjectId(projectId);
+				result = await this.doTheAdding(taskFile, projectTasks, bUpdating);
+			} else {
+				//If a task is in the default project, we need to find it on the file system.
+				// 1. Find file for each task
+				// 2. process the tasks by file.
+				const tasksForFiles: { file: string, tasks: ITask[] }[] = [];
+				const fileForDefaultProject = await this.plugin.cacheOperation?.getFilepathForProjectId(getSettings().defaultProjectId);
+				for (const task of projectTasks) {
+					taskFile = this.plugin.cacheOperation.findTaskInFiles(task.id);
+					log.debug('taskFile', taskFile);
+					if (taskFile) {
+						log.debug('adding to ', taskFile);
+						this.addTaskToTFF(tasksForFiles, taskFile, task);
+					} else {
+						log.debug('adding to ', fileForDefaultProject);
+						this.addTaskToTFF(tasksForFiles, fileForDefaultProject, task);
+					}
+
+				}
+				for (const { file, tasks } of tasksForFiles) {
+					// Do something with file and tasks array
+					// Example: log the file and its tasks
+					console.log(`File: ${file}`);
+					let projectTasks = tasks;
+					result = await this.doTheAdding(file, projectTasks, bUpdating);
 				}
 			}
-			let projectTasks = tasks.filter(task => task.projectId === projectId);
-			//make sure top level tasks are first
-			projectTasks = this.doTheSortMambo(projectTasks);
-
-			//only for debugging, in case I lose my sort shit again.
-			// let subset = projectTasks.map((task) => {
-			// 	return { id: task.id, title: task.title, parent: task.parentId, children: task.childIds };
-			// });
-
-			let result = await this.addProjectTasksToFile(file, projectTasks, bUpdating);
 			// Sleep for 1 second
 			if (result) {
 				await new Promise(resolve => setTimeout(resolve, 1000));
@@ -178,7 +190,6 @@ export class FileOperation {
 		}
 		return true;
 	}
-
 
 	async getOrCreateDefaultFile(taskFile: string) {
 		let file;
@@ -220,7 +231,7 @@ export class FileOperation {
 						if (fileName) {
 							//there's a file on the filesystem. But we can't get to it by name.
 							//try to find the file by name case insensitively
-							const files = this.app.vault.getMarkdownFiles()
+							const files = this.app.vault.getMarkdownFiles();
 							for (const f of files) {
 								log.debug('Checking file', f.path);
 								if (f.path.toLowerCase() === fileName.toLowerCase()) {
@@ -316,7 +327,6 @@ export class FileOperation {
 		}
 	}
 
-
 	// delete task from file
 	async deleteTaskFromSpecificFile(filePath: TFile, task: ITask, bConfirmDialog: boolean) {
 		// Get the file object and update the content
@@ -382,8 +392,6 @@ export class FileOperation {
 		return (files);
 	}
 
-	//search filepath by taskid in vault
-
 	async searchFilepathsByTaskidInVault(taskId: string) {
 		const files = await this.getAllFilesInTheVault();
 		const tasks = files.map(async (file) => {
@@ -402,6 +410,8 @@ export class FileOperation {
 		//return filePaths || null
 	}
 
+	//search filepath by taskid in vault
+
 	isMarkdownFile(filename: string) {
 		// Get the extension of the file name
 		let extension = filename.split('.').pop();
@@ -415,6 +425,29 @@ export class FileOperation {
 		} else {
 			return false;
 		}
+	}
+
+	private async doTheAdding(taskFile: string, projectTasks: ITask[], bUpdating: boolean) {
+		let file;
+		let result;
+		if (taskFile) {
+			file = this.app.vault.getAbstractFileByPath(taskFile);
+			if (!(file instanceof TFile)) {
+				file = await this.getOrCreateDefaultFile(taskFile);
+				log.debug('Creating new file: ', file.path);
+			}
+		}
+
+		//make sure top level tasks are first
+		projectTasks = this.doTheSortMambo(projectTasks);
+
+		//only for debugging, in case I lose my sort shit again.
+		// let subset = projectTasks.map((task) => {
+		// 	return { id: task.id, title: task.title, parent: task.parentId, children: task.childIds };
+		// });
+
+		result = await this.addProjectTasksToFile(file, projectTasks, bUpdating);
+		return result;
 	}
 
 	private async addProjectTasksToFile(file: TFile, tasks: ITask[], bUpdating): Promise<boolean> {
@@ -801,7 +834,7 @@ export class FileOperation {
 					level++;
 					//This happened once. It caused an infinite loop. Throw an error.
 					if (level > 6) {
-						log.debug("this is the issue: ", currentId, " ", taskMap[currentId].parentId, "")
+						log.debug('this is the issue: ', currentId, ' ', taskMap[currentId].parentId, '');
 						new Notice('A circular Parent-Child dependency was found. Please fix in TickTick by checking parent-child relationships.');
 						throw new Error('Circular Parent-Child dependency was found.');
 					}
@@ -827,5 +860,12 @@ export class FileOperation {
 		return sortedTasks;
 	}
 
-
+	private addTaskToTFF(taskForFiles: { file: string; tasks: ITask[] }[], taskFile: string | null, task: ITask) {
+		let fileTaskObj = taskForFiles.find(obj => obj.file === taskFile);
+		if (!fileTaskObj) {
+			fileTaskObj = { file: taskFile, tasks: [] };
+			taskForFiles.push(fileTaskObj);
+		}
+		fileTaskObj.tasks.push(task);
+	}
 }
