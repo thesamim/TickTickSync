@@ -301,12 +301,17 @@ export class TickTickService {
 						if (v.extension == 'md') {
 							try {
 								log.debug(`Scanning file ${v.path}`);
-								await this.plugin.fileOperation?.addTickTickLinkToFile(v.path);
+								//assume that if they want links in descriptions, it will be handled on task construction
+								if (getSettings().taskLinksInObsidian === "taskLink") {
+									await this.plugin.fileOperation?.addTickTickLinkToFile(v.path);
+								}
 								if (getSettings().enableFullVaultSync) {
 									const fileMap = new FileMap(this.plugin.app, this.plugin, v);
 									await fileMap.init();
 									await this.plugin.fileOperation?.addTickTickTagToFile(fileMap);
 								}
+
+
 							} catch (error) {
 								log.error(`An error occurred while check new tasks in the file: ${v.path}`, error);
 							}

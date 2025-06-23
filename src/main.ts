@@ -657,7 +657,9 @@ export default class TickTickSync extends Plugin {
 		if ((!data.version) || (isOlder(data.version, '1.1.7'))) {
 			notableChanges.push(['Note and Default Project Settings', 'Note and Default Project settings improvements.', 'priorTo1.1.7']);
 		}
-
+		if ((!data.version) || (isOlder(data.version, '1.1.8'))) {
+			notableChanges.push(['Link to Tasks now Configurable', 'Link to Tasks are now Configurable.', 'priorTo1.1.8']);
+		}
 
 
 		if (notableChanges.length > 0) {

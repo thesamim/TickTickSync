@@ -111,7 +111,7 @@ export class FileOperation {
 				}
 				const taskID = this.plugin.taskParser?.getTickTickId(line);
 				const taskObject = await this.plugin.cacheOperation?.loadTaskFromCacheID(taskID);
-				const newLine = this.plugin.taskParser?.addTickTickLink(line, taskObject.id, taskObject.projecId);
+				const newLine = this.plugin.taskParser?.addTickTickLink(line, taskObject.id, taskObject.projectId);
 				lines[i] = newLine;
 				modified = true;
 			} else {
@@ -167,11 +167,7 @@ export class FileOperation {
 
 				}
 				for (const { file, tasks } of tasksForFiles) {
-					// Do something with file and tasks array
-					// Example: log the file and its tasks
-					console.log(`File: ${file}`);
-					let projectTasks = tasks;
-					result = await this.doTheAdding(file, projectTasks, bUpdating);
+					result = await this.doTheAdding(file, tasks, bUpdating);
 				}
 			}
 			// Sleep for 1 second

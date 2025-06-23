@@ -1,5 +1,9 @@
 ## CHANGELOG
 
+### 1.1.8
+
+Feature: Configure Links addition settings.
+
 ### 1.1.7
 
 Fix default project handling.

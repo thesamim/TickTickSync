@@ -164,7 +164,10 @@ export class TaskParser {
 		}
 		resultLine = this.addTickTickTag(resultLine);
 
-		resultLine = this.addTickTickLink(resultLine, task.id, task.projectId);
+		if (getSettings().taskLinksInObsidian === 'taskLink') {
+			resultLine = this.addTickTickLink(resultLine, task.id, task.projectId);
+		}
+
 		resultLine = this.addTickTickId(resultLine, task.id);
 
 		//add priority
@@ -175,12 +178,13 @@ export class TaskParser {
 
 
 		if (getSettings().syncNotes) {
+			const filePath = await this.plugin.cacheOperation?.getFilepathForTask(task.id);
 			if (this.plugin.taskParser.hasDescription(task)) {
-				resultLine = this.addNote(resultLine, task.desc, numTabs, 'Description');
-			}
-
-			if (this.plugin.taskParser.hasNote(task)) {
-				resultLine = this.addNote(resultLine, task.content, numTabs, 'Note');
+				resultLine = this.addNote(resultLine, task.desc, numTabs, 'Description', task.id, task.projectId, filePath);
+			} else if (this.plugin.taskParser.hasNote(task)) {
+				resultLine = this.addNote(resultLine, task.content, numTabs, 'Note', task.id, task.projectId, filePath);
+			}  else {
+				resultLine = this.addNote(resultLine, "", numTabs, 'Note', task.id, task.projectId, filePath);
 			}
 		}
 
@@ -274,17 +278,23 @@ export class TaskParser {
 		}
 		let description = null;
 		let content = null;
-		if (taskRecord) {
-			if (taskRecord.taskLines.length > 1) {
-				const noteStruct = this.getNoteString(taskRecord);
-				if (noteStruct.isNote) {
-					content = noteStruct.textContent;
-				} else {
-					description = noteStruct.textContent;
-				}
+
+		let taskURL = '';
+		let noteURL = '';
+		let url = '';
+		if (getSettings().fileLinksInTickTick !== 'noLink') {
+			if (filepath) {
+				url = this.plugin.taskParser.getObsidianUrlFromFilepath(filepath);
 			}
-		} else {
 		}
+		if (getSettings().fileLinksInTickTick === 'taskLink') {
+			taskURL = url;
+		}
+		if (getSettings().fileLinksInTickTick === 'noteLink') {
+			noteURL = url + '\n';
+		}
+		log.debug(`taskURL: ${taskURL}, url: ${url}`);
+
 		//Detect parentID
 		if (lineTextTabIndentation > 0) {
 			parentId = taskRecord.parentId;
@@ -301,18 +311,37 @@ export class TaskParser {
 			}
 		}
 
+		//Do the description/content thing
+		if (taskRecord) {
+			if (taskRecord.taskLines.length > 1) {
+				const noteStruct = this.getNoteString(taskRecord,TickTick_id);
+				let noteText = noteURL + noteStruct.textContent;
+				if (noteStruct.isNote) {
+					content = noteText;
+				} else {
+					description = noteText;
+				}
+			} else { //no notes
+				if (noteURL) {
+					if (taskItems.length > 0) { //has task items
+						description = noteURL
+					} else { //has no notes, not task items.
+						content = noteURL;
+					}
+				}
+
+			}
+		}
+
 		let timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
 		const tags = this.getAllTagsFromLineText(textWithoutIndentation);
 
 		let projectId = await this.plugin.cacheOperation?.getDefaultProjectIdForFilepath(filepath as string);
-		// let projectIdByTask = await this.plugin.cacheOperation?.getProjectIdForTask(TickTick_id);
 
-		let projectName = await this.plugin.cacheOperation?.getProjectNameByIdFromCache(projectId);
 		if (hasParent) {
 			if (parentTaskObject) {
 				projectId = parentTaskObject.projectId;
-				// projectName = await this.plugin.cacheOperation?.getProjectNameByIdFromCache(projectId);
 			}
 		} else {
 			//Check if we need to add this to a specific project by tag.
@@ -324,7 +353,6 @@ export class TaskParser {
 					if (!hasProjectId) {
 						continue;
 					}
-					projectName = labelName;
 					projectId = hasProjectId;
 					break;
 				}
@@ -337,15 +365,8 @@ export class TaskParser {
 		}
 
 		const isCompleted = this.isTaskCheckboxChecked(textWithoutIndentation);
-		let taskURL = '';
-		const priority = this.getTaskPriority(textWithoutIndentation);
-		if (filepath) {
-			let url = this.plugin.taskParser.getObsidianUrlFromFilepath(filepath);
-			if (url) {
-				taskURL = url;
-			}
 
-		}
+		const priority = this.getTaskPriority(textWithoutIndentation);
 
 		let actualStartDate = allDatesStruct?.startDate ?
 			allDatesStruct?.startDate.isoDate : //there's a start date
@@ -354,7 +375,7 @@ export class TaskParser {
 				: allDatesStruct?.dueDate ? //there are neither start date nor scheduled date.
 					allDatesStruct?.dueDate.isoDate : '';  //use the due date if there is one.
 
-    
+
 		const task: ITask = {
 			id: TickTick_id || '',
 			projectId: projectId,
@@ -381,19 +402,40 @@ export class TaskParser {
 
 	}
 
-	getNoteString(taskRecord: ITaskRecord) {
-		let textContent = "";
+	escapeRegExp(str: string) {
+		return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+	}
+
+	getNoteString(taskRecord: ITaskRecord, id?: string | undefined) {
+		let textContent = '';
 		if (taskRecord.taskLines) {
 			let descriptionStrings = [...taskRecord.taskLines];
 			//TODO if there's a notes preference need to account for it here.
 			//     for now, we're getting rid of the first line and the last line.
 			descriptionStrings.splice(0, 1);
 			descriptionStrings.splice(descriptionStrings.length - 1, 1);
-			descriptionStrings = descriptionStrings.map(line => line.replace(/^\t*\s{2}|^\s{2}/g, ''));
-			textContent = descriptionStrings.length > 0 ? descriptionStrings.join('\n') : '';
+			let filteredDescriptionStrings ;
+			if (id) {
+				const linkRegex = new RegExp(`\\[link\\]\\(.*${this.escapeRegExp(id)}.*\\)`, 'i');
+
+				filteredDescriptionStrings = descriptionStrings.filter(line => {
+					const isMatch = linkRegex.test(line);
+					log.debug('line: ', line, 'linkRegex.test(line): ', isMatch);
+					return !isMatch;
+				});
+			}
+			if (filteredDescriptionStrings) {
+				filteredDescriptionStrings = filteredDescriptionStrings.map(line => line.replace(/^\t*\s{2}|^\s{2}/g, ''));
+				textContent = filteredDescriptionStrings.length > 0 ? filteredDescriptionStrings.join('\n') : '';
+
+			} else {
+				descriptionStrings = descriptionStrings.map(line => line.replace(/^\t*\s{2}|^\s{2}/g, ''));
+				textContent = descriptionStrings.length > 0 ? descriptionStrings.join('\n') : '';
+			}
 		}
 		return { isNote: taskRecord.isNote, textContent: textContent };
 	}
+
 	hasTickTickTag(text: string) {
 		if (this.isMarkdownTask(text)) {
 			// log.debug("hasTickTickTag", `${text}
@@ -634,7 +676,6 @@ export class TaskParser {
 	}
 
 	addTickTickLink(linetext: string, taskId: string, projecId: string): string {
-
 		let url = this.createURL(taskId, projecId);
 		const regex = new RegExp(`${keywords.TickTick_TAG}`, 'gi');
 		const link = ` [link](${url})`;
@@ -788,16 +829,38 @@ export class TaskParser {
 		return resultLine;
 	}
 
-	private addNote(resultLine: string, content: string, numbTabs: number, type: string) {
+	private addNote(resultLine: string, content: string, numbTabs: number, type: string, id: string, projectId: string, filepath: string | null) {
 		//TODO figure out Note presentation
 		//admonitions just don't work in indented tasks. Until I sort out the presentation, keep it simple until I
 		//get all the functionality sorted out,
 		const prefix = '\n' + '\t'.repeat(numbTabs) + '  ';
 		// resultLine = `${resultLine}${prefix}=== start ${type} ${this.getTickTickId(resultLine)}`;
+		// TODO: A Thought add a line break before and after the notes?
 		resultLine = `${resultLine}${prefix}-------------------------------------------------------------`;
-		const noteLines = content.split('\n');
+		if (getSettings().taskLinksInObsidian === 'noteLink') {
+			const url = `[link](${this.createURL(id, projectId)})`;
+			resultLine = `${resultLine}${prefix}${url}`;
+		}
+		let noteLines: string[];
+
+		if (content.length > 0) {
+			noteLines = content.split('\n');
+			if (noteLines.length > 0) {
+				if (noteLines[noteLines.length -1 ].length === 0) {
+					//if last line is empty remove it so it don't look ugly in markdown
+					noteLines.pop();
+				}
+			}
+		} else {
+			noteLines = [];
+		}
+
+		const linkRegex = new RegExp(`\\[${filepath}\\]\\(obsidian://open\\?vault=.*&file=${filepath}\\)`, 'giu');
 		noteLines.forEach(item => {
-			resultLine = `${resultLine}${prefix}${item}`;
+			log.debug(item, item.search(linkRegex));
+			if (item.search(linkRegex) < 0) {
+				resultLine = `${resultLine}${prefix}${item}`;
+			}
 		});
 		resultLine = `${resultLine}${prefix}-------------------------------------------------------------`;
 		// resultLine = `${resultLine}${prefix}=== end ${type}  ${this.getTickTickId(resultLine)}`;

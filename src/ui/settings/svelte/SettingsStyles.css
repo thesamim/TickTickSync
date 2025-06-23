@@ -1,0 +1,135 @@
+.ticktick-settings {
+	padding: 1rem;
+}
+
+.settings-tabs {
+	display: flex;
+	gap: 0.5rem;
+	margin-bottom: 1rem;
+	border-bottom: 2px solid var(--background-modifier-border);
+}
+
+.tab-button {
+	padding: 0.5rem 1rem;
+	border: none;
+	background: none;
+	color: var(--text-muted);
+	cursor: pointer;
+	border-bottom: 2px solid transparent;
+	margin-bottom: -2px;
+}
+
+.tab-button.active {
+	color: var(--text-normal);
+	border-bottom-color: var(--interactive-accent);
+}
+
+.tab-content {
+	padding: 1rem 0;
+}
+.toggle-switch {
+	display: inline-flex;
+	align-items: center;
+	cursor: pointer;
+	gap: 0.5em;
+}
+.toggle-switch input[type="checkbox"] {
+	opacity: 0;
+	width: 0;
+	height: 0;
+}
+.toggle-switch .slider {
+	height: 1.2em;
+	width: 2.2em;
+	border-radius: 1.1em;
+	background: #8884;
+	position: relative;
+	transition: background 0.2s;
+	border: 1px solid var(--background-modifier-border, #ccc);
+}
+.toggle-switch input[type="checkbox"]:checked + .slider {
+	background: var(--interactive-accent, #4caf50);
+}
+.toggle-switch .slider::before {
+	content: '';
+	position: absolute;
+	left: 0.2em;
+	top: 0.15em;
+	width: 0.9em;
+	height: 0.9em;
+	border-radius: 50%;
+	background: var(--background-primary, #fff);
+	transition: left 0.2s;
+}
+.toggle-switch input[type="checkbox"]:checked + .slider::before {
+	left: 1.1em;
+}
+
+.collapsible-section {
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 8px;
+	background: var(--background-secondary);
+	margin: 24px 0;
+	box-shadow: 0 1px 6px 0 rgba(16, 22, 26, .08);
+	color: var(--text-normal);
+	transition: box-shadow 0.18s, background 0.18s;
+	padding: 0;
+	/* Ensure card looks good in all themes */
+}
+
+@media (prefers-color-scheme: dark) {
+	.collapsible-section {
+		background: var(--background-secondary);
+		border-color: var(--background-modifier-border);
+		color: var(--text-normal);
+	}
+
+	.collapsible-header {
+		background: var(--background-tertiary);
+		color: var(--text-normal);
+	}
+}
+
+.collapsible-header {
+	cursor: pointer;
+	font-weight: 600;
+	display: flex;
+	align-items: center;
+	gap: .5em;
+	user-select: none;
+	font-size: 1.1em;
+	padding: 14px 22px;
+	border-bottom: 1px solid var(--background-modifier-border);
+	background: var(--background-tertiary);
+	border-top-left-radius: 8px;
+	border-top-right-radius: 8px;
+	transition: background 0.18s, color 0.18s;
+}
+
+.collapsible-header:hover {
+	background: var(--background-modifier-hover);
+}
+
+.collapsible-body {
+	padding: 18px 22px 14px 22px;
+	animation: fadeIn .2s;
+}
+
+@keyframes fadeIn {
+	from {
+		opacity: 0;
+		transform: translateY(10px);
+	}
+	to {
+		opacity: 1;
+		transform: none;
+	}
+}
+
+.short-desc {
+	padding: 18px 22px 14px 22px;
+	color: var(--text-muted);
+	font-size: 0.98em;
+	transition: color 0.18s;
+	animation: fadeIn .2s;
+}

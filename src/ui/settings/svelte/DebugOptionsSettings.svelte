@@ -4,6 +4,7 @@
 	import log from '@/utils/logger';
 	import { onMount } from 'svelte';
 	import {LOG_LEVEL} from '@/ui/settings/svelte/constants.svelte.js';
+	import './SettingsStyles.css';
 
 	export let plugin: TickTickSync;
 
@@ -87,42 +88,6 @@
 		</div>
 	{/if}
 </div>
-<style>
-	.toggle-switch {
-		display: inline-flex;
-		align-items: center;
-		cursor: pointer;
-		gap: 0.5em;
-	}
-	.toggle-switch input[type="checkbox"] {
-		opacity: 0;
-		width: 0;
-		height: 0;
-	}
-	.toggle-switch .slider {
-		height: 1.2em;
-		width: 2.2em;
-		border-radius: 1.1em;
-		background: #8884;
-		position: relative;
-		transition: background 0.2s;
-		border: 1px solid var(--background-modifier-border, #ccc);
-	}
-	.toggle-switch input[type="checkbox"]:checked + .slider {
-		background: var(--interactive-accent, #4caf50);
-	}
-	.toggle-switch .slider::before {
-		content: '';
-		position: absolute;
-		left: 0.2em;
-		top: 0.15em;
-		width: 0.9em;
-		height: 0.9em;
-		border-radius: 50%;
-		background: var(--background-primary, #fff);
-		transition: left 0.2s;
-	}
-	.toggle-switch input[type="checkbox"]:checked + .slider::before {
-		left: 1.1em;
-	}
-</style>
+
+
+

@@ -13,3 +13,9 @@ export const NOTE_SEPERATOR =
 		'line': 'line',
 		'callout':	'callout'
 	};
+
+export const LINK_BEHAVIOR = {
+	'noLink': 'No Link' ,
+	'taskLink': 'Link in Task' ,
+	'noteLink': 'Link in Description'
+}
