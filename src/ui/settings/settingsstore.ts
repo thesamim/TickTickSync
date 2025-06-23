@@ -2,9 +2,6 @@ import type TickTickSync from '@/main';
 import { type Writable, writable } from 'svelte/store';
 import { type ITickTickSyncSettings, settings } from '@/settings';
 
-import TickTickSyncSettings from '@/ui/settings/TickTickSyncSettings.svelte';
-
-
 export let settingsStore: Writable<ITickTickSyncSettings>;
 
 export function init(plugin: TickTickSync) {

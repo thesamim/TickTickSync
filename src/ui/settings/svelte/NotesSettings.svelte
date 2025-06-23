@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { getSettings, updateSettings } from '@/settings';
 	import type TickTickSync from '@/main';
+	import './SettingsStyles.css';
 	import { onMount } from 'svelte';
 	import { NOTE_SEPERATOR } from '@/ui/settings/svelte/constants.svelte.js';
 
@@ -25,7 +26,6 @@
 		for (const task of allTasks) {
 			task.modifiedTime = '1970-01-01T00:00:00.000Z';
 		}
-		console.log(allTasks);
 		updateSettings({ TickTickTasksData: { ...getSettings().TickTickTasksData, tasks: allTasks } });
 		if (plugin.tickTickRestAPI && plugin.tickTickRestAPI.api) {
 			plugin.tickTickRestAPI!.api!.checkpoint = 0;
@@ -44,7 +44,6 @@
 		let res = '-';
 		let separatorId = target;
 		noteSeparator = noteSeparatorOptions[separatorId];
-		console.log(target, noteSeparator, separatorId, res, res.repeat(61));
 		noteSeparatorContent = res.repeat(61);
 
 	}
@@ -102,55 +101,3 @@
 
 	</div>
 </div>
-<style>
-	.toggle-switch {
-		display: inline-flex;
-		align-items: center;
-		cursor: pointer;
-		gap: 0.5em;
-	}
-
-	.toggle-switch input[type="checkbox"] {
-		opacity: 0;
-		width: 0;
-		height: 0;
-	}
-
-	.toggle-switch .slider {
-		height: 1.2em;
-		width: 2.2em;
-		border-radius: 1.1em;
-		background: #8884;
-		position: relative;
-		transition: background 0.2s;
-		border: 1px solid var(--background-modifier-border, #ccc);
-	}
-
-	.toggle-switch input[type="checkbox"]:checked + .slider {
-		background: var(--interactive-accent, #4caf50);
-	}
-
-	.toggle-switch .slider::before {
-		content: '';
-		position: absolute;
-		left: 0.2em;
-		top: 0.15em;
-		width: 0.9em;
-		height: 0.9em;
-		border-radius: 50%;
-		background: var(--background-primary, #fff);
-		transition: left 0.2s;
-	}
-
-	.toggle-switch input[type="checkbox"]:checked + .slider::before {
-		left: 1.1em;
-	}
-
-	.wait-cursor {
-		cursor: wait;
-	}
-
-	.default-cursor {
-		cursor: default;
-	}
-</style>

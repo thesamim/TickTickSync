@@ -4,7 +4,7 @@ import { getSettings, updateSettings } from '@/settings';
 import log from '@/utils/logger';
 import { init } from '@/ui/settings/settingsstore';
 import { mount, type SvelteComponent, unmount } from 'svelte';
-import SettingsTab from '@/ui/settings/svelte/SettingsTab.svelte';
+import SettingsTabs from '@/ui/settings/svelte/SettingsTabs.svelte';
 
 
 export class TickTickSyncSettingTab extends PluginSettingTab {
@@ -22,7 +22,7 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 		const { containerEl } = this;
 
 		containerEl.empty();
-		this.settingsComponent = mount(SettingsTab, {
+		this.settingsComponent = mount(SettingsTabs, {
 			target: containerEl,
 			props: {
 				app: this.app,

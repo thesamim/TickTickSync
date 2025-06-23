@@ -237,7 +237,7 @@ export class SyncMan {
 				//we want the line as it is in Obsidian.
 				const taskRecord = fileMap.getTaskRecord(newTask.id);
 				const taskString = taskRecord.task
-				const stringToHash = taskString + this.plugin.taskParser.getNoteString(taskRecord).textContent;
+				const stringToHash = taskString + this.plugin.taskParser.getNoteString(taskRecord, newTask.id).textContent;
 				newTask.lineHash = await this.plugin.taskParser?.getLineHash(stringToHash);
 				await this.plugin.cacheOperation?.appendTaskToCache(newTask, fileMap.getFilePath());
 				await this.plugin.saveSettings();
@@ -327,7 +327,7 @@ export class SyncMan {
 
 			let taskNotes = '';
 			if (taskRecord.taskLines && taskRecord.taskLines.length > 1) {
-				const noteStruct = this.plugin.taskParser.getNoteString(taskRecord);
+				const noteStruct = this.plugin.taskParser.getNoteString(taskRecord, lineTask_ticktick_id);
 				//right now we don't care if it's a description or a note. We just need to check for a change.
 				taskNotes = noteStruct.textContent;
 			}
@@ -1408,9 +1408,15 @@ export class SyncMan {
 	private async updateTask(parentTask: ITask, filepath: string) {
 		parentTask.modifiedTime = this.plugin.dateMan?.formatDateToISO(new Date());
 		await this.plugin.cacheOperation?.updateTaskToCache(parentTask);
-		let taskURL = this.plugin.taskParser?.getObsidianUrlFromFilepath(filepath);
-		if (taskURL) {
-			parentTask.title = parentTask.title + ' ' + taskURL;
+		if (getSettings().fileLinksInTickTick !== "noLink") {
+			let taskURL = this.plugin.taskParser?.getObsidianUrlFromFilepath(filepath);
+			//If getSettings().fileLinksInTickTick === "noteLink") it's already been handled in
+			//   convertLineToTask
+			if (getSettings().fileLinksInTickTick === "taskLink") {
+				if (taskURL) {
+					parentTask.title = parentTask.title + ' ' + taskURL;
+				}
+			}
 		}
 		const result = await this.plugin.tickTickRestAPI?.UpdateTask(parentTask);
 		const updateFailed = !result;

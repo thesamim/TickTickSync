@@ -17,6 +17,11 @@ export interface ITickTickSyncSettings {
 	TickTickTasksFilePath: string;
 	keepProjectFolders: boolean;
 	syncNotes: boolean;
+	fileLinksInTickTick: string;
+	taskLinksInObsidian: string;
+
+
+
 
 	debugMode: boolean;
 	logLevel: string;
@@ -51,6 +56,8 @@ export const DEFAULT_SETTINGS: ITickTickSyncSettings = {
 	TickTickTasksFilePath: '/',
 	keepProjectFolders: false,
 	syncNotes: true,
+	fileLinksInTickTick: 'taskLink',
+	taskLinksInObsidian: 'taskLink',
 
 	inboxID: '',
 	inboxName: 'Inbox',
