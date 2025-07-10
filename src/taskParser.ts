@@ -1,4 +1,4 @@
-import type { App } from 'obsidian';
+import { type App, Notice } from 'obsidian';
 import type TickTickSync from '@/main';
 import type { ITask, ITaskItem } from '@/api/types/Task';
 import { getSettings } from '@/settings';
@@ -178,13 +178,13 @@ export class TaskParser {
 
 
 		if (getSettings().syncNotes) {
-			const filePath = await this.plugin.cacheOperation?.getFilepathForTask(task.id);
+			const filePath =  this.plugin.cacheOperation?.getFilepathForTask(task.id);
 			if (this.plugin.taskParser.hasDescription(task)) {
-				resultLine = this.addNote(resultLine, task.desc, numTabs, 'Description', task.id, task.projectId, filePath);
+				resultLine = this.addNote(resultLine, task.desc, numTabs, 'Description', task.id, task.projectId);
 			} else if (this.plugin.taskParser.hasNote(task)) {
-				resultLine = this.addNote(resultLine, task.content, numTabs, 'Note', task.id, task.projectId, filePath);
-			}  else {
-				resultLine = this.addNote(resultLine, "", numTabs, 'Note', task.id, task.projectId, filePath);
+				resultLine = this.addNote(resultLine, task.content, numTabs, 'Note', task.id, task.projectId);
+			} else if (getSettings().taskLinksInObsidian === 'noteLink') {
+				resultLine = this.addNote(resultLine, task.content, numTabs, 'Note', task.id, task.projectId);
 			}
 		}
 
@@ -293,7 +293,6 @@ export class TaskParser {
 		if (getSettings().fileLinksInTickTick === 'noteLink') {
 			noteURL = url + '\n';
 		}
-		log.debug(`taskURL: ${taskURL}, url: ${url}`);
 
 		//Detect parentID
 		if (lineTextTabIndentation > 0) {
@@ -348,6 +347,7 @@ export class TaskParser {
 			if (tags) {
 				for (const tag of tags) {
 					let labelName = tag.replace(/#/g, '');
+					labelName = labelName.replace(/_/g, ' ');
 
 					let hasProjectId = await this.plugin.cacheOperation?.getProjectIdByNameFromCache(labelName);
 					if (!hasProjectId) {
@@ -420,7 +420,6 @@ export class TaskParser {
 
 				filteredDescriptionStrings = descriptionStrings.filter(line => {
 					const isMatch = linkRegex.test(line);
-					log.debug('line: ', line, 'linkRegex.test(line): ', isMatch);
 					return !isMatch;
 				});
 			}
@@ -594,11 +593,27 @@ export class TaskParser {
 
 	//task project id compare
 	isProjectIdChanged(lineTask: ITask, TickTickTask: ITask) {
-		//project whether to modify
-		// if (!(lineTask.projectId === TickTickTask.projectId)) {
-		// 	log.debug("line: ", lineTask.projectId, "saved; ", TickTickTask.projectId)
-		// }
-		return !(lineTask.projectId === TickTickTask.projectId);
+		if (lineTask.projectId !== TickTickTask.projectId) {
+			log.debug('Project ID changed: ', lineTask.projectId, TickTickTask.projectId);
+			//make sure that they're not in a non-project file.
+			const taskFile = this.plugin.cacheOperation.getFilepathForTask(TickTickTask.id);
+			if (taskFile) {
+				log.debug('Task file: ', taskFile);
+				const hasADefaultProject = this.plugin.cacheOperation.filepathHasDefaultProjectID(taskFile)
+				if (hasADefaultProject) {
+					return true;
+				} else {
+					log.debug('Task file does not have a default project: ', taskFile);
+					//hate to do a notification from here, but I don't want to blindside them either.
+					new Notice(`Task ${TickTickTask.title} was moved in TickTick, but is in ${taskFile}. Assuming that this is intentional and not moving it.`, 10000	);
+
+					return false;
+				}
+
+			}
+		} else {
+			return false;
+		}
 	}
 
 	//Determine whether the task is indented
@@ -829,7 +844,7 @@ export class TaskParser {
 		return resultLine;
 	}
 
-	private addNote(resultLine: string, content: string, numbTabs: number, type: string, id: string, projectId: string, filepath: string | null) {
+	private addNote(resultLine: string, content: string, numbTabs: number, type: string, id: string, projectId: string) {
 		//TODO figure out Note presentation
 		//admonitions just don't work in indented tasks. Until I sort out the presentation, keep it simple until I
 		//get all the functionality sorted out,
@@ -855,9 +870,8 @@ export class TaskParser {
 			noteLines = [];
 		}
 
-		const linkRegex = new RegExp(`\\[${filepath}\\]\\(obsidian://open\\?vault=.*&file=${filepath}\\)`, 'giu');
+		const linkRegex = new RegExp(`\\[.*\\]\\(obsidian://open\\?vault=.*&file=.*\\)`, 'giu');
 		noteLines.forEach(item => {
-			log.debug(item, item.search(linkRegex));
 			if (item.search(linkRegex) < 0) {
 				resultLine = `${resultLine}${prefix}${item}`;
 			}

@@ -23,7 +23,7 @@ export class FileOperation {
 	async completeTaskInTheFile(taskId: string) {
 		// Get the task file path
 		const currentTask = await this.plugin.cacheOperation?.loadTaskFromCacheID(taskId);
-		const filepath = await this.plugin.cacheOperation?.getFilepathForTask(taskId);
+		const filepath =  this.plugin.cacheOperation?.getFilepathForTask(taskId);
 
 		// Get the file object and update the content
 		const file = this.app.vault.getAbstractFileByPath(filepath);
@@ -52,7 +52,7 @@ export class FileOperation {
 	async uncompleteTaskInTheFile(taskId: string) {
 		// Get the task file path
 		const currentTask = await this.plugin.cacheOperation?.loadTaskFromCacheID(taskId);
-		const filepath = await this.plugin.cacheOperation?.getFilepathForTask(taskId);
+		const filepath =  this.plugin.cacheOperation?.getFilepathForTask(taskId);
 
 		// Get the file object and update the content
 		const file = this.app.vault.getAbstractFileByPath(filepath);
@@ -129,7 +129,7 @@ export class FileOperation {
 	}
 
 	// sync updated task content to file
-	async addTasksToFile(tasks: ITask[], bUpdating: boolean): Promise<boolean> {
+	async synchronizeToVault(tasks: ITask[], bUpdating: boolean): Promise<boolean> {
 		if (!tasks) {
 			log.error('No tasks to add.');
 			return false;
@@ -143,33 +143,42 @@ export class FileOperation {
 
 		for (const projectId of projectIds) {
 			let result;
-			let taskFile: string | null = null;
+			let taskFile: string | null | undefined = null;
 			let projectTasks = tasks.filter(task => task.projectId === projectId);
-			if (projectId !== getSettings().defaultProjectId) {
-				taskFile = await this.plugin.cacheOperation?.getFilepathForProjectId(projectId);
-				result = await this.doTheAdding(taskFile, projectTasks, bUpdating);
-			} else {
+
 				//If a task is in the default project, we need to find it on the file system.
 				// 1. Find file for each task
 				// 2. process the tasks by file.
 				const tasksForFiles: { file: string, tasks: ITask[] }[] = [];
 				const fileForDefaultProject = await this.plugin.cacheOperation?.getFilepathForProjectId(getSettings().defaultProjectId);
 				for (const task of projectTasks) {
-					taskFile = this.plugin.cacheOperation.findTaskInFiles(task.id);
+					if (task.parentId && task.parentId.length > 0) {
+						taskFile = this.plugin.cacheOperation.getFilepathForTask(task.parentId);
+					} else {
+						taskFile = this.plugin.cacheOperation.getFilepathForTask(task.id);
+					}
 					log.debug('taskFile', taskFile);
 					if (taskFile) {
 						log.debug('adding to ', taskFile);
 						this.addTaskToTFF(tasksForFiles, taskFile, task);
 					} else {
-						log.debug('adding to ', fileForDefaultProject);
-						this.addTaskToTFF(tasksForFiles, fileForDefaultProject, task);
+						taskFile = await this.plugin.cacheOperation?.getFilepathForProjectId(task.projectId);
+						if(taskFile) {
+							log.debug('adding to ', taskFile);
+							this.addTaskToTFF(tasksForFiles, taskFile, task);
+						} else {
+							log.debug('adding to ', fileForDefaultProject);
+							this.addTaskToTFF(tasksForFiles, fileForDefaultProject, task);
+						}
 					}
 
 				}
 				for (const { file, tasks } of tasksForFiles) {
-					result = await this.doTheAdding(file, tasks, bUpdating);
+					//after redistributing the tasks, make sure they're still in parent/child order.
+					this.doTheSortMambo(tasks);
+					result = await this.synchronizeToFile(file, tasks, bUpdating);
 				}
-			}
+
 			// Sleep for 1 second
 			if (result) {
 				await new Promise(resolve => setTimeout(resolve, 1000));
@@ -258,7 +267,7 @@ export class FileOperation {
 
 		this.plugin.dateMan?.addDateHolderToTask(newTask, oldTask);
 
-		let filepath = await this.plugin.cacheOperation?.getFilepathForTask(taskId);
+		let filepath =  this.plugin.cacheOperation?.getFilepathForTask(taskId);
 		if (!filepath) {
 			filepath = await this.plugin.cacheOperation?.getFilepathForProjectId(newTask.projectId);
 			if (!filepath) {
@@ -268,7 +277,7 @@ export class FileOperation {
 
 		const tFilepath = this.app.vault.getAbstractFileByPath(filepath) as TFile;
 
-		await this.addProjectTasksToFile(tFilepath, [newTask], true);
+		await this.syncTasks(tFilepath, [newTask], true);
 
 	}
 
@@ -348,7 +357,7 @@ export class FileOperation {
 		const taskId = task.id;
 		// Get the task file path
 
-		const filepath = await this.plugin.cacheOperation?.getFilepathForTask(taskId);
+		const filepath =  this.plugin.cacheOperation?.getFilepathForTask(taskId);
 		const file = this.app.vault.getAbstractFileByPath(filepath);
 		if (filepath) {
 			await this.deleteTaskFromSpecificFile(file, task, false);
@@ -423,7 +432,7 @@ export class FileOperation {
 		}
 	}
 
-	private async doTheAdding(taskFile: string, projectTasks: ITask[], bUpdating: boolean) {
+	private async synchronizeToFile(taskFile: string, projectTasks: ITask[], bUpdating: boolean) {
 		let file;
 		let result;
 		if (taskFile) {
@@ -442,13 +451,13 @@ export class FileOperation {
 		// 	return { id: task.id, title: task.title, parent: task.parentId, children: task.childIds };
 		// });
 
-		result = await this.addProjectTasksToFile(file, projectTasks, bUpdating);
+		result = await this.syncTasks(file, projectTasks, bUpdating);
 		return result;
 	}
 
-	private async addProjectTasksToFile(file: TFile, tasks: ITask[], bUpdating): Promise<boolean> {
+	private async syncTasks(file: TFile, tasks: ITask[], bUpdating): Promise<boolean> {
 		try {
-			const newData = await this.writeLines(tasks, file, bUpdating);
+			const newData = await this.persistToFile(tasks, file, bUpdating);
 			await this.app.vault.process(file, (data) => {
 				data = newData;
 				return data;
@@ -460,11 +469,12 @@ export class FileOperation {
 		}
 	}
 
-	private async writeLines(tasks: ITask[], file: TFile, bUpdating: boolean): Promise<string> {
+	private async persistToFile(tasks: ITask[], file: TFile, bUpdating: boolean): Promise<string> {
 		// Go through the tasks.
 		// For every task
 		// 	if it has a parent, add it after the parent.
 		//  else add at the the insertion point in lines.
+		log.debug("Processing File: ", file.path)
 		const fileMap = new FileMap(this.app, this.plugin, file);
 		await fileMap.init();
 		let bTaskMove: boolean = false;
@@ -487,6 +497,7 @@ export class FileOperation {
 			}
 
 			let lineText = '';
+			let filePathForNewProject = '';
 			//Tired of seeing duplicates because of Sync conflicts.
 			if (!bUpdating) {
 				lineText = await this.plugin.taskParser?.convertTaskToLine(task, numParentTabs);
@@ -509,9 +520,7 @@ export class FileOperation {
 					//Only check for Project/Parent change if task is in cache.
 					if ((this.plugin.taskParser?.isProjectIdChanged(oldTask, task))) {
 						log.debug('Moving Task: ', task.id, task.title, ' from Project: ', oldTask.projectId, ' to Project: ', task.projectId);
-						await this.handleTickTickStructureMove(task, oldTask);
-						//insert into the new file.
-						fileMap.addTask(task, lineText);
+						filePathForNewProject = await this.handleTickTickStructureMove(task, oldTask, lineText, fileMap);
 						//because we need to update the OBS URL in TT and fix up the cache.
 						bTaskMove = true;
 					} else {
@@ -529,19 +538,28 @@ export class FileOperation {
 			if (tags) {
 				task.tags = tags;
 			}
-			let taskURL = this.plugin.taskParser?.getObsidianUrlFromFilepath(file.path);
+			let taskURL = "";
+			if (!bTaskMove) {
+				taskURL = this.plugin.taskParser?.getObsidianUrlFromFilepath(file.path);
+			} else {
+				taskURL = this.plugin.taskParser?.getObsidianUrlFromFilepath(filePathForNewProject);
+			}
 			if (taskURL) {
 				task.title = task.title + ' ' + taskURL;
 			}
 
-			if (!bUpdating || bTaskMove) {
+			if (!bUpdating) {
 				//we're updating the task to get the right OBS URL in there.
 				let addedTask = await this.plugin.tickTickRestAPI?.UpdateTask(task);
 				await this.plugin.cacheOperation?.appendTaskToCache(addedTask, file.path);
-				//reset bTaskMove
-				bTaskMove = false;
 			} else {
-				await this.plugin.cacheOperation?.updateTaskToCache(task, file.path);
+				if (!bTaskMove) {
+					await this.plugin.cacheOperation?.updateTaskToCache(task, file.path);
+				} else {
+					let addedTask = await this.plugin.tickTickRestAPI?.UpdateTask(task);
+					await this.plugin.cacheOperation?.updateTaskToCache(addedTask, filePathForNewProject);
+				}
+
 			}
 		}
 
@@ -573,10 +591,41 @@ export class FileOperation {
 
 
 	//Just the notification now.
-	private async handleTickTickStructureMove(newTask: ITask, oldTask: ITask) {
+	private async handleTickTickStructureMove(newTask: ITask, oldTask: ITask, lineText: string, fileMap: FileMap) {
 		log.debug('deleting old task: ', oldTask.id, oldTask.title, ' from file');
-		await this.deleteTaskFromOldFile(oldTask, newTask);
+		const filePathForNewProject = await this.plugin.cacheOperation?.getFilepathForProjectId(newTask.projectId);
+		if (!filePathForNewProject) {
+			let errmsg = `File not found for moved newTask:  ${newTask.id}, ${newTask.title}`;
+			throw new Error(errmsg);
+		}
+		const tFilePathForProject = this.app.vault.getAbstractFileByPath(filePathForNewProject);
+		if (!tFilePathForProject || (!(tFilePathForProject instanceof TFile))) {
+			let errmsg = `File not found for moved newTask:  ${newTask.id}, ${newTask.title}`;
+			throw new Error(errmsg);
+		}
+		log.debug('oldFilePath: ', fileMap.getFilePath());
+		if (!fileMap || !fileMap.getFilePath()) {
+			let errmsg = `File not found for moved newTask:  ${newTask.id}, ${newTask.title}`;
+			throw new Error(errmsg);
+		}
+		fileMap.deleteTask(oldTask.id);
+		log.debug('deleted from: ', fileMap.getFilePath());
+
 		await this.plugin.cacheOperation?.deleteTaskFromCache(oldTask.id);
+
+		const newFileMap = new FileMap(this.app, this.plugin, tFilePathForProject);
+		await newFileMap.init();
+		//insert into the new file.
+		log.debug('Adding Task: ', newTask.id, newTask.title, ' to new file: ', newFileMap.getFilePath());
+		newFileMap.addTask(newTask, lineText);
+		const newData = newFileMap.getFileLines();
+		await this.app.vault.process(tFilePathForProject, (data) => {
+			data = newData;
+			return data;
+		});
+
+		//task is updated to cache in the caller....!
+
 
 		const cleanTitle = this.plugin.taskParser?.stripOBSUrl(newTask.title);
 		let message = '';
@@ -595,27 +644,20 @@ export class FileOperation {
 		}
 
 		new Notice(message, 5000);
+		return filePathForNewProject
 
 	}
 
 
-	private async deleteTaskFromOldFile(oldTask: ITask, newTask: ITask) {
-		const oldFilePath = await this.plugin.cacheOperation?.getFilepathForTask(oldTask.id);
+	private async deleteTaskFromOldFile(oldTask: ITask, newTask: ITask, fileMap: FileMap) {
+		const oldFilePath =  this.plugin.cacheOperation?.getFilepathForTask(oldTask.id);
+		log.debug('oldFilePath: ', oldFilePath);
 		if (!oldFilePath) {
 			let errmsg = `File not found for moved newTask:  ${newTask.id}, ${newTask.title}`;
 			throw new Error(errmsg);
 		}
-		const tOldFilePath = this.app.vault.getAbstractFileByPath(oldFilePath);
-		const fileMap = new FileMap(this.app, this.plugin, tOldFilePath);
-		await fileMap.init();
-
 		fileMap.deleteTask(oldTask.id);
-
-		const newData = fileMap.getFileLines();
-		await this.app.vault.process(tOldFilePath, (data) => {
-			data = newData;
-			return data;
-		});
+		log.debug('deleted from: ', fileMap.getFilePath());
 		return oldFilePath;
 	}
 
@@ -647,12 +689,13 @@ export class FileOperation {
 		}
 	}
 
+	//TODO: Possibly not needed any longer.
 	private async moveTask(filepath: string, task: ITask, oldtaskItemNum: number, oldTaskId: string, oldProjectId: string) {
 		const tFilePath = this.app.vault.getAbstractFileByPath(filepath);
 		await this.deleteTaskFromSpecificFile(tFilePath, task, false);
 		await this.plugin.cacheOperation?.deleteTaskFromCache(oldTaskId);
 
-		await this.addTasksToFile([task]);
+		await this.synchronizeToVault([task]);
 		const cleanTitle = this.plugin.taskParser?.stripOBSUrl(task.title);
 		let message = '';
 		if (task.projectId != oldProjectId) {

@@ -20,7 +20,6 @@ Please see [Documentation](https://github.com/thesamim/TickTickSync/wiki/Documen
 
 1. The plugin only works with the [Tasks emoji formats](https://publish.obsidian.md/tasks/Reference/Task+Formats/About+Task+Formats). 
 2. Because Tags can't have spaces, at this time it is not possible to add a task to a project with a name that contains spaces. As a workaround `#folder_with_a_space` will be converted to `folder with a space` in TickTick
-3. If a file has a default project association (see [settings](https://github.com/thesamim/TickTickSync/wiki/Documentation#sync-control)), it is possible to create a task with a project tag other than the default project. The Task will be correctly synced to TickTick in the correct project. However, if the Task is then updated with subtasks, from TickTick, the subtasks will be synced to the project's default file rather than the file where the original parent task was created. **Additionally, the subtask will become the child of the last Task in that file.**
 
 ## Installation
 

@@ -78,6 +78,10 @@
 
 
 	async function handleDefaultProjectChange(value: string) {
+		if (!value || value == '') {
+			value = getSettings().inboxID;
+		}
+
 		getSettings().defaultProjectId = value;
 		if (value && value !== '') {
 			updateSettings({ defaultProjectName: await plugin.cacheOperation?.getProjectNameByIdFromCache(value) });
