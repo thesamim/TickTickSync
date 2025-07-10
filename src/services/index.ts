@@ -81,6 +81,12 @@ export class TickTickService {
 				new Notice(errorString, 5000);
 				throw new Error(error.errorMessage);
 			}
+			const defaultProjectId = getSettings().defaultProjectId;
+			const defaultProjectName = getSettings().defaultProjectName;
+			if (!defaultProjectId || defaultProjectId == '' || (defaultProjectName == "Inbox" && (defaultProjectId != result.inboxId))) {
+				//no default project id or blank default project id or (default project is inbox, but the ID is different.
+				updateSettings({defaultProjectId: result.inboxId});
+			}
 			//reset the checkpoint so next time they get ALL the tasks.
 			updateSettings({checkPoint: 0});
 			await this.plugin.saveSettings();

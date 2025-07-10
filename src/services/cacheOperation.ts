@@ -96,7 +96,7 @@ export class CacheOperation {
 		return await this.newEmptyFileMetadata(filepath, projectId);
 	}
 
-	async getFileMetadatas() {
+	getFileMetadatas() {
 		return getSettings().fileMetadata ?? null;
 	}
 
@@ -138,7 +138,7 @@ export class CacheOperation {
 	}
 
 	async deleteTaskIdFromMetadataByTaskId(taskId: string) {
-		const metadatas = await this.getFileMetadatas();
+		const metadatas = this.getFileMetadatas();
 		for (const file in metadatas) {
 			const tasks = metadatas[file].TickTickTasks;
 			if (tasks && tasks.find((task: TaskDetail) => task.taskId === taskId)) {
@@ -193,7 +193,7 @@ export class CacheOperation {
 
 	//Check errors in filemata where the filepath is incorrect.
 	async checkFileMetadata(): Promise<number> {
-		const metadatas = await this.getFileMetadatas();
+		const metadatas = this.getFileMetadatas();
 		// log.debug("md: ", metadatas)
 
 		for (const filepath in metadatas) {
@@ -272,38 +272,52 @@ export class CacheOperation {
 		}
 	}
 
-	async getFilepathForProjectId(projectId: string) {
+	filepathHasDefaultProjectID(filepath: string) {
 		const metadatas = getSettings().fileMetadata;
-
-		//If this project is set as a default for a file, return that file.
-		for (const key in metadatas) {
-			const value = metadatas[key];
-			if (value.defaultProjectId === projectId) {
-				return key;
-			}
+		if (!metadatas[filepath] || metadatas[filepath].defaultProjectId) {
+			return true;
+		} else {
+			return false;
 		}
+	}
 
-		if ((projectId === getSettings().inboxID) ||
-			(projectId === getSettings().defaultProjectId)) { //highly unlikely, but just in case
-			//They don't have a file for the Inbox. If they have a default project, return that.
+
+	async getFilepathForProjectId(projectId: string) {
+		if ((projectId) ||  (projectId !== '')) {
+			const metadatas = getSettings().fileMetadata;
+
+			//If this project is set as a default for a file, return that file.
+			for (const key in metadatas) {
+				const value = metadatas[key];
+				if (value.defaultProjectId === projectId) {
+					return key;
+				}
+			}
+
+			if ((projectId === getSettings().inboxID) ||
+				(projectId === getSettings().defaultProjectId)) { //highly unlikely, but just in case
+				//They don't have a file for the Inbox. If they have a default project, return that.
+				if (getSettings().defaultProjectName) {
+					// filePath = this.plugin.settings?.TickTickTasksFilePath +"/"+ this.plugin.settings.defaultProjectName + ".md"
+					return getSettings().defaultProjectName + FILE_EXT;
+				}
+			}
+			//otherwise, return the project name as a md file and hope for the best.
+			const filePath = await this.getProjectNameByIdFromCache(projectId/*, getSettings().keepProjectFolders*/);
+			if (!filePath) {
+				//Not a file that's in fileMetaData, not the inbox no default project set
+				const errmsg = `File path not found for ${projectId}, returning ${filePath} instead.`;
+				log.warn(errmsg);
+				throw new Error(errmsg);
+			}
+		} else {
 			if (getSettings().defaultProjectName) {
 				// filePath = this.plugin.settings?.TickTickTasksFilePath +"/"+ this.plugin.settings.defaultProjectName + ".md"
 				return getSettings().defaultProjectName + FILE_EXT;
+			} else {
+				return "Inbox" + FILE_EXT;
 			}
 		}
-		//otherwise, return the project name as a md file and hope for the best.
-		const filePath = await this.getProjectNameByIdFromCache(projectId/*, getSettings().keepProjectFolders*/);
-		if (!filePath) {
-			//Not a file that's in fileMetaData, not the inbox no default project set
-			const errmsg = `File path not found for ${projectId}, returning ${filePath} instead.`;
-			log.warn(errmsg);
-			throw new Error(errmsg);
-		}
-		let errmsg = `File path not found for ${projectId}, returning ${filePath} instead. `;
-		log.warn(errmsg);
-
-		// log.debug("returning : ", filePath + FILE_EXT);
-		return filePath + FILE_EXT;
 	}
 
 	async setDefaultProjectIdForFilepath(filepath: string, defaultProjectId: string) {
@@ -389,7 +403,7 @@ export class CacheOperation {
 		try {
 			let filePath: string | null = '';
 			if (!movedPath) {
-				filePath = await this.getFilepathForTask(task.id);
+				filePath =  this.getFilepathForTask(task.id);
 				if (!filePath) {
 					filePath = await this.getFilepathForProjectId(task.projectId);
 				}
@@ -413,8 +427,8 @@ export class CacheOperation {
 		}
 	}
 
-	async getFilepathForTask(taskId: string) {
-		const metaDatas = await this.getFileMetadatas();
+	getFilepathForTask(taskId: string) {
+		const metaDatas = this.getFileMetadatas();
 		for (const filepath in metaDatas) {
 			const value = metaDatas[filepath];
 			if (value.TickTickTasks.find((task: TaskDetail) => task.taskId === taskId)) {
@@ -423,6 +437,8 @@ export class CacheOperation {
 		}
 		return null;
 	}
+
+
 
 	async getProjectIdForTask(taskId: string) {
 		const savedTasks = getTasks();
@@ -594,6 +610,10 @@ export class CacheOperation {
 				return false;
 			}
 
+			//Check for List renames.
+			for (const project of projects) {
+				await this.checkProjectRename(project.id, project.name)
+			}
 			// if (this.plugin.settings.debugMode) {
 			//     if (projectGroups !== undefined && projectGroups !== null) {
 			//         log.debug("==== projectGroups")
@@ -687,66 +707,6 @@ export class CacheOperation {
 		return false;
 	}
 
-	async isProjectMoved(lineTask: ITask, filePath: string) {
-		const currentLocation = await this.getFilepathForTask(lineTask.id);
-		if (!currentLocation) {
-			//we're checking the filepath, presumably before file metadata is updated.
-			//don't trigger a project move until things settle down.
-			return false;
-		}
-
-		if (currentLocation != filePath) {
-			return currentLocation;
-		} else {
-			return null;
-		}
-	}
-
-	isTaskInCache(taskId) {
-		try {
-			const savedTasks = getTasks();
-			const savedTask = savedTasks.find((task: ITask) => task.id === taskId);
-			if (savedTask) {
-				return true;
-			}
-		} catch (error) {
-			log.error(`Error finding task from Cache: ${error}`);
-			return false;
-		}
-		return false;
-	}
-
-	async findTaskInFilesTrash(taskId: string): Promise<string | null> {
-		const markdownFiles = this.app.vault.getMarkdownFiles();
-		for (const file of markdownFiles) {
-			const fileMap = new FileMap(this.app, this.plugin, file);
-			await fileMap.init();
-			const taskIdx = fileMap.getTaskIndex(taskId);
-
-			//returning the first file we find.
-			if (taskIdx !== -1) {
-				return file.path;
-			}
-		}
-		return null;
-	}
-
-	findTaskInFiles(taskId: string): string | null {
-		const fileMetadata = getSettings().fileMetadata;
-		const files = Object.keys(fileMetadata);
-		let retFile = null;
-		files.forEach(file => {
-			const tasks = fileMetadata[file].TickTickTasks;
-			for (const task of tasks) {
-				if (task.taskId === taskId) {
-					retFile = file;
-					return;
-				}
-			}
-		});
-		return retFile;
-	}
-
 	protected async newEmptyFileMetadata(filepath: string, projectId?: string): Promise<FileDetail | undefined> {
 		//There's a case where we are making an entry for an undefined file. Not sure where it's coming from
 		// this should give us a clue.
@@ -804,5 +764,52 @@ export class CacheOperation {
 			const ret = result;
 		});
 		return await myModal.showModal();
+	}
+
+	/**
+	 * Ensure files associated with the given project have correct filenames and metadata keys.
+	 * If a file is found for the project but the key does not match the current project name,
+	 * rename both the file on disk and the metadata key.
+	 * @param currentProjectId The current project's ID.
+	 * @param currentProjectName The current project's name.
+	 */
+	async checkProjectRename(currentProjectId: string, currentProjectName: string): Promise<void> {
+		const fileMetadata = this.getFileMetadatas();
+		if (!fileMetadata) return;
+
+		const correctFileName = `${currentProjectName}.md`;
+
+		for (const fileKey of Object.keys(fileMetadata)) {
+			const detail = fileMetadata[fileKey];
+			if (detail.defaultProjectId === currentProjectId) {
+				// If the key doesn't match the correct project file name, update it
+				if (fileKey !== correctFileName) {
+					const vaultFile = this.app.vault.getAbstractFileByPath(fileKey);
+					try {
+						// 1. Rename file on disk if it exists
+						if (vaultFile && vaultFile instanceof TFile) {
+							const parentPath = fileKey.substring(0, fileKey.lastIndexOf('/') + 1);
+							const newFilePath = parentPath + correctFileName;
+							await this.app.vault.rename(vaultFile, newFilePath);
+
+							// 2. Update metadata key
+							fileMetadata[newFilePath] = detail;
+							delete fileMetadata[fileKey];
+
+							// 3. Persist settings
+							updateSettings({ fileMetadata });
+							await this.plugin.saveSettings();
+
+							new Notice(`Renamed project file to: ${correctFileName}`);
+						} else {
+							log.warn(`File not found in vault: ${fileKey}`);
+						}
+					} catch (err) {
+						log.error(`Failed to rename file ${fileKey} to ${correctFileName}:`, err);
+						new Notice(`Failed to rename project file: ${fileKey}`);
+					}
+				}
+			}
+		}
 	}
 }

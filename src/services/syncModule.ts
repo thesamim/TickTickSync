@@ -118,8 +118,8 @@ export class SyncMan {
 			if (deletedTaskIDs.length > 0) {
 				let saveTheseTasks: string[] = [];
 				for (const taskId of deletedTaskIDs) {
-					const location = await this.plugin.cacheOperation?.findTaskInFiles(taskId);
-					if (location) {
+					const location = this.plugin.cacheOperation?.getFilepathForTask(taskId);
+					if (location && location != filepath) {
 						log.debug('== found:', taskId, location);
 						saveTheseTasks.push(taskId);
 					}
@@ -162,8 +162,8 @@ export class SyncMan {
 		if (missingTaskIds && missingTaskIds.length > 0) {
 			let saveTheseTasks: string[] = [];
 			for (const taskId of missingTaskIds) {
-				const location = await this.plugin.cacheOperation?.findTaskInFiles(taskId);
-				if (location) {
+				const location =  this.plugin.cacheOperation?.getFilepathForTask(taskId);
+				if (location && location != filePath) {
 					log.debug("Task found in different file:", taskId, location)
 					saveTheseTasks.push(taskId);
 				}
@@ -1060,7 +1060,7 @@ export class SyncMan {
 				newTickTickTasks.forEach((newTickTickTask: ITask) => {
 					this.plugin.dateMan?.addDateHolderToTask(newTickTickTask);
 				});
-				let result = await this.plugin.fileOperation?.addTasksToFile(newTickTickTasks, false);
+				let result = await this.plugin.fileOperation?.synchronizeToVault(newTickTickTasks, false);
 				if (result) {
 					// Sleep for 1 seconds
 					await new Promise(resolve => setTimeout(resolve, 1000));
@@ -1163,7 +1163,7 @@ export class SyncMan {
 
 			if (recentUpdates.length > 0) {
 				// this.dumpArray('== Update in  Obsidian:', recentUpdates)
-				let result = await this.plugin.fileOperation?.addTasksToFile(recentUpdates, true);
+				let result = await this.plugin.fileOperation?.synchronizeToVault(recentUpdates, true);
 				if (result) {
 					// Sleep for 1 seconds
 					await new Promise(resolve => setTimeout(resolve, 1000));
@@ -1260,10 +1260,10 @@ export class SyncMan {
 
 	///End of Test
 
+	//Check if user moved the task.
 	private async checkForMoves(taskId: string, filepath: string) {
-
 		let projectMoved = false;
-		const oldFilePath = await this.plugin.cacheOperation.getFilepathForTask(taskId);
+		const oldFilePath =  this.plugin.cacheOperation.getFilepathForTask(taskId);
 		if (oldFilePath && oldFilePath !== filepath) {
 			projectMoved = true;
 		}
