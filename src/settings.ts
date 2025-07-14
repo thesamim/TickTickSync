@@ -4,6 +4,7 @@ import type { IProjectGroup } from '@/api/types/ProjectGroup';
 import type { FileMetadata } from '@/services/cacheOperation';
 
 export interface ITickTickSyncSettings {
+
 	baseURL: string;
 	token?: string;
 	version?: string;
@@ -17,8 +18,10 @@ export interface ITickTickSyncSettings {
 	TickTickTasksFilePath: string;
 	keepProjectFolders: boolean;
 	syncNotes: boolean;
+	noteDelimiter: string;
 	fileLinksInTickTick: string;
 	taskLinksInObsidian: string;
+	bkupFolder: string
 
 
 
@@ -56,8 +59,10 @@ export const DEFAULT_SETTINGS: ITickTickSyncSettings = {
 	TickTickTasksFilePath: '/',
 	keepProjectFolders: false,
 	syncNotes: true,
+	noteDelimiter: '-------------------------------------------------------------',
 	fileLinksInTickTick: 'taskLink',
 	taskLinksInObsidian: 'taskLink',
+	bkupFolder: '/',
 
 	inboxID: '',
 	inboxName: 'Inbox',

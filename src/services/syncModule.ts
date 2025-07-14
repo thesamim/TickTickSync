@@ -1209,14 +1209,20 @@ export class SyncMan {
 			// if (this.plugin.tickTickSyncAPI) {
 			// log.debug("It's defined", this.plugin.tickTickSyncAPI)
 			// }
+			let bkupFolder = getSettings().bkupFolder
+			if (bkupFolder[bkupFolder.length - 1] != '/') {
+				bkupFolder += '/';
+			}
+			const now: Date = new Date();
+			const timeString: string = `${now.getFullYear()}${now.getMonth() + 1}${now.getDate()}${now.getHours()}${now.getMinutes()}${now.getSeconds()}`;
+
+			const name = bkupFolder + 'ticktick-backup-' + timeString + '.csv';
+			log.debug("Creating Backup: ", name)
+
 			const bkupData = await this.plugin.tickTickRestAPI?.exportData();
 
+
 			if (bkupData) {
-				const now: Date = new Date();
-				const timeString: string = `${now.getFullYear()}${now.getMonth() + 1}${now.getDate()}${now.getHours()}${now.getMinutes()}${now.getSeconds()}`;
-
-				const name = 'ticktick-backup-' + timeString + '.csv';
-
 				await this.app.vault.create(name, bkupData);
 				//log.debug(`ticktick backup successful`)
 				new Notice(`TickTick backup data is saved in the path ${name}`);

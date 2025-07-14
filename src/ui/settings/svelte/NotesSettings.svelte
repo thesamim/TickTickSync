@@ -3,7 +3,6 @@
 	import type TickTickSync from '@/main';
 	import './SettingsStyles.css';
 	import { onMount } from 'svelte';
-	import { NOTE_SEPERATOR } from '@/ui/settings/svelte/constants.svelte.js';
 
 	export let plugin: TickTickSync;
 
@@ -14,10 +13,22 @@
 		? 'Get all Notes from TickTick?'
 		: 'Remove all Notes from Obsidian? (This will not delete Notes in TickTick)';
 
-	let noteSeparatorOptions: Record<string, string> = NOTE_SEPERATOR;
+	let delimiterOption: 'none' | 'custom' = 'none';
+	let customDelimiter: string = ''; // e.g., "---", "**", etc.
+	let previewExample = '';
 
-	onMount(async () => {
-		syncNotes = getSettings().syncNotes;
+	// Load current settings on mount
+	onMount(() => {
+		const settings = getSettings();
+		syncNotes = settings.syncNotes;
+		if (settings.noteDelimiter === '' || settings.noteDelimiter == null) {
+			delimiterOption = 'none';
+			customDelimiter = '';
+		} else {
+			delimiterOption = 'custom';
+			customDelimiter = settings.noteDelimiter;
+		}
+		updatePreview();
 	});
 
 	async function resetNotes() {
@@ -36,15 +47,38 @@
 		isWorking = false;
 	}
 
-	let noteSeparator: string = 'foo';
-	let noteSeparatorContent: string = '';
+	// Handle when radio is changed
+	function handleOptionChange(option: 'none' | 'custom') {
+		delimiterOption = option;
+		if (option === 'none') {
+			customDelimiter = '';
+			saveDelimiter('');
+		} else if (!customDelimiter) {
+			customDelimiter = '---'; // some sane default for custom input
+			saveDelimiter(customDelimiter);
+		}
+		updatePreview();
+	}
 
-	function handleSeparatorChange(target: EventTarget) {
+	// Save the delimiter to settings
+	function saveDelimiter(value: string) {
+		updateSettings({ noteDelimiter: value });
+	}
 
-		let res = '-';
-		let separatorId = target;
-		noteSeparator = noteSeparatorOptions[separatorId];
-		noteSeparatorContent = res.repeat(61);
+	// Handle when custom field changes
+	function handleCustomChange(e: Event) {
+		const input = e.target as HTMLInputElement;
+		customDelimiter = input.value;
+		saveDelimiter(customDelimiter);
+		updatePreview();
+	}
+
+	// Example preview
+	function updatePreview() {
+		previewExample =
+			delimiterOption === 'none'
+				? '☐ Task Title \n   Note 1\n   Note 2'
+				: `☐ Task Title \n   ${customDelimiter}\n   Note 1\n   Note 2\n   ${customDelimiter}`;
 
 	}
 
@@ -77,13 +111,61 @@
 		{#if syncNotes}
 			<div>Notes will be synchronized.</div>
 			<br>
+
+
+			<div class="setting-item delimiter-settings">
+				<div class="setting-item-info">
+					<div class="setting-item-name">Note Delimiter</div>
+					<div class="setting-item-description">
+						Choose how Notes are separated from a Task.
+					</div>
+				</div>
+				<div class="setting-item-control">
+					<div class="note-delimiter-row">
+						<div class="delimiter-radio-group">
+							<label>
+								<input
+									type="radio"
+									name="delimiterOption"
+									value="none"
+									checked={delimiterOption === "none"}
+									on:change={() => handleOptionChange("none")}
+								/>
+								No delimiter
+							</label>
+							<label>
+								<input
+									type="radio"
+									name="delimiterOption"
+									value="custom"
+									checked={delimiterOption === "custom"}
+									on:change={() => handleOptionChange("custom")}
+								/>
+								Custom
+							</label>
+						</div>
+						{#if delimiterOption === "custom"}
+							<input
+								type="text"
+								placeholder="Enter delimiter (e.g., ---)"
+								bind:value={customDelimiter}
+								on:input={handleCustomChange}
+								maxlength={61}
+								style="margin-left:0.5em; width:10em"
+							/>
+						{/if}
+						<div class="delimiter-preview">
+							<p>Preview:</p>
+							<span><pre>{previewExample}</pre></span>
+						</div>
+					</div>
+				</div>
+			</div>
 		{:else }
 			<div>Notes will be not synchronized.</div>
 			<br>
 		{/if}
-		<div>If you have thoughts about Note formatting, please contribute them in the
-			<a href="https://github.com/thesamim/TickTickSync/discussions/255#discussion-8452861"> discussion forum.</a>
-		</div>
+
 		<br>
 		<div class="setting-item">
 			<div class="setting-item-info">

@@ -65,27 +65,6 @@
 				</select>
 			</div>
 		</div>
-
-		<div class="setting-item">
-			<div class="setting-item-info">
-				<div class="setting-item-name">Skip backup</div>
-				<div class="setting-item-description">Skip backup on startup</div>
-			</div>
-			<div class="setting-item-control">
-				<label class="toggle-switch">
-					<input
-						type="checkbox"
-						checked={getSettings().skipBackup}
-						on:change={async (e) => {
-              updateSettings({ skipBackup: e.target.checked });
-              await plugin.saveSettings();
-            }}
-					/>
-					<span class="slider"></span>
-				</label>
-
-			</div>
-		</div>
 	{/if}
 </div>
 
