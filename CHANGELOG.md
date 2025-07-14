@@ -1,4 +1,8 @@
 ## CHANGELOG
+### 1.1.9
+
+Improve default project ID handling
+Refactor task file and synchronization logic. 
 
 ### 1.1.8
 
