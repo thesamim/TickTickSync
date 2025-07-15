@@ -34,7 +34,8 @@ export class LatestChangesModal extends Modal {
 			let lineItem = changesText.createEl('li');
 			lineItem.createEl('a', { href: `${notableChangesURL}${notableChange[2]}`, text: `${notableChange[0]}` });
 			let holder = lineItem.createEl('ol');
-			holder.createEl('p', { text: `${notableChange[1]}` });
+			const changeLines = notableChange[1].split('\n');
+			changeLines.forEach(line => {holder.createEl('div', { text: `${line}` });})
 		});
 
 		new Setting(contentEl)

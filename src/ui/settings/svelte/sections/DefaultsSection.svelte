@@ -4,6 +4,7 @@
 	import { getSettings, updateSettings } from '@/settings';
 	import { Notice, Setting, TFolder } from 'obsidian';
 	import { FolderSuggest } from '@/utils/FolderSuggester';
+	import {validateNewFolder} from '@/utils/FolderUtils';
 
 	export let open = false;
 	export let plugin;
@@ -29,7 +30,7 @@
 					if (debounceTimeout) clearTimeout(debounceTimeout);
 
 					debounceTimeout = setTimeout(async () => {
-						const newFolder = await validateNewFolder(value);
+						const newFolder = await validateNewFolder(value, "Default");
 						if (newFolder) {
 							updateSettings({ TickTickTasksFilePath: newFolder });
 							await plugin.saveSettings();
@@ -46,36 +47,6 @@
 			return obj;
 		}, {});
 	}
-
-	async function validateNewFolder(newFolder: string) {
-		//remove leading slash if it exists.
-		if (!newFolder) {
-			return null;
-		}
-
-		if (newFolder && (newFolder.length > 1) && (/^[/\\]/.test(newFolder))) {
-			newFolder = newFolder.substring(1);
-		}
-
-		let newFolderFile = app.vault.getAbstractFileByPath(newFolder);
-		if (!newFolderFile) {
-			//it doesn't exist, create it and return its path.
-			try {
-				newFolderFile = await app.vault.createFolder(newFolder);
-				new Notice(`New folder ${newFolderFile.path} created.`);
-			} catch (error) {
-				new Notice(`Folder ${newFolder} creation failed: ${error}. Please correct and try again.`, 5000);
-				return null;
-			}
-		}
-		if (newFolderFile instanceof TFolder) {
-			//they picked right, and the folder exists.
-			//new Notice(`Default folder is now ${newFolderFile.path}.`)
-			return newFolderFile.path;
-		}
-		return null;
-	}
-
 
 	async function handleDefaultProjectChange(value: string) {
 		if (!value || value == '') {

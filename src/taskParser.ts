@@ -850,8 +850,11 @@ export class TaskParser {
 		//get all the functionality sorted out,
 		const prefix = '\n' + '\t'.repeat(numbTabs) + '  ';
 		// resultLine = `${resultLine}${prefix}=== start ${type} ${this.getTickTickId(resultLine)}`;
-		// TODO: A Thought add a line break before and after the notes?
-		resultLine = `${resultLine}${prefix}-------------------------------------------------------------`;
+		// resultLine = `${resultLine}${prefix}`;
+		const delimiter = getSettings().noteDelimiter;
+		if (delimiter.length > 0) {
+			resultLine = `${resultLine}${prefix}${delimiter}`;
+		}
 		if (getSettings().taskLinksInObsidian === 'noteLink') {
 			const url = `[link](${this.createURL(id, projectId)})`;
 			resultLine = `${resultLine}${prefix}${url}`;
@@ -876,7 +879,9 @@ export class TaskParser {
 				resultLine = `${resultLine}${prefix}${item}`;
 			}
 		});
-		resultLine = `${resultLine}${prefix}-------------------------------------------------------------`;
+		if (delimiter.length > 0) {
+			resultLine = `${resultLine}${prefix}${delimiter}`;
+		}
 		// resultLine = `${resultLine}${prefix}=== end ${type}  ${this.getTickTickId(resultLine)}`;
 		return resultLine;
 	}
