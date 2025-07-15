@@ -660,6 +660,9 @@ export default class TickTickSync extends Plugin {
 		if ((!data.version) || (isOlder(data.version, '1.1.8'))) {
 			notableChanges.push(['Link to Tasks now Configurable', 'Link to Tasks are now Configurable.', 'priorTo1.1.8']);
 		}
+		if ((!data.version) || (isOlder(data.version, '1.1.10'))) {
+			notableChanges.push(['Several Changes', 'Tasks stay where they are created.\nBackups now configurable.\nNote delimiter now configurable.', 'priorTo1.1.9']);
+		}
 
 
 		if (notableChanges.length > 0) {

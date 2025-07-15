@@ -61,8 +61,9 @@
 	}
 
 	// Save the delimiter to settings
-	function saveDelimiter(value: string) {
+	async function saveDelimiter(value: string) {
 		updateSettings({ noteDelimiter: value });
+		await plugin.saveSettings();
 	}
 
 	// Handle when custom field changes
@@ -117,7 +118,7 @@
 				<div class="setting-item-info">
 					<div class="setting-item-name">Note Delimiter</div>
 					<div class="setting-item-description">
-						Choose how Notes are separated from a Task.
+						Choose how Notes are separated from a Task. <br>Changes will be applied on next update from TickTick.
 					</div>
 				</div>
 				<div class="setting-item-control">
