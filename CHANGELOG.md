@@ -2,8 +2,8 @@
 
 ### 1.1.11
 
-Fix list rename bug
-Add settings improvements
+Fix list rename bug.
+Add settings improvements.
 
 ### 1.1.10
 
