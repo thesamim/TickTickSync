@@ -2,6 +2,7 @@ import type { ITask } from '@/api/types/Task';
 import type { IProject } from '@/api/types/Project';
 import type { IProjectGroup } from '@/api/types/ProjectGroup';
 import type { FileMetadata } from '@/services/cacheOperation';
+import log from 'loglevel';
 
 export interface ITickTickSyncSettings {
 
@@ -67,7 +68,7 @@ export const DEFAULT_SETTINGS: ITickTickSyncSettings = {
 	inboxID: '',
 	inboxName: 'Inbox',
 	checkPoint: 0,
-
+	skipBackup: false,
 
 	fileMetadata: {},
 	TickTickTasksData: {
@@ -125,3 +126,10 @@ export const updateProjectGroups = (newProjectGroups: IProjectGroup[]): IProject
 	settings.TickTickTasksData.projectGroups = newProjectGroups;
 	return getProjectGroups();
 };
+export const getDefaultFolder = (): string => {
+	if (settings.TickTickTasksFilePath === '/') {
+		return "";
+	} else {
+		return settings.TickTickTasksFilePath;
+	}
+}

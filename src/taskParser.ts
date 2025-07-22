@@ -177,7 +177,7 @@ export class TaskParser {
 		resultLine = this.plugin.dateMan?.addDatesToLine(resultLine, task);
 
 
-		if (getSettings().syncNotes) {
+		if (getSettings().syncNotes && getSettings().taskLinksInObsidian != "noLink" && getSettings().taskLinksInObsidian != "taskLink" ) {
 			const filePath =  this.plugin.cacheOperation?.getFilepathForTask(task.id);
 			if (this.plugin.taskParser.hasDescription(task)) {
 				resultLine = this.addNote(resultLine, task.desc, numTabs, 'Description', task.id, task.projectId);

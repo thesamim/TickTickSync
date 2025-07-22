@@ -776,7 +776,7 @@ export class SyncMan {
 		try {
 			let projectId = await this.plugin.cacheOperation?.closeTaskToCacheByID(taskId);
 			await this.plugin.tickTickRestAPI?.CloseTask(taskId, projectId);
-			this.plugin.saveSettings();
+			await this.plugin.saveSettings();
 			new Notice(`Task ${taskId} is closed.`);
 		} catch (error) {
 			log.error('Error closing task:', error);
@@ -791,7 +791,7 @@ export class SyncMan {
 			await this.plugin.tickTickRestAPI?.OpenTask(taskId, projectId);
 			await this.plugin.fileOperation.uncompleteTaskInTheFile(taskId);
 
-			this.plugin.saveSettings();
+			await this.plugin.saveSettings();
 			new Notice(`Task ${taskId} is reopened.`);
 		} catch (error) {
 			log.error('Error opening task:', error);
@@ -842,7 +842,7 @@ export class SyncMan {
 		}
 
 		await this.plugin.cacheOperation?.deleteTaskFromCacheByIDs(deletedTaskIds); // Update JSON file
-		this.plugin.saveSettings();
+		await this.plugin.saveSettings();
 		//log.debug(`A total of ${deletedTaskIds.length} tasks were deleted`);
 
 
@@ -869,7 +869,7 @@ export class SyncMan {
 			//const allEvents = [...savedEvents, ...unSynchronizedEvents]
 			//TODO: This is just wrong. Probably delete this function or fix this~
 			await this.plugin.cacheOperation?.appendTaskToCache(processedEvents);
-			this.plugin.saveSettings();
+			await this.plugin.saveSettings();
 
 
 		} catch (error) {

@@ -6,6 +6,7 @@
 	import './SettingsStyles.css';
 	export let plugin: TickTickSync;
 
+
 	let isWorking: boolean = false;
 	let fileLinksInTickTick: string;
 	let taskLinksInObsidian: string;
@@ -48,11 +49,6 @@
 		getSettings().fileLinksInTickTick = value;
 		await plugin.saveSettings();
 	}
-
-
-
-
-
 
 </script>
 <div class="{isWorking ? 'wait-cursor' : 'default-cursor'}">
@@ -110,10 +106,81 @@
 		<hr>
 		<div class="setting-item-info">
 			<div class="setting-item-name">Notice:</div>
-			<p>Links will be added/removed on the next update of the task from TickTick/Obsidian.</p>
+			<h2>Changes will only be reflected on update of a task.</h2>
+			<p>Changes to the appearance settings of tasks in Obsidian or TickTick will only be reflected in the other app when you update those tasks.</p>
+				<p>Tasks are <em>NOT</em> updated automatically.</p>
+
 			<hr>
 		</div>
 
 
 	</div>
 </div>
+
+<!--&lt;!&ndash; ...your existing settings markup here... &ndash;&gt;-->
+
+<!--&lt;!&ndash; Add the new button at the bottom. &ndash;&gt;-->
+<!--<div style="margin-top: 2em; text-align: right;">-->
+<!--	<button class="mod-cta" on:click={onUpdateWorldClicked} disabled={showUpdateButton}>-->
+<!--		Update the World-->
+<!--	</button>-->
+<!--</div>-->
+
+<!--&lt;!&ndash; MODAL DIALOG: simple conditional rendering &ndash;&gt;-->
+<!--{#if showUpdateWorldModal}-->
+<!--	<div class="modal-backdrop" on:click={closeModal}></div>-->
+<!--	<div class="modal-dialog">-->
+<!--		<div class="modal-content">-->
+<!--			<h2>Update the World</h2>-->
+<!--			<p>Do you <strong>REALLY</strong> want to update the world?</p>-->
+<!--			<div class="modal-actions">-->
+<!--				<button class="mod-cta" on:click={confirmUpdateWorld}>Yes, update it!</button>-->
+<!--				<button on:click={closeModal} style="margin-left:1em;">No, cancel</button>-->
+<!--			</div>-->
+<!--		</div>-->
+<!--	</div>-->
+<!--{/if}-->
+
+<!--<style>-->
+<!--	/* Modal basic styles */-->
+<!--	.modal-backdrop {-->
+<!--		position: fixed;-->
+<!--		top: 0; left: 0;-->
+<!--		width: 100vw; height: 100vh;-->
+<!--		background: rgba(0,0,0,0.4);-->
+<!--		z-index: 99;-->
+<!--	}-->
+<!--	.modal-dialog {-->
+<!--		position: fixed;-->
+<!--		top: 50%; left: 50%;-->
+<!--		transform: translate(-50%, -50%);-->
+<!--		z-index: 100;-->
+<!--		background: var(&#45;&#45;background-secondary); /* matches settings panel */-->
+<!--		border: 1.5px solid var(&#45;&#45;background-modifier-border); /* matches panel border */-->
+<!--		border-radius: 8px;-->
+<!--		box-shadow: 0 2px 24px #0003;-->
+<!--		min-width: 300px;-->
+<!--		max-width: 95vw;-->
+<!--		color: var(&#45;&#45;text-normal); /* make text readable in all themes */-->
+<!--		display: inline-flex;-->
+<!--		flex-direction: column;-->
+<!--	}-->
+<!--	.modal-content {-->
+<!--		padding: 2em;-->
+<!--		display: inline-flex;-->
+<!--		flex-direction: column;-->
+<!--	}-->
+<!--	.modal-content h2 {-->
+<!--		margin: 0 0 1.2em 0;-->
+<!--	}-->
+
+<!--	.modal-content p {-->
+<!--		margin: 0 0 2em 0;-->
+<!--	}-->
+
+<!--	.modal-actions {-->
+<!--		margin-top: 2.2em;-->
+<!--		display: flex;-->
+<!--		justify-content: flex-end;-->
+<!--	}-->
+<!--</style>-->
