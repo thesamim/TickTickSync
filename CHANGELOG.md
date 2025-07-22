@@ -1,4 +1,16 @@
 ## CHANGELOG
+
+### 1.1.11
+
+Fix list rename bug
+Add settings improvements
+
+### 1.1.10
+
+Handle TickTick list rename.
+Add Custom seperators for Notes
+Add Save Location for backup files.
+
 ### 1.1.9
 
 Improve default project ID handling
