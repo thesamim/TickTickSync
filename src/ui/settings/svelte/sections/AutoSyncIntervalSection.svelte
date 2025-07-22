@@ -58,7 +58,7 @@
 					debounceTimeout = setTimeout(async () => {
 						const target = e.target as HTMLInputElement;
 						await handleAutomaticSynchronizationIntervalChange(target.value);
-						}, 700);
+						}, 900);
 				}}
 			/>
 		</div>

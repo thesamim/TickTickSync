@@ -3,7 +3,7 @@ import TickTickSync from '@/main';
 import type { ITask } from '@/api/types/Task';
 import type { IProject } from '@/api/types//Project';
 import { FoundDuplicatesModal } from '@/modals/FoundDuplicatesModal';
-import { getProjects, getSettings, getTasks, updateProjects, updateSettings, updateTasks } from '@/settings';
+import { getProjects, getSettings, getTasks, updateProjects, updateSettings, updateTasks, getDefaultFolder } from '@/settings';
 //Logging
 import log from '@/utils/logger';
 import { FileMap } from '@/services/fileMap';
@@ -111,6 +111,7 @@ export class CacheOperation {
 		//Update attribute values in the metadata object
 		metadata[filepath].TickTickTasks = newMetadata.TickTickTasks;
 		metadata[filepath].TickTickCount = newMetadata.TickTickCount;
+		metadata[filepath].defaultProjectId = newMetadata.defaultProjectId;
 
 		// Save the updated metadata object back to the settings object
 		updateSettings({ fileMetadata: metadata });
@@ -294,17 +295,18 @@ export class CacheOperation {
 				}
 			}
 
-			if ((projectId === getSettings().inboxID) ||
-				(projectId === getSettings().defaultProjectId)) { //highly unlikely, but just in case
-				//They don't have a file for the Inbox. If they have a default project, return that.
-				if (getSettings().defaultProjectName) {
-					// filePath = this.plugin.settings?.TickTickTasksFilePath +"/"+ this.plugin.settings.defaultProjectName + ".md"
-					return getSettings().defaultProjectName + FILE_EXT;
-				}
-			}
+			// if ((projectId === getSettings().inboxID) ||
+			// 	(projectId === getSettings().defaultProjectId)) { //highly unlikely, but just in case
+			// 	//They don't have a file for the Inbox. If they have a default project, return that.
+			// 	if (getSettings().defaultProjectName) {
+			// 		return getDefaultFolder() +"/"+ getSettings().defaultProjectName + ".md"
+			// 	}
+			// }
 			//otherwise, return the project name as a md file and hope for the best.
 			const filePath = await this.getProjectNameByIdFromCache(projectId/*, getSettings().keepProjectFolders*/);
-			if (!filePath) {
+			if (filePath) {
+				return getDefaultFolder() +"/"+ filePath + FILE_EXT;
+			} else {
 				//Not a file that's in fileMetaData, not the inbox no default project set
 				const errmsg = `File path not found for ${projectId}, returning ${filePath} instead.`;
 				log.warn(errmsg);
@@ -312,10 +314,9 @@ export class CacheOperation {
 			}
 		} else {
 			if (getSettings().defaultProjectName) {
-				// filePath = this.plugin.settings?.TickTickTasksFilePath +"/"+ this.plugin.settings.defaultProjectName + ".md"
-				return getSettings().defaultProjectName + FILE_EXT;
+				return getDefaultFolder() + "/" + getSettings().defaultProjectName + FILE_EXT;
 			} else {
-				return "Inbox" + FILE_EXT;
+				return getDefaultFolder() + "/" + "Inbox" + FILE_EXT;
 			}
 		}
 	}
@@ -431,7 +432,7 @@ export class CacheOperation {
 		const metaDatas = this.getFileMetadatas();
 		for (const filepath in metaDatas) {
 			const value = metaDatas[filepath];
-			if (value.TickTickTasks.find((task: TaskDetail) => task.taskId === taskId)) {
+			if (value.TickTickTasks && value.TickTickTasks.find((task: TaskDetail) => task.taskId === taskId)) {
 				return filepath;
 			}
 		}
@@ -770,44 +771,33 @@ export class CacheOperation {
 	 * Ensure files associated with the given project have correct filenames and metadata keys.
 	 * If a file is found for the project but the key does not match the current project name,
 	 * rename both the file on disk and the metadata key.
-	 * @param currentProjectId The current project's ID.
-	 * @param currentProjectName The current project's name.
+	 * @param ttProjectId The current project's ID.
+	 * @param ttProjectName The current project's name.
 	 */
-	async checkProjectRename(currentProjectId: string, currentProjectName: string): Promise<void> {
+	async checkProjectRename(ttProjectId: string, ttProjectName: string): Promise<void> {
 		const fileMetadata = this.getFileMetadatas();
 		if (!fileMetadata) return;
+		const projects = getProjects();
+		if (!projects || Object.keys(projects).length == 0) return;
 
-		const correctFileName = `${currentProjectName}.md`;
+		const project = projects.find(p => p.id === ttProjectId);
+		if (project?.name !== ttProjectName) {
+			log.debug(`Project Name Changed from ${project?.name} to ${ttProjectName}`)
+			const currentProjectPath = await this.getFilepathForProjectId(ttProjectId);
 
-		for (const fileKey of Object.keys(fileMetadata)) {
-			const detail = fileMetadata[fileKey];
-			if (detail.defaultProjectId === currentProjectId) {
-				// If the key doesn't match the correct project file name, update it
-				if (fileKey !== correctFileName) {
-					const vaultFile = this.app.vault.getAbstractFileByPath(fileKey);
-					try {
-						// 1. Rename file on disk if it exists
-						if (vaultFile && vaultFile instanceof TFile) {
-							const parentPath = fileKey.substring(0, fileKey.lastIndexOf('/') + 1);
-							const newFilePath = parentPath + correctFileName;
-							await this.app.vault.rename(vaultFile, newFilePath);
+			const correctFileName = `${getDefaultFolder()}/${ttProjectName}.md`;
+			log.debug(`Checking project rename for ${ttProjectName}, which could be ${correctFileName}`);
 
-							// 2. Update metadata key
-							fileMetadata[newFilePath] = detail;
-							delete fileMetadata[fileKey];
-
-							// 3. Persist settings
-							updateSettings({ fileMetadata });
-							await this.plugin.saveSettings();
-
-							new Notice(`Renamed project file to: ${correctFileName}`);
-						} else {
-							log.warn(`File not found in vault: ${fileKey}`);
-						}
-					} catch (err) {
-						log.error(`Failed to rename file ${fileKey} to ${correctFileName}:`, err);
-						new Notice(`Failed to rename project file: ${fileKey}`);
-					}
+			if (currentProjectPath !== correctFileName) {
+				log.debug(`Current project path is ${currentProjectPath}, which is not ${correctFileName}`);
+				const vaultFile = this.app.vault.getAbstractFileByPath(currentProjectPath);
+				if (vaultFile && vaultFile instanceof TFile) {
+					log.debug(`Renaming ${currentProjectPath} to ${correctFileName}`);
+					await this.app.vault.rename(vaultFile, correctFileName);
+					log.debug(`Updating metadata key for ${currentProjectPath} to ${correctFileName}  === \\n ${fileMetadata[currentProjectPath]}`);
+					await this.updateFileMetadata(correctFileName, fileMetadata[currentProjectPath]);
+					log.debug(`Deleting ${currentProjectPath} from metadata`);
+					await this.deleteFilepathFromMetadata(currentProjectPath);
 				}
 			}
 		}

@@ -1,7 +1,6 @@
-import { App, Notice, Plugin, PluginSettingTab, SearchComponent, Setting, TFolder } from 'obsidian';
+import { App, PluginSettingTab } from 'obsidian';
 import TickTickSync from '@/main';
-import { getSettings, updateSettings } from '@/settings';
-import log from '@/utils/logger';
+import { getSettings } from '@/settings';
 import { init } from '@/ui/settings/settingsstore';
 import { mount, type SvelteComponent, unmount } from 'svelte';
 import SettingsTabs from '@/ui/settings/svelte/SettingsTabs.svelte';
@@ -26,20 +25,19 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 			target: containerEl,
 			props: {
 				app: this.app,
-				plugin: this.plugin,
+				plugin: this.plugin
 			}
 		});
 	}
+
 	async hide() {
 		super.hide();
-		unmount(this.settingsComponent);
+		await unmount(this.settingsComponent);
 	}
 
 	/*
 
 	 */
-
-
 
 
 	private getProjectTagText(myProjectsOptions: Record<string, string>) {
@@ -66,30 +64,6 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 		const myModal = new ConfirmFullSyncModal(this.app, () => {
 		});
 		return await myModal.showModal();
-	}
-
-	async validateNewFolder(newFolder: string) {
-		//remove leading slash if it exists.
-		if (newFolder && (newFolder.length > 1) && (/^[/\\]/.test(newFolder))) {
-			newFolder = newFolder.substring(1);
-		}
-		let newFolderFile = this.app.vault.getAbstractFileByPath(newFolder);
-		if (!newFolderFile) {
-			//it doesn't exist, create it and return its path.
-			try {
-				newFolderFile = await this.app.vault.createFolder(newFolder);
-				new Notice(`New folder ${newFolderFile.path} created.`);
-			} catch (error) {
-				new Notice(`Folder ${newFolder} creation failed: ${error}. Please correct and try again.`, 5000);
-				return null;
-			}
-		}
-		if (newFolderFile instanceof TFolder) {
-			//they picked right, and the folder exists.
-			//new Notice(`Default folder is now ${newFolderFile.path}.`)
-			return newFolderFile.path;
-		}
-		return null;
 	}
 
 }

@@ -2,7 +2,7 @@ import { App, Notice, TFile, TFolder } from 'obsidian';
 import TickTickSync from '@/main';
 import type { ITask } from './api/types/Task';
 import { TaskDeletionModal } from './modals/TaskDeletionModal';
-import { getSettings } from '@/settings';
+import { getDefaultFolder, getSettings } from '@/settings';
 import { FileMap } from '@/services/fileMap';
 import log from 'loglevel';
 
@@ -198,10 +198,9 @@ export class FileOperation {
 
 	async getOrCreateDefaultFile(taskFile: string) {
 		let file;
-		//the file doesn't exist. Create it.
 		try {
 			//TODO: Deal with Folders and sections in the fullness of time.
-			const folderPath = getSettings().TickTickTasksFilePath;
+			const folderPath = getDefaultFolder();
 			let folder = this.app.vault.getAbstractFileByPath(folderPath);
 			if (!(folder instanceof TFolder)) {
 				log.warn(`Folder ${folderPath} does not exit. It will be created`);
@@ -211,9 +210,9 @@ export class FileOperation {
 
 			// if (getSettings().keepProjectFolders && taskFile.includes('/')){
 			// 	const groupName = taskFile.substring(0, taskFile.indexOf('/'));
-			// 	const folderPath = (getSettings().TickTickTasksFilePath === '/' ?
+			// 	const folderPath = (getDefaultFolder() === '/' ?
 			// 		'' :
-			// 		(getSettings().TickTickTasksFilePath + '/'))
+			// 		(getDefaultFolder() + '/'))
 			// 		+ groupName
 			// 	const groupFolder = this.app.vault.getAbstractFileByPath(folderPath);
 			// 	if (!(groupFolder instanceof TFolder)) {
@@ -221,9 +220,8 @@ export class FileOperation {
 			// 		await this.app.vault.createFolder(folderPath);
 			// 	}
 			// }
-			new Notice(`Creating new file: ${folder.path}/${taskFile}`);
-			log.warn(`Creating new file: ${folder.path}/${taskFile}`);
-			taskFile = `${folder.path}/${taskFile}`;
+			new Notice(`Creating new file: ${taskFile}`);
+			log.warn(`Creating new file: ${taskFile}`);
 			const whoAdded = `${this.plugin.manifest.name} -- ${this.plugin.manifest.version}`;
 			try {
 				file = await this.app.vault.create(taskFile, `== Added by ${whoAdded} == `);
@@ -260,27 +258,6 @@ export class FileOperation {
 	}
 
 	// update task content to file
-	async updateTaskInFile(newTask: ITask) {
-		const taskId = newTask.id;
-		// Get the task file path
-		const oldTask: ITask = this.plugin.cacheOperation?.loadTaskFromCacheID(taskId);
-
-		this.plugin.dateMan?.addDateHolderToTask(newTask, oldTask);
-
-		let filepath =  this.plugin.cacheOperation?.getFilepathForTask(taskId);
-		if (!filepath) {
-			filepath = await this.plugin.cacheOperation?.getFilepathForProjectId(newTask.projectId);
-			if (!filepath) {
-				throw new Error(`File not found for ${newTask.id}, ${newTask.title}`);
-			}
-		}
-
-		const tFilepath = this.app.vault.getAbstractFileByPath(filepath) as TFile;
-
-		await this.syncTasks(tFilepath, [newTask], true);
-
-	}
-
 	async checkForDuplicates(fileMetadata, taskList: {} | undefined) {
 		let taskIds = {};
 		let duplicates = {};
@@ -538,14 +515,17 @@ export class FileOperation {
 			if (tags) {
 				task.tags = tags;
 			}
-			let taskURL = "";
-			if (!bTaskMove) {
-				taskURL = this.plugin.taskParser?.getObsidianUrlFromFilepath(file.path);
-			} else {
-				taskURL = this.plugin.taskParser?.getObsidianUrlFromFilepath(filePathForNewProject);
-			}
-			if (taskURL) {
-				task.title = task.title + ' ' + taskURL;
+
+			if (getSettings().fileLinksInTickTick !== 'noLink') {
+				let taskURL = "";
+				if (!bTaskMove) {
+					taskURL = this.plugin.taskParser?.getObsidianUrlFromFilepath(file.path);
+				} else {
+					taskURL = this.plugin.taskParser?.getObsidianUrlFromFilepath(filePathForNewProject);
+				}
+				if (taskURL) {
+					task.title = task.title + ' ' + taskURL;
+				}
 			}
 
 			if (!bUpdating) {

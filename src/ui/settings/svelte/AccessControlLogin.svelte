@@ -2,6 +2,7 @@
 	import { getSettings, updateSettings } from '@/settings';
 	import type TickTickSync from '@/main';
 	import { Notice } from 'obsidian';
+	import { onMount } from 'svelte';
 
 	export let plugin: TickTickSync;
 
@@ -10,6 +11,7 @@
 	let userPassword = '';
 	let baseURL: string;
 	let isWorking: boolean = false;
+	let loggedIn: boolean = false;
 	
 	async function handleLogin() {
 		isWorking = true;
@@ -39,6 +41,7 @@
 			inboxName: 'Inbox', //TODO: In the fullness of time find out how to get the Dida inbox name.
 			checkPoint: 0
 		});
+		loggedIn = getSettings().token ? true : false;
 		if (plugin.tickTickRestAPI && plugin.tickTickRestAPI.api) {
 			plugin.tickTickRestAPI!.api!.checkpoint = 0;
 		}
@@ -46,6 +49,9 @@
 		await plugin.saveSettings(true);
 	  isWorking = false;
 	}
+	onMount(async () => {
+		loggedIn = getSettings().token ? true : false;
+	});
 
 
 </script>
@@ -103,7 +109,7 @@
 		<div class="setting-item-info">
 			<div class="setting-item-name">Login</div>
 			<div class="setting-item-description">
-				{getSettings().token ? 'You are logged in. You can re-login here.' : 'Please login here.'}
+				{loggedIn ? 'You are logged in. You can re-login here.' : 'Please login here.'}
 			</div>
 		</div>
 		<div class="setting-item-control">
