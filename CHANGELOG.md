@@ -1,4 +1,5 @@
 ## CHANGELOG
+
 ### 1.1.12
 
 FIX: case where syncNotes and taskLinksInNote conflicted
