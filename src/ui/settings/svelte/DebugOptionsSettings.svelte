@@ -48,6 +48,10 @@
 				tagAndOr: settings.tagAndOr,
 				SyncTag: settings.SyncTag
 			},
+			noteSetting: {
+				syncNotes: settings.syncNotes,
+				noteDelimiter: settings.noteDelimiter,
+			}
 
 		};
 		return debugInfo;
@@ -102,7 +106,7 @@
 				<div class="setting-item-name">Log Level</div>
 				<div class="setting-item-description">Determine log level</div>
 			</div>
-			<div class="setting-item-control">
+			<div class="TTS-setting-item-control">
 				<select
 					value={getSettings().logLevel}
 					on:change={async (e) => {

@@ -44,7 +44,7 @@
 	</nav>
 
 
-	<div class="tab-content">
+	<div class="TTS-tab-content">
 		{#if activeTab === 'access'}
 			<AccessControlLogin {plugin} />
 		{:else if activeTab === 'sync'}
