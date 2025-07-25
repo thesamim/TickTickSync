@@ -177,7 +177,7 @@ export class TaskParser {
 		resultLine = this.plugin.dateMan?.addDatesToLine(resultLine, task);
 
 
-		if (getSettings().syncNotes && getSettings().taskLinksInObsidian != "noLink" && getSettings().taskLinksInObsidian != "taskLink" ) {
+		if (getSettings().syncNotes || getSettings().taskLinksInObsidian === 'noteLink' ) {
 			const filePath =  this.plugin.cacheOperation?.getFilepathForTask(task.id);
 			if (this.plugin.taskParser.hasDescription(task)) {
 				resultLine = this.addNote(resultLine, task.desc, numTabs, 'Description', task.id, task.projectId);
@@ -845,6 +845,7 @@ export class TaskParser {
 	}
 
 	private addNote(resultLine: string, content: string, numbTabs: number, type: string, id: string, projectId: string) {
+		log.debug()
 		//TODO figure out Note presentation
 		//admonitions just don't work in indented tasks. Until I sort out the presentation, keep it simple until I
 		//get all the functionality sorted out,

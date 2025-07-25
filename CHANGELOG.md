@@ -1,5 +1,12 @@
 ## CHANGELOG
 
+### 1.1.12
+
+FIX: case where syncNotes and taskLinksInNote conflicted
+Chore: Add syncnotes settings to debug dump
+Chore: alter tab-content setting because thino messes it up.
+closes 281
+
 ### 1.1.11
 
 Fix list rename bug.
