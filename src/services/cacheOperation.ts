@@ -781,6 +781,7 @@ export class CacheOperation {
 		if (!projects || Object.keys(projects).length == 0) return;
 
 		const project = projects.find(p => p.id === ttProjectId);
+		if (!project) return; //it's a new project, move on.
 		if (project?.name !== ttProjectName) {
 			log.debug(`Project Name Changed from ${project?.name} to ${ttProjectName}`)
 			const currentProjectPath = await this.getFilepathForProjectId(ttProjectId);

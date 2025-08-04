@@ -845,7 +845,6 @@ export class TaskParser {
 	}
 
 	private addNote(resultLine: string, content: string, numbTabs: number, type: string, id: string, projectId: string) {
-		log.debug()
 		//TODO figure out Note presentation
 		//admonitions just don't work in indented tasks. Until I sort out the presentation, keep it simple until I
 		//get all the functionality sorted out,

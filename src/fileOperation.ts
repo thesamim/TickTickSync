@@ -200,7 +200,10 @@ export class FileOperation {
 		let file;
 		try {
 			//TODO: Deal with Folders and sections in the fullness of time.
-			const folderPath = getDefaultFolder();
+			let folderPath = getDefaultFolder();
+			if (!folderPath || folderPath === '') {
+				folderPath = '/';
+			}
 			let folder = this.app.vault.getAbstractFileByPath(folderPath);
 			if (!(folder instanceof TFolder)) {
 				log.warn(`Folder ${folderPath} does not exit. It will be created`);
