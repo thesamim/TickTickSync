@@ -52,7 +52,6 @@
 				syncNotes: settings.syncNotes,
 				noteDelimiter: settings.noteDelimiter,
 			}
-
 		};
 		return debugInfo;
 	}
