@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { getSettings, updateSettings } from '@/settings';
+	import { resetTasks } from '@/ui/settings/utils/ResetSynchronization';
 	import type TickTickSync from '@/main';
 	import './SettingsStyles.css';
 	import { onMount } from 'svelte';
@@ -31,21 +32,6 @@
 		updatePreview();
 	});
 
-	async function resetNotes() {
-		isWorking = true;
-		const allTasks = getSettings().TickTickTasksData.tasks;
-		for (const task of allTasks) {
-			task.modifiedTime = '1970-01-01T00:00:00.000Z';
-		}
-		updateSettings({ TickTickTasksData: { ...getSettings().TickTickTasksData, tasks: allTasks } });
-		if (plugin.tickTickRestAPI && plugin.tickTickRestAPI.api) {
-			plugin.tickTickRestAPI!.api!.checkpoint = 0;
-		}
-		updateSettings({ checkPoint: 0 });
-		await plugin.saveSettings();
-		await plugin.scheduledSynchronization();
-		isWorking = false;
-	}
 
 	// Handle when radio is changed
 	function handleOptionChange(option: 'none' | 'custom') {
@@ -118,7 +104,8 @@
 				<div class="setting-item-info">
 					<div class="setting-item-name">Note Delimiter</div>
 					<div class="setting-item-description">
-						Choose how Notes are separated from a Task. <br>Changes will be applied on next update from TickTick.
+						Choose how Notes are separated from a Task. <br>Changes will be applied on next update from
+						TickTick.
 					</div>
 				</div>
 				<div class="setting-item-control">
@@ -171,12 +158,16 @@
 		<div class="setting-item">
 			<div class="setting-item-info">
 				<div class="setting-item-name">Reset Notes</div>
-				<div class="setting-item-description">Do you want to {resetNotesText} <br> <em> Caution: This may take
-					some
-					time.</em></div>
+				<div class="setting-item-description">Do you want to {resetNotesText} <br> <em> Caution: This will take
+					some time and update Tasks from TickTick to Obsidian and Obsidian to TickTick.</em></div>
 			</div>
 			<div class="setting-item-control">
-				<button disabled={isWorking} class="mod-cta" on:click={resetNotes}>
+				<button
+					disabled={isWorking}
+					class="mod-cta"
+					on:click={async () => {
+						await resetTasks(plugin, (val) => isWorking = val);
+					}}>
 					Reset Notes.
 				</button>
 			</div>
