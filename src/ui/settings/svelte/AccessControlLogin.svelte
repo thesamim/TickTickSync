@@ -1,21 +1,23 @@
 <script lang="ts">
-	import { getSettings, updateSettings } from '@/settings';
 	import type TickTickSync from '@/main';
 	import { Notice } from 'obsidian';
 	import { onMount } from 'svelte';
+	import { settingsStore } from '@/ui/settings/settingsstore';
+	import { getSettings, updateSettings } from '@/settings';
 
 	export let plugin: TickTickSync;
 
 	const PROVIDER_OPTIONS = { 'ticktick.com': 'TickTick', 'dida365.com': 'Dida365' };
-	let userLogin = '';
-	let userPassword = '';
+	let userLogin: string;
+	let userPassword: string;
+
 	let baseURL: string;
 	let isWorking: boolean = false;
 	let loggedIn: boolean = false;
 	
 	async function handleLogin() {
 		isWorking = true;
-		if (!getSettings().baseURL || !userLogin || !userPassword) {
+		if (!$settingsStore.baseURL || !userLogin || !userPassword) {
 			new Notice('Please fill in both Username and Password');
 			isWorking = false;
 			return;
@@ -28,12 +30,13 @@
 			return;
 		}
 
-		const oldInboxId = getSettings().inboxID;
+		const oldInboxId = $settingsStore.inboxID;
 		if (oldInboxId.length > 0 && oldInboxId != info.inboxId) {
 			//they've logged in with a different user id ask user about it.
 			new Notice('You are logged in with a different user ID.');
 		}
 		//if oldInboxId same as info.inboxId ask user about full re-syncing. set checkPoint to 0 to force full sync.
+		settingsStore.update(s => ({ ...s, token: info.token, inboxID: info.inboxId, checkPoint: 0 }));
 
 		updateSettings({
 			token: info.token,
@@ -41,7 +44,7 @@
 			inboxName: 'Inbox', //TODO: In the fullness of time find out how to get the Dida inbox name.
 			checkPoint: 0
 		});
-		loggedIn = getSettings().token ? true : false;
+		loggedIn = !!$settingsStore.token;
 		if (plugin.tickTickRestAPI && plugin.tickTickRestAPI.api) {
 			plugin.tickTickRestAPI!.api!.checkpoint = 0;
 		}
@@ -50,7 +53,7 @@
 	  isWorking = false;
 	}
 	onMount(async () => {
-		loggedIn = getSettings().token ? true : false;
+		loggedIn = !!$settingsStore.token;
 	});
 
 
@@ -67,7 +70,8 @@
 				value={getSettings().baseURL}
 				on:change={async (e) => {
 					baseURL = e.target.value;
-					updateSettings({ baseURL: e.target.value });
+					$settingsStore.baseURL = baseURL;
+					updateSettings({ baseURL: baseURL });
 					await plugin.saveSettings();
 				}}>
 				{#each Object.entries(PROVIDER_OPTIONS) as [value, label]}

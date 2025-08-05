@@ -380,6 +380,9 @@ export default class TickTickSync extends Plugin {
 	}
 
 	private async pluginLoad() {
+		// This adds a settings tab so the user can configure various aspects of the plugin
+		this.addSettingTab(new TickTickSyncSettingTab(this.app, this));
+
 		const isSettingsLoaded = await this.loadSettings();
 		if (!isSettingsLoaded) {
 			new Notice('Settings failed to load. Please reload the TickTickSync plugin.');
@@ -389,8 +392,6 @@ export default class TickTickSync extends Plugin {
 		log.info(`loading plugin "${this.manifest.name}" v${this.manifest.version}`);
 
 
-		// This adds a settings tab so the user can configure various aspects of the plugin
-		this.addSettingTab(new TickTickSyncSettingTab(this.app, this));
 
 		try {
 			await this.initializePlugin();

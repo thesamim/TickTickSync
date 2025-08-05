@@ -1,33 +1,38 @@
 <script lang="ts">
-	import { getSettings, updateSettings } from '@/settings';
-	import { resetTasks } from '@/ui/settings/utils/ResetSynchronization';
+	import { getDefaultFolder } from '@/settings';
 	import type TickTickSync from '@/main';
 	import './SettingsStyles.css';
 	import { onMount } from 'svelte';
+	import ResetTasksControl from '@/ui/settings/svelte/ResetTasksControl.svelte';
+	import { settingsStore } from '@/ui/settings/settingsstore';
 
 	export let plugin: TickTickSync;
 
 	let isWorking: boolean = false;
 	let syncNotes: boolean = false;
-	let resetNotesText: string = '';
-	$: resetNotesText = syncNotes
+	let resetTasksText: string = '';
+	$: resetTasksText = syncNotes
 		? 'Get all Notes from TickTick?'
 		: 'Remove all Notes from Obsidian? (This will not delete Notes in TickTick)';
+
+	function setIsWorking(value: boolean) {
+		isWorking = value;
+	}
 
 	let delimiterOption: 'none' | 'custom' = 'none';
 	let customDelimiter: string = ''; // e.g., "---", "**", etc.
 	let previewExample = '';
+	let folderPath = $settingsStore.defaultFolderPath;
 
 	// Load current settings on mount
 	onMount(() => {
-		const settings = getSettings();
-		syncNotes = settings.syncNotes;
-		if (settings.noteDelimiter === '' || settings.noteDelimiter == null) {
+		syncNotes = $settingsStore.syncNotes;
+		if ($settingsStore.noteDelimiter === '' || $settingsStore.noteDelimiter == null) {
 			delimiterOption = 'none';
 			customDelimiter = '';
 		} else {
 			delimiterOption = 'custom';
-			customDelimiter = settings.noteDelimiter;
+			customDelimiter = $settingsStore.noteDelimiter;
 		}
 		updatePreview();
 	});
@@ -48,7 +53,7 @@
 
 	// Save the delimiter to settings
 	async function saveDelimiter(value: string) {
-		updateSettings({ noteDelimiter: value });
+		settingsStore.update(s => ({ ...s, noteDelimiter: value }));
 		await plugin.saveSettings();
 	}
 
@@ -86,7 +91,7 @@
 						on:change={async (e) => {
 							const checked = e.target.checked;
 							syncNotes = checked; // Ensure local state stays in sync
-							updateSettings({ syncNotes: checked });
+							settingsStore.update(s => ({ ...s, syncNotes: checked }));
 							await plugin.saveSettings();
 					  }}
 					/>
@@ -155,23 +160,13 @@
 		{/if}
 
 		<br>
-		<div class="setting-item">
-			<div class="setting-item-info">
-				<div class="setting-item-name">Reset Notes</div>
-				<div class="setting-item-description">Do you want to {resetNotesText} <br> <em> Caution: This will take
-					some time and update Tasks from TickTick to Obsidian and Obsidian to TickTick.</em></div>
-			</div>
-			<div class="setting-item-control">
-				<button
-					disabled={isWorking}
-					class="mod-cta"
-					on:click={async () => {
-						await resetTasks(plugin, (val) => isWorking = val);
-					}}>
-					Reset Notes.
-				</button>
-			</div>
-		</div>
+		<ResetTasksControl
+			{isWorking}
+			{resetTasksText}
+			{plugin}
+			{setIsWorking}
+		/>
+
 
 	</div>
 </div>

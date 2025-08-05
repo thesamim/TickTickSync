@@ -3,7 +3,8 @@
 	import { createEventDispatcher } from 'svelte';
 	import { ConfirmFullSyncModal } from '@/modals/ConfirmFullSyncModal';
 	import { onMount } from 'svelte';
-	import { getSettings, updateSettings } from '@/settings';
+	import { settingsStore } from '@/ui/settings/settingsstore';
+	import { get } from 'svelte/store';
 
 	export let open = false;
 	export let plugin;
@@ -15,10 +16,8 @@
 		dispatch('toggle');
 	}
 
-	onMount(async () => {
-		enableFullVaultSync = getSettings().enableFullVaultSync;
-
-	});
+	// Use store subscription
+	$: enableFullVaultSync = $settingsStore.enableFullVaultSync;
 
 	async function confirmFullSync() {
 		const myModal = new ConfirmFullSyncModal(app, () => {
@@ -28,20 +27,20 @@
 
 	async function handleFullVaultSyncChange(value: boolean) {
 		let noticeString: string;
-		if (!getSettings().enableFullVaultSync) {
+		if (!$settingsStore.enableFullVaultSync) {
 			const bConfirmation = await confirmFullSync();
 			if (bConfirmation) {
-				enableFullVaultSync = true;
+				// enable, update store
+				settingsStore.update((s) => ({ ...s, enableFullVaultSync: true }));
 				noticeString = 'Full vault sync is enabled.';
 			} else {
-				enableFullVaultSync = false;
+				settingsStore.update((s) => ({ ...s, enableFullVaultSync: false }));
 				noticeString = 'Full vault sync not enabled.';
 			}
 		} else {
-			enableFullVaultSync = false;
+			settingsStore.update((s) => ({ ...s, enableFullVaultSync: false }));
 			noticeString = 'Full vault sync is disabled.';
 		}
-		updateSettings({ enableFullVaultSync: enableFullVaultSync });
 		new Notice(noticeString);
 		await plugin.saveSettings();
 	}

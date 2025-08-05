@@ -2,7 +2,7 @@ import type { ITask } from '@/api/types/Task';
 import type { IProject } from '@/api/types/Project';
 import type { IProjectGroup } from '@/api/types/ProjectGroup';
 import type { FileMetadata } from '@/services/cacheOperation';
-import log from 'loglevel';
+import { settingsStore } from '@/ui/settings/settingsstore';
 
 export interface ITickTickSyncSettings {
 
@@ -22,9 +22,7 @@ export interface ITickTickSyncSettings {
 	noteDelimiter: string;
 	fileLinksInTickTick: string;
 	taskLinksInObsidian: string;
-	bkupFolder: string
-
-
+	bkupFolder: string;
 
 
 	debugMode: boolean;
@@ -87,8 +85,13 @@ export const getSettings = (): ITickTickSyncSettings => {
 	return settings;
 };
 
+export const setSettings = (value: ITickTickSyncSettings) => {
+	settings = value;
+};
+
 export const updateSettings = (newSettings: Partial<ITickTickSyncSettings>): ITickTickSyncSettings => {
 	settings = { ...settings, ...newSettings } as const;
+	settingsStore.set(settings);
 	return getSettings();
 };
 
@@ -128,8 +131,8 @@ export const updateProjectGroups = (newProjectGroups: IProjectGroup[]): IProject
 };
 export const getDefaultFolder = (): string => {
 	if (settings.TickTickTasksFilePath === '/') {
-		return "";
+		return '';
 	} else {
 		return settings.TickTickTasksFilePath;
 	}
-}
+};

@@ -704,6 +704,7 @@ export class TaskParser {
 
 	//ticktick specific url
 	createURL(newTaskId: string, projectId: string): string {
+		log.debug('createURL', getSettings().baseURL);
 		let url = '';
 		if (projectId) {
 			url = `https://${getSettings().baseURL}/webapp/#p/${projectId}/tasks/${newTaskId}`;
