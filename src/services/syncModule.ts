@@ -14,7 +14,7 @@ import ObjectID from 'bson-objectid';
 import type { TaskDetail } from '@/services/cacheOperation';
 import { TaskDeletionModal } from '@/modals/TaskDeletionModal';
 import { getSettings, updateProjectGroups } from '@/settings';
-import { FileMap, getTitle, type ITaskItemRecord } from '@/services/fileMap';
+import { FileMap, type ITaskItemRecord } from '@/services/fileMap';
 import log from 'loglevel';
 
 type deletedTask = {
@@ -162,9 +162,9 @@ export class SyncMan {
 		if (missingTaskIds && missingTaskIds.length > 0) {
 			let saveTheseTasks: string[] = [];
 			for (const taskId of missingTaskIds) {
-				const location =  this.plugin.cacheOperation?.getFilepathForTask(taskId);
+				const location = this.plugin.cacheOperation?.getFilepathForTask(taskId);
 				if (location && location != filePath) {
-					log.debug("Task found in different file:", taskId, location)
+					log.debug('Task found in different file:', taskId, location);
 					saveTheseTasks.push(taskId);
 				}
 			}
@@ -191,7 +191,7 @@ export class SyncMan {
 		const line = cursor.line;
 		const linetxt = editor.getLine(line);
 		let before = fileContent?.length;
-		const fileMap = new FileMap(this.app, this.plugin, view.file)
+		const fileMap = new FileMap(this.app, this.plugin, view.file);
 		await fileMap.init(fileContent);
 		await this.addTask(linetxt, line, editor, cursor, fileMap);
 		let after = fileContent?.length;
@@ -217,7 +217,7 @@ export class SyncMan {
 					parentTask = await this.plugin.tickTickRestAPI?.UpdateTask(parentTask);
 					await this.plugin.cacheOperation?.updateTaskToCache(parentTask);
 				}
-				const ticktick_id  = newTask.id;
+				const ticktick_id = newTask.id;
 				//log.debug(newTask);
 				new Notice(`new task ${newTask.title} id is ${newTask.id}`);
 
@@ -236,7 +236,7 @@ export class SyncMan {
 
 				//we want the line as it is in Obsidian.
 				const taskRecord = fileMap.getTaskRecord(newTask.id);
-				const taskString = taskRecord.task
+				const taskString = taskRecord.task;
 				const stringToHash = taskString + this.plugin.taskParser.getNoteString(taskRecord, newTask.id).textContent;
 				newTask.lineHash = await this.plugin.taskParser?.getLineHash(stringToHash);
 				await this.plugin.cacheOperation?.appendTaskToCache(newTask, fileMap.getFilePath());
@@ -346,16 +346,23 @@ export class SyncMan {
 					if (newHash == savedTask.lineHash) {
 						bHashCheckFailed = false;
 						//but maybe the task moved. Check here.
-						const __ret = await this. checkForMoves(lineTask_ticktick_id, filepath);
+						const __ret = await this.checkForMoves(lineTask_ticktick_id, filepath);
 						projectMoved = __ret.projectMoved;
 						oldFilePath = __ret.oldFilePath;
 						const bParentchanged = (taskRecord.parentId ? taskRecord.parentId : '') != (savedTask.parentId ? savedTask.parentId : '');
 						if (!projectMoved && !bParentchanged) {
 							return false;
 						} else {
-							log.debug('Task Moved.', {projectMoved: projectMoved, parentChanged: bParentchanged, taskrecordparentid: taskRecord.parentId,
-								savedtaskparentid: savedTask.parentId, lineText: lineText,
-								savedTaskTitle: savedTask.title, newHash: newHash, oldHash: savedTask.lineHash});
+							log.debug('Task Moved.', {
+								projectMoved: projectMoved,
+								parentChanged: bParentchanged,
+								taskrecordparentid: taskRecord.parentId,
+								savedtaskparentid: savedTask.parentId,
+								lineText: lineText,
+								savedTaskTitle: savedTask.title,
+								newHash: newHash,
+								oldHash: savedTask.lineHash
+							});
 						}
 					} else {
 						if (getSettings().debugMode) {
@@ -371,7 +378,7 @@ export class SyncMan {
 			//TODO: Clean this up!
 			if (!savedTask) {
 				//Task in note, but not in cache. Assuming this would only happen in testing, delete the task from the note
-				log.error(`There is no task for ${lineText.substring(0,10)} in the local cache. It will be deleted from file ${filepath}`);
+				log.error(`There is no task for ${lineText.substring(0, 10)} in the local cache. It will be deleted from file ${filepath}`);
 
 				new Notice(`There is no task ${this.plugin.taskParser.getTaskContentFromLineText(lineText)} in the local cache. It will be deleted`);
 				const file = this.plugin.app.vault.getAbstractFileByPath(filepath);
@@ -387,7 +394,6 @@ export class SyncMan {
 					savedTask.lineHash = await this.plugin.taskParser?.getLineHash(newHash);
 				}
 			}
-
 
 
 			//Check whether the content has been modified
@@ -1209,7 +1215,7 @@ export class SyncMan {
 			// if (this.plugin.tickTickSyncAPI) {
 			// log.debug("It's defined", this.plugin.tickTickSyncAPI)
 			// }
-			let bkupFolder = getSettings().bkupFolder
+			let bkupFolder = getSettings().bkupFolder;
 			if (bkupFolder[bkupFolder.length - 1] != '/') {
 				bkupFolder += '/';
 			}
@@ -1217,7 +1223,7 @@ export class SyncMan {
 			const timeString: string = `${now.getFullYear()}${now.getMonth() + 1}${now.getDate()}${now.getHours()}${now.getMinutes()}${now.getSeconds()}`;
 
 			const name = bkupFolder + 'ticktick-backup-' + timeString + '.csv';
-			log.debug("Creating Backup: ", name)
+			log.debug('Creating Backup: ', name);
 
 			const bkupData = await this.plugin.tickTickRestAPI?.exportData();
 
@@ -1266,17 +1272,57 @@ export class SyncMan {
 
 	///End of Test
 
+	async forceUpdates(file_path: string) {
+		let file;
+		if (file_path) {
+			file = this.app.vault.getAbstractFileByPath(file_path);
+			if ((file) && (file instanceof TFolder)) {
+				//leave folders alone.
+				return false;
+			}
+			if (!file) {
+				log.error(`File: ${file_path} not found. Removing from Meta Data`);
+				await this.plugin.cacheOperation?.deleteFilepathFromMetadata(file_path);
+				return false;
+			}
+		} else {
+			throw new Error('No file path provided');
+		}
+		const fileMap = new FileMap(this.app, this.plugin, file);
+		await fileMap.init();
+
+
+		const lines = fileMap.getFileLines().split('\n');
+		for (let line = 0; line < lines.length; line++) {
+			const lineText = lines[line];
+			if (this.plugin.taskParser?.hasTickTickId(lineText) && this.plugin.taskParser?.hasTickTickTag(lineText)) {
+				const taskId = this.plugin.taskParser.getTickTickId(lineText);
+				const savedTask = this.plugin.cacheOperation.loadTaskFromCacheID(taskId);
+				if (taskId && savedTask) {
+					savedTask.modifiedTime = this.plugin.dateMan?.formatDateToISO(new Date());
+					const taskRecord = fileMap.getTaskRecord(taskId)
+					//NB: lineNumber = 0 is only safe because we KNOW we have a task record.
+					const lineTask = await this.plugin.taskParser?.convertLineToTask(lineText, 0, fileMap.getFilePath(), fileMap, taskRecord);
+					const merged = { ...savedTask, ...lineTask };
+					Object.assign(lineTask, merged);
+					const updatedTask = <ITask>await this.plugin.tickTickRestAPI?.UpdateTask(lineTask);
+					await this.plugin.cacheOperation?.updateTaskToCache(updatedTask, null);
+				}
+			}
+		}
+	}
+
+	//get the TickTick data into the task line.
+
 	//Check if user moved the task.
 	private async checkForMoves(taskId: string, filepath: string) {
 		let projectMoved = false;
-		const oldFilePath =  this.plugin.cacheOperation.getFilepathForTask(taskId);
+		const oldFilePath = this.plugin.cacheOperation.getFilepathForTask(taskId);
 		if (oldFilePath && oldFilePath !== filepath) {
 			projectMoved = true;
 		}
 		return { projectMoved, oldFilePath };
 	}
-
-	//get the TickTick data into the task line.
 
 	private async updateTaskLine(newTask: ITask, lineTxt: string, editor: Editor | null, cursor: EditorPosition | null, line: number | null, fileMap: FileMap) {
 		let newTaskCopy = { ...newTask };
@@ -1315,7 +1361,6 @@ export class SyncMan {
 
 		return bConfirmation;
 	}
-
 
 	private async handleTaskItem(lineText: string, fileMap: FileMap, lineNumber: number | undefined) {
 		let modified = false;
@@ -1364,9 +1409,9 @@ export class SyncMan {
 					//TODO: Assume that there's a timing issue, and assume that this item really needs to live
 					log.warn('', newItem, 'not found in parent items. Forcibly adding...');
 					parentTask.items.push({
-					  id: itemId,
-					  title: newItem?.description,
-					  status: newItem?.status ? 2 : 0
+						id: itemId,
+						title: newItem?.description,
+						status: newItem?.status ? 2 : 0
 					});
 				}
 			} else {
@@ -1414,11 +1459,11 @@ export class SyncMan {
 	private async updateTask(parentTask: ITask, filepath: string) {
 		parentTask.modifiedTime = this.plugin.dateMan?.formatDateToISO(new Date());
 		await this.plugin.cacheOperation?.updateTaskToCache(parentTask);
-		if (getSettings().fileLinksInTickTick !== "noLink") {
+		if (getSettings().fileLinksInTickTick !== 'noLink') {
 			let taskURL = this.plugin.taskParser?.getObsidianUrlFromFilepath(filepath);
 			//If getSettings().fileLinksInTickTick === "noteLink") it's already been handled in
 			//   convertLineToTask
-			if (getSettings().fileLinksInTickTick === "taskLink") {
+			if (getSettings().fileLinksInTickTick === 'taskLink') {
 				if (taskURL) {
 					parentTask.title = parentTask.title + ' ' + taskURL;
 				}
@@ -1438,6 +1483,4 @@ export class SyncMan {
 		}
 		return null; // Return null if no task or item is found for the given line number
 	}
-
-
 }

@@ -1,10 +1,10 @@
 <script lang="ts">
 	import CollapsibleSection from '@/ui/settings/svelte/sections/CollapsibleSection.svelte'
 	import { createEventDispatcher } from 'svelte';
-	import { getSettings, updateSettings } from '@/settings';
 	import { onMount } from 'svelte';
 	import { Notice } from 'obsidian';
 	import { TAGS_BEHAVIOR } from '@/ui/settings/svelte/constants.svelte.js';
+	import { settingsStore } from '@/ui/settings/settingsstore';
 
 	export let open = false;
 	export let plugin;
@@ -25,19 +25,23 @@
 		dispatch('toggle');
 	}
 
-	// New: explanation state as structured data instead of string
 	type SyncExplanationData = {
 		project?: string,
 		tag?: string,
 		andOr?: boolean // true = AND, false = OR, undefined = not applicable
 	};
 
+	// Sync with store on load and change
+	$: selectedSyncProject = $settingsStore.SyncProject ?? '';
+	$: defaultProjectId = $settingsStore.defaultProjectId ?? '';
+	$: tagAndOr = $settingsStore.tagAndOr ?? 1;
+	$: syncTag = $settingsStore.SyncTag ?? '';
+
 	async function handleSyncProjectChange(value: string) {
-		updateSettings({ SyncProject: value });
+		settingsStore.update((s) => ({ ...s, SyncProject: value }));
 		selectedSyncProject = value;
 
-		// Check if we have a fileMetadata entry for this project
-		const fileMetaData = getSettings().fileMetadata;
+		const fileMetaData = $settingsStore.fileMetadata;
 		const defaultProjectFileEntry = Object.values(fileMetaData).find(
 			(obj: any) => obj.defaultProjectId === value
 		);
@@ -50,18 +54,18 @@
 		await plugin.saveSettings();
 	}
 	async function handleTagAndOrChange(value: string) {
-		updateSettings({ tagAndOr: parseInt(value) });
-		tagAndOr = parseInt(value);
+		const num = parseInt(value);
+		settingsStore.update((s) => ({ ...s, tagAndOr: num }));
+		tagAndOr = num;
 		await plugin.saveSettings();
 	}
 
 	let syncExplanationData: SyncExplanationData = {};
 
 	function updateSyncExplanationData(myProjectsOptions: Record<string, string>) {
-		const project = myProjectsOptions[getSettings().SyncProject];
-		const tag = getSettings().SyncTag;
-		// is AND when both set, otherwise irrelevant
-		const andOr = (project && tag) ? (getSettings().tagAndOr == 1) : undefined;
+		const project = myProjectsOptions[$settingsStore.SyncProject];
+		const tag = $settingsStore.SyncTag;
+		const andOr = (project && tag) ? ($settingsStore.tagAndOr == 1) : undefined;
 
 		syncExplanationData = { project, tag, andOr };
 	}
@@ -76,7 +80,7 @@
 	}
 	function handleSyncTagChange(value: string) {
 		syncTag = value;
-		updateSettings({ SyncTag: value });
+		settingsStore.update((s) => ({ ...s, SyncTag: value }));
 		if (debounceTimeout) clearTimeout(debounceTimeout);
 		debounceTimeout = setTimeout(async () => {
 			await plugin.saveSettings();
@@ -85,10 +89,10 @@
 	onMount(async () => {
 		projects = await plugin.service.getProjects?.() ?? [];
 		myProjectsOptions = getMyProjectsOptions();
-		selectedSyncProject = getSettings().SyncProject ?? '';
-		defaultProjectId = getSettings().defaultProjectId ?? '';
-		tagAndOr = getSettings().tagAndOr ?? '1';
-		syncTag = getSettings().SyncTag ?? '';
+		selectedSyncProject = $settingsStore.SyncProject ?? '';
+		defaultProjectId = $settingsStore.defaultProjectId ?? '';
+		tagAndOr = $settingsStore.tagAndOr ?? 1;
+		syncTag = $settingsStore.SyncTag ?? '';
 		updateSyncExplanationData(myProjectsOptions);
 	});
 </script>

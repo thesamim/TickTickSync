@@ -200,7 +200,10 @@ export class FileOperation {
 		let file;
 		try {
 			//TODO: Deal with Folders and sections in the fullness of time.
-			const folderPath = getDefaultFolder();
+			let folderPath = getDefaultFolder();
+			if (!folderPath || folderPath === '') {
+				folderPath = '/';
+			}
 			let folder = this.app.vault.getAbstractFileByPath(folderPath);
 			if (!(folder instanceof TFolder)) {
 				log.warn(`Folder ${folderPath} does not exit. It will be created`);
@@ -573,14 +576,14 @@ export class FileOperation {
 	//Just the notification now.
 	private async handleTickTickStructureMove(newTask: ITask, oldTask: ITask, lineText: string, fileMap: FileMap) {
 		log.debug('deleting old task: ', oldTask.id, oldTask.title, ' from file');
-		const filePathForNewProject = await this.plugin.cacheOperation?.getFilepathForProjectId(newTask.projectId);
+		let filePathForNewProject = await this.plugin.cacheOperation?.getFilepathForProjectId(newTask.projectId);
 		if (!filePathForNewProject) {
 			let errmsg = `File not found for moved newTask:  ${newTask.id}, ${newTask.title}`;
 			throw new Error(errmsg);
 		}
-		const tFilePathForProject = this.app.vault.getAbstractFileByPath(filePathForNewProject);
+		const tFilePathForProject = await this.plugin.fileOperation.getOrCreateDefaultFile(filePathForNewProject)
 		if (!tFilePathForProject || (!(tFilePathForProject instanceof TFile))) {
-			let errmsg = `File not found for moved newTask:  ${newTask.id}, ${newTask.title}`;
+			let errmsg = `File not found for moved newTask:  ${newTask.id}, ${newTask.title}, ${filePathForNewProject}`;
 			throw new Error(errmsg);
 		}
 		log.debug('oldFilePath: ', fileMap.getFilePath());

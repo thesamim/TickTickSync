@@ -168,3 +168,20 @@
 	padding: 0.3rem;
 }
 
+.local-modal-backdrop {
+	position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+	background: rgba(0,0,0,0.35);
+	z-index: 100;
+}
+.local-modal-dialog {
+	position: fixed;
+	z-index: 101;
+	top: 50vh; left: 50vw;
+	transform: translate(-50%, -50%);
+	background: var(--background-primary, #fff);
+	border-radius: 8px;
+	box-shadow: 0 4px 24px rgb(0 0 0 / 0.21);
+	min-width: 300px; max-width: 90vw;
+}
+.local-modal-content { padding: 2em; }
+.local-modal-actions { text-align: right; margin-top: 2em; }

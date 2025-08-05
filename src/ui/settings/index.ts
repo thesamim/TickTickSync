@@ -1,9 +1,9 @@
 import { App, PluginSettingTab } from 'obsidian';
 import TickTickSync from '@/main';
 import { getSettings } from '@/settings';
-import { init } from '@/ui/settings/settingsstore';
 import { mount, type SvelteComponent, unmount } from 'svelte';
 import SettingsTabs from '@/ui/settings/svelte/SettingsTabs.svelte';
+import { settingsLoad } from '@/ui/settings/settingsstore';
 
 
 export class TickTickSyncSettingTab extends PluginSettingTab {
@@ -14,7 +14,7 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 	constructor(app: App, plugin: TickTickSync) {
 		super(app, plugin);
 		this.plugin = plugin;
-		init(this.plugin);
+		settingsLoad(plugin);
 	}
 
 	async display(): Promise<void> {

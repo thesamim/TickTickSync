@@ -79,6 +79,7 @@ export class TickTickService {
 				error = api.lastError;
 				const errorString = 'Login Failed. ' + JSON.stringify(error.errorMessage, null, 4);
 				new Notice(errorString, 5000);
+				log.error("Login Fail!: ", errorString);
 				throw new Error(error.errorMessage);
 			}
 			const defaultProjectId = getSettings().defaultProjectId;
@@ -106,7 +107,7 @@ export class TickTickService {
 				//the file system is farckled. Wait until next sync to avoid race conditions.
 				return;
 			}
-			await this.syncFiles();
+			await this.syncFiles(false);
 		} catch (error) {
 			log.error('Error on synchronization: ', error);
 		}
@@ -355,7 +356,10 @@ export class TickTickService {
 		return this.tickTickSync.syncTickTickToObsidian();
 	}
 
-	private async syncFiles() {
+	/**
+	 * @param bForceUpdate
+	 */
+	async syncFiles(bForceUpdate: boolean) {
 		const filesToSync = getSettings().fileMetadata;
 		if (!filesToSync) {
 			log.warn('No sync files found.');
@@ -442,6 +446,16 @@ export class TickTickService {
 		for (const fileKey in newFilesToSync) {
 			if (getSettings().debugMode) {
 				log.debug(fileKey);
+			}
+
+			if (bForceUpdate ){
+				await doWithLock(LOCK_TASKS, async () => {
+					try {
+						await this.tickTickSync?.forceUpdates(fileKey);
+					} catch (error) {
+						log.error('An error occurred in fullTextNewTaskCheck:', error);
+					}
+				});
 			}
 
 			await doWithLock(LOCK_TASKS, async () => {

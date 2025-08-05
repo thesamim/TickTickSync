@@ -1,51 +1,42 @@
 <script lang="ts">
-	import { getSettings, updateSettings } from '@/settings';
+	import { getDefaultFolder } from '@/settings';
 	import type TickTickSync from '@/main';
 	import './SettingsStyles.css';
 	import { onMount } from 'svelte';
+	import ResetTasksControl from '@/ui/settings/svelte/ResetTasksControl.svelte';
+	import { settingsStore } from '@/ui/settings/settingsstore';
 
 	export let plugin: TickTickSync;
 
 	let isWorking: boolean = false;
 	let syncNotes: boolean = false;
-	let resetNotesText: string = '';
-	$: resetNotesText = syncNotes
+	let resetTasksText: string = '';
+	$: resetTasksText = syncNotes
 		? 'Get all Notes from TickTick?'
 		: 'Remove all Notes from Obsidian? (This will not delete Notes in TickTick)';
+
+	function setIsWorking(value: boolean) {
+		isWorking = value;
+	}
 
 	let delimiterOption: 'none' | 'custom' = 'none';
 	let customDelimiter: string = ''; // e.g., "---", "**", etc.
 	let previewExample = '';
+	let folderPath = $settingsStore.defaultFolderPath;
 
 	// Load current settings on mount
 	onMount(() => {
-		const settings = getSettings();
-		syncNotes = settings.syncNotes;
-		if (settings.noteDelimiter === '' || settings.noteDelimiter == null) {
+		syncNotes = $settingsStore.syncNotes;
+		if ($settingsStore.noteDelimiter === '' || $settingsStore.noteDelimiter == null) {
 			delimiterOption = 'none';
 			customDelimiter = '';
 		} else {
 			delimiterOption = 'custom';
-			customDelimiter = settings.noteDelimiter;
+			customDelimiter = $settingsStore.noteDelimiter;
 		}
 		updatePreview();
 	});
 
-	async function resetNotes() {
-		isWorking = true;
-		const allTasks = getSettings().TickTickTasksData.tasks;
-		for (const task of allTasks) {
-			task.modifiedTime = '1970-01-01T00:00:00.000Z';
-		}
-		updateSettings({ TickTickTasksData: { ...getSettings().TickTickTasksData, tasks: allTasks } });
-		if (plugin.tickTickRestAPI && plugin.tickTickRestAPI.api) {
-			plugin.tickTickRestAPI!.api!.checkpoint = 0;
-		}
-		updateSettings({ checkPoint: 0 });
-		await plugin.saveSettings();
-		await plugin.scheduledSynchronization();
-		isWorking = false;
-	}
 
 	// Handle when radio is changed
 	function handleOptionChange(option: 'none' | 'custom') {
@@ -62,7 +53,7 @@
 
 	// Save the delimiter to settings
 	async function saveDelimiter(value: string) {
-		updateSettings({ noteDelimiter: value });
+		settingsStore.update(s => ({ ...s, noteDelimiter: value }));
 		await plugin.saveSettings();
 	}
 
@@ -100,7 +91,7 @@
 						on:change={async (e) => {
 							const checked = e.target.checked;
 							syncNotes = checked; // Ensure local state stays in sync
-							updateSettings({ syncNotes: checked });
+							settingsStore.update(s => ({ ...s, syncNotes: checked }));
 							await plugin.saveSettings();
 					  }}
 					/>
@@ -118,7 +109,8 @@
 				<div class="setting-item-info">
 					<div class="setting-item-name">Note Delimiter</div>
 					<div class="setting-item-description">
-						Choose how Notes are separated from a Task. <br>Changes will be applied on next update from TickTick.
+						Choose how Notes are separated from a Task. <br>Changes will be applied on next update from
+						TickTick.
 					</div>
 				</div>
 				<div class="setting-item-control">
@@ -168,19 +160,13 @@
 		{/if}
 
 		<br>
-		<div class="setting-item">
-			<div class="setting-item-info">
-				<div class="setting-item-name">Reset Notes</div>
-				<div class="setting-item-description">Do you want to {resetNotesText} <br> <em> Caution: This may take
-					some
-					time.</em></div>
-			</div>
-			<div class="setting-item-control">
-				<button disabled={isWorking} class="mod-cta" on:click={resetNotes}>
-					Reset Notes.
-				</button>
-			</div>
-		</div>
+		<ResetTasksControl
+			{isWorking}
+			{resetTasksText}
+			{plugin}
+			{setIsWorking}
+		/>
+
 
 	</div>
 </div>
