@@ -26,9 +26,18 @@
 
 	function generateDebugInfoSubset() {
 		const settings = getSettings();
+		const fileMetaData = getSettings().fileMetadata;
+		const fmdData = [];
+		for (const file in fileMetaData) {
+			const numFiles = fileMetaData[file].TickTickTasks? fileMetaData[file].TickTickTasks.length: "TickTickTasks not found" ;
+			fmdData.push(`${file}, ${numFiles}`);
+		}
+
+
 		const debugInfo = {
 			general: {
 				version: settings.version,
+				baseURL: settings.baseURL,
 				enableFullVaultSync: settings.enableFullVaultSync,
 				debugMode: settings.debugMode,
 				logLevel: settings.logLevel,
@@ -36,8 +45,10 @@
 				taskLinksInObsidian: settings.taskLinksInObsidian,
 				bkupFolder: settings.bkupFolder,
 				skipBackup: settings.skipBackup,
+				numProjects: settings.TickTickTasksData.projects.length,
+				fileTasks: fmdData
 			},
-			defaults :
+			defaults:
 				{
 					defaultProjectName: settings.defaultProjectName,
 					defaultProjectId: settings.defaultProjectId,
@@ -50,7 +61,7 @@
 			},
 			noteSetting: {
 				syncNotes: settings.syncNotes,
-				noteDelimiter: settings.noteDelimiter,
+				noteDelimiter: settings.noteDelimiter
 			}
 		};
 		return debugInfo;

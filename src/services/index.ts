@@ -79,6 +79,7 @@ export class TickTickService {
 				error = api.lastError;
 				const errorString = 'Login Failed. ' + JSON.stringify(error.errorMessage, null, 4);
 				new Notice(errorString, 5000);
+				log.error("Login Fail!: ", errorString);
 				throw new Error(error.errorMessage);
 			}
 			const defaultProjectId = getSettings().defaultProjectId;
