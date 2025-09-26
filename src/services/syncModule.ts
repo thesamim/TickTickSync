@@ -540,7 +540,7 @@ export class SyncMan {
 					//log.debug(updatedContent)
 					savedTask.modifiedTime = this.plugin.dateMan?.formatDateToISO(new Date());
 
-					// log.debug("TRACETHIS: 3", lineTask.dateHolder);
+					log.debug("TRACETHIS: 3", lineTask.dateHolder);
 					const saveDateHolder = lineTask.dateHolder; //because it's going to get clobered when we refetch the tas,
 					const updatedTask = <ITask>await this.plugin.tickTickRestAPI?.UpdateTask(lineTask);
 					//TODO: This feels Kludgy AF. examine ways to get past this.
@@ -932,6 +932,7 @@ export class SyncMan {
 				return false;
 			}
 
+			log.debug("Token on sync: ", this.plugin.tickTickRestAPI?.token)
 			let bModifiedFileSystem = false;
 			const allResources = await this.plugin.tickTickRestAPI?.getAllResources();
 			if (!allResources) {
@@ -956,7 +957,7 @@ export class SyncMan {
 			if (syncTag) {
 				//TODO: In the fullness of time we need to look at Tag Labels not Tag Names.
 				//because TickTick only stores lowercase tags.;
-				syncTag.toLowerCase();
+				syncTag = syncTag.toLowerCase();
 				if (syncTag.includes('/')) {
 					syncTag = syncTag.replace(/\//g, '-');
 				}

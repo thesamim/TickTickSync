@@ -1,7 +1,7 @@
 import '@/static/index.css';
 import '@/static/styles.css';
 
-import type { Editor, MarkdownFileInfo } from 'obsidian';
+import { type Editor, type MarkdownFileInfo, Platform } from 'obsidian';
 import { MarkdownView, Notice, Plugin, TFolder } from 'obsidian';
 
 //settings
@@ -413,10 +413,11 @@ export default class TickTickSync extends Plugin {
 		});
 
 		//Used for testing adhoc code.
-		// const ribbonIconEl1 = this.addRibbonIcon('check', 'TTS Test', async (evt: MouseEvent) => {
-		// 	// Nothing to see here right now.
-		// 	// const { target } = evt;
-		// });
+		const ribbonIconEl1 = this.addRibbonIcon('check', 'TTS Test', async (evt: MouseEvent) => {
+			// Nothing to see here right now.
+			const foo = await this.tickTickRestAPI?.api?.getUserStatus()
+			new Notice(JSON.stringify(foo, null, 4), 0)
+		});
 
 
 		this.registerEvents();
@@ -685,6 +686,32 @@ export default class TickTickSync extends Plugin {
 		});
 		return await myModal.showModal();
 
+	}
+	getDefaultDeviceName() {
+		if (Platform.isDesktopApp) {
+			return (
+				// eslint-disable-next-line @typescript-eslint/no-var-requires
+				require("os").hostname() ||
+				(Platform.isMacOS
+					? "Mac"
+					: Platform.isWin
+						? "Windows"
+						: Platform.isLinux
+							? "Linux"
+							: "Desktop")
+			);
+		}
+		if (Platform.isIosApp) {
+			if (Platform.isPhone) return "iPhone";
+			if (Platform.isTablet) return "iPad";
+			return "iOS Device";
+		}
+		if (Platform.isAndroidApp) {
+			if (Platform.isPhone) return "Android Phone";
+			if (Platform.isTablet) return "Android Tablet";
+			return "Android Device";
+		}
+		return "Unknown Device";
 	}
 }
 

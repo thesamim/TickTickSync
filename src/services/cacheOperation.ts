@@ -295,13 +295,15 @@ export class CacheOperation {
 				}
 			}
 
-			// if ((projectId === getSettings().inboxID) ||
-			// 	(projectId === getSettings().defaultProjectId)) { //highly unlikely, but just in case
-			// 	//They don't have a file for the Inbox. If they have a default project, return that.
-			// 	if (getSettings().defaultProjectName) {
-			// 		return getDefaultFolder() +"/"+ getSettings().defaultProjectName + ".md"
-			// 	}
-			// }
+			//If the project is the inbox, return the inbox or default project file. (It may not have been created)
+			if ((projectId === getSettings().inboxID) ||
+				(projectId === getSettings().defaultProjectId)) { //highly unlikely, but just in case
+				//They don't have a file for the Inbox. If they have a default project, return that.
+				if (getSettings().defaultProjectName) {
+					return getDefaultFolder() +"/"+ getSettings().defaultProjectName + ".md"
+				}
+			}
+
 			//otherwise, return the project name as a md file and hope for the best.
 			const filePath = await this.getProjectNameByIdFromCache(projectId/*, getSettings().keepProjectFolders*/);
 			if (filePath) {

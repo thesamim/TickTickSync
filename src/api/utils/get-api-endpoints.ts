@@ -14,13 +14,13 @@ const API_ENDPOINTS = {
 	allTasksEndPoint: 'batch/check/',
 	TaskEndPoint: 'task',
 	updateTaskEndPoint: 'batch/task',
-	//If this ever existed, it's gone now. use getSections. That's the only project detail anyway.
-	//getProject: 'project/',
+	getProjects: 'projects/',
 	getSections: 'column/project/',
 	getAllCompletedItems: 'project/all/completedInAll/',
 	exportData: 'data/export',
 	projectMove: 'batch/taskProject',
-	parentMove: `batch/taskParent`
+	parentMove: `batch/taskParent`,
+	userStatus: 'user/status',
 };
 
 /*

@@ -31,7 +31,8 @@ const {
 	getAllCompletedItems,
 	exportData,
 	projectMove,
-	parentMove
+	parentMove,
+	userStatus
 } = API_ENDPOINTS;
 
 interface IoptionsProps {
@@ -169,8 +170,30 @@ export class Tick {
 		}
 	}
 
+	async getUserStatus(): Promise<RequestUrlResponse | null> {
+		try {
 
-	async getInboxProperties(): Promise<boolean> {
+			const url = `${this.apiUrl}/${userStatus}`;
+log.debug("before", this.token)
+			const response = await this.makeRequest('Get User status', url, 'GET', undefined);
+			log.debug("Response: ", JSON.stringify(response, null, 2));
+			if (response) {
+				return {
+					token: this.token,
+					inboxId: response.inboxId,
+					userID: response.username
+				};
+			} else {
+				return null;
+			}
+		} catch (e) {
+			log.error('Get User Status failed: ', e);
+			this.setError('Get User Status', null, e);
+			return null;
+		}
+	}
+
+	async  	getInboxProperties(): Promise<boolean> {
 		try {
 			for (let i = 0; i < 10; i++) {
 				if (i !== 0) this.reset();

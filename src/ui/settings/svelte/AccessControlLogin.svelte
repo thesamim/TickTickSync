@@ -4,6 +4,9 @@
 	import { onMount } from 'svelte';
 	import { settingsStore } from '@/ui/settings/settingsstore';
 	import { getSettings, updateSettings } from '@/settings';
+	import { DesktopAuth } from '@/utils/login/desktop-auth'
+	import log from 'loglevel';
+	import { Tick } from '@/api';
 
 	export let plugin: TickTickSync;
 
@@ -14,22 +17,8 @@
 	let baseURL: string;
 	let isWorking: boolean = false;
 	let loggedIn: boolean = false;
-	
-	async function handleLogin() {
-		isWorking = true;
-		if (!$settingsStore.baseURL || !userLogin || !userPassword) {
-			new Notice('Please fill in both Username and Password');
-			isWorking = false;
-			return;
-		}
 
-		const info = await plugin.service.login(baseURL, userLogin, userPassword);
-		if (!info) {
-			new Notice('Login Failed. ');
-			isWorking = false;
-			return;
-		}
-
+	async function saveLoginInfo(info: { inboxId: string; token: string }) {
 		const oldInboxId = $settingsStore.inboxID;
 		if (oldInboxId.length > 0 && oldInboxId != info.inboxId) {
 			//they've logged in with a different user id ask user about it.
@@ -47,13 +36,76 @@
 		loggedIn = !!$settingsStore.token;
 		if (plugin.tickTickRestAPI && plugin.tickTickRestAPI.api) {
 			plugin.tickTickRestAPI!.api!.checkpoint = 0;
+			plugin.tickTickRestAPI!.api!.token = info.token;
 		}
 		await plugin.saveProjectsToCache();
 		await plugin.saveSettings(true);
-	  isWorking = false;
+	}
+
+	async function handleLogin() {
+		isWorking = true;
+		if (!$settingsStore.baseURL || !userLogin || !userPassword) {
+			new Notice('Please fill in both Username and Password');
+			isWorking = false;
+			return;
+		}
+
+		const info = await plugin.service.login(baseURL, userLogin, userPassword);
+		if (!info) {
+			new Notice('Login Failed. ');
+			isWorking = false;
+			return;
+		}
+		await saveLoginInfo(info);
+		isWorking = false;
+	}
+
+	async function loginToTickTick() {
+		try {
+			new Notice('Opening TickTick login...');
+			const desktopAuth = new DesktopAuth(plugin, baseURL	);
+			const cookie = await desktopAuth.authenticate();
+
+			if (cookie) {
+				log.log('token received:', cookie.value);
+
+				new Notice('Login successful! Cookies saved.');
+
+				// Test API access
+				let info;
+				if (plugin.service.api) {
+					plugin.tickTickRestAPI!.api!.checkpoint = 0;
+					plugin.tickTickRestAPI!.api!.token = cookie.value;
+					log.debug("API: ", JSON.stringify(plugin.tickTickRestAPI!.api));
+					info = await plugin.service.api.getUserStatus()
+					log.debug('there was an API info', info);
+				} else {
+					plugin.service.api = new Tick({
+						username: "",
+						password: "",
+						baseUrl: $settingsStore.baseURL,
+						token: cookie.value,
+						checkPoint: 0
+					});
+					info = await plugin.service.api.getUserStatus()
+					log.debug('there wasn\'t an API info', info);
+				}
+				if (info) {
+					log.debug("info token: " + info.token);
+					await saveLoginInfo(info);
+				}
+			} else {
+				log.debug('No cookies received.');
+				throw new Error("Failed to fetch cookies.")
+			}
+		} catch (error) {
+			new Notice('Login failed: ' + error.message, 5000);
+			log.error('Authentication error:', error);
+		}
 	}
 	onMount(async () => {
 		loggedIn = !!$settingsStore.token;
+		baseURL = $settingsStore.baseURL;
 	});
 
 
@@ -80,7 +132,16 @@
 			</select>
 		</div>
 	</div>
+	<div class="setting-item">
 
+		<div class="setting-item-control">
+			<button disabled={isWorking}
+					class="mod-cta ts_login_button"
+					on:click={loginToTickTick}>
+				Login with TickTick
+			</button>
+		</div>
+	</div>
 	<div class="setting-item">
 		<div class="setting-item-info">
 			<div class="setting-item-name">Username</div>
@@ -124,4 +185,5 @@
 			</button>
 		</div>
 	</div>
+
 </div>
