@@ -1,10 +1,6 @@
 export { API_ENDPOINTS };
 
 const API_ENDPOINTS = {
-	ticktickServer: 'ticktick.com',
-	protocol: 'https://',
-	apiProtocol: 'https://api.',
-	apiVersion: '/api/v2',
 	signInEndPoint: 'user/signon?wc=true&remember=true',
 	userPreferencesEndPoint: 'user/preferences/settings',
 	allProjectGroupsEndPoint: 'batch/check/', //TODO: populate from the projectGroups

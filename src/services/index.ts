@@ -9,7 +9,7 @@ import { FileOperation } from '@/fileOperation';
 import { FileMap } from '@/services/fileMap';
 //Logging
 import log from '@/utils/logger';
-
+import { getTick } from '@/api/tick_singleton_factory'
 
 const LOCK_TASKS = 'LOCK_TASKS';
 
@@ -39,7 +39,7 @@ export class TickTickService {
 				//TODO re login or ask user?
 			}
 
-			this.api = new Tick({
+			this.api = getTick({
 				baseUrl: getSettings().baseURL,
 				token: token,
 				checkPoint: getSettings().checkPoint
@@ -65,7 +65,7 @@ export class TickTickService {
 	async login(baseUrl: string, username: string, password: string):
 		Promise<{ inboxId: string; token: string } | null> {
 		try {
-			const api = new Tick({
+			const api = getTick({
 				username: username,
 				password: password,
 				baseUrl: baseUrl,

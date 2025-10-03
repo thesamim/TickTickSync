@@ -6,6 +6,7 @@ import type { IProject } from '@/api/types/Project';
 import { getSettings, updateSettings } from '@/settings';
 //logging
 import log from '@/utils/logger';
+import { getTick } from '@/api/tick_singleton_factory'
 
 export class TickTickRestAPI {
 	app: App;
@@ -34,7 +35,7 @@ export class TickTickRestAPI {
 				}));
 			}
 			if (!api) {
-				this.api = new Tick({
+				this.api = getTick({
 					baseUrl: getSettings().baseURL,
 					token: this.token,
 					checkPoint: getSettings().checkPoint

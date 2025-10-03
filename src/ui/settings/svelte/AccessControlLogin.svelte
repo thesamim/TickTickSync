@@ -1,12 +1,12 @@
 <script lang="ts">
 	import type TickTickSync from '@/main';
-	import { Notice } from 'obsidian';
+	import { Notice, Platform } from 'obsidian';
 	import { onMount } from 'svelte';
 	import { settingsStore } from '@/ui/settings/settingsstore';
 	import { getSettings, updateSettings } from '@/settings';
-	import { DesktopAuth } from '@/utils/login/desktop-auth'
 	import log from 'loglevel';
-	import { Tick } from '@/api';
+	import { getTick } from '@/api/tick_singleton_factory';
+	import { DesktopAuth2 } from '@/utils/login/desktop_authenticator';
 
 	export let plugin: TickTickSync;
 
@@ -17,27 +17,39 @@
 	let baseURL: string;
 	let isWorking: boolean = false;
 	let loggedIn: boolean = false;
+	let desktoApp: boolean = false;
+	let providerString: string = '';
 
 	async function saveLoginInfo(info: { inboxId: string; token: string }) {
 		const oldInboxId = $settingsStore.inboxID;
 		if (oldInboxId.length > 0 && oldInboxId != info.inboxId) {
-			//they've logged in with a different user id ask user about it.
 			new Notice('You are logged in with a different user ID.');
 		}
-		//if oldInboxId same as info.inboxId ask user about full re-syncing. set checkPoint to 0 to force full sync.
+
 		settingsStore.update(s => ({ ...s, token: info.token, inboxID: info.inboxId, checkPoint: 0 }));
 
 		updateSettings({
 			token: info.token,
 			inboxID: info.inboxId,
-			inboxName: 'Inbox', //TODO: In the fullness of time find out how to get the Dida inbox name.
+			inboxName: 'Inbox',
 			checkPoint: 0
 		});
 		loggedIn = !!$settingsStore.token;
+
+		// Ensure the shared Tick instance reflects new token/checkpoint
+		const api = getTick({
+			baseUrl: $settingsStore.baseURL,
+			token: info.token,
+			checkPoint: 0
+		});
+		// Keep plugin references coherent if they were already pointing at a Tick
 		if (plugin.tickTickRestAPI && plugin.tickTickRestAPI.api) {
-			plugin.tickTickRestAPI!.api!.checkpoint = 0;
-			plugin.tickTickRestAPI!.api!.token = info.token;
+			plugin.tickTickRestAPI.api = api;
 		}
+		if (plugin.service) {
+			plugin.service.api = api;
+		}
+
 		await plugin.saveProjectsToCache();
 		await plugin.saveSettings(true);
 	}
@@ -60,70 +72,105 @@
 		isWorking = false;
 	}
 
-	async function loginToTickTick() {
+	async function webBasedLogin() {
 		try {
+			isWorking = true;
 			new Notice('Opening TickTick login...');
-			const desktopAuth = new DesktopAuth(plugin, baseURL	);
-			const cookie = await desktopAuth.authenticate();
+			// const desktopAuth = new DesktopAuth(plugin, baseURL);
+			// const cookie = await desktopAuth.authenticate();
 
+			const desktopAut = new DesktopAuth2(plugin, baseURL);
+			const cookie = await desktopAut.authenticate();
 			if (cookie) {
-				log.log('token received:', cookie.value);
-
 				new Notice('Login successful! Cookies saved.');
 
-				// Test API access
-				let info;
-				if (plugin.service.api) {
-					plugin.tickTickRestAPI!.api!.checkpoint = 0;
-					plugin.tickTickRestAPI!.api!.token = cookie.value;
-					log.debug("API: ", JSON.stringify(plugin.tickTickRestAPI!.api));
-					info = await plugin.service.api.getUserStatus()
-					log.debug('there was an API info', info);
-				} else {
-					plugin.service.api = new Tick({
-						username: "",
-						password: "",
-						baseUrl: $settingsStore.baseURL,
-						token: cookie.value,
-						checkPoint: 0
-					});
-					info = await plugin.service.api.getUserStatus()
-					log.debug('there wasn\'t an API info', info);
+				// Configure singleton Tick with the new cookie
+				const api = getTick({
+					username: '',
+					password: '',
+					baseUrl: $settingsStore.baseURL,
+					token: cookie.value,
+					checkPoint: 0
+				});
+				// Wire references to the singleton
+				if (plugin.tickTickRestAPI) {
+					plugin.tickTickRestAPI.api = api;
 				}
+				plugin.service.api = api;
+
+				// Test API access using the singleton
+				const info = await api.getUserStatus();
 				if (info) {
-					log.debug("info token: " + info.token);
 					await saveLoginInfo(info);
+				} else {
+					new Notice('Failed to verify login with API.', 5000);
 				}
 			} else {
-				log.debug('No cookies received.');
-				throw new Error("Failed to fetch cookies.")
+				isWorking = false;
+				throw new Error('Failed to fetch cookies.');
 			}
+			isWorking = false;
 		} catch (error) {
 			new Notice('Login failed: ' + error.message, 5000);
 			log.error('Authentication error:', error);
+			isWorking = false;
 		}
 	}
+
 	onMount(async () => {
 		loggedIn = !!$settingsStore.token;
 		baseURL = $settingsStore.baseURL;
+		desktoApp = Platform.isDesktopApp;
+		providerString = PROVIDER_OPTIONS[baseURL] || 'Not Selected';
 	});
-
-
 </script>
 
 <div class="access-control">
+	<div class="login-status-banner">
+		{loggedIn ? 'You are logged in. You can re-login here.' : 'Please login here.'}
+		<div class="login-status-banner-actions">
+			<br>Regardless of login option, TickTickSync will not save your User ID or your Password anywhere.<br>
+		</div>
+		{#if desktoApp}
+			<div class="login-status-banner-actions">
+				<br>If you have your { providerString } account is set up with SSO/2FA, login using SSO/2FA.<br>If
+				you have your { providerString } account set up with a username and password, login using Regular Login.<br>
+			</div>
+		{:else }
+			<div class="login-status-banner-actions">
+				<br>Mobile only allows for Regular Login.<br>
+				If you have your { providerString } account is set up with SSO/2FA, please login from desktop first, synchronize your vault to this device and you will be logged in.<br>
+			</div>
+		{/if}
+	</div>
+
 	<div class="setting-item">
 		<div class="setting-item-info">
-			<div class="setting-item-name">TickTick/Dida</div>
+			<div class="setting-item-name">{ providerString }</div>
 			<div class="setting-item-description">Select home server</div>
 		</div>
 		<div class="setting-item-control">
-			<select
+			<select disabled={isWorking}
 				value={getSettings().baseURL}
 				on:change={async (e) => {
 					baseURL = e.target.value;
+					providerString = PROVIDER_OPTIONS[baseURL];
 					$settingsStore.baseURL = baseURL;
 					updateSettings({ baseURL: baseURL });
+
+					// Update singleton baseUrl if already logged in
+					if ($settingsStore.token) {
+						const api = getTick({
+							baseUrl: baseURL,
+							token: $settingsStore.token,
+							checkPoint: $settingsStore.checkPoint ?? 0
+						});
+						if (plugin.tickTickRestAPI) {
+							plugin.tickTickRestAPI.api = api;
+						}
+						plugin.service.api = api;
+					}
+
 					await plugin.saveSettings();
 				}}>
 				{#each Object.entries(PROVIDER_OPTIONS) as [value, label]}
@@ -132,58 +179,75 @@
 			</select>
 		</div>
 	</div>
-	<div class="setting-item">
 
-		<div class="setting-item-control">
-			<button disabled={isWorking}
-					class="mod-cta ts_login_button"
-					on:click={loginToTickTick}>
-				Login with TickTick
-			</button>
-		</div>
-	</div>
-	<div class="setting-item">
-		<div class="setting-item-info">
-			<div class="setting-item-name">Username</div>
-			<div class="setting-item-description">Your TickTick/Dida account username</div>
-		</div>
-		<div class="setting-item-control">
-			<input
-				type="text"
-				placeholder="Username"
-				bind:value={userLogin}
-			/>
-		</div>
-	</div>
+	{#if desktoApp}
+		<div class='card-section'>
+			<div class="setting-item">
+				<div class="setting-item-info">
+					<div class="setting-item-name">SSO/2FA Login</div>
+					<div class="setting-item-description">
+					</div>
+				</div>
 
-	<div class="setting-item">
-		<div class="setting-item-info">
-			<div class="setting-item-name">Password</div>
-			<div class="setting-item-description">Your TickTick/Dida account password</div>
-		</div>
-		<div class="setting-item-control">
-			<input
-				type="password"
-				placeholder="Password"
-				bind:value={userPassword}
-			/>
-		</div>
-	</div>
-
-	<div class="setting-item">
-		<div class="setting-item-info">
-			<div class="setting-item-name">Login</div>
-			<div class="setting-item-description">
-				{loggedIn ? 'You are logged in. You can re-login here.' : 'Please login here.'}
+				<div class="setting-item-control">
+					<button disabled={isWorking}
+							class="mod-cta ts_login_button"
+							on:click={webBasedLogin}>
+						Login with {providerString}
+					</button>
+				</div>
 			</div>
 		</div>
-		<div class="setting-item-control">
-			<button disabled={isWorking}
-				class="mod-cta ts_login_button"
-				on:click={handleLogin}>
-				Login
-			</button>
+	{/if}
+	<div class='card-section'>
+		<!--		<div class ='card-header'>Regular login</div>-->
+		<div class="setting-item-info">
+			<div class="setting-item-name">Regular Login</div>
+			<div class="setting-item-description">
+			</div>
+		</div>
+		<div class="setting-item">
+			<div class="setting-item-info">
+				<div class="setting-item-name">Username</div>
+				<div class="setting-item-description">Your {providerString} account username</div>
+			</div>
+			<div class="setting-item-control">
+				<input
+					type="text"
+					placeholder="Username"
+					bind:value={userLogin}
+				/>
+			</div>
+		</div>
+
+		<div class="setting-item">
+			<div class="setting-item-info">
+				<div class="setting-item-name">Password</div>
+				<div class="setting-item-description">Your { providerString } account password</div>
+			</div>
+			<div class="setting-item-control">
+				<input
+					type="password"
+					placeholder="Password"
+					bind:value={userPassword}
+				/>
+			</div>
+		</div>
+
+		<div class="setting-item">
+			<div class="setting-item-info">
+				<div class="setting-item-name">Login</div>
+				<div class="setting-item-description">
+					{loggedIn ? 'You are logged in. You can re-login here.' : 'Please login here.'}
+				</div>
+			</div>
+			<div class="setting-item-control">
+				<button disabled={isWorking}
+						class="mod-cta ts_login_button"
+						on:click={handleLogin}>
+					Login
+				</button>
+			</div>
 		</div>
 	</div>
-
 </div>

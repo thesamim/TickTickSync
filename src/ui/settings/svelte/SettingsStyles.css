@@ -76,6 +76,52 @@
 	padding: 0;
 	/* Ensure card looks good in all themes */
 }
+.card-section {
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 8px;
+	background: var(--background-secondary);
+	margin: 24px 0;
+	box-shadow: 0 1px 6px 0 rgba(16, 22, 26, .08);
+	color: var(--text-normal);
+	transition: box-shadow 0.18s, background 0.18s;
+	padding: 0;
+	/* Ensure card looks good in all themes */
+}
+
+.card-section .setting-item-name {
+	margin: 2px 11px;
+}
+
+.card-section .setting-item-description {
+	margin: 2px 11px;
+}
+
+.card-header {
+	font-weight: 400;
+	display: flex;
+	align-items: center;
+	gap: .5em;
+	user-select: none;
+	font-size: 1.1em;
+	padding: 7px 11px;
+	border-bottom: 1px solid var(--background-modifier-border);
+	background: var(--background-tertiary);
+	border-top-left-radius: 8px;
+	border-top-right-radius: 8px;
+	transition: background 0.18s, color 0.18s;
+}
+.login-status-banner {
+	border: 2px solid var(--interactive-accent);
+	background-color: var(--background-secondary);
+	padding: 12px 16px;
+	margin-bottom: 20px;
+	border-radius: 6px;
+	font-weight: 500;
+	box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+.login-status-banner-actions {
+	font-weight: 100;
+}
 
 @media (prefers-color-scheme: dark) {
 	.collapsible-section {

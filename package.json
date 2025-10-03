@@ -28,6 +28,7 @@
 		"url": "https://github.com/thesamim/TickTickSync/issues"
 	},
 	"dependencies": {
+		"@capacitor/browser": "^7.0.2",
 		"@popperjs/core": "^2.11.8",
 		"@types/lowdb": "^1.0.15",
 		"bson-objectid": "^2.0.4",

@@ -14,10 +14,6 @@ import log from 'loglevel';
 import { getSettings, updateSettings } from '@/settings';
 
 const {
-	ticktickServer,
-	protocol,
-	apiProtocol,
-	apiVersion,
 	TaskEndPoint,
 	updateTaskEndPoint,
 	allTagsEndPoint,
@@ -34,6 +30,8 @@ const {
 	parentMove,
 	userStatus
 } = API_ENDPOINTS;
+
+
 
 interface IoptionsProps {
 	token: string;
@@ -65,10 +63,12 @@ export class Tick {
 	cookieHeader: string;
 	private originUrl: string;
 
+	ticktickServer: string = 'ticktick.com';
+	protocol: string = 'https://';
+	apiProtocol: string = 'https://api.';
+	apiVersion: string = '/api/v2';
 
-//Dear Future me: the check is a checkpoint based thing. As in: give me everything after a certain checkpoint
-//                0 behavior has become non-deterministic. It appears that checkpoint is a epoch number.
-//                I **think** it indicates the time of last fetch. This could be useful.
+
 	private userAgent: string;
 	private deviceAgent: string;
 
@@ -83,13 +83,13 @@ export class Tick {
 		this.deviceAgent = this.getXDevice();
 
 		if (baseUrl) {
-			this.apiUrl = `${apiProtocol}${baseUrl}${apiVersion}`;
-			this.loginUrl = `${protocol}${baseUrl}${apiVersion}`;
-			this.originUrl = `${protocol}${baseUrl}`;
+			this.apiUrl = `${(this.apiProtocol)}${baseUrl}${(this.apiVersion)}`;
+			this.loginUrl = `${(this.protocol)}${baseUrl}${(this.apiVersion)}`;
+			this.originUrl = `${(this.protocol)}${baseUrl}`;
 		} else {
-			this.apiUrl = `${apiProtocol}${ticktickServer}${apiVersion}`;
-			this.loginUrl = `${protocol}${ticktickServer}${apiVersion}`;
-			this.originUrl = `${protocol}${ticktickServer}`;
+			this.apiUrl = `${(this.apiProtocol)}${(this.ticktickServer)}${(this.apiVersion)}`;
+			this.loginUrl = `${(this.protocol)}${(this.ticktickServer)}${(this.apiVersion)}`;
+			this.originUrl = `${(this.protocol)}${(this.ticktickServer)}`;
 		}
 
 		if (checkPoint != undefined) {
@@ -101,7 +101,6 @@ export class Tick {
 
 	}
 
-//TODO: in the fullness of time, figure out checkpoint processing to reduce traffic.
 	private _checkpoint: number;
 
 	get checkpoint(): number {

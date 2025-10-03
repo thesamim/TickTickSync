@@ -932,7 +932,6 @@ export class SyncMan {
 				return false;
 			}
 
-			log.debug("Token on sync: ", this.plugin.tickTickRestAPI?.token)
 			let bModifiedFileSystem = false;
 			const allResources = await this.plugin.tickTickRestAPI?.getAllResources();
 			if (!allResources) {

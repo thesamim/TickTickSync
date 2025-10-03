@@ -39,9 +39,6 @@ import { DateMan } from '@/dateMan';
 
 //logging
 import log from '@/utils/logger';
-import { FileMap } from '@/services/fileMap';
-import type { ITask } from '@/api/types/Task';
-import { waitFor } from '@/utils/locks';
 
 
 export default class TickTickSync extends Plugin {
@@ -415,8 +412,8 @@ export default class TickTickSync extends Plugin {
 		//Used for testing adhoc code.
 		const ribbonIconEl1 = this.addRibbonIcon('check', 'TTS Test', async (evt: MouseEvent) => {
 			// Nothing to see here right now.
-			const foo = await this.tickTickRestAPI?.api?.getUserStatus()
-			new Notice(JSON.stringify(foo, null, 4), 0)
+			// const foo = await this.tickTickRestAPI?.api?.getUserStatus()
+			// log.debug(foo)
 		});
 
 
