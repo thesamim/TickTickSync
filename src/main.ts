@@ -1,7 +1,7 @@
 import '@/static/index.css';
 import '@/static/styles.css';
 
-import type { Editor, MarkdownFileInfo } from 'obsidian';
+import { type Editor, type MarkdownFileInfo, Platform } from 'obsidian';
 import { MarkdownView, Notice, Plugin, TFolder } from 'obsidian';
 
 //settings
@@ -39,10 +39,6 @@ import { DateMan } from '@/dateMan';
 
 //logging
 import log from '@/utils/logger';
-import { FileMap } from '@/services/fileMap';
-import type { ITask } from '@/api/types/Task';
-import { waitFor } from '@/utils/locks';
-
 
 export default class TickTickSync extends Plugin {
 
@@ -415,7 +411,8 @@ export default class TickTickSync extends Plugin {
 		//Used for testing adhoc code.
 		// const ribbonIconEl1 = this.addRibbonIcon('check', 'TTS Test', async (evt: MouseEvent) => {
 		// 	// Nothing to see here right now.
-		// 	// const { target } = evt;
+		// 	// const foo = await this.tickTickRestAPI?.api?.getUserStatus()
+		// 	// log.debug(foo)
 		// });
 
 
@@ -664,6 +661,9 @@ export default class TickTickSync extends Plugin {
 		if ((!data.version) || (isOlder(data.version, '1.1.10'))) {
 			notableChanges.push(['Several Changes', 'Tasks stay where they are created.\nBackups now configurable.\nNote delimiter now configurable.', 'priorTo1.1.9']);
 		}
+		if ((!data.version) || (isOlder(data.version, '1.1.14'))) {
+			notableChanges.push(['Can now login with SSO/2FA enabled account on Desktop', 'Desktop SSO/2FA login enabled.', 'priorTo1.1.14']);
+		}
 
 
 		if (notableChanges.length > 0) {
@@ -671,6 +671,7 @@ export default class TickTickSync extends Plugin {
 		}
 
 		//Update the version number. It will save me headaches later.
+		log.debug('Updating version number to ', this.manifest.version);
 		if ((!data.version) || (isOlder(data.version, this.manifest.version))) {
 			data.version = this.manifest.version;
 			await this.saveSettings();
@@ -685,6 +686,32 @@ export default class TickTickSync extends Plugin {
 		});
 		return await myModal.showModal();
 
+	}
+	getDefaultDeviceName() {
+		if (Platform.isDesktopApp) {
+			return (
+				// eslint-disable-next-line @typescript-eslint/no-var-requires
+				require("os").hostname() ||
+				(Platform.isMacOS
+					? "Mac"
+					: Platform.isWin
+						? "Windows"
+						: Platform.isLinux
+							? "Linux"
+							: "Desktop")
+			);
+		}
+		if (Platform.isIosApp) {
+			if (Platform.isPhone) return "iPhone";
+			if (Platform.isTablet) return "iPad";
+			return "iOS Device";
+		}
+		if (Platform.isAndroidApp) {
+			if (Platform.isPhone) return "Android Phone";
+			if (Platform.isTablet) return "Android Tablet";
+			return "Android Device";
+		}
+		return "Unknown Device";
 	}
 }
 

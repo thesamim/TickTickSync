@@ -1,10 +1,6 @@
 export { API_ENDPOINTS };
 
 const API_ENDPOINTS = {
-	ticktickServer: 'ticktick.com',
-	protocol: 'https://',
-	apiProtocol: 'https://api.',
-	apiVersion: '/api/v2',
 	signInEndPoint: 'user/signon?wc=true&remember=true',
 	userPreferencesEndPoint: 'user/preferences/settings',
 	allProjectGroupsEndPoint: 'batch/check/', //TODO: populate from the projectGroups
@@ -14,13 +10,13 @@ const API_ENDPOINTS = {
 	allTasksEndPoint: 'batch/check/',
 	TaskEndPoint: 'task',
 	updateTaskEndPoint: 'batch/task',
-	//If this ever existed, it's gone now. use getSections. That's the only project detail anyway.
-	//getProject: 'project/',
+	getProjects: 'projects/',
 	getSections: 'column/project/',
 	getAllCompletedItems: 'project/all/completedInAll/',
 	exportData: 'data/export',
 	projectMove: 'batch/taskProject',
-	parentMove: `batch/taskParent`
+	parentMove: `batch/taskParent`,
+	userStatus: 'user/status',
 };
 
 /*

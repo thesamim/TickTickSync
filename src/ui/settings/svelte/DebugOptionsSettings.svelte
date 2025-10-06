@@ -71,7 +71,7 @@
 		let debugInfo = generateDebugInfoSubset();
 		debugString = "```\n" + JSON.stringify(debugInfo, null, 2) + "\n```";
 		showDebugInfo = true;
-		console.log(debugString);
+		log.debug(debugString);
 	}
 
 	async function copyToClipboard() {

@@ -1,5 +1,15 @@
 ## CHANGELOG
 
+### 1.1.14
+Feature: Can now login with SSO/2FA enabled account on Desktop
+Chore: Better singleton handling for API object
+
+### 1.1.13
+
+Feature: Tasks created in a file will stay in that file.
+Feature" Tasks Backup settings have moved to Manual Operations, and you can now set a folder for the backup
+
+
 ### 1.1.12
 
 FIX: case where syncNotes and taskLinksInNote conflicted

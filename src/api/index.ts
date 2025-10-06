@@ -14,10 +14,6 @@ import log from 'loglevel';
 import { getSettings, updateSettings } from '@/settings';
 
 const {
-	ticktickServer,
-	protocol,
-	apiProtocol,
-	apiVersion,
 	TaskEndPoint,
 	updateTaskEndPoint,
 	allTagsEndPoint,
@@ -31,8 +27,11 @@ const {
 	getAllCompletedItems,
 	exportData,
 	projectMove,
-	parentMove
+	parentMove,
+	userStatus
 } = API_ENDPOINTS;
+
+
 
 interface IoptionsProps {
 	token: string;
@@ -64,10 +63,12 @@ export class Tick {
 	cookieHeader: string;
 	private originUrl: string;
 
+	ticktickServer: string = 'ticktick.com';
+	protocol: string = 'https://';
+	apiProtocol: string = 'https://api.';
+	apiVersion: string = '/api/v2';
 
-//Dear Future me: the check is a checkpoint based thing. As in: give me everything after a certain checkpoint
-//                0 behavior has become non-deterministic. It appears that checkpoint is a epoch number.
-//                I **think** it indicates the time of last fetch. This could be useful.
+
 	private userAgent: string;
 	private deviceAgent: string;
 
@@ -82,13 +83,13 @@ export class Tick {
 		this.deviceAgent = this.getXDevice();
 
 		if (baseUrl) {
-			this.apiUrl = `${apiProtocol}${baseUrl}${apiVersion}`;
-			this.loginUrl = `${protocol}${baseUrl}${apiVersion}`;
-			this.originUrl = `${protocol}${baseUrl}`;
+			this.apiUrl = `${(this.apiProtocol)}${baseUrl}${(this.apiVersion)}`;
+			this.loginUrl = `${(this.protocol)}${baseUrl}${(this.apiVersion)}`;
+			this.originUrl = `${(this.protocol)}${baseUrl}`;
 		} else {
-			this.apiUrl = `${apiProtocol}${ticktickServer}${apiVersion}`;
-			this.loginUrl = `${protocol}${ticktickServer}${apiVersion}`;
-			this.originUrl = `${protocol}${ticktickServer}`;
+			this.apiUrl = `${(this.apiProtocol)}${(this.ticktickServer)}${(this.apiVersion)}`;
+			this.loginUrl = `${(this.protocol)}${(this.ticktickServer)}${(this.apiVersion)}`;
+			this.originUrl = `${(this.protocol)}${(this.ticktickServer)}`;
 		}
 
 		if (checkPoint != undefined) {
@@ -100,7 +101,6 @@ export class Tick {
 
 	}
 
-//TODO: in the fullness of time, figure out checkpoint processing to reduce traffic.
 	private _checkpoint: number;
 
 	get checkpoint(): number {
@@ -169,8 +169,28 @@ export class Tick {
 		}
 	}
 
+	async getUserStatus(): Promise<RequestUrlResponse | null> {
+		try {
 
-	async getInboxProperties(): Promise<boolean> {
+			const url = `${this.apiUrl}/${userStatus}`;
+			const response = await this.makeRequest('Get User status', url, 'GET', undefined);
+			if (response) {
+				return {
+					token: this.token,
+					inboxId: response.inboxId,
+					userID: response.username
+				};
+			} else {
+				return null;
+			}
+		} catch (e) {
+			log.error('Get User Status failed: ', e);
+			this.setError('Get User Status', null, e);
+			return null;
+		}
+	}
+
+	async  	getInboxProperties(): Promise<boolean> {
 		try {
 			for (let i = 0; i < 10; i++) {
 				if (i !== 0) this.reset();

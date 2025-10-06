@@ -704,7 +704,6 @@ export class TaskParser {
 
 	//ticktick specific url
 	createURL(newTaskId: string, projectId: string): string {
-		log.debug('createURL', getSettings().baseURL);
 		let url = '';
 		if (projectId) {
 			url = `https://${getSettings().baseURL}/webapp/#p/${projectId}/tasks/${newTaskId}`;
@@ -846,7 +845,6 @@ export class TaskParser {
 	}
 
 	private addNote(resultLine: string, content: string, numbTabs: number, type: string, id: string, projectId: string) {
-		log.debug()
 		//TODO figure out Note presentation
 		//admonitions just don't work in indented tasks. Until I sort out the presentation, keep it simple until I
 		//get all the functionality sorted out,

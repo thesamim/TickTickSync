@@ -243,7 +243,7 @@ export class DateMan {
 			dates.completedTime = this.getDateAndTime(task.completedTime, false, date_emoji.completedTime);
 		}
 		//Pick up the times that TickTick doesn't care about, but Obsidian does.
-		if (oldTask) {
+		if (oldTask && oldTask.dateHolder) {
 			if (oldTask.dateHolder.cancelled_date) {
 				dates.cancelled_date = oldTask.dateHolder.cancelled_date;
 			}
