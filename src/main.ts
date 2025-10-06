@@ -40,7 +40,6 @@ import { DateMan } from '@/dateMan';
 //logging
 import log from '@/utils/logger';
 
-
 export default class TickTickSync extends Plugin {
 
 	readonly service: TickTickService = new TickTickService(this);
@@ -410,11 +409,11 @@ export default class TickTickSync extends Plugin {
 		});
 
 		//Used for testing adhoc code.
-		const ribbonIconEl1 = this.addRibbonIcon('check', 'TTS Test', async (evt: MouseEvent) => {
-			// Nothing to see here right now.
-			// const foo = await this.tickTickRestAPI?.api?.getUserStatus()
-			// log.debug(foo)
-		});
+		// const ribbonIconEl1 = this.addRibbonIcon('check', 'TTS Test', async (evt: MouseEvent) => {
+		// 	// Nothing to see here right now.
+		// 	// const foo = await this.tickTickRestAPI?.api?.getUserStatus()
+		// 	// log.debug(foo)
+		// });
 
 
 		this.registerEvents();
@@ -662,6 +661,9 @@ export default class TickTickSync extends Plugin {
 		if ((!data.version) || (isOlder(data.version, '1.1.10'))) {
 			notableChanges.push(['Several Changes', 'Tasks stay where they are created.\nBackups now configurable.\nNote delimiter now configurable.', 'priorTo1.1.9']);
 		}
+		if ((!data.version) || (isOlder(data.version, '1.1.14'))) {
+			notableChanges.push(['Can now login with SSO/2FA enabled account on Desktop', 'Desktop SSO/2FA login enabled.', 'priorTo1.1.14']);
+		}
 
 
 		if (notableChanges.length > 0) {
@@ -669,6 +671,7 @@ export default class TickTickSync extends Plugin {
 		}
 
 		//Update the version number. It will save me headaches later.
+		log.debug('Updating version number to ', this.manifest.version);
 		if ((!data.version) || (isOlder(data.version, this.manifest.version))) {
 			data.version = this.manifest.version;
 			await this.saveSettings();

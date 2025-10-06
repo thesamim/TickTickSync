@@ -173,9 +173,7 @@ export class Tick {
 		try {
 
 			const url = `${this.apiUrl}/${userStatus}`;
-log.debug("before", this.token)
 			const response = await this.makeRequest('Get User status', url, 'GET', undefined);
-			log.debug("Response: ", JSON.stringify(response, null, 2));
 			if (response) {
 				return {
 					token: this.token,

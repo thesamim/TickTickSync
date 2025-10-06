@@ -5,7 +5,7 @@ import { getSettings } from '@/settings';
 
 type SessionCookie = { name: string; value: string };
 
-export class DesktopAuth2 {
+export class DesktopAuth {
 	private host: string;
 
 	constructor(private app: any, host: string) {
@@ -214,12 +214,10 @@ export class DesktopAuth2 {
 				if (!getSettings().debugMode) {
 					// Navigation heuristic: if user lands inside app, attempt cookie grab automatically
 					win.webContents.on('did-navigate', async (_e: any, url: string) => {
-						log.debug('did-navigate 1', url);
 						if (finished) return;
 						if (!url) return;
 
 						try {
-							log.debug('did-navigate', url);
 							const inApp = url.includes(`${this.host}/#/`) || url.includes(`${this.host}/webapp`);
 							if (inApp) {
 								const cookies = await tryGetCookies();
