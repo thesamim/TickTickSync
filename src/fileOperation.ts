@@ -157,7 +157,6 @@ export class FileOperation {
 					} else {
 						taskFile = this.plugin.cacheOperation.getFilepathForTask(task.id);
 					}
-					log.debug('taskFile', taskFile);
 					if (taskFile) {
 						log.debug('adding to ', taskFile);
 						this.addTaskToTFF(tasksForFiles, taskFile, task);
