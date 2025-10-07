@@ -61,12 +61,27 @@ export default defineConfig(({mode}) => {
 				],
 				output: {
 					// Overwrite default Vite output fileName
+					manualChunks: undefined,
+					inlineDynamicImports: true,
 					entryFileNames: 'main.js',
+					chunkFileNames: 'main.js',
 					assetFileNames: 'styles.css',
 					sourcemapBaseUrl: pathToFileURL(
 						DEV_PATH,
 					).toString(),
 				},
+
+				// Ensure Node/Electron globals aren’t polyfilled into browser code
+				optimizeDeps: {
+					exclude: [
+						'electron',
+						'@capacitor/browser'
+					]
+				},
+				// Prevent Vite from trying to polyfill Node built-ins for browser
+				define: {
+					'process.env': {}
+				}
 			},
 			outDir: getOutDir(prod),
 		},
