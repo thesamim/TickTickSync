@@ -158,15 +158,12 @@ export class FileOperation {
 						taskFile = this.plugin.cacheOperation.getFilepathForTask(task.id);
 					}
 					if (taskFile) {
-						log.debug('adding to ', taskFile);
 						this.addTaskToTFF(tasksForFiles, taskFile, task);
 					} else {
 						taskFile = await this.plugin.cacheOperation?.getFilepathForProjectId(task.projectId);
 						if(taskFile) {
-							log.debug('adding to ', taskFile);
 							this.addTaskToTFF(tasksForFiles, taskFile, task);
 						} else {
-							log.debug('adding to ', fileForDefaultProject);
 							this.addTaskToTFF(tasksForFiles, fileForDefaultProject, task);
 						}
 					}
@@ -285,7 +282,10 @@ export class FileOperation {
 				try {
 					const content = await this.app.vault.read(currentFile);
 					for (let taskListKey in taskList) {
-						if (content.includes(taskListKey)) {
+						// Only consider task ids that appear in the exact TickTick metadata pattern
+						// %%[ticktick_id:: <hex>]%% where <hex> is 24 hex chars
+						const pattern = new RegExp(`%%\\[ticktick_id::\\s*${taskListKey}\\]%%`, 'i');
+						if (pattern.test(content)) {
 							if (taskIds[taskListKey]) {
 								if (!duplicates[taskListKey]) {
 									duplicates[taskListKey] = [taskIds[taskListKey]];

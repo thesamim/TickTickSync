@@ -1288,8 +1288,6 @@ export class SyncMan {
 		const fileMap = new FileMap(this.app, this.plugin, file);
 		await fileMap.init();
 
-
-		log.debug('##forceUpdates: ', file_path);
 		const lines = fileMap.getFileLines().split('\n');
 		for (let line = 0; line < lines.length; line++) {
 			const lineText = lines[line];

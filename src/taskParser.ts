@@ -312,10 +312,9 @@ export class TaskParser {
 
 		//Do the description/content thing
 		if (taskRecord) {
-			if (taskRecord.taskLines.length > 1) {
+			if (taskRecord.taskLines.length > 0) {
 				const textContent = this.getNoteString(taskRecord,TickTick_id);
 				let noteText = noteURL + textContent;
-				log.debug("##noteStruct", textContent);
 				if (taskLineItems && taskLineItems.length > 0) {
 					description = noteText;
 				} else {
@@ -409,7 +408,6 @@ export class TaskParser {
 
 	getNoteString(taskRecord: ITaskRecord, id?: string | undefined) {
 		let textContent = '';
-		log.debug("##getNoteString", taskRecord.taskLines);
 		if (taskRecord.taskLines) {
 			let descriptionStrings = [...taskRecord.taskLines];
 
@@ -442,7 +440,6 @@ export class TaskParser {
 				textContent = descriptionStrings.length > 0 ? descriptionStrings.join('\n') : '';
 			}
 		}
-		log.debug("## after getNoteString", textContent);
 		return textContent ;
 	}
 
