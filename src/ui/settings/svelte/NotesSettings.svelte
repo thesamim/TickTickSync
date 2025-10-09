@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { getDefaultFolder } from '@/settings';
+	import { getDefaultFolder, updateSettings } from '@/settings';
 	import type TickTickSync from '@/main';
 	import './SettingsStyles.css';
 	import { onMount } from 'svelte';

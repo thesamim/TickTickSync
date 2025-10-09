@@ -661,18 +661,22 @@ export default class TickTickSync extends Plugin {
 		if ((!data.version) || (isOlder(data.version, '1.1.10'))) {
 			notableChanges.push(['Several Changes', 'Tasks stay where they are created.\nBackups now configurable.\nNote delimiter now configurable.', 'priorTo1.1.9']);
 		}
-		if ((!data.version) || (isOlder(data.version, '1.1.14'))) {
+		if ((!data.version) || (isOlder(data.version, '1.1.15'))) {
 			notableChanges.push(['Can now login with SSO/2FA enabled account on Desktop', 'Desktop SSO/2FA login enabled.', 'priorTo1.1.14']);
 		}
-
+		if ((!data.version) || (isOlder(data.version, '1.1.16'))) {
+			log.debug('pushing');
+			notableChanges.push(['Note handling improvements', 'Can now have checklist items and TickTick Task links in notes.', 'priorTo1.1.15']);
+		}
 
 		if (notableChanges.length > 0) {
 			await this.LatestChangesModal(notableChanges);
 		}
 
 		//Update the version number. It will save me headaches later.
-		log.debug('Updating version number to ', this.manifest.version);
+
 		if ((!data.version) || (isOlder(data.version, this.manifest.version))) {
+			log.debug('Updating version number to ', this.manifest.version);
 			data.version = this.manifest.version;
 			await this.saveSettings();
 		}

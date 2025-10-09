@@ -312,13 +312,13 @@ export class TaskParser {
 
 		//Do the description/content thing
 		if (taskRecord) {
-			if (taskRecord.taskLines.length > 1) {
-				const noteStruct = this.getNoteString(taskRecord,TickTick_id);
-				let noteText = noteURL + noteStruct.textContent;
-				if (noteStruct.isNote) {
-					content = noteText;
-				} else {
+			if (taskRecord.taskLines.length > 0) {
+				const textContent = this.getNoteString(taskRecord,TickTick_id);
+				let noteText = noteURL + textContent;
+				if (taskLineItems && taskLineItems.length > 0) {
 					description = noteText;
+				} else {
+					content = noteText;
 				}
 			} else { //no notes
 				if (noteURL) {
@@ -410,29 +410,37 @@ export class TaskParser {
 		let textContent = '';
 		if (taskRecord.taskLines) {
 			let descriptionStrings = [...taskRecord.taskLines];
-			//TODO if there's a notes preference need to account for it here.
-			//     for now, we're getting rid of the first line and the last line.
-			descriptionStrings.splice(0, 1);
-			descriptionStrings.splice(descriptionStrings.length - 1, 1);
-			let filteredDescriptionStrings ;
-			if (id) {
-				const linkRegex = new RegExp(`\\[link\\]\\(.*${this.escapeRegExp(id)}.*\\)`, 'i');
 
-				filteredDescriptionStrings = descriptionStrings.filter(line => {
-					const isMatch = linkRegex.test(line);
-					return !isMatch;
-				});
+			// Always strip matching opening/closing delimiter lines if present in the record,
+			// regardless of current settings. This enables conversion when user turns delimiter off.
+			if (descriptionStrings.length >= 2) {
+				const firstLine = descriptionStrings[0];
+				const lastLine = descriptionStrings[descriptionStrings.length - 1];
+				// Extract raw text for comparison (trim, but keep indentation logic in FileMap)
+				const firstText = firstLine.replace(/^\t*\s{2}/, '').trim();
+				const lastText = lastLine.replace(/^\t*\s{2}/, '').trim();
+				if (firstText.length > 0 && firstText === lastText) {
+					descriptionStrings = descriptionStrings.slice(1, -1);
+				}
+			}
+
+			// Respect current configured delimiter only for output formatting elsewhere;
+			// here we just produce plain note text.
+			let filteredDescriptionStrings;
+			if (id) {
+				// Filter out TickTick link lines that contain the task id so we don't duplicate links in notes
+				const linkRegex = new RegExp(`\\[link\\]\\(.*${this.escapeRegExp(id)}.*\\)`, 'i');
+				filteredDescriptionStrings = descriptionStrings.filter(line => !linkRegex.test(line));
 			}
 			if (filteredDescriptionStrings) {
 				filteredDescriptionStrings = filteredDescriptionStrings.map(line => line.replace(/^\t*\s{2}|^\s{2}/g, ''));
 				textContent = filteredDescriptionStrings.length > 0 ? filteredDescriptionStrings.join('\n') : '';
-
 			} else {
 				descriptionStrings = descriptionStrings.map(line => line.replace(/^\t*\s{2}|^\s{2}/g, ''));
 				textContent = descriptionStrings.length > 0 ? descriptionStrings.join('\n') : '';
 			}
 		}
-		return { isNote: taskRecord.isNote, textContent: textContent };
+		return textContent ;
 	}
 
 	hasTickTickTag(text: string) {
