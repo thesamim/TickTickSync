@@ -412,13 +412,22 @@ export class TaskParser {
 		log.debug("##getNoteString", taskRecord.taskLines);
 		if (taskRecord.taskLines) {
 			let descriptionStrings = [...taskRecord.taskLines];
-			// Respect the configured note delimiter: only strip first/last lines when a delimiter is configured
-			const noteDelimiter = getSettings().noteDelimiter as unknown;
-			const hasConfiguredDelimiter = (typeof noteDelimiter === 'string') && (noteDelimiter.length > 0);
-			if (hasConfiguredDelimiter && descriptionStrings.length >= 2) {
-				// Remove the opening and closing delimiter lines
-				descriptionStrings = descriptionStrings.slice(1, -1);
+
+			// Always strip matching opening/closing delimiter lines if present in the record,
+			// regardless of current settings. This enables conversion when user turns delimiter off.
+			if (descriptionStrings.length >= 2) {
+				const firstLine = descriptionStrings[0];
+				const lastLine = descriptionStrings[descriptionStrings.length - 1];
+				// Extract raw text for comparison (trim, but keep indentation logic in FileMap)
+				const firstText = firstLine.replace(/^\t*\s{2}/, '').trim();
+				const lastText = lastLine.replace(/^\t*\s{2}/, '').trim();
+				if (firstText.length > 0 && firstText === lastText) {
+					descriptionStrings = descriptionStrings.slice(1, -1);
+				}
 			}
+
+			// Respect current configured delimiter only for output formatting elsewhere;
+			// here we just produce plain note text.
 			let filteredDescriptionStrings;
 			if (id) {
 				// Filter out TickTick link lines that contain the task id so we don't duplicate links in notes

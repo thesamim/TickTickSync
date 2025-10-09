@@ -429,6 +429,16 @@ private getTaskLinesByIdx(taskIdx: number, taskRecord: ITaskRecord) {
 					break;
 				}
 			}
+
+			// If the first and last collected lines are identical non-empty strings at notePrefix,
+			// treat them as legacy delimiter lines and keep them for now; TaskParser.getNoteString will strip them.
+			if (taskLines.length >= 2) {
+				const first = taskLines[0]?.slice(notePrefix.length).trim();
+				const last = taskLines[taskLines.length - 1]?.slice(notePrefix.length).trim();
+				if (first && last && first === last) {
+					// leave as-is; downstream will remove when generating note text
+				}
+			}
 		}
 
 		// empty task lines better than no task lines.

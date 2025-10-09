@@ -21,7 +21,6 @@
 
 	let delimiterOption: 'none' | 'custom' = 'none';
 	let customDelimiter: string = ''; // e.g., "---", "**", etc.
-	let oldDelimiter: string = '';
 	let previewExample = '';
 	let folderPath = $settingsStore.defaultFolderPath;
 
