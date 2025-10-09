@@ -313,12 +313,13 @@ export class TaskParser {
 		//Do the description/content thing
 		if (taskRecord) {
 			if (taskRecord.taskLines.length > 1) {
-				const noteStruct = this.getNoteString(taskRecord,TickTick_id);
-				let noteText = noteURL + noteStruct.textContent;
-				if (noteStruct.isNote) {
-					content = noteText;
-				} else {
+				const textContent = this.getNoteString(taskRecord,TickTick_id);
+				let noteText = noteURL + textContent;
+				log.debug("##noteStruct", textContent);
+				if (taskLineItems && taskLineItems.length > 0) {
 					description = noteText;
+				} else {
+					content = noteText;
 				}
 			} else { //no notes
 				if (noteURL) {
@@ -408,31 +409,32 @@ export class TaskParser {
 
 	getNoteString(taskRecord: ITaskRecord, id?: string | undefined) {
 		let textContent = '';
+		log.debug("##getNoteString", taskRecord.taskLines);
 		if (taskRecord.taskLines) {
 			let descriptionStrings = [...taskRecord.taskLines];
-			//TODO if there's a notes preference need to account for it here.
-			//     for now, we're getting rid of the first line and the last line.
-			descriptionStrings.splice(0, 1);
-			descriptionStrings.splice(descriptionStrings.length - 1, 1);
-			let filteredDescriptionStrings ;
+			// Respect the configured note delimiter: only strip first/last lines when a delimiter is configured
+			const noteDelimiter = getSettings().noteDelimiter as unknown;
+			const hasConfiguredDelimiter = (typeof noteDelimiter === 'string') && (noteDelimiter.length > 0);
+			if (hasConfiguredDelimiter && descriptionStrings.length >= 2) {
+				// Remove the opening and closing delimiter lines
+				descriptionStrings = descriptionStrings.slice(1, -1);
+			}
+			let filteredDescriptionStrings;
 			if (id) {
+				// Filter out TickTick link lines that contain the task id so we don't duplicate links in notes
 				const linkRegex = new RegExp(`\\[link\\]\\(.*${this.escapeRegExp(id)}.*\\)`, 'i');
-
-				filteredDescriptionStrings = descriptionStrings.filter(line => {
-					const isMatch = linkRegex.test(line);
-					return !isMatch;
-				});
+				filteredDescriptionStrings = descriptionStrings.filter(line => !linkRegex.test(line));
 			}
 			if (filteredDescriptionStrings) {
 				filteredDescriptionStrings = filteredDescriptionStrings.map(line => line.replace(/^\t*\s{2}|^\s{2}/g, ''));
 				textContent = filteredDescriptionStrings.length > 0 ? filteredDescriptionStrings.join('\n') : '';
-
 			} else {
 				descriptionStrings = descriptionStrings.map(line => line.replace(/^\t*\s{2}|^\s{2}/g, ''));
 				textContent = descriptionStrings.length > 0 ? descriptionStrings.join('\n') : '';
 			}
 		}
-		return { isNote: taskRecord.isNote, textContent: textContent };
+		log.debug("## after getNoteString", textContent);
+		return textContent ;
 	}
 
 	hasTickTickTag(text: string) {

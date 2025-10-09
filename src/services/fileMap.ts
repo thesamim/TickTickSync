@@ -1,6 +1,8 @@
 import { App, TFile } from 'obsidian';
 import type { ITask } from '@/api/types/Task';
 import type TickTickSync from '@/main';
+import { getSettings } from '@/settings';
+import log from 'loglevel';
 
 //logging
 
@@ -10,7 +12,6 @@ export interface ITaskRecord {
 	task: string;
 	taskLines: string[];
 	parentId?: string;
-	isNote: boolean;
 }
 
 export interface ITaskItemRecord {
@@ -258,13 +259,16 @@ export class FileMap {
 			if (!this.plugin.taskParser?.isMarkdownTask(line)) {
 				continue;
 			}
-			//if content is empty
+			// if content is empty
 			if (this.plugin.taskParser?.getTaskContentFromLineText(line) == '') {
 				continue;
 			}
-			if (!this.plugin.taskParser?.hasTickTickId(line)
-				&& !this.plugin.taskParser?.hasTickTickTag(line)
-				&& !(this.plugin.taskParser?.getLineItemId(line))) {
+			// Skip note checklist lines: two-space-indented markdown checklists at task depth
+			const isTwoSpaceChecklist = /^\s{2}- \[(x|X| )\]/.test(line);
+			const hasItemId = !!this.plugin.taskParser?.getLineItemId(line);
+			const hasTickId = !!this.plugin.taskParser?.hasTickTickId(line);
+			const hasTag = !!this.plugin.taskParser?.hasTickTickTag(line);
+			if (!hasTickId && !hasTag && !hasItemId && !isTwoSpaceChecklist) {
 				let newLine = this.plugin.taskParser?.addTickTickTag(line);
 				lines[i] = newLine;
 				modified = true;
@@ -329,54 +333,106 @@ export class FileMap {
 		return taskRecord;
 	}
 
-	private getTaskLinesByIdx(taskIdx: number, taskRecord: ITaskRecord) {
+private getTaskLinesByIdx(taskIdx: number, taskRecord: ITaskRecord) {
 		const taskLines: string[] = [];
-		const numTabs = this.plugin.taskParser.getNumTabs(this.fileLines[taskIdx]);
+		const taskLine = this.fileLines[taskIdx];
+		const taskTabs = this.plugin.taskParser.getTabs(taskLine);
+		const numTabs = taskTabs.length;
+		const notePrefix = taskTabs + '  ';
 		taskRecord.parentId = this.getParentIDByIdx(taskIdx);
-		for (let i = taskIdx; i < this.fileLines.length; i++) {
-			const line = this.fileLines[i];
-			if (i === taskIdx) {
-				taskRecord.task = line;
-			} else {
-				//task lines added until we have a different indentation.
-				// (if more tabs, it's the next Item or Task. If less, it's the next task)
-				// (if we hit a markdown task of any kind, we're done.)'
-				const lineTabs = this.plugin.taskParser.getTabs(line);
-				const lineTabsNum = lineTabs.length;
-				const notePrefix = lineTabs + '  ';
-				if (numTabs === lineTabsNum && !(this.plugin.taskParser.isMarkdownTask(line))
-					&& line.startsWith(notePrefix)) {
+		taskRecord.task = taskLine;
+
+		// Determine configured delimiter
+		const cfgDelim = getSettings().noteDelimiter as unknown;
+		const hasConfiguredDelimiter = (typeof cfgDelim === 'string') && (cfgDelim.length > 0);
+
+		// Helper to detect if a line is a delimiter line under a given text value
+		const isDelimiterLine = (line: string, delimText: string) => {
+			return line.startsWith(notePrefix) && !this.plugin.taskParser.isMarkdownTask(line) && line.trim() === (notePrefix + delimText).trim();
+		};
+
+		// Scan lines following the task to collect note block
+		let i = taskIdx + 1;
+
+		if (hasConfiguredDelimiter) {
+			// Try to find an existing delimiter in the file (legacy or current). If found, normalize to cfgDelim
+			let startIdx = -1;
+			let existingDelim = '';
+			if (i < this.fileLines.length) {
+				const first = this.fileLines[i];
+				if (first.startsWith(notePrefix) && !this.plugin.taskParser.isMarkdownTask(first)) {
+					const candidate = first.slice(notePrefix.length).trim();
+					if (candidate.length > 0) {
+						startIdx = i;
+						existingDelim = candidate;
+					}
+				}
+			}
+			if (startIdx !== -1) {
+				// Find matching end delimiter with the same existingDelim text
+				let endIdx = -1;
+				for (let j = startIdx + 1; j < this.fileLines.length; j++) {
+					const line = this.fileLines[j];
+					if (!line.startsWith(notePrefix)) break; // indentation changed -> invalid block
+					if (!this.plugin.taskParser.isMarkdownTask(line)) {
+						const candidate = line.slice(notePrefix.length).trim();
+						if (candidate === existingDelim) {
+							endIdx = j;
+							break;
+						}
+					}
+				}
+				if (endIdx !== -1) {
+					for (let k = startIdx; k <= endIdx; k++) {
+						if (k === startIdx || k === endIdx) {
+							// normalize to current configured delimiter
+							taskLines.push(notePrefix + (cfgDelim as string));
+						} else {
+							taskLines.push(this.fileLines[k]);
+						}
+					}
+					// Done collecting
+					// empty task lines better than none
+					taskRecord.taskLines = taskLines;
+					return taskRecord;
+				}
+			}
+			// No existing delimiter in file -> synthesize start/end delimiter around no-delimiter notes
+			const collected: string[] = [];
+			for (; i < this.fileLines.length; i++) {
+				const line = this.fileLines[i];
+				const sameIndent = this.plugin.taskParser.getNumTabs(line) === numTabs;
+				const isMdTask = this.plugin.taskParser.isMarkdownTask(line);
+				const isNoteChecklist = isMdTask && !this.plugin.taskParser.getLineItemId(line) && !this.plugin.taskParser.hasTickTickId(line);
+				if (sameIndent && line.startsWith(notePrefix) && (!isMdTask || isNoteChecklist)) {
+					collected.push(line);
+				} else {
+					break;
+				}
+			}
+			if (collected.length > 0) {
+				// add synthesized delimiter lines
+				taskLines.push(notePrefix + (cfgDelim as string));
+				taskLines.push(...collected);
+				taskLines.push(notePrefix + (cfgDelim as string));
+			}
+		} else {
+			// No configured delimiter -> consecutive two-space-indented lines (at same tab depth) are part of the note
+			for (; i < this.fileLines.length; i++) {
+				const line = this.fileLines[i];
+				const sameIndent = this.plugin.taskParser.getNumTabs(line) === numTabs;
+				const isMdTask = this.plugin.taskParser.isMarkdownTask(line);
+				const isNoteChecklist = isMdTask && !this.plugin.taskParser.getLineItemId(line) && !this.plugin.taskParser.hasTickTickId(line);
+				if (sameIndent && line.startsWith(notePrefix) && (!isMdTask || isNoteChecklist)) {
 					taskLines.push(line);
 				} else {
-					//Do we have a Note or a description.
-					if (numTabs < lineTabsNum) {
-						if (this.plugin.taskParser.isMarkdownTask(line)) {
-							if (this.plugin.taskParser.getLineItemId(line)) {
-								//it's an item, so this is a description.
-								taskRecord.isNote = false;
-							} else if (this.plugin.taskParser.hasTickTickId(line)) {
-								//it's a child task
-								taskRecord.isNote = true;
-							}
-						} else {
-							//it's the next task or  next line.
-							taskRecord.isNote = true;
-						}
-					} else {
-						//we're on to something else.
-						taskRecord.isNote = true;
-					}
 					break;
 				}
 			}
 		}
-		//empty task lines better than no task lines.
+
+		// empty task lines better than no task lines.
 		taskRecord.taskLines = taskLines;
-		if (taskLines && taskLines.length > 0) {
-			if (taskRecord.isNote == undefined) {
-				taskRecord.isNote = true;
-			}
-		}
 		return taskRecord;
 	}
 

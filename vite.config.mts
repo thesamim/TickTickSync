@@ -7,6 +7,7 @@ import {viteStaticCopy} from "vite-plugin-static-copy";
 import tsConfigPaths from "vite-tsconfig-paths";
 import {configDefaults, defineConfig} from "vitest/config";
 import {pathToFileURL} from "node:url";
+import tsconfigPaths from 'vite-tsconfig-paths';
 
 const DEV_PATH = path.join("..", "test-vault", ".obsidian", "plugins", "tickticksync");
 function getOutDir(prod: boolean): string | undefined {
@@ -31,6 +32,7 @@ export default defineConfig(({mode}) => {
 					},
 				],
 			}),
+
 		],
 		build: {
 			// We aren't building a website, so we build in library mode
@@ -91,7 +93,7 @@ export default defineConfig(({mode}) => {
 			globals: true,
 			environment: "jsdom",
 			alias: {
-				obsidian: resolve(__dirname, "src/mocks/obsidian.ts"),
+				obsidian: resolve(__dirname, "src/test/AppPluginDefinitions.ts"),
 			},
 			setupFiles: ["./vitest-setup.ts"],
 		},

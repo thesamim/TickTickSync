@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { getDefaultFolder } from '@/settings';
+	import { getDefaultFolder, updateSettings } from '@/settings';
 	import type TickTickSync from '@/main';
 	import './SettingsStyles.css';
 	import { onMount } from 'svelte';
@@ -21,6 +21,7 @@
 
 	let delimiterOption: 'none' | 'custom' = 'none';
 	let customDelimiter: string = ''; // e.g., "---", "**", etc.
+	let oldDelimiter: string = '';
 	let previewExample = '';
 	let folderPath = $settingsStore.defaultFolderPath;
 

@@ -237,7 +237,7 @@ export class SyncMan {
 				//we want the line as it is in Obsidian.
 				const taskRecord = fileMap.getTaskRecord(newTask.id);
 				const taskString = taskRecord.task;
-				const stringToHash = taskString + this.plugin.taskParser.getNoteString(taskRecord, newTask.id).textContent;
+				const stringToHash = taskString + this.plugin.taskParser.getNoteString(taskRecord, newTask.id);
 				newTask.lineHash = await this.plugin.taskParser?.getLineHash(stringToHash);
 				await this.plugin.cacheOperation?.appendTaskToCache(newTask, fileMap.getFilePath());
 				await this.plugin.saveSettings();
@@ -327,9 +327,7 @@ export class SyncMan {
 
 			let taskNotes = '';
 			if (taskRecord.taskLines && taskRecord.taskLines.length > 1) {
-				const noteStruct = this.plugin.taskParser.getNoteString(taskRecord, lineTask_ticktick_id);
-				//right now we don't care if it's a description or a note. We just need to check for a change.
-				taskNotes = noteStruct.textContent;
+				taskNotes = this.plugin.taskParser.getNoteString(taskRecord, lineTask_ticktick_id);
 			}
 
 			const newHash = await this.plugin.taskParser?.getLineHash(lineText + taskNotes);
@@ -1291,6 +1289,7 @@ export class SyncMan {
 		await fileMap.init();
 
 
+		log.debug('##forceUpdates: ', file_path);
 		const lines = fileMap.getFileLines().split('\n');
 		for (let line = 0; line < lines.length; line++) {
 			const lineText = lines[line];
