@@ -55,7 +55,8 @@ export class CacheOperation {
 	}
 
 	async addTaskItemToMetadata(filepath: string, taskId: string, itemid: string, projectId: string) {
-		const metaData: FileDetail = await this.getFileMetadata(filepath, projectId);
+		const metaData = await this.getFileMetadata(filepath, projectId);
+		if (!metaData) return;
 		const task = metaData.TickTickTasks.find(task => task.taskId === taskId);
 		task?.taskItems.push(itemid);
 		metaData.TickTickCount = metaData.TickTickTasks.length;
@@ -122,6 +123,7 @@ export class CacheOperation {
 	async deleteTaskIdFromMetadata(filepath: string, taskId: string) {
 
 		const metadata = await this.getFileMetadata(filepath);
+		if (!metadata) return;
 		const oldTickTickTasks = metadata.TickTickTasks;
 
 		const newTickTickTasks = oldTickTickTasks.filter(obj => obj.taskId !== taskId);
@@ -182,8 +184,11 @@ export class CacheOperation {
 					taskIds[task.taskId] = file;
 					return;
 				}
+				// If this is the second time we've seen this task id, include the
+				// original file as the first entry in the duplicates array so the
+				// UI can show all locations where the id appears.
 				if (!duplicates.hasOwnProperty(task.taskId)) {
-					duplicates[task.taskId] = [];
+					duplicates[task.taskId] = [taskIds[task.taskId]];
 				}
 				duplicates[task.taskId].push(file);
 			});
@@ -221,7 +226,9 @@ export class CacheOperation {
 				// log.debug(searchResult)
 
 				//update metadata
-				await this.updateRenamedFilePath(filepath, searchResult);
+				if (searchResult) {
+					await this.updateRenamedFilePath(filepath, searchResult);
+				}
 				await this.plugin.saveSettings();
 
 			}
@@ -325,6 +332,7 @@ export class CacheOperation {
 
 	async setDefaultProjectIdForFilepath(filepath: string, defaultProjectId: string) {
 		const metadata = await this.getFileMetadata(filepath, defaultProjectId);
+		if (!metadata) return;
 		metadata.defaultProjectId = defaultProjectId;
 		if (!metadata.TickTickTasks || !metadata.TickTickCount) {
 			//probably an edge case, but we ended up with a quazi empty metadata
@@ -347,7 +355,7 @@ export class CacheOperation {
 	}
 
 	// Overwrite and save all tasks to cache
-	async saveTasksToCache(newTasks) {
+	async saveTasksToCache(newTasks: ITask[]) {
 		try {
 			updateTasks(newTasks);
 
@@ -443,18 +451,19 @@ export class CacheOperation {
 
 
 
-	async getProjectIdForTask(taskId: string) {
+	async getProjectIdForTask(taskId: string): Promise<string | undefined> {
 		const savedTasks = getTasks();
 		const taskIndex = savedTasks.findIndex((task) => task.id === taskId);
 
 		if (taskIndex !== -1) {
 			return savedTasks[taskIndex].projectId;
 		}
+		return undefined;
 	}
 
 	//open a task status
-	async reopenTaskToCacheByID(taskId: string): Promise<string> {
-		let projectId = null;
+	async reopenTaskToCacheByID(taskId: string): Promise<string | null> {
+		let projectId: string | null = null;
 		try {
 			const savedTasks = getTasks();
 
@@ -509,8 +518,8 @@ export class CacheOperation {
 	// }
 
 	//close a task status
-	async closeTaskToCacheByID(taskId: string): Promise<string> {
-		let projectId = null;
+	async closeTaskToCacheByID(taskId: string): Promise<string | null> {
+		let projectId: string | null = null;
 		try {
 			const savedTasks = getTasks();
 
@@ -667,8 +676,8 @@ export class CacheOperation {
 			const savedTask = await this.loadTasksFromCache();
 			//log.debug(savedTask)
 			const newTasks = savedTask.map(obj => {
-				if (obj.path === oldpath) {
-					return { ...obj, path: newpath };
+				if ((obj as any).path === oldpath) {
+					return { ...obj, path: newpath } as any;
 				} else {
 					return obj;
 				}
@@ -710,17 +719,18 @@ export class CacheOperation {
 		return false;
 	}
 
-	protected async newEmptyFileMetadata(filepath: string, projectId?: string): Promise<FileDetail | undefined> {
+	protected async newEmptyFileMetadata(filepath: string | TAbstractFile | null | undefined, projectId?: string): Promise<FileDetail | undefined> {
 		//There's a case where we are making an entry for an undefined file. Not sure where it's coming from
 		// this should give us a clue.
 
-		if (filepath instanceof TAbstractFile) {
-			if (filepath instanceof TFile) {
-				filepath = filepath.name;
+		if (typeof filepath !== 'string') {
+			// filepath may be a TAbstractFile or null/undefined; try to coerce to string path
+			if (filepath && (filepath as any).path) {
+				filepath = (filepath as any).path as string;
 			}
 		}
 
-		if (!filepath) {
+		if (!filepath || typeof filepath !== 'string') {
 			log.error('Attempt to create undefined FileMetaData Entry: ', filepath);
 			return undefined;
 		}
@@ -748,22 +758,22 @@ export class CacheOperation {
 		const fileCachedContent: string = await this.app.vault.cachedRead(file);
 		const lines: string[] = fileCachedContent.split('\n');
 
-		const tasks: (string | null | undefined)[] = listItemsCache
+		const tasks: (string | undefined)[] = listItemsCache
 			// Get the position of each list item
 			.map((listItemCache: ListItemCache) => listItemCache.position.start.line)
 			// Get the line
 			.map((idx) => lines[idx])
 			// Create a Task from the line
 			.map((line: string) => this.plugin.taskParser.getTickTickId(line))
-			// Filter out the nulls
-			.filter((taskId: string | null) => taskId !== null)
+			// Filter out the nulls/undefined
+			.filter((taskId: string | undefined): taskId is string => typeof taskId === 'string')
 		;
 
 		return tasks;
 	}
 
-	private async showFoundDuplicatesModal(app, plugin, projects: IProject[]) {
-		const myModal = new FoundDuplicatesModal(app, plugin, projects, (result) => {
+	private async showFoundDuplicatesModal(app: App, plugin: TickTickSync, projects: IProject[]) {
+		const myModal = new FoundDuplicatesModal(app, plugin, projects, (result: boolean) => {
 			const ret = result;
 		});
 		return await myModal.showModal();

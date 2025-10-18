@@ -1,5 +1,6 @@
 import { App, Modal, Setting } from 'obsidian';
 import TickTickSync from '@/main';
+import type { IProject } from '@/api/types//Project';
 import { getSettings } from '@/settings';
 
 
@@ -9,13 +10,13 @@ export class FoundDuplicatesModal extends Modal {
 	message: string;
 	cancelLabel = 'Cancel';
 	confirmLabel = 'Abort Sync';
-	projects: string [] = [];
-	result: boolean;
+	projects: IProject[] = [];
+	result: boolean = false;
 	onSubmit: (result: boolean) => void;
-	resolvePromise: (value: (PromiseLike<boolean> | boolean)) => void;
+	resolvePromise: (value: (PromiseLike<boolean> | boolean)) => void = (_v: PromiseLike<boolean> | boolean) => {};
 	private plugin: TickTickSync;
 
-	constructor(app: App, plugin: TickTickSync, projects: [], onSubmit: (result: boolean) => void) {
+	constructor(app: App, plugin: TickTickSync, projects: IProject[], onSubmit: (result: boolean) => void) {
 		super(app);
 		this.plugin = plugin;
 		this.projects = projects;
