@@ -96,10 +96,17 @@ constructor(app: App, plugin: TickTickSync, duplicates: DuplicateMap) {
 						log.warn(`File ${filePath} not found when trying to remove duplicate ${taskId}`);
 						continue;
 					}
-					// create a backup
+					// create a timestamped backup (suffix inserted before extension)
 					try {
 						const original = await this.app.vault.read(file);
-						const bkpPath = `${file.path}.tickticksync-dup-bak`;
+						const now = new Date();
+						const ts = now.toISOString().replace(/[:.]/g, '-');
+						let bkpPath = '';
+						if (file.path.toLowerCase().endsWith('.md')) {
+							bkpPath = file.path.replace(/(\.md)$/i, `.tickticksync-dup-bak-${ts}$1`);
+						} else {
+							bkpPath = `${file.path}.tickticksync-dup-bak-${ts}`;
+						}
 						await this.app.vault.create(bkpPath, original);
 					} catch (err) {
 						log.warn('Could not create backup for', filePath, err);
@@ -124,7 +131,7 @@ constructor(app: App, plugin: TickTickSync, duplicates: DuplicateMap) {
 				}
 			}
 			await this.plugin.saveSettings();
-			new Notice('Duplicate cleanup complete. Backups created with suffix .tickticksync-dup-bak');
+			new Notice('Duplicate cleanup complete. Timestamped backups were created for modified files.');
 		} catch (err) {
 			log.error('Error cleaning up duplicates: ', err);
 			new Notice(`Error cleaning up duplicates: ${err}`, 5000);
