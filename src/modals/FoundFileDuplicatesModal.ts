@@ -30,7 +30,26 @@ constructor(app: App, plugin: TickTickSync, duplicates: DuplicateMap) {
 		for (const taskId of Object.keys(this.duplicates)) {
 			const files = this.duplicates[taskId];
 			const section = contentEl.createEl('div', { cls: 'ts-dup-section' });
-			section.createEl('h4', { text: `Task: ${taskId}` });
+			// Try to load a short title snippet to help the user identify the task
+			let titleSnippet = '';
+			let rawTitle = '';
+			try {
+				const savedTask = this.plugin.cacheOperation?.loadTaskFromCacheID(taskId);
+				if (savedTask && savedTask.title) {
+					rawTitle = this.plugin.taskParser?.stripOBSUrl ? this.plugin.taskParser.stripOBSUrl(savedTask.title) : savedTask.title;
+					titleSnippet = rawTitle.trim();
+					if (titleSnippet.length > 15) titleSnippet = titleSnippet.substring(0, 15) + '...';
+				} else {
+					titleSnippet = '(no cached title)';
+				}
+			} catch (err) {
+				log.debug('Could not load task title for', taskId, err);
+				titleSnippet = '(unknown)';
+			}
+			const header = section.createEl('h4', { text: `Task: ${taskId} — "${titleSnippet}"` });
+			if (rawTitle && rawTitle.length > 0) {
+				header.setAttr('title', rawTitle);
+			}
 
 			const list = section.createEl('div', { cls: 'ts-dup-list' });
 			files.forEach((filePath, idx) => {
