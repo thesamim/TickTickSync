@@ -5,6 +5,7 @@ import { doWithLock } from '@/utils/locks';
 import { SyncMan } from '@/services/syncModule';
 import { Editor, type MarkdownFileInfo, type MarkdownView, Notice, TFile } from 'obsidian';
 import { CacheOperation } from '@/services/cacheOperation';
+import { FoundMetadataDuplicatesModal } from '@/modals/FoundMetadataDuplicatesModal';
 import { FoundFileDuplicatesModal } from '@/modals/FoundFileDuplicatesModal';
 import { FileOperation } from '@/fileOperation';
 import { FileMap } from '@/services/fileMap';
@@ -140,7 +141,7 @@ export class TickTickService {
 
 	async deletedFileCheck(filePath: string): Promise<boolean> {
 
-		const fileMetadata = await this.cacheOperation?.getFileMetadata(filePath, null);
+	const fileMetadata = await this.cacheOperation?.getFileMetadata(filePath);
 		if (!fileMetadata || !fileMetadata.TickTickTasks) {
 			//log.debug('There is no task in the deleted file')
 			return false;
@@ -161,7 +162,7 @@ export class TickTickService {
 		// log.debug(`${oldPath} is renamed`)
 		//Read fileMetadata
 		//const fileMetadata = await this.fileOperation.getFileMetadata(file)
-		const fileMetadata = await this.cacheOperation?.getFileMetadata(oldPath, null);
+	const fileMetadata = await this.cacheOperation?.getFileMetadata(oldPath);
 		if (!fileMetadata || !fileMetadata.TickTickTasks) {
 			//log.debug('There is no task in the deleted file')
 			return false;
@@ -249,13 +250,14 @@ export class TickTickService {
 							if (taskObject && taskObject.deleted === 1) {
 								await this.plugin.cacheOperation?.deleteTaskIdFromMetadata(key, taskDetails.taskId);
 							}
-						} catch (error) {
-							if (error.message.includes('404')) {
+						} catch (err) {
+							const error = err as any;
+							if (error && typeof error.message === 'string' && error.message.includes('404')) {
 								// log.debug(`Task ${taskId} seems to not exist.`);
 								await this.plugin.cacheOperation?.deleteTaskIdFromMetadata(key, taskDetails.taskId);
 								continue;
 							} else {
-								log.error('An error occurred while loading task from api: ', error);
+								log.error('An error occurred while loading task from api: ', err);
 								continue;
 							}
 						}
@@ -279,11 +281,11 @@ export class TickTickService {
 						let taskObject;
 						try {
 							taskObject = this.plugin.cacheOperation?.loadTaskFromCacheID(taskDetail.taskId);
-						} catch (error) {
-							log.warn(`An error occurred while loading task ${taskDetail.taskId} from cache:`, error);
+						} catch (err) {
+							log.warn(`An error occurred while loading task ${taskDetail.taskId} from cache:`, err);
 						}
 						if (!taskObject) {
-							log.warn(`Task ${taskDetail.id}: ${taskDetail.title} is not found.`);
+							log.warn(`Task ${taskDetail.taskId} not found in cache.`);
 							continue;
 						}
 						const oldTitle = taskObject?.title ?? '';
@@ -378,22 +380,22 @@ export class TickTickService {
 		try {
 			const result = this.cacheOperation?.checkForDuplicates(newFilesToSync);
 			if (result?.duplicates && (JSON.stringify(result.duplicates) != '{}')) {
-				let dupText = '';
-				for (const duplicatesKey in result.duplicates) {
-					dupText += 'Task: ' + duplicatesKey + '\nin files: \n';
-					result.duplicates[duplicatesKey].forEach(file => {
-						dupText += file + '\n';
-					});
+				// Show interactive modal to repair metadata duplicates
+				try {
+					const modal = new FoundMetadataDuplicatesModal(this.plugin.app, this.plugin, result.duplicates);
+					const confirmed = await modal.showModal();
+					if (!confirmed) {
+						new Notice('Metadata duplicate cleanup cancelled. Sync aborted.', 5000);
+						log.error('Metadata duplicates found, user cancelled cleanup.');
+						return;
+					}
+					// user confirmed and modal performed cleanup
+					log.debug('Metadata duplicates cleaned up. Continuing sync.');
+				} catch (err) {
+					log.error('Failed to run metadata duplicate cleanup modal: ', err);
+					new Notice('Failed to run metadata duplicate cleanup. Sync aborted.', 5000);
+					return;
 				}
-				const msg =
-					'Found duplicates in MetaData.\n\n' +
-					`${dupText}` +
-					'\nPlease fix manually. This causes unpredictable results' +
-					'\nPlease open an issue in the TickTickSync repository if you continue to see this issue.' +
-					'\n\nTo prevent data corruption. Sync is aborted.';
-				log.error('Metadata Duplicates: ', result.duplicates);
-				new Notice(msg, 5000);
-				return;
 			}
 
 
@@ -432,8 +434,8 @@ export class TickTickService {
 				log.debug('File ', fileKey, ' was deleted before last sync.');
 				await this.cacheOperation?.deleteFilepathFromMetadata(fileKey);
 				//TODO: This is wrong, if it ever worked it doesn't now.
-				const toDelete = newFilesToSync.findIndex(fileKey);
-				newFilesToSync.splice(toDelete, 1);
+				// delete this key from the map/object rather than trying to splice
+				delete newFilesToSync[fileKey as keyof typeof newFilesToSync];
 			}
 		}
 
