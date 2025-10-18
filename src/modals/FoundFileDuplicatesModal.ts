@@ -122,9 +122,10 @@ constructor(app: App, plugin: TickTickSync, duplicates: DuplicateMap) {
 						const ts = now.toISOString().replace(/[:.]/g, '-');
 						let bkpPath = '';
 						if (file.path.toLowerCase().endsWith('.md')) {
-							bkpPath = file.path.replace(/(\.md)$/i, `.tickticksync-dup-bak-${ts}$1`);
+							// Change extension to .bkup to avoid Obsidian treating backups as markdown files
+							bkpPath = file.path.replace(/(\.md)$/i, `.tickticksync-dup-bak-${ts}.bkup`);
 						} else {
-							bkpPath = `${file.path}.tickticksync-dup-bak-${ts}`;
+							bkpPath = `${file.path}.tickticksync-dup-bak-${ts}.bkup`;
 						}
 						await this.app.vault.create(bkpPath, original);
 					} catch (err) {
