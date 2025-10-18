@@ -5,6 +5,7 @@ import { doWithLock } from '@/utils/locks';
 import { SyncMan } from '@/services/syncModule';
 import { Editor, type MarkdownFileInfo, type MarkdownView, Notice, TFile } from 'obsidian';
 import { CacheOperation } from '@/services/cacheOperation';
+import { FoundFileDuplicatesModal } from '@/modals/FoundFileDuplicatesModal';
 import { FileOperation } from '@/fileOperation';
 import { FileMap } from '@/services/fileMap';
 //Logging
@@ -398,28 +399,22 @@ export class TickTickService {
 
 			const duplicateTasksInFiles = await this.fileOperation?.checkForDuplicates(filesToSync, result?.taskIds);
 			if (duplicateTasksInFiles && (JSON.stringify(duplicateTasksInFiles) != '{}')) {
-				let dupText = '';
-				for (let duplicateTasksInFilesKey in duplicateTasksInFiles) {
-					dupText += 'Task: ' + duplicateTasksInFilesKey + '\nFound in Files: \n';
-					duplicateTasksInFiles[duplicateTasksInFilesKey].forEach(file => {
-						dupText += file + '\n';
-					});
+				// Open modal to let user choose canonical file and automatically remove duplicates with backups
+				try {
+					const modal = new FoundFileDuplicatesModal(this.plugin.app, this.plugin, duplicateTasksInFiles);
+					const confirmed = await modal.showModal();
+					if (!confirmed) {
+						new Notice('Duplicate cleanup cancelled. Sync aborted to avoid data corruption.', 5000);
+						log.error('Duplicates in files, user cancelled cleanup.');
+						return;
+					}
+					// If confirmed, modal performed cleanup and updated metadata. Continue syncing.
+					log.debug('Duplicate cleanup completed. Continuing sync.');
+				} catch (err) {
+					log.error('Failed to run duplicate cleanup modal: ', err);
+					new Notice('Failed to run duplicate cleanup modal. Sync aborted.', 5000);
+					return;
 				}
-				const message = document.createDocumentFragment();
-				message.appendChild(document.createTextNode('Found duplicates in Files.                                                             '));
-				message.appendChild(document.createElement('br'));
-				message.appendChild(document.createTextNode(`${dupText}`));
-				message.appendChild(document.createElement('br'));
-				message.appendChild(document.createTextNode('Please fix manually to avoid unpredictable results.'));
-				message.appendChild(document.createElement('br'));
-				message.appendChild(document.createElement('br'));
-				message.appendChild(document.createTextNode('Please open an issue in the TickTickSync repository if you continue to see this issue.'));
-				message.appendChild(document.createElement('br'));
-				message.appendChild(document.createElement('br'));
-				message.appendChild(document.createTextNode('Sync is aborted to prevent data corruption.'));
-				new Notice(message, 0);
-				log.error('Duplicates in file: ', dupText);
-				return;
 			}
 		} catch (error) {
 			log.error(error);
