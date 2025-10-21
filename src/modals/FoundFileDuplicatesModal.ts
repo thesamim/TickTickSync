@@ -2,6 +2,8 @@ import { App, Modal, Setting, Notice, TFile } from 'obsidian';
 import TickTickSync from '@/main';
 import { FileMap } from '@/services/fileMap';
 import log from 'loglevel';
+import { PlanExecutor } from '@/services/planExecutor';
+import type { DuplicatePlan, PlanAction } from '@/services/planExecutor';
 
 type DuplicateMap = Record<string, string[]>;
 
@@ -105,55 +107,23 @@ constructor(app: App, plugin: TickTickSync, duplicates: DuplicateMap) {
 
 	async handleConfirm() {
 		try {
+			// Build duplicate plan based on user selections
+			const plans: DuplicatePlan[] = [];
 			for (const taskId of Object.keys(this.duplicates)) {
 				const files = this.duplicates[taskId];
 				const keep = this.selections[taskId];
+				const actions: PlanAction[] = [];
 				for (const filePath of files) {
 					if (filePath === keep) continue;
-					const file = this.app.vault.getAbstractFileByPath(filePath) as TFile;
-					if (!file) {
-						log.warn(`File ${filePath} not found when trying to remove duplicate ${taskId}`);
-						continue;
-					}
-					// create a timestamped backup (suffix inserted before extension)
-					try {
-						const original = await this.app.vault.read(file);
-						const now = new Date();
-						const ts = now.toISOString().replace(/[:.]/g, '-');
-						let bkpPath = '';
-						if (file.path.toLowerCase().endsWith('.md')) {
-							// Change extension to .bkup to avoid Obsidian treating backups as markdown files
-							bkpPath = file.path.replace(/(\.md)$/i, `.tickticksync-dup-bak-${ts}.bkup`);
-						} else {
-							bkpPath = `${file.path}.tickticksync-dup-bak-${ts}.bkup`;
-						}
-						await this.app.vault.create(bkpPath, original);
-					} catch (err) {
-						log.warn('Could not create backup for', filePath, err);
-					}
-
-					// remove the task block from the file via FileMap
-					try {
-						const fileMap = new FileMap(this.app, this.plugin, file);
-						await fileMap.init();
-						fileMap.deleteTask(taskId);
-						const newContent = fileMap.getFileLines();
-						await this.app.vault.modify(file, newContent);
-						// update metadata
-						try {
-							await this.plugin.cacheOperation?.deleteTaskIdFromMetadata(filePath, taskId);
-						} catch (err) {
-							log.warn('Failed to update metadata after removing duplicate', filePath, taskId, err);
-						}
-					} catch (err) {
-						log.error('Failed to remove duplicate task from file', filePath, taskId, err);
-					}
+					actions.push({ action: 'delete', taskId, from: filePath, to: keep });
 				}
+				plans.push({ taskId, candidates: files, recommended: keep, actions });
 			}
-			await this.plugin.saveSettings();
-			new Notice('Duplicate cleanup complete. Timestamped backups were created for modified files.');
+
+			const executor = new PlanExecutor(this.app, this.plugin);
+			await executor.applyPlan(plans, 'manual');
 		} catch (err) {
-			log.error('Error cleaning up duplicates: ', err);
+			log.error('Error building or applying duplicate plan: ', err);
 			new Notice(`Error cleaning up duplicates: ${err}`, 5000);
 		}
 	}

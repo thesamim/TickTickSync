@@ -7,6 +7,7 @@ import { getProjects, getSettings, getTasks, updateProjects, updateSettings, upd
 //Logging
 import log from '@/utils/logger';
 import { FileMap } from '@/services/fileMap';
+import { computeTaskChecksum, makeOpId } from '@/services/provenance';
 
 
 export interface FileMetadata {
@@ -22,6 +23,13 @@ export interface FileDetail {
 export interface TaskDetail {
 	taskId: string;
 	taskItems: string[];
+	provenance?: {
+		deviceId?: string;
+		checksum?: string;
+		lastSeen?: string;
+		lastModifiedLocal?: string;
+		opLog?: { opId: string; type: string; ts: string; deviceId?: string; details?: string }[];
+	}
 }
 
 const FILE_EXT = '.md';
@@ -49,6 +57,16 @@ export class CacheOperation {
 			task.items.forEach((item) => {
 				taskMeta.taskItems.push(item.id);
 			});
+		}
+		try {
+			taskMeta.provenance = taskMeta.provenance || {};
+			taskMeta.provenance.checksum = computeTaskChecksum(task as any);
+			taskMeta.provenance.lastSeen = new Date().toISOString();
+			taskMeta.provenance.opLog = taskMeta.provenance.opLog || [];
+			taskMeta.provenance.opLog.push({ opId: makeOpId(), type: 'metadata-added', ts: new Date().toISOString(), deviceId: getSettings().deviceId });
+		} catch (e) {
+			// best-effort provenance, don't block
+			console.warn('provenance attach failed', e);
 		}
 		metaData.TickTickTasks.push(taskMeta);
 		metaData.TickTickCount = metaData.TickTickTasks.length;
@@ -770,6 +788,29 @@ export class CacheOperation {
 		;
 
 		return tasks;
+	}
+
+	// Update provenance.lastSeen for any tasks found in a file
+	private async updateLastSeenForFile(file: TFile, taskIds: string[]) {
+		try {
+			const filepath = file.path;
+			const meta = await this.getFileMetadata(filepath);
+			if (!meta) return;
+			let updated = false;
+			for (const taskId of taskIds) {
+				const td = meta.TickTickTasks.find(t => t.taskId === taskId);
+				if (td) {
+					td.provenance = td.provenance || {};
+					td.provenance.lastSeen = new Date().toISOString();
+					updated = true;
+				}
+			}
+			if (updated) {
+				await this.updateFileMetadata(filepath, meta);
+			}
+		} catch (err) {
+			log.warn('updateLastSeenForFile failed: ', err);
+		}
 	}
 
 	private async showFoundDuplicatesModal(app: App, plugin: TickTickSync, projects: IProject[]) {

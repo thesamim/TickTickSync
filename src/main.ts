@@ -384,6 +384,13 @@ export default class TickTickSync extends Plugin {
 			new Notice('Settings failed to load. Please reload the TickTickSync plugin.');
 			return;
 		}
+
+		// Ensure a stable device id for provenance/op-logs
+		if (!getSettings().deviceId) {
+			const id = (Math.random().toString(36).substring(2, 10) + Date.now().toString(36));
+			updateSettings({ deviceId: id });
+			await this.saveSettings();
+		}
 		log.setLevel(getSettings().logLevel)
 		log.info(`loading plugin "${this.manifest.name}" v${this.manifest.version}`);
 

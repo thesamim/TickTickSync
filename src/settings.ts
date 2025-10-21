@@ -36,6 +36,8 @@ export interface ITickTickSyncSettings {
 
 
 	fileMetadata: FileMetadata;
+	// unique id for this device/installation
+	deviceId?: string;
 	TickTickTasksData: {
 		projects: IProject[];
 		projectGroups: IProjectGroup[];
@@ -69,12 +71,13 @@ export const DEFAULT_SETTINGS: ITickTickSyncSettings = {
 	skipBackup: false,
 
 	fileMetadata: {},
+	// unique id for this device/installation
+	deviceId: undefined,
 	TickTickTasksData: {
 		projects: [],
+		projectGroups: [],
 		tasks: []
 	}
-
-	//statistics: {}
 };
 
 //two places for settings, move all ref from main to here
@@ -95,13 +98,12 @@ export const updateSettings = (newSettings: Partial<ITickTickSyncSettings>): ITi
 	return getSettings();
 };
 
-//TODO move to store
-
-// let projects: IProject[] = [];
-
 export const getProjects = (): IProject[] => {
 	return settings.TickTickTasksData.projects;
 };
+
+//TODO move to store
+//TODO move to store
 
 export const updateProjects = (newProjects: IProject[]): IProject[] => {
 	settings.TickTickTasksData.projects = newProjects;
