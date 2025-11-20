@@ -281,6 +281,11 @@ export class FileMap {
 		this.fileLines[line] = text;
 	}
 
+	hasTasks(fullVaultSync: boolean, countForDebug: number) {
+		log.debug(`${countForDebug} -- file: ${this.file.path} -- fileLines: ${this.fileLines.length}`);
+		return this.fileLines.some(line => this.plugin.taskParser.isMarkdownTask(line) && (fullVaultSync || this.plugin.taskParser.hasTickTickId(line)));
+	}
+
 	private fixChildTabs(childID: string, parentIdx: number) {
 		let newParentTabs = this.plugin.taskParser.getTabs(this.fileLines[parentIdx]);
 		newParentTabs += '\t';

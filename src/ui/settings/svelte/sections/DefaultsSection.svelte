@@ -2,10 +2,11 @@
 	import CollapsibleSection from '@/ui/settings/svelte/sections/CollapsibleSection.svelte';
 	import { createEventDispatcher, onMount } from 'svelte';
 	import { getDefaultFolder, getSettings, updateSettings } from '@/settings';
-	import { Setting } from 'obsidian';
+	import { Setting, TFile } from 'obsidian';
 	import { FolderSuggest } from '@/utils/FolderSuggester';
 	import { validateNewFolder } from '@/utils/FolderUtils';
 	import log from 'loglevel';
+	import { FileMap } from '@/services/fileMap';
 
 	export let open = false;
 	export let plugin;
@@ -14,6 +15,7 @@
 	let showUpdateWorldModal = false;
 	let showUpdateButton: boolean = false;
 	let showCreateText: boolean = false;
+	let filesToMove: TFile[] = [];
 
 	const dispatch = createEventDispatcher();
 
@@ -23,7 +25,6 @@
 
 	let projects: Array<{ id: string; name: string }> = [];
 	let myProjectsOptions: Record<string, string> = {};
-	let debounceTimeout: ReturnType<typeof setTimeout>;
 
 	async function ensureCorrectDefaultPaths() {
 		const defaultProjectFolder = getDefaultFolder();
@@ -33,9 +34,11 @@
 			const defaultProjectFileName = defaultProject + '.md';
 			const markdownFiles = app.vault.getMarkdownFiles();
 			for (const file of markdownFiles) {
-				if (file.path.includes(getSettings().defaultProjectName)) {
+				log.debug('checking file: ', file.path);
+				if (isDefaultProjectFile(file.path)) {
 					if (file.path !== defaultProjectFolder + '/' + defaultProjectFileName) {
 						try {
+							log.debug('renaming file: ', file.path, 'to: ', defaultProjectFolder + '/' + defaultProjectFileName);
 							await app.vault.rename(file, defaultProjectFolder + '/' + defaultProjectFileName);
 						} catch (error) {
 							log.error(`File rename failed. ${error}`);
@@ -45,8 +48,9 @@
 					} else {
 						log.debug('default project file NOT renamed', await app.vault.getAbstractFileByPath(defaultProjectFolder + '/' + defaultProjectFileName));
 					}
-					break;
 				}
+				break;
+
 			}
 
 		}
@@ -58,34 +62,34 @@
 			.addSearch((search) => {
 				search.setPlaceholder('Select or Create folder')
 					.setValue(getDefaultFolder());
-			search.setValue(myProjectsOptions);
-			new FolderSuggest(search.inputEl, app);
+				search.setValue(myProjectsOptions);
+				new FolderSuggest(search.inputEl, plugin.app);
 
-			// OnChange: Only update the UI, DO NOT create folder here
-			search.onChange((value) => {
-				// Optionally update UI or hints, but do not create any folder yet
-				// Optionally validate and give user feedback
-				currentDefault = value + '/' + getSettings().defaultProjectName;
-				showCreateText = true;
-			});
+				// OnChange: Only update the UI, DO NOT create folder here
+				search.onChange((value) => {
+					// Optionally update UI or hints, but do not create any folder yet
+					// Optionally validate and give user feedback
+					currentDefault = value + '/' + getSettings().defaultProjectName;
+					showCreateText = true;
+				});
 
-			// Only create the folder if the user presses Enter
-			search.inputEl.addEventListener('keydown', async (e: KeyboardEvent) => {
-				if (e.key === 'Enter') {
-					const value = search.inputEl.value;
-					const newFolder = await validateNewFolder(value, 'Default');
-					log.debug('new folder: ', newFolder);
-					if (newFolder) {
-						updateSettings({ TickTickTasksFilePath: newFolder });
-						await ensureCorrectDefaultPaths();
-						await plugin.saveSettings();
-						showUpdateButton = true;
-						showCreateText = false;
+				// Only create the folder if the user presses Enter
+				search.inputEl.addEventListener('keydown', async (e: KeyboardEvent) => {
+					if (e.key === 'Enter') {
+						const value = search.inputEl.value;
+						const newFolder = await validateNewFolder(value, 'Default');
+						log.debug('new folder: ', newFolder);
+						if (newFolder) {
+							updateSettings({ TickTickTasksFilePath: newFolder });
+							await ensureCorrectDefaultPaths();
+							await plugin.saveSettings();
+							showUpdateButton = true;
+							showCreateText = false;
+						}
 					}
-				}
+				});
 			});
-		});
-}
+	}
 
 	function getMyProjectsOptions() {
 		return projects.reduce((obj, item) => {
@@ -113,7 +117,8 @@
 		currentDefault = getDefaultFolder() + '/' + getSettings().defaultProjectName;
 	});
 
-	function onUpdateWorldClicked() {
+	async function onUpdateWorldClicked() {
+		filesToMove = await getMDWithTasks();
 		showUpdateWorldModal = true;
 		showUpdateButton = false;
 	}
@@ -121,27 +126,65 @@
 	function closeModal() {
 		showUpdateWorldModal = false;
 		showUpdateButton = false;
+		filesToMove = [];
 	}
 
 	async function confirmUpdateWorld() {
 		showUpdateWorldModal = false;
 		const defaultProjectFolder = getDefaultFolder();
-		const defaultProject = getSettings().defaultProjectName;
-		const markdownFiles = app.vault.getMarkdownFiles();
-		for (const file of markdownFiles) {
+
+		for (const file of filesToMove) {
 			//The default project gets moved as soon as they select it.
-			if (!file.path.includes(getSettings().defaultProjectName)) {
-				try {
-					await app.vault.rename(file, defaultProjectFolder + '/' + file.name);
-				} catch (error) {
-					log.error(`File rename failed. ${error}`);
-					alert(`File rename failed. ${error}`);
+			try {
+				const newPath = defaultProjectFolder + '/' + file.name;
+				if (file.path !== newPath) {
+					await plugin.app.vault.rename(file, newPath);
+					log.debug('File Moved', newPath);
 				}
-				log.debug('File Moved', defaultProjectFolder + '/' + file.name);
+			} catch (error) {
+				log.error(`File rename failed. ${error}`);
+				alert(`File rename failed. ${error}`);
 			}
 		}
+		filesToMove = [];
 	}
 
+	async function getMDWithTasks(): Promise<TFile[]> {
+		const markdownFiles = plugin.app.vault.getMarkdownFiles();
+		const files: TFile[] = [];
+		const settings = getSettings();
+
+		log.debug(`Checking ${markdownFiles.length} files for tasks...`);
+
+		let countForDebug = 0;
+		for (const file of markdownFiles) {
+			log.debug(`Checking file ${file.path}`);
+			if (isDefaultProjectFile(file.path)) {
+				continue;
+			}
+			try {
+				countForDebug++;
+				const fileMap = new FileMap(plugin.app, plugin, file);
+				await fileMap.init();
+
+				if (fileMap.hasTasks(settings.enableFullVaultSync, countForDebug)) {
+					files.push(file);
+				}
+			} catch (e) {
+				log.error(`Failed to process file ${file.path}`, e);
+			}
+		}
+		log.debug(`Found ${files.length} files to move.`);
+		log.debug(`Files to move: ${files.map(f => f.path).join(', ')}`);
+		return files;
+	}
+
+	export const isDefaultProjectFile = (path: string): boolean => {
+		const defaultFolder = getDefaultFolder();
+		const fileName = `${getSettings().defaultProjectName}.md`;
+		const expectedPath = defaultFolder ? `${defaultFolder}/${fileName}` : fileName;
+		return path === expectedPath;
+	};
 
 </script>
 
@@ -187,7 +230,7 @@
 					<div>Folder where TickTick tasks are stored.</div>
 					Default Project File <span class="setting-item-name"> {currentDefault}.md</span>
 					{#if showCreateText}
-					will be created <strong><span class="setting-item-name"> after you hit  ENTER </span></strong>
+						will be created <strong><span class="setting-item-name"> after you hit  ENTER </span></strong>
 					{/if}
 				</div>
 			</div>
@@ -214,12 +257,24 @@
 		<div class="local-modal-dialog">
 			<div class="local-modal-content">
 				<h2>Update the World</h2>
-				<p>Do you <strong>REALLY</strong> want to move existing files to <strong>/{getDefaultFolder()}</strong>?
-				</p>
-				<div class="local-modal-actions">
-					<button class="mod-cta" on:click={confirmUpdateWorld}>Yes, update it!</button>
-					<button on:click={closeModal} style="margin-left:1em;">No, cancel</button>
-				</div>
+				{#if filesToMove.length > 0}
+					<p>The following files contain tasks and will be moved to <strong>/{getDefaultFolder()}</strong>:
+					</p>
+					<ul class="file-list">
+						{#each filesToMove as file}
+							<li>{file.path}</li>
+						{/each}
+					</ul>
+					<div class="local-modal-actions">
+						<button class="mod-cta" on:click={confirmUpdateWorld}>Yes, move them!</button>
+						<button on:click={closeModal} style="margin-left:1em;">No, cancel</button>
+					</div>
+				{:else}
+					<p>No files found containing relevant tasks to move.</p>
+					<div class="local-modal-actions">
+						<button on:click={closeModal}>Close</button>
+					</div>
+				{/if}
 			</div>
 		</div>
 	{/if}
@@ -265,6 +320,18 @@
 
 		.local-modal-content p {
 			margin: 0 0 2em 0;
+		}
+
+		.file-list {
+			max-height: 300px;
+			overflow-y: auto;
+			margin: 0 0 2em 0;
+			padding-left: 1.2em;
+			text-align: left;
+			background: var(--background-primary);
+			border: 1px solid var(--background-modifier-border);
+			border-radius: 4px;
+			padding: 10px;
 		}
 
 		.local-modal-actions {
