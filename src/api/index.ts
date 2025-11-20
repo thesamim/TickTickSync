@@ -493,6 +493,7 @@ export class Tick {
 				childIds: jsonOptions.childIds ? jsonOptions.childIds : [],
 				parentId: jsonOptions.parentId ? jsonOptions.parentId : null
 			};
+			log.debug('Update Task: ', thisTask.id, thisTask.projectId);
 
 			let updatePayload: any;
 			updatePayload = {
@@ -505,6 +506,7 @@ export class Tick {
 			};
 			const url = `${this.apiUrl}/${updateTaskEndPoint}`;
 			const response = await this.makeRequest('Update Task', url, 'POST', updatePayload);
+			// log.debug('Update Task Response: ', response);
 			if (response) {
 				return response;
 			} else {

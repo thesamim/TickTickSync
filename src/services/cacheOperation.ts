@@ -689,26 +689,26 @@ export class CacheOperation {
 
 	}
 
-	// TODO: why did I think I needed this?
-	findTaskInMetada(taskId: string, filePath: string) {
-		const fileMetadata = getSettings().fileMetadata;
-		for (const file in fileMetadata) {
-			log.debug('in file: :', file);
-			if (file == filePath) {
-				log.debug('breaking');
-				continue;
-			}
-			const tasks = fileMetadata[file].TickTickTasks;
-			for (const task of tasks) {
-				if (task.taskId === taskId) {
-					log.debug('found');
-					return true;
-				}
-			}
-		}
-		log.debug('not found');
-		return false;
-	}
+	// // TODO: why did I think I needed this?
+	// findTaskInMetada(taskId: string, filePath: string) {
+	// 	const fileMetadata = getSettings().fileMetadata;
+	// 	for (const file in fileMetadata) {
+	// 		log.debug('in file: :', file);
+	// 		if (file == filePath) {
+	// 			log.debug('breaking');
+	// 			continue;
+	// 		}
+	// 		const tasks = fileMetadata[file].TickTickTasks;
+	// 		for (const task of tasks) {
+	// 			if (task.taskId === taskId) {
+	// 				log.debug('found');
+	// 				return true;
+	// 			}
+	// 		}
+	// 	}
+	// 	log.debug('not found');
+	// 	return false;
+	// }
 
 	protected async newEmptyFileMetadata(filepath: string, projectId?: string): Promise<FileDetail | undefined> {
 		//There's a case where we are making an entry for an undefined file. Not sure where it's coming from
