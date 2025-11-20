@@ -606,7 +606,7 @@ export class TaskParser {
 			//make sure that they're not in a non-project file.
 			const taskFile = this.plugin.cacheOperation.getFilepathForTask(TickTickTask.id);
 			if (taskFile) {
-				log.debug('Task file: ', taskFile);
+				// log.debug('Task file: ', taskFile);
 				const hasADefaultProject = this.plugin.cacheOperation.filepathHasDefaultProjectID(taskFile)
 				if (hasADefaultProject) {
 					return true;
@@ -868,7 +868,6 @@ export class TaskParser {
 			resultLine = `${resultLine}${prefix}${url}`;
 		}
 		let noteLines: string[];
-
 		if (content.length > 0) {
 			noteLines = content.split('\n');
 			if (noteLines.length > 0) {

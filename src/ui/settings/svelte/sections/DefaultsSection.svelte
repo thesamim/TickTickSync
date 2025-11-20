@@ -29,22 +29,19 @@
 	async function ensureCorrectDefaultPaths() {
 		const defaultProjectFolder = getDefaultFolder();
 		const defaultProject = getSettings().defaultProjectName;
-		log.debug('default project folder: ', defaultProjectFolder, 'default project', defaultProject);
+		log.debug('Changing default Project or Project Folder \nNew default project folder: ', defaultProjectFolder, 'New default project', defaultProject);
 		if (defaultProject) {
 			const defaultProjectFileName = defaultProject + '.md';
 			const markdownFiles = app.vault.getMarkdownFiles();
 			for (const file of markdownFiles) {
-				log.debug('checking file: ', file.path);
 				if (isDefaultProjectFile(file.path)) {
 					if (file.path !== defaultProjectFolder + '/' + defaultProjectFileName) {
 						try {
-							log.debug('renaming file: ', file.path, 'to: ', defaultProjectFolder + '/' + defaultProjectFileName);
 							await app.vault.rename(file, defaultProjectFolder + '/' + defaultProjectFileName);
 						} catch (error) {
 							log.error(`File rename failed. ${error}`);
 							alert(`File rename failed. ${error}`);
 						}
-						log.debug('default project file renamed', defaultProjectFolder + '/' + defaultProjectFileName);
 					} else {
 						log.debug('default project file NOT renamed', await app.vault.getAbstractFileByPath(defaultProjectFolder + '/' + defaultProjectFileName));
 					}
@@ -78,7 +75,6 @@
 					if (e.key === 'Enter') {
 						const value = search.inputEl.value;
 						const newFolder = await validateNewFolder(value, 'Default');
-						log.debug('new folder: ', newFolder);
 						if (newFolder) {
 							updateSettings({ TickTickTasksFilePath: newFolder });
 							await ensureCorrectDefaultPaths();
@@ -139,7 +135,6 @@
 				const newPath = defaultProjectFolder + '/' + file.name;
 				if (file.path !== newPath) {
 					await plugin.app.vault.rename(file, newPath);
-					log.debug('File Moved', newPath);
 				}
 			} catch (error) {
 				log.error(`File rename failed. ${error}`);
@@ -154,11 +149,8 @@
 		const files: TFile[] = [];
 		const settings = getSettings();
 
-		log.debug(`Checking ${markdownFiles.length} files for tasks...`);
-
 		let countForDebug = 0;
 		for (const file of markdownFiles) {
-			log.debug(`Checking file ${file.path}`);
 			if (isDefaultProjectFile(file.path)) {
 				continue;
 			}
@@ -174,8 +166,6 @@
 				log.error(`Failed to process file ${file.path}`, e);
 			}
 		}
-		log.debug(`Found ${files.length} files to move.`);
-		log.debug(`Files to move: ${files.map(f => f.path).join(', ')}`);
 		return files;
 	}
 

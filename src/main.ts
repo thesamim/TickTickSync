@@ -413,6 +413,8 @@ export default class TickTickSync extends Plugin {
 		// 	// Nothing to see here right now.
 		// 	// const foo = await this.tickTickRestAPI?.api?.getUserStatus()
 		// 	// log.debug(foo)
+		// 	log.debug("AppID", this.app.appid);
+		// 	log.debug("HostName", require('os').hostname())
 		// });
 
 
@@ -665,7 +667,6 @@ export default class TickTickSync extends Plugin {
 			notableChanges.push(['Can now login with SSO/2FA enabled account on Desktop', 'Desktop SSO/2FA login enabled.', 'priorTo1.1.14']);
 		}
 		if ((!data.version) || (isOlder(data.version, '1.1.16'))) {
-			log.debug('pushing');
 			notableChanges.push(['Note handling improvements', 'Can now have checklist items and TickTick Task links in notes.', 'priorTo1.1.15']);
 		}
 

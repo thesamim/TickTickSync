@@ -281,8 +281,7 @@ export class FileMap {
 		this.fileLines[line] = text;
 	}
 
-	hasTasks(fullVaultSync: boolean, countForDebug: number) {
-		log.debug(`${countForDebug} -- file: ${this.file.path} -- fileLines: ${this.fileLines.length}`);
+	hasTasks(fullVaultSync: boolean) {
 		return this.fileLines.some(line => this.plugin.taskParser.isMarkdownTask(line) && (fullVaultSync || this.plugin.taskParser.hasTickTickId(line)));
 	}
 
