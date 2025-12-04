@@ -5,9 +5,7 @@ on:
         - cron: '*/15 * * * *'   # every 15 minutes; adjust if desired
     workflow_dispatch:
 
-# NOTE: 'projects' permission causes errors in some runners / older docs;
-# to avoid the documented error you reported, we omit it here.
-# The workflow still needs repo/workflow permissions (set in repository settings):
+# Avoid top-level 'projects' permission (some runners/error with unknown permission).
 permissions:
     issues: write
     contents: read
@@ -109,16 +107,16 @@ jobs:
                           console.warn('graphql with default token failed:', err.message || err);
                           if (PROJECT_PAT) {
                             console.log('Falling back to PROJECT_PAT for GraphQL calls.');
-                            // github.request returns { data: { data: ... } } for POST /graphql
                             const payload = { query, variables };
                             const res = await github.request('POST /graphql', {
-                              ...payload,
+                              query,
+                              variables,
                               headers: {
                                 authorization: `bearer ${PROJECT_PAT}`,
                                 accept: 'application/vnd.github.v3+json'
                               }
                             });
-                            // request returns the raw GraphQL response under res.data
+                            // github.request returns response where data is under res.data
                             return res.data;
                           }
                           throw err;
@@ -157,7 +155,6 @@ jobs:
                           }
                         `;
                         const res = await runGraphQL(query, { owner: OWNER, number: PROJECT_NUMBER });
-                        // If fallback used github.request, res may be the full response object; normalize:
                         const payload = res.data ? res.data : res;
                         const project = payload?.user?.projectV2;
                         if (!project) return null;
