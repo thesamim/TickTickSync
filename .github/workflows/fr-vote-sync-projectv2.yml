@@ -5,7 +5,7 @@ on:
         - cron: '*/15 * * * *'   # every 15 minutes; adjust if desired
     workflow_dispatch:
 
-# Avoid top-level 'projects' permission (some runners/error with unknown permission).
+# Avoid top-level 'projects' permission (causes unknown-permission errors in some environments).
 permissions:
     issues: write
     contents: read
@@ -18,8 +18,10 @@ jobs:
               uses: actions/github-script@v6
               with:
                   script: |
-                      const OWNER = process.env.OWNER || context.repo.owner;
-                      const REPO = process.env.REPO || context.repo.repo;
+                      // This script uses context.repo.owner / context.repo.repo as the repository owner/repo.
+                      // If you want to override owner/repo, set environment variables OVERRIDE_OWNER and OVERRIDE_REPO.
+                      const OWNER = process.env.OVERRIDE_OWNER || context.repo.owner;
+                      const REPO = process.env.OVERRIDE_REPO || context.repo.repo;
                       const PROJECT_NUMBER = Number(process.env.PROJECT_NUMBER || '2'); // projectV2 number (from your URL)
                       const PROJECT_FIELD_NAME = process.env.PROJECT_FIELD_NAME || 'Priority'; // single-select field name in ProjectV2
                       const OPTION_LOW = process.env.OPTION_LOW || 'Low';
@@ -32,8 +34,7 @@ jobs:
                       const LABEL_HIGH = process.env.LABEL_HIGH || 'priority/high';
                       
                       // Optional: if GITHUB_TOKEN lacks ProjectV2 permissions in your org,
-                      // create a PAT (repo + projects scopes) and store it as the secret PROJECT_PAT.
-                      // The script will attempt graphql with the default token first and fall back to PROJECT_PAT.
+                      // create a PAT (repo + projects) and store it as the secret PROJECT_PAT.
                       const PROJECT_PAT = process.env.PROJECT_PAT || null;
                       
                       function voteToLabel(votes) {
@@ -107,7 +108,6 @@ jobs:
                           console.warn('graphql with default token failed:', err.message || err);
                           if (PROJECT_PAT) {
                             console.log('Falling back to PROJECT_PAT for GraphQL calls.');
-                            const payload = { query, variables };
                             const res = await github.request('POST /graphql', {
                               query,
                               variables,
@@ -116,7 +116,6 @@ jobs:
                                 accept: 'application/vnd.github.v3+json'
                               }
                             });
-                            // github.request returns response where data is under res.data
                             return res.data;
                           }
                           throw err;
@@ -325,8 +324,6 @@ jobs:
                       
                       console.log('FR vote sync complete');
               env:
-                  OWNER: ${{ github.repository_owner }}
-                  REPO: ${{ github.event.repository != null && github.event.repository.name ? github.event.repository.name : github.repository.split('/')[1] }}
                   PROJECT_NUMBER: '2'
                   PROJECT_FIELD_NAME: 'Priority'
                   OPTION_LOW: 'Low'
