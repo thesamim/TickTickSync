@@ -1,0 +1,19 @@
+name: FR Vote Sync (ProjectV2, no npm)
+
+on:
+    schedule:
+        -   cron: '*/15 * * * *' # every 15 minutes; adjust if desired workflow_dispatch:
+
+permissions:
+    issues:
+        write contents:
+            read projects: write
+
+jobs:
+    sync:
+        runs-on:
+            ubuntu-latest steps:
+                -   name:
+                        Run FR vote sync (ProjectV2) uses:
+                            actions/github-script@v6 with:
+                                script: | const OWNER = process.env.OWNER || context.repo.owner; const REPO = process.env.REPO || context.repo.repo; const PROJECT_NUMBER = Number(process.env.PROJECT_NUMBER || '2'); // projectV2 number (from your URL) const PROJECT_FIELD_NAME = process.env.PROJECT_FIELD_NAME || 'Priority'; // single-select field name in ProjectV2 const OPTION_LOW = process.env.OPTION_LOW || 'Low'; const OPTION_MEDIUM = process.env.OPTION_MEDIUM || 'Medium'; const OPTION_HIGH = process.env.OPTION_HIGH || 'High';
