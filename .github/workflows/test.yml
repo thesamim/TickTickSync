@@ -1,14 +1,18 @@
 name: Add To GitHub projects
 on:
     workflow_dispatch:
-
-uses: actions/add-to-project@v1.0.2
-  with:
-    # URL of the project to add issues to
-    project-url: https://github.com/users/thesamim/projects/2
-    # A GitHub personal access token with write access to the project
-    github-token: ${{ secrets.PROJECT_PAT }}
-    # A comma-separated list of labels to use as a filter for issue to be added
-    labeled: low, medium, high # optionall
-    # The behavior of the labels filter, AND to match all labels, OR to match any label, NOT to exclude any listed label (default is OR)
-    label-operator: OR # optional
+jobs:
+    sync:
+        runs-on: ubuntu-latest
+        steps:
+            - name: SyncToProject
+              uses: actions/add-to-project@v1.0.2
+              with:
+                # URL of the project to add issues to
+                project-url: https://github.com/users/thesamim/projects/2
+                # A GitHub personal access token with write access to the project
+                github-token: ${{ secrets.PROJECT_PAT }}
+                # A comma-separated list of labels to use as a filter for issue to be added
+                labeled: low, medium, high # optionall
+                # The behavior of the labels filter, AND to match all labels, OR to match any label, NOT to exclude any listed label (default is OR)
+                label-operator: OR # optional
