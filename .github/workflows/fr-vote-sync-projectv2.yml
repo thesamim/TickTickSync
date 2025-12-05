@@ -323,7 +323,7 @@ jobs:
                   OPTION_MEDIUM: 'Medium'
                   OPTION_HIGH: 'High'
                   VOTE_REACTION: '+1'
-                  LABEL_LOW: 'priority/low'
-                  LABEL_MEDIUM: 'priority/medium'
-                  LABEL_HIGH: 'priority/high'
+                  LABEL_LOW: 'low'
+                  LABEL_MEDIUM: 'medium'
+                  LABEL_HIGH: 'high'
                   PROJECT_PAT: ${{ secrets.PROJECT_PAT }}  # optional PAT fallback if default token can't access ProjectV2
