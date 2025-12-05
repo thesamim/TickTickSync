@@ -136,12 +136,7 @@ jobs:
                                     ... on ProjectV2SingleSelectField {
                                       id
                                       name
-                                      options(first: 100) {
-                                        nodes {
-                                          id
-                                          name
-                                        }
-                                      }
+                                       options { id name }
                                     }
                                     ... on ProjectV2Field {
                                       id
@@ -255,9 +250,7 @@ jobs:
                       // Build mapping from option name -> option id for Priority field (if available)
                       let optionMap = {};
                       if (projectData && projectData.selField && projectData.selField.options) {
-                        for (const opt of projectData.selField.options.nodes) {
-                          optionMap[opt.name] = opt.id;
-                        }
+                       for (const opt of projectData.selField.options) { optionMap[opt.name] = opt.id; }
                         console.log('ProjectV2 priority options:', Object.keys(optionMap).join(', '));
                       }
                       
