@@ -102,6 +102,9 @@ jobs:
                       // Helper: try github.graphql first; if it fails and PROJECT_PAT is provided,
                       // fall back to calling the GraphQL endpoint with the PAT via github.request.
                       async function runGraphQL(query, variables = {}) {
+                        console.log(`Starting FR vote sync for ${OWNER}/${REPO}`);
+                        console.log(`Looking for ProjectV2 #${PROJECT_NUMBER} owned by ${OWNER}`);
+                      
                         try {
                           return await github.graphql(query, variables);
                         } catch (err) {
