@@ -22,7 +22,7 @@ jobs:
                       // If you want to override owner/repo, set environment variables OVERRIDE_OWNER and OVERRIDE_REPO.
                       const OWNER = process.env.OVERRIDE_OWNER || context.repo.owner;
                       const REPO = process.env.OVERRIDE_REPO || context.repo.repo;
-                      const PROJECT_NUMBER = process.env.PROJECT_NUMBER; // projectV2 number (from your URL)
+                      const PROJECT_NUMBER = parseInt(process.env.PROJECT_NUMBER, 10); // projectV2 number (from your URL)
                       const PROJECT_FIELD_NAME = process.env.PROJECT_FIELD_NAME || 'Priority'; // single-select field name in ProjectV2
                       const OPTION_LOW = process.env.OPTION_LOW || 'Low';
                       const OPTION_MEDIUM = process.env.OPTION_MEDIUM || 'Medium';
