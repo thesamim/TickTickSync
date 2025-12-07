@@ -2,7 +2,7 @@ name: FR Vote Sync (ProjectV2, no npm)
 
 on:
     schedule:
-        - cron: '*/15 * * * *'   # every 15 minutes; adjust if desired
+        -   cron: '*/15 * * * *'   # every 15 minutes; adjust if desired
     workflow_dispatch:
 
 # Avoid top-level 'projects' permission (causes unknown-permission errors in some environments).
@@ -101,10 +101,7 @@ jobs:
                       
                       // Helper: try github.graphql first; if it fails and PROJECT_PAT is provided,
                       // fall back to calling the GraphQL endpoint with the PAT via github.request.
-                      async function runGraphQL(query, variables = {}) {
-                        console.log(`Starting FR vote sync for ${OWNER}/${REPO}`);
-                        console.log(`Looking for ProjectV2 #${PROJECT_NUMBER} owned by ${OWNER}`);
-                      
+                      async function runGraphQL(query, variables = {}) {                      
                         try {
                           return await github.graphql(query, variables);
                         } catch (err) {
@@ -125,11 +122,13 @@ jobs:
                         }
                       }
                       
-                      // Get ProjectV2 and single-select field info
-                      async function getProjectV2Data() {
-                        const query = `
-                          query($owner:String!, $number:Int!) {
-                            user(login: $owner) {
+                        //--------------------------------------------------------------------
+                        // FIXED: ProjectV2 must be accessed through viewer, not user(login:)
+                        //--------------------------------------------------------------------
+                        async function getProjectV2Data() {
+                          const query = `
+                            query($number:Int!) {
+                              viewer {
                               projectV2(number: $number) {
                                 id
                                 title
@@ -151,18 +150,12 @@ jobs:
                             }
                           }
                         `;
-                        const res = await runGraphQL(query, { owner: OWNER, number: PROJECT_NUMBER });
-                        const payload = res.data ? res.data : res;
-                        const project = payload?.user?.projectV2;
+                        const res = await runGraphQL(query, { number: PROJECT_NUMBER });
+                        const project = res?.viewer?.projectV2;
                         if (!project) return null;
+                        
                         const fieldNodes = project.fields.nodes || [];
-                        let selField = null;
-                        for (const f of fieldNodes) {
-                          if (f.__typename === 'ProjectV2SingleSelectField' && f.name === PROJECT_FIELD_NAME) {
-                            selField = f;
-                            break;
-                          }
-                        }
+                        let selField = fieldNodes.find(f => f.__typename === 'ProjectV2SingleSelectField' && f.name === PROJECT_FIELD_NAME);
                         return { projectId: project.id, projectTitle: project.title, selField };
                       }
                       
@@ -225,108 +218,110 @@ jobs:
                       }
                       
                       // --- Main flow ---
-                      console.log(`Starting FR vote sync for ${OWNER}/${REPO}`);
-                      
-                      await ensureLabel(LABEL_LOW);
-                      await ensureLabel(LABEL_MEDIUM);
-                      await ensureLabel(LABEL_HIGH);
-                      
-                      let projectData = null;
-                      try {
-                        projectData = await getProjectV2Data();
-                      } catch (err) {
-                        console.warn('Failed to load ProjectV2 data:', err.message || err);
-                        projectData = null;
-                      }
-                      
-                      if (!projectData) {
-                        console.log(`ProjectV2 number ${PROJECT_NUMBER} not found for ${OWNER}. Skipping ProjectV2 moves; labels will still update.`);
-                      } else {
-                        console.log(`Found ProjectV2: ${projectData.projectTitle} (id=${projectData.projectId})`);
-                        if (!projectData.selField) {
-                          console.log(`ProjectV2 single-select field "${PROJECT_FIELD_NAME}" not found. The workflow will still update labels but cannot set project field values.`);
-                        } else {
-                          console.log(`Found ProjectV2 field "${projectData.selField.name}" with id ${projectData.selField.id}`);
-                        }
-                      }
-                      
-                      // Build mapping from option name -> option id for Priority field (if available)
-                      let optionMap = {};
-                      if (projectData && projectData.selField && projectData.selField.options) {
-                       for (const opt of projectData.selField.options) { optionMap[opt.name] = opt.id; }
-                        console.log('ProjectV2 priority options:', Object.keys(optionMap).join(', '));
-                      }
-                      
-                      // fetch open issues, paginate
-                      const issues = await github.paginate(github.rest.issues.listForRepo, {
-                        owner: OWNER,
-                        repo: REPO,
-                        state: 'open',
-                        per_page: 100
-                      });
-                      
-                      for (const issue of issues) {
-                        if (issue.pull_request) continue;
-                        if (!issue.title || !issue.title.startsWith('[FR]')) continue;
-                      
+                        console.log(`Starting FR vote sync -- V2 for ${OWNER}/${REPO}`);
+                        console.log(`Looking for ProjectV2 #${PROJECT_NUMBER} owned by ${OWNER}`);
+                        
+                        
+                        await ensureLabel(LABEL_LOW);
+                        await ensureLabel(LABEL_MEDIUM);
+                        await ensureLabel(LABEL_HIGH);
+                        
+                        let projectData = null;
                         try {
-                          const votes = await getUniqueVoteCount(issue.number);
-                          const targetLabel = voteToLabel(votes);
-                          console.log(`#${issue.number} votes=${votes} -> ${targetLabel}`);
-                      
-                          await updateIssueLabels(issue, targetLabel);
-                      
-                          // ProjectV2 actions: add item if not present and set Priority field to Low/Medium/High option
-                          if (projectData && projectData.projectId && projectData.selField) {
-                            const { issueNodeId, projectItemId } = await getIssueNodeAndProjectItem(issue.number, projectData.projectId);
-                            let itemId = projectItemId;
-                            if (!issueNodeId) {
-                              console.log(`Could not fetch node id for issue #${issue.number}; skipping project update.`);
-                              continue;
-                            }
-                            if (!itemId) {
-                              // add item to project
-                              itemId = await addProjectV2Item(projectData.projectId, issueNodeId);
-                              if (itemId) {
-                                console.log(`Added projectV2 item for #${issue.number}: ${itemId}`);
-                              } else {
-                                console.log(`Failed to add project item for #${issue.number}; it may already exist or permissions blocked.`);
+                          projectData = await getProjectV2Data();
+                        } catch (err) {
+                          console.warn('Failed to load ProjectV2 data:', err.message || err);
+                          projectData = null;
+                        }
+                        
+                        if (!projectData) {
+                          console.log(`ProjectV2 number ${PROJECT_NUMBER} not found for ${OWNER}. Skipping ProjectV2 moves; labels will still update.`);
+                        } else {
+                          console.log(`Found ProjectV2: ${projectData.projectTitle} (id=${projectData.projectId})`);
+                          if (!projectData.selField) {
+                            console.log(`ProjectV2 single-select field "${PROJECT_FIELD_NAME}" not found. The workflow will still update labels but cannot set project field values.`);
+                          } else {
+                            console.log(`Found ProjectV2 field "${projectData.selField.name}" with id ${projectData.selField.id}`);
+                          }
+                        }
+                        
+                        // Build mapping from option name -> option id for Priority field (if available)
+                        let optionMap = {};
+                        if (projectData && projectData.selField && projectData.selField.options) {
+                         for (const opt of projectData.selField.options) { optionMap[opt.name] = opt.id; }
+                          console.log('ProjectV2 priority options:', Object.keys(optionMap).join(', '));
+                        }
+                        
+                        // fetch open issues, paginate
+                        const issues = await github.paginate(github.rest.issues.listForRepo, {
+                          owner: OWNER,
+                          repo: REPO,
+                          state: 'open',
+                          per_page: 100
+                        });
+                        
+                        for (const issue of issues) {
+                          if (issue.pull_request) continue;
+                          if (!issue.title || !issue.title.startsWith('[FR]')) continue;
+                        
+                          try {
+                            const votes = await getUniqueVoteCount(issue.number);
+                            const targetLabel = voteToLabel(votes);
+                            console.log(`#${issue.number} votes=${votes} -> ${targetLabel}`);
+                        
+                            await updateIssueLabels(issue, targetLabel);
+                        
+                            // ProjectV2 actions: add item if not present and set Priority field to Low/Medium/High option
+                            if (projectData && projectData.projectId && projectData.selField) {
+                              const { issueNodeId, projectItemId } = await getIssueNodeAndProjectItem(issue.number, projectData.projectId);
+                              let itemId = projectItemId;
+                              if (!issueNodeId) {
+                                console.log(`Could not fetch node id for issue #${issue.number}; skipping project update.`);
                                 continue;
                               }
+                              if (!itemId) {
+                                // add item to project
+                                itemId = await addProjectV2Item(projectData.projectId, issueNodeId);
+                                if (itemId) {
+                                  console.log(`Added projectV2 item for #${issue.number}: ${itemId}`);
+                                } else {
+                                  console.log(`Failed to add project item for #${issue.number}; it may already exist or permissions blocked.`);
+                                  continue;
+                                }
+                              } else {
+                                console.log(`Issue #${issue.number} already has project item ${itemId}`);
+                              }
+                        
+                              // Set field option id based on label
+                              let targetOptionName = null;
+                              if (targetLabel === LABEL_LOW) targetOptionName = OPTION_LOW;
+                              if (targetLabel === LABEL_MEDIUM) targetOptionName = OPTION_MEDIUM;
+                              if (targetLabel === LABEL_HIGH) targetOptionName = OPTION_HIGH;
+                        
+                              const optionId = optionMap[targetOptionName];
+                              if (!optionId) {
+                                console.log(`Project option "${targetOptionName}" not found in field "${PROJECT_FIELD_NAME}". Skipping setting project field value for #${issue.number}.`);
+                              } else {
+                                await updateProjectV2ItemFieldValue(projectData.projectId, itemId, projectData.selField.id, optionId);
+                                console.log(`Set ProjectV2 priority for #${issue.number} -> ${targetOptionName}`);
+                              }
                             } else {
-                              console.log(`Issue #${issue.number} already has project item ${itemId}`);
+                              console.log(`ProjectV2 not configured or Priority field missing; skipping project update for #${issue.number}.`);
                             }
-                      
-                            // Set field option id based on label
-                            let targetOptionName = null;
-                            if (targetLabel === LABEL_LOW) targetOptionName = OPTION_LOW;
-                            if (targetLabel === LABEL_MEDIUM) targetOptionName = OPTION_MEDIUM;
-                            if (targetLabel === LABEL_HIGH) targetOptionName = OPTION_HIGH;
-                      
-                            const optionId = optionMap[targetOptionName];
-                            if (!optionId) {
-                              console.log(`Project option "${targetOptionName}" not found in field "${PROJECT_FIELD_NAME}". Skipping setting project field value for #${issue.number}.`);
-                            } else {
-                              await updateProjectV2ItemFieldValue(projectData.projectId, itemId, projectData.selField.id, optionId);
-                              console.log(`Set ProjectV2 priority for #${issue.number} -> ${targetOptionName}`);
-                            }
-                          } else {
-                            console.log(`ProjectV2 not configured or Priority field missing; skipping project update for #${issue.number}.`);
+                          } catch (err) {
+                            console.error(`Error processing #${issue.number}:`, err.message || err);
                           }
-                        } catch (err) {
-                          console.error(`Error processing #${issue.number}:`, err.message || err);
                         }
-                      }
-                      
-                      console.log('FR vote sync complete');
-              env:
-                  PROJECT_NUMBER: 2
-                  PROJECT_FIELD_NAME: 'Priority'
-                  OPTION_LOW: 'Low'
-                  OPTION_MEDIUM: 'Medium'
-                  OPTION_HIGH: 'High'
-                  VOTE_REACTION: '+1'
-                  LABEL_LOW: 'low'
-                  LABEL_MEDIUM: 'medium'
-                  LABEL_HIGH: 'high'
-                  PROJECT_PAT: ${{ secrets.PROJECT_PAT }}  # optional PAT fallback if default token can't access ProjectV2
+                        
+                        console.log('FR vote sync complete');
+        env:
+            PROJECT_NUMBER: 2
+            PROJECT_FIELD_NAME: 'Priority'
+            OPTION_LOW: 'Low'
+            OPTION_MEDIUM: 'Medium'
+            OPTION_HIGH: 'High'
+            VOTE_REACTION: '+1'
+            LABEL_LOW: 'low'
+            LABEL_MEDIUM: 'medium'
+            LABEL_HIGH: 'high'
+            PROJECT_PAT: ${{ secrets.PROJECT_PAT }}
