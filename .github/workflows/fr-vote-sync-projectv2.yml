@@ -14,114 +14,114 @@ jobs:
     sync:
         runs-on: ubuntu-latest
         steps:
-            -   name: Run FR vote sync (ProjectV2)
-                uses: actions/github-script@v6
-                with:
-                    script: |
-                        // This script uses context.repo.owner / context.repo.repo as the repository owner/repo.
-                        // If you want to override owner/repo, set environment variables OVERRIDE_OWNER and OVERRIDE_REPO.
-                        const OWNER = process.env.OVERRIDE_OWNER || context.repo.owner;
-                        const REPO = process.env.OVERRIDE_REPO || context.repo.repo;
-                        const PROJECT_NUMBER = parseInt(process.env.PROJECT_NUMBER, 10); // projectV2 number (from your URL)
-                        const PROJECT_FIELD_NAME = process.env.PROJECT_FIELD_NAME || 'Priority'; // single-select field name in ProjectV2
-                        const OPTION_LOW = process.env.OPTION_LOW || 'Low';
-                        const OPTION_MEDIUM = process.env.OPTION_MEDIUM || 'Medium';
-                        const OPTION_HIGH = process.env.OPTION_HIGH || 'High';
-                        
-                        const VOTE_REACTION = process.env.VOTE_REACTION || '+1';
-                        const LABEL_LOW = process.env.LABEL_LOW || 'priority/low';
-                        const LABEL_MEDIUM = process.env.LABEL_MEDIUM || 'priority/medium';
-                        const LABEL_HIGH = process.env.LABEL_HIGH || 'priority/high';
-                        
-                        // Optional: if GITHUB_TOKEN lacks ProjectV2 permissions in your org,
-                        // create a PAT (repo + projects) and store it as the secret PROJECT_PAT.
-                        const PROJECT_PAT = process.env.PROJECT_PAT || null;
-                        
-                        function voteToLabel(votes) {
-                          if (votes >= 6) return LABEL_HIGH;
-                          if (votes >= 3) return LABEL_MEDIUM;
-                          return LABEL_LOW;
-                        }
-                        
-                        async function ensureLabel(name) {
-                          try {
-                            await github.rest.issues.getLabel({ owner: OWNER, repo: REPO, name });
-                          } catch (err) {
-                            if (err.status === 404) {
-                              console.log(`Creating label ${name}`);
-                              await github.rest.issues.createLabel({
-                                owner: OWNER,
-                                repo: REPO,
-                                name,
-                                color: name === LABEL_HIGH ? 'ff0000' : name === LABEL_MEDIUM ? 'ffa500' : '2c974b',
-                                description: 'Priority assigned from FR vote sync'
-                              });
-                            } else {
-                              throw err;
-                            }
-                          }
-                        }
-                        
-                        async function getUniqueVoteCount(issue_number) {
-                          const reactions = await github.rest.reactions.listForIssue({
-                            owner: OWNER,
-                            repo: REPO,
-                            issue_number,
-                            per_page: 100,
-                            mediaType: { previews: ['squirrel-girl'] }
-                          });
-                          const voters = new Set();
-                          for (const r of reactions.data) {
-                            if (r.content === VOTE_REACTION) {
-                              if (r.user && r.user.id) voters.add(r.user.id);
-                            }
-                          }
-                          return voters.size;
-                        }
-                        
-                        async function updateIssueLabels(issue, targetLabel) {
-                          const existing = (issue.labels || []).map(l => (typeof l === 'string' ? l : l.name));
-                          const priorityLabels = [LABEL_LOW, LABEL_MEDIUM, LABEL_HIGH];
-                          const filtered = existing.filter(l => !priorityLabels.includes(l));
-                          if (!filtered.includes(targetLabel)) filtered.push(targetLabel);
-                        
-                          const same = filtered.length === existing.length && filtered.every(l => existing.includes(l));
-                          if (!same) {
-                            await github.rest.issues.update({
+            - name: Run FR vote sync (ProjectV2)
+              uses: actions/github-script@v6
+              with:
+                  script: |
+                      // This script uses context.repo.owner / context.repo.repo as the repository owner/repo.
+                      // If you want to override owner/repo, set environment variables OVERRIDE_OWNER and OVERRIDE_REPO.
+                      const OWNER = process.env.OVERRIDE_OWNER || context.repo.owner;
+                      const REPO = process.env.OVERRIDE_REPO || context.repo.repo;
+                      const PROJECT_NUMBER = parseInt(process.env.PROJECT_NUMBER, 10); // projectV2 number (from your URL)
+                      const PROJECT_FIELD_NAME = process.env.PROJECT_FIELD_NAME || 'Priority'; // single-select field name in ProjectV2
+                      const OPTION_LOW = process.env.OPTION_LOW || 'Low';
+                      const OPTION_MEDIUM = process.env.OPTION_MEDIUM || 'Medium';
+                      const OPTION_HIGH = process.env.OPTION_HIGH || 'High';
+                      
+                      const VOTE_REACTION = process.env.VOTE_REACTION || '+1';
+                      const LABEL_LOW = process.env.LABEL_LOW || 'priority/low';
+                      const LABEL_MEDIUM = process.env.LABEL_MEDIUM || 'priority/medium';
+                      const LABEL_HIGH = process.env.LABEL_HIGH || 'priority/high';
+                      
+                      // Optional: if GITHUB_TOKEN lacks ProjectV2 permissions in your org,
+                      // create a PAT (repo + projects) and store it as the secret PROJECT_PAT.
+                      const PROJECT_PAT = process.env.PROJECT_PAT || null;
+                      
+                      function voteToLabel(votes) {
+                        if (votes >= 6) return LABEL_HIGH;
+                        if (votes >= 3) return LABEL_MEDIUM;
+                        return LABEL_LOW;
+                      }
+                      
+                      async function ensureLabel(name) {
+                        try {
+                          await github.rest.issues.getLabel({ owner: OWNER, repo: REPO, name });
+                        } catch (err) {
+                          if (err.status === 404) {
+                            console.log(`Creating label ${name}`);
+                            await github.rest.issues.createLabel({
                               owner: OWNER,
                               repo: REPO,
-                              issue_number: issue.number,
-                              labels: filtered
+                              name,
+                              color: name === LABEL_HIGH ? 'ff0000' : name === LABEL_MEDIUM ? 'ffa500' : '2c974b',
+                              description: 'Priority assigned from FR vote sync'
                             });
-                            console.log(`Updated labels for #${issue.number} -> ${targetLabel}`);
                           } else {
-                            console.log(`Labels for #${issue.number} already correct`);
-                          }
-                        }
-                        
-                        // Helper: try github.graphql first; if it fails and PROJECT_PAT is provided,
-                        // fall back to calling the GraphQL endpoint with the PAT via github.request.
-                        async function runGraphQL(query, variables = {}) {                        
-                          try {
-                            return await github.graphql(query, variables);
-                          } catch (err) {
-                            console.warn('graphql with default token failed:', err.message || err);
-                            if (PROJECT_PAT) {
-                              console.log('Falling back to PROJECT_PAT for GraphQL calls.');
-                              const res = await github.request('POST /graphql', {
-                                query,
-                                variables,
-                                headers: {
-                                  authorization: `bearer ${PROJECT_PAT}`,
-                                  accept: 'application/vnd.github.v3+json'
-                                }
-                              });
-                              return res.data;
-                            }
                             throw err;
                           }
                         }
-                        
+                      }
+                      
+                      async function getUniqueVoteCount(issue_number) {
+                        const reactions = await github.rest.reactions.listForIssue({
+                          owner: OWNER,
+                          repo: REPO,
+                          issue_number,
+                          per_page: 100,
+                          mediaType: { previews: ['squirrel-girl'] }
+                        });
+                        const voters = new Set();
+                        for (const r of reactions.data) {
+                          if (r.content === VOTE_REACTION) {
+                            if (r.user && r.user.id) voters.add(r.user.id);
+                          }
+                        }
+                        return voters.size;
+                      }
+                      
+                      async function updateIssueLabels(issue, targetLabel) {
+                        const existing = (issue.labels || []).map(l => (typeof l === 'string' ? l : l.name));
+                        const priorityLabels = [LABEL_LOW, LABEL_MEDIUM, LABEL_HIGH];
+                        const filtered = existing.filter(l => !priorityLabels.includes(l));
+                        if (!filtered.includes(targetLabel)) filtered.push(targetLabel);
+                      
+                        const same = filtered.length === existing.length && filtered.every(l => existing.includes(l));
+                        if (!same) {
+                          await github.rest.issues.update({
+                            owner: OWNER,
+                            repo: REPO,
+                            issue_number: issue.number,
+                            labels: filtered
+                          });
+                          console.log(`Updated labels for #${issue.number} -> ${targetLabel}`);
+                        } else {
+                          console.log(`Labels for #${issue.number} already correct`);
+                        }
+                      }
+                      
+                      // Helper: try github.graphql first; if it fails and PROJECT_PAT is provided,
+                      // fall back to calling the GraphQL endpoint with the PAT via github.request.
+                      async function runGraphQL(query, variables = {}) {                      
+                        try {
+                          return await github.graphql(query, variables);
+                        } catch (err) {
+                          console.warn('graphql with default token failed:', err.message || err);
+                          if (PROJECT_PAT) {
+                            console.log('Falling back to PROJECT_PAT for GraphQL calls.');
+                            const res = await github.request('POST /graphql', {
+                              query,
+                              variables,
+                              headers: {
+                                authorization: `bearer ${PROJECT_PAT}`,
+                                accept: 'application/vnd.github.v3+json'
+                              }
+                            });
+                            return res.data;
+                          }
+                          throw err;
+                        }
+                      }
+                      
                         //--------------------------------------------------------------------
                         // FIXED: ProjectV2 must be accessed through viewer, not user(login:)
                         //--------------------------------------------------------------------
@@ -129,97 +129,95 @@ jobs:
                           const query = `
                             query($number:Int!) {
                               viewer {
-                                projectV2(number: $number) {
-                                  id
-                                  title
-                                  fields(first:100) {
-                                    nodes {
-                                      __typename
-                                      ... on ProjectV2SingleSelectField {
-                                        id
-                                        name
-                                         options { id name }
-                                      }
-                                      ... on ProjectV2Field {
-                                        id
-                                        name
-                                      }
+                              projectV2(number: $number) {
+                                id
+                                title
+                                fields(first:100) {
+                                  nodes {
+                                    __typename
+                                    ... on ProjectV2SingleSelectField {
+                                      id
+                                      name
+                                       options { id name }
+                                    }
+                                    ... on ProjectV2Field {
+                                      id
+                                      name
                                     }
                                   }
                                 }
                               }
                             }
-                          `;
-                          const res = await runGraphQL(query, { number: PROJECT_NUMBER });
-                          const project = res?.viewer?.projectV2;
-                          if (!project) return null;
+                          }
+                        `;
+                        const res = await runGraphQL(query, { number: PROJECT_NUMBER });
+                        const project = res?.viewer?.projectV2;
+                        if (!project) return null;
                         
-                          const fieldNodes = project.fields.nodes || [];
-                          let selField = fieldNodes.find(
-                              f => f.__typename === 'ProjectV2SingleSelectField' && f.name === PROJECT_FIELD_NAME
-                              );
-                          return { projectId: project.id, projectTitle: project.title, selField };
-                        }
-                        
-                        async function getIssueNodeAndProjectItem(issueNumber, projectId) {
-                          const q = `
-                            query($owner:String!, $repo:String!, $number:Int!) {
-                              repository(owner:$owner, name:$repo) {
-                                issue(number: $number) {
-                                  id
-                                  title
-                                  projectItems(first:100) {
-                                    nodes {
+                        const fieldNodes = project.fields.nodes || [];
+                        let selField = fieldNodes.find(f => f.__typename === 'ProjectV2SingleSelectField' && f.name === PROJECT_FIELD_NAME);
+                        return { projectId: project.id, projectTitle: project.title, selField };
+                      }
+                      
+                      async function getIssueNodeAndProjectItem(issueNumber, projectId) {
+                        const q = `
+                          query($owner:String!, $repo:String!, $number:Int!) {
+                            repository(owner:$owner, name:$repo) {
+                              issue(number: $number) {
+                                id
+                                title
+                                projectItems(first:100) {
+                                  nodes {
+                                    id
+                                    project {
                                       id
-                                      project {
-                                        id
-                                      }
                                     }
                                   }
                                 }
                               }
-                            }`;
-                          const res = await runGraphQL(q, { owner: OWNER, repo: REPO, number: issueNumber });
-                          const payload = res.data ? res.data : res;
-                          const issue = payload?.repository?.issue;
-                          if (!issue) return null;
-                          const itemNodes = (issue.projectItems && issue.projectItems.nodes) || [];
-                          const existing = itemNodes.find(n => n.project && n.project.id === projectId);
-                          return { issueNodeId: issue.id, projectItemId: existing ? existing.id : null };
-                        }
-                        
-                        async function addProjectV2Item(projectId, contentId) {
-                          const mutation = `
-                            mutation($projectId: ID!, $contentId: ID!) {
-                              addProjectV2ItemById(input: { projectId: $projectId, contentId: $contentId }) {
-                                item {
-                                  id
-                                }
+                            }
+                          }`;
+                        const res = await runGraphQL(q, { owner: OWNER, repo: REPO, number: issueNumber });
+                        const payload = res.data ? res.data : res;
+                        const issue = payload?.repository?.issue;
+                        if (!issue) return null;
+                        const itemNodes = (issue.projectItems && issue.projectItems.nodes) || [];
+                        const existing = itemNodes.find(n => n.project && n.project.id === projectId);
+                        return { issueNodeId: issue.id, projectItemId: existing ? existing.id : null };
+                      }
+                      
+                      async function addProjectV2Item(projectId, contentId) {
+                        const mutation = `
+                          mutation($projectId: ID!, $contentId: ID!) {
+                            addProjectV2ItemById(input: { projectId: $projectId, contentId: $contentId }) {
+                              item {
+                                id
                               }
-                            }`;
-                          const res = await runGraphQL(mutation, { projectId, contentId });
-                          const payload = res.data ? res.data : res;
-                          return payload.addProjectV2ItemById?.item?.id || null;
-                        }
-                        
-                        async function updateProjectV2ItemFieldValue(projectId, itemId, fieldId, singleSelectOptionId) {
-                          const mutation = `
-                            mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $optionId: String!) {
-                              updateProjectV2ItemFieldValue(input: {
-                                projectId: $projectId,
-                                itemId: $itemId,
-                                fieldId: $fieldId,
-                                value: { singleSelectOptionId: $optionId }
-                              }) {
-                                projectV2Item {
-                                  id
-                                }
+                            }
+                          }`;
+                        const res = await runGraphQL(mutation, { projectId, contentId });
+                        const payload = res.data ? res.data : res;
+                        return payload.addProjectV2ItemById?.item?.id || null;
+                      }
+                      
+                      async function updateProjectV2ItemFieldValue(projectId, itemId, fieldId, singleSelectOptionId) {
+                        const mutation = `
+                          mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $optionId: String!) {
+                            updateProjectV2ItemFieldValue(input: {
+                              projectId: $projectId,
+                              itemId: $itemId,
+                              fieldId: $fieldId,
+                              value: { singleSelectOptionId: $optionId }
+                            }) {
+                              projectV2Item {
+                                id
                               }
-                            }`;
-                          await runGraphQL(mutation, { projectId, itemId, fieldId, optionId: singleSelectOptionId });
-                        }
-                        
-                        // --- Main flow ---
+                            }
+                          }`;
+                        await runGraphQL(mutation, { projectId, itemId, fieldId, optionId: singleSelectOptionId });
+                      }
+                      
+                      // --- Main flow ---
                         console.log(`Starting FR vote sync -- V2 for ${OWNER}/${REPO}`);
                         console.log(`Looking for ProjectV2 #${PROJECT_NUMBER} owned by ${OWNER}`);
                         
