@@ -89,15 +89,22 @@ export class CacheOperation {
 
 
 	async getFileMetadata(filepath: string, projectId?: string): Promise<FileDetail | undefined> {
+		// Prefer DB if available
+		const dbMeta = this.plugin.db?.getFileMetadata(filepath) as FileDetail | undefined;
+		if (dbMeta) return dbMeta;
 		const metaData = getSettings().fileMetadata[filepath];
-		if (metaData) {
-			return metaData;
+		if (metaData) return metaData;
+		const created = await this.newEmptyFileMetadata(filepath, projectId);
+		if (created) {
+			// write-through to DB
+			this.plugin.db?.setFileMetadata(filepath, created);
 		}
-		return await this.newEmptyFileMetadata(filepath, projectId);
+		return created;
 	}
 
 	getFileMetadatas() {
-		return getSettings().fileMetadata ?? null;
+		const dbMeta = this.plugin.db?.getFileMetadata() as FileMetadata | undefined;
+		return dbMeta ?? (getSettings().fileMetadata ?? null);
 	}
 
 	async updateFileMetadata(filepath: string, newMetadata: FileDetail) {
@@ -115,6 +122,8 @@ export class CacheOperation {
 
 		// Save the updated metadata object back to the settings object
 		updateSettings({ fileMetadata: metadata });
+		// write-through to DB
+		this.plugin.db?.setFileMetadata(filepath, metadata[filepath]);
 		await this.plugin.saveSettings();
 
 	}
@@ -338,6 +347,8 @@ export class CacheOperation {
 	//Read all tasks from Cache
 	async loadTasksFromCache() {
 		try {
+			const dbTasks = this.plugin.db?.getTasks();
+			if (dbTasks && dbTasks.length > 0) return dbTasks;
 			const savedTasks = getTasks();
 			return savedTasks;
 		} catch (error) {
@@ -349,6 +360,8 @@ export class CacheOperation {
 	// Overwrite and save all tasks to cache
 	async saveTasksToCache(newTasks) {
 		try {
+			// Write-through to DB and settings
+			this.plugin.db?.setTasks(newTasks);
 			updateTasks(newTasks);
 
 		} catch (error) {
@@ -363,9 +376,10 @@ export class CacheOperation {
 			if (task === null) {
 				return;
 			}
-			const savedTasks = getTasks();
+			const savedTasks = (this.plugin.db?.getTasks() ?? getTasks());
 			task.title = this.plugin.taskParser.stripOBSUrl(task.title);
 			savedTasks.push(task);
+			this.plugin.db?.setTasks(savedTasks);
 			updateTasks(savedTasks);
 			await this.addTaskToMetadata(filePath, task);
 
@@ -380,7 +394,7 @@ export class CacheOperation {
 	loadTaskFromCacheID(taskId?: string): ITask | undefined {
 		if (!taskId) return undefined;
 		try {
-			const savedTasks = getTasks();
+			const savedTasks = this.plugin.db?.getTasks() ?? getTasks();
 			return savedTasks.find((task: ITask) => task.id === taskId);
 		} catch (error) {
 			log.error(`Error finding task from Cache:`, error);
@@ -431,6 +445,8 @@ export class CacheOperation {
 	}
 
 	getFilepathForTask(taskId: string) {
+		const dbPath = this.plugin.db?.getFilepathForTask(taskId);
+		if (dbPath) return dbPath;
 		const metaDatas = this.getFileMetadatas();
 		for (const filepath in metaDatas) {
 			const value = metaDatas[filepath];
@@ -597,7 +613,7 @@ export class CacheOperation {
 			} as IProject;
 			projects.push(inboxProject);
 
-			//TODO: this really need?
+			//TickTick will happily alow user to create duplicate projects. We can't handle duplicate projects. Check for duplicates.
 			const duplicates = projects.reduce((acc, obj, index, arr) => {
 				const duplicateIndex = arr.findIndex(item => item.name === obj.name && item.id !== obj.id);
 				if (duplicateIndex !== -1 && !acc.includes(obj)) {

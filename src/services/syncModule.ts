@@ -15,7 +15,7 @@ import type { TaskDetail } from '@/services/cacheOperation';
 import { TaskDeletionModal } from '@/modals/TaskDeletionModal';
 import { getSettings, updateProjectGroups } from '@/settings';
 import { FileMap, type ITaskItemRecord } from '@/services/fileMap';
-import log from 'loglevel';
+import log from '@/utils/logger';
 
 type deletedTask = {
 	taskId: string,
@@ -191,6 +191,7 @@ export class SyncMan {
 		const line = cursor.line;
 		const linetxt = editor.getLine(line);
 		let before = fileContent?.length;
+  log.debug("WTF", view.file)
 		const fileMap = new FileMap(this.app, this.plugin, view.file);
 		await fileMap.init(fileContent);
 		await this.addTask(linetxt, line, editor, cursor, fileMap);
@@ -211,6 +212,14 @@ export class SyncMan {
 
 				const currentTask = await this.plugin.taskParser.convertLineToTask(lineTxt, line, fileMap.getFilePath(), fileMap, null);
 				const newTask = await this.plugin.tickTickRestAPI?.AddTask(currentTask) as ITask;
+				// Log operation into control payload with file context (best-effort)
+				try {
+					await this.plugin.service?.recordOperation(newTask.id, 'create' as any, {
+						projectId: newTask.projectId,
+						status: newTask.status,
+						filePath: fileMap.getFilePath()
+					});
+				} catch {}
 				if (currentTask.parentId) {
 					let parentTask = this.plugin.cacheOperation?.loadTaskFromCacheID(currentTask.parentId);
 					parentTask = this.plugin.taskParser.addChildToParent(parentTask, currentTask.parentId);
@@ -470,13 +479,29 @@ export class SyncMan {
 				//let's not lose the time zone!
 				lineTask.timeZone = savedTask.timeZone;
 
-				if (projectMoved) {
-					// log.debug(`Project id modified for task ${lineTask_ticktick_id}, ${lineTask.projectId}, ${savedTask.projectId}`)
-					await this.plugin.tickTickRestAPI?.moveTaskProject(lineTask, savedTask.projectId, lineTask.projectId);
-					let noticeMessage = '';
-					if (getSettings().debugMode) {
-						log.debug('Project Moved');
-					}
+    if (projectMoved) {
+                    // log.debug(`Project id modified for task ${lineTask_ticktick_id}, ${lineTask.projectId}, ${savedTask.projectId}`)
+                    // Conflict guard: consult control payload before issuing a move to remote
+                    try {
+                        const nowIso = new Date().toISOString();
+                        const allow = this.plugin.service?.shouldApplyOperation(lineTask_ticktick_id, 'move' as any, nowIso, 'local');
+                        if (allow === false) {
+                            log.info(`Skipping remote project move for ${lineTask_ticktick_id} due to control payload decision.`);
+                        } else {
+                            await this.plugin.tickTickRestAPI?.moveTaskProject(lineTask, savedTask.projectId, lineTask.projectId);
+                            // Record move in control payload (best-effort)
+                            try {
+                                await this.plugin.service?.recordOperation(lineTask_ticktick_id, 'move' as any, {
+                                    projectId: lineTask.projectId,
+                                    filePath: filepath
+                                });
+                            } catch {}
+                        }
+                    } catch {}
+                    let noticeMessage = '';
+                    if (getSettings().debugMode) {
+                        log.debug('Project Moved');
+                    }
 					noticeMessage = `Task ${lineTask_ticktick_id}: ${this.plugin.taskParser.getTaskContentFromLineText(lineTaskTitle)} has moved from ` +
 						`${oldFilePath} to ` +
 						`${filepath} \n` +
@@ -490,7 +515,7 @@ export class SyncMan {
 				}
 
 
-				if (parentIdModified) {
+    if (parentIdModified) {
 
 					let oldParent = await this.plugin.cacheOperation?.loadTaskFromCacheID(savedTask.parentId);
 					let newParent = await this.plugin.cacheOperation?.loadTaskFromCacheID(lineTask.parentId);
@@ -498,7 +523,23 @@ export class SyncMan {
 						`used to be a child of:\n${oldParent ? oldParent.title.trim() : 'No old parent found'}\n` +
 						`but is now a child of:\n${newParent ? newParent.title.trim() : 'No new parent found.'}\n` +
 						`If any children were moved, they will be updated to ${getSettings().baseURL} on the next Sync event`;
-					await this.plugin.tickTickRestAPI?.moveTaskParent(lineTask_ticktick_id, savedTask.parentId, lineTask.parentId, lineTask.projectId);
+     // Conflict guard: consult control payload before issuing a parent move to remote
+     try {
+         const nowIso = new Date().toISOString();
+         const allow = this.plugin.service?.shouldApplyOperation(lineTask_ticktick_id, 'move' as any, nowIso, 'local');
+         if (allow === false) {
+             log.info(`Skipping remote parent move for ${lineTask_ticktick_id} due to control payload decision.`);
+         } else {
+             await this.plugin.tickTickRestAPI?.moveTaskParent(lineTask_ticktick_id, savedTask.parentId, lineTask.parentId, lineTask.projectId);
+             // Record move in control payload (best-effort)
+             try {
+                 await this.plugin.service?.recordOperation(lineTask_ticktick_id, 'move' as any, {
+                     projectId: lineTask.projectId,
+                     filePath: filepath
+                 });
+             } catch {}
+         }
+     } catch {}
 
 					new Notice(noticeMessage, 5000);
 					if (getSettings().debugMode) {
@@ -817,24 +858,38 @@ export class SyncMan {
 		}
 
 		for (const taskId of taskIds) {
-			try {
-				let response;
-				let projectId = await this.plugin.cacheOperation?.getProjectIdForTask(taskId);
-				if (projectId) {
-					response = await this.plugin.tickTickRestAPI?.deleteTask(taskId, projectId);
-				}
-				if (response) {
-					//log.debug(`Task ${taskId} deleted successfully`);
-					new Notice(`Task ${taskId} is deleted.`);
-				}
-				//TODO: Verify that we are not over deleting.
-				//We may end up with stray tasks, that are not in ticktick. if we're here, just delete them anyway.
-				deletedTaskIds.push(taskId); // Add the deleted task ID to the array
+				try {
+					let response;
+					let projectId = await this.plugin.cacheOperation?.getProjectIdForTask(taskId);
+					if (projectId) {
+						// Conflict guard: consult control payload before deleting
+						try {
+							const nowIso = new Date().toISOString();
+							const allow = this.plugin.service?.shouldApplyOperation(taskId, 'delete' as any, nowIso, 'local');
+							if (allow === false) {
+								log.info(`Skipping local delete for ${taskId} due to control payload decision.`);
+								continue;
+							}
+						} catch {}
+						response = await this.plugin.tickTickRestAPI?.deleteTask(taskId, projectId);
+					}
+					if (response) {
+						//log.debug(`Task ${taskId} deleted successfully`);
+						new Notice(`Task ${taskId} is deleted.`);
+						// Record local delete in control payload (best-effort)
+						try {
+							await this.plugin.service?.recordOperation(taskId, 'delete' as any, {
+								projectId: projectId as any
+							});
+						} catch {}
+						// Only mark as deleted locally when remote delete succeeded
+						deletedTaskIds.push(taskId);
+					}
 
-			} catch (error) {
-				log.error(`Failed to delete task ${taskId}: ${error}`);
-				// You can add better error handling methods, such as throwing errors or logging here, etc.
-			}
+            } catch (error) {
+                log.error(`Failed to delete task ${taskId}: ${error}`);
+                // You can add better error handling methods, such as throwing errors or logging here, etc.
+            }
 		}
 
 		if (!deletedTaskIds.length) {
@@ -947,6 +1002,18 @@ export class SyncMan {
 			// this.dumpArray("tick Tick ", tasksFromTickTic)
 			// this.dumpArray("deleted  ", deletedTasks)
 
+			// Exclude the global control tracking task from any processing
+			try {
+				const trackingId = this.plugin.db.getTrackingTaskId?.();
+				if (trackingId) {
+					tasksFromTickTic = tasksFromTickTic?.filter(t => t.id !== trackingId);
+					deletedTasks = deletedTasks?.filter(t => t.id !== trackingId);
+					log.debug('Excluded control tracking task from processing');
+				}
+			} catch (e) {
+				log.warn('Failed to exclude control tracking task; continuing.', e);
+			}
+
 			//TODO: Filtering deleted tasks would take an act of congress. Just warn the user in Readme.
 
 			let syncTag: string = getSettings().SyncTag;
@@ -1058,63 +1125,145 @@ export class SyncMan {
 
 			// this.dumpArray('== Add to Obsidian:', newTickTickTasks);
 			//download remote only tasks to Obsidian
-			if (newTickTickTasks.length > 0) {
-				//New Tasks, create their dateStruct
-				newTickTickTasks.forEach((newTickTickTask: ITask) => {
-					this.plugin.dateMan?.addDateHolderToTask(newTickTickTask);
-				});
-				let result = await this.plugin.fileOperation?.synchronizeToVault(newTickTickTasks, false);
-				if (result) {
-					// Sleep for 1 seconds
-					await new Promise(resolve => setTimeout(resolve, 1000));
-				}
-				bModifiedFileSystem = true;
-			}
+   if (newTickTickTasks.length > 0) {
+                //New Tasks, create their dateStruct
+                // Inbound conflict guard (remote creates): filter by control payload rules
+                const filteredNew = newTickTickTasks.filter((tt: ITask) => {
+                    try {
+                        const ts = tt.modifiedTime || new Date().toISOString();
+                        return this.plugin.service?.shouldApplyOperation(tt.id, 'create' as any, ts, 'remote') !== false;
+                    } catch {
+                        return true;
+                    }
+                });
+                filteredNew.forEach((newTickTickTask: ITask) => {
+                    this.plugin.dateMan?.addDateHolderToTask(newTickTickTask);
+                });
+                let result = await this.plugin.fileOperation?.synchronizeToVault(filteredNew, false);
+                if (result) {
+                    // Sleep for 1 seconds
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                }
+                bModifiedFileSystem = true;
+                // Record remote creates in control payload (best-effort)
+                try {
+                    for (const t of filteredNew) {
+                        await this.plugin.service?.recordOperation(t.id, 'create' as any, {
+                            projectId: t.projectId,
+                            status: t.status,
+                            ts: t.modifiedTime
+                        });
+                    }
+                } catch {}
+            }
 
 
-			// Check for deleted tasks in TickTick
-			const deletedTickTickTasks = tasksInCache.filter(task => !tasksFromTickTic.some(t => t.id === task.id));
-			// this.dumpArray('deletedTickTickTasks Deleted tasks in TickTick:', deletedTickTickTasks);
+   // Check for deleted tasks in TickTick
+   const deletedTickTickTasks = tasksInCache.filter(task => !tasksFromTickTic.some(t => t.id === task.id));
+   // this.dumpArray('deletedTickTickTasks Deleted tasks in TickTick:', deletedTickTickTasks);
 
 			const reallyDeletedTickTickTasks = deletedTickTickTasks.filter(task => deletedTasks.some(t => t.taskId === task.id));
 			// this.dumpArray('== reallyDeletedTickTickTasks deleted from TickTick:', reallyDeletedTickTickTasks);
 
 
-			if (reallyDeletedTickTickTasks.length > 0) {
-				const taskTitlesForConfirmation = reallyDeletedTickTickTasks.map((task: ITask) => task.id);
+   if (reallyDeletedTickTickTasks.length > 0) {
+                const taskTitlesForConfirmation = reallyDeletedTickTickTasks.map((task: ITask) => task.id);
 
-				const bConfirm = await this.confirmDeletion(taskTitlesForConfirmation, 'tasks deleted from TickTick');
+                const bConfirm = await this.confirmDeletion(taskTitlesForConfirmation, 'tasks deleted from TickTick');
 
-				if (bConfirm) {
-					//Need to have deletes in parentage order else everything goes Tango Uniform
-					reallyDeletedTickTickTasks.sort((left, right) => {
-						if (!left.parentId && right.parentId) {
-							return -1;
-						} else if (left.parentId && !right.parentId) {
-							return 1;
-						} else {
-							return 0;
-						}
-					});
-					for (const task of reallyDeletedTickTickTasks) {
-						try {
-							await this.plugin.fileOperation?.deleteTaskFromFile(task);
-						} catch (error) {
-							//Assume that the file is goine, but we're trying to clear cache anyway.
-							log.debug('Task deletion failed.', error);
-						}
-						try {
-							await this.plugin.cacheOperation?.deleteTaskFromCache(task.id);
-							bModifiedFileSystem = true;
-						} catch (error) {
-							log.debug('Task deletion failed.', error);
-							bModifiedFileSystem = true;
-						}
+                if (bConfirm) {
+                    //Need to have deletes in parentage order else everything goes Tango Uniform
+                    reallyDeletedTickTickTasks.sort((left, right) => {
+                        if (!left.parentId && right.parentId) {
+                            return -1;
+                        } else if (left.parentId && !right.parentId) {
+                            return 1;
+                        } else {
+                            return 0;
+                        }
+                    });
+                    for (const task of reallyDeletedTickTickTasks) {
+                        // Inbound conflict guard (remote deletes): consult control payload
+                        try {
+                            const ts = task.modifiedTime || new Date().toISOString();
+                            const allow = this.plugin.service?.shouldApplyOperation(task.id, 'delete' as any, ts, 'remote');
+                            if (allow === false) {
+                                log.info(`Skipping inbound delete for ${task.id} due to control payload decision.`);
+                                continue;
+                            }
+                        } catch {}
+                        try {
+                            await this.plugin.fileOperation?.deleteTaskFromFile(task);
+                        } catch (error) {
+                            //Assume that the file is goine, but we're trying to clear cache anyway.
+                            log.debug('Task deletion failed.', error);
+                        }
+                        try {
+                            await this.plugin.cacheOperation?.deleteTaskFromCache(task.id);
+                            bModifiedFileSystem = true;
+                        } catch (error) {
+                            log.debug('Task deletion failed.', error);
+                            bModifiedFileSystem = true;
+                        }
 
-					}
+                        // Record remote delete in control payload (best-effort)
+                        try {
+                            await this.plugin.service?.recordOperation(task.id, 'delete' as any, {
+                                projectId: task.projectId,
+                                ts: task.modifiedTime
+                            });
+                        } catch {}
 
-				}
-			}
+                    }
+
+                }
+            }
+
+
+            // Remote moves (project changes detected from TickTick)
+            const remoteMovedTasks: ITask[] = tasksFromTickTic.filter(tt => {
+                const cached = tasksInCache.find(ct => ct.id === tt.id);
+                return cached && cached.projectId && tt.projectId && cached.projectId !== tt.projectId;
+            });
+            if (remoteMovedTasks.length > 0) {
+                for (const moved of remoteMovedTasks) {
+                    try {
+                        // Conflict guard: consult control payload before applying remote move
+                        const ts = moved.modifiedTime || new Date().toISOString();
+                        const allow = this.plugin.service?.shouldApplyOperation(moved.id, 'move' as any, ts, 'remote');
+                        if (allow === false) {
+                            log.info(`Skipping inbound project move for ${moved.id} due to control payload decision.`);
+                            continue;
+                        }
+
+                        // Remove from old file (best-effort)
+                        try {
+                            await this.plugin.fileOperation?.deleteTaskFromFile(moved);
+                        } catch (e) {
+                            // ignore file missing errors; we will add to the new file regardless
+                            if (getSettings().debugMode) log.debug('Delete from old file failed (likely absent):', e);
+                        }
+
+                        // Add to new file
+                        await this.plugin.fileOperation?.synchronizeToVault([moved], false);
+                        bModifiedFileSystem = true;
+
+                        // Record remote move in control payload (best-effort)
+                        try {
+                            await this.plugin.service?.recordOperation(moved.id, 'move' as any, {
+                                projectId: moved.projectId,
+                                ts: moved.modifiedTime
+                            });
+                        } catch {}
+
+                        if (getSettings().debugMode) {
+                            log.debug(`Applied inbound project move for ${moved.id} to project ${moved.projectId}`);
+                        }
+                    } catch (e) {
+                        log.warn('Failed to process inbound move for task:', moved.id, e);
+                    }
+                }
+            }
 
 
 			// Check for new tasks in Obsidian
@@ -1124,8 +1273,26 @@ export class SyncMan {
 			//upload local only tasks to TickTick
 
 			for (const task of reallyNewObsidianTasks) {
-				await this.plugin.tickTickRestAPI?.AddTask(task);
-				bModifiedFileSystem = true;
+				// Outbound conflict guard (local creates)
+				try {
+					const nowIso = new Date().toISOString();
+					const allow = this.plugin.service?.shouldApplyOperation(task.id, 'create' as any, nowIso, 'local');
+					if (allow === false) {
+						log.info(`Skipping remote create for ${task.id} due to control payload decision.`);
+						continue;
+					}
+				} catch {}
+				const created = await this.plugin.tickTickRestAPI?.AddTask(task);
+				if (created) {
+					bModifiedFileSystem = true;
+					// Record local create in control payload (best-effort)
+					try {
+						await this.plugin.service?.recordOperation(task.id, 'create' as any, {
+							projectId: task.projectId,
+							status: task.status
+						});
+					} catch {}
+				}
 			}
 
 
@@ -1164,22 +1331,47 @@ export class SyncMan {
 			});
 
 
-			if (recentUpdates.length > 0) {
-				// this.dumpArray('== Update in  Obsidian:', recentUpdates)
-				let result = await this.plugin.fileOperation?.synchronizeToVault(recentUpdates, true);
-				if (result) {
-					// Sleep for 1 seconds
-					await new Promise(resolve => setTimeout(resolve, 1000));
-					bModifiedFileSystem = true;
-				}
+   if (recentUpdates.length > 0) {
+                // this.dumpArray('== Update in  Obsidian:', recentUpdates)
+                // Inbound conflict guard (remote updates): filter by control payload rules
+                const filteredUpdates = recentUpdates.filter((t: ITask) => {
+                    try {
+                        const ts = t.modifiedTime || new Date().toISOString();
+                        return this.plugin.service?.shouldApplyOperation(t.id, 'update' as any, ts, 'remote') !== false;
+                    } catch {
+                        return true;
+                    }
+                });
+                if (filteredUpdates.length === 0) {
+                    if (getSettings().debugMode) {
+                        log.debug('All inbound updates skipped by control payload.');
+                    }
+                }
+                let result = await this.plugin.fileOperation?.synchronizeToVault(filteredUpdates, true);
+                if (result) {
+                    // Sleep for 1 seconds
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                    bModifiedFileSystem = true;
+                }
 
 
-				await this.plugin.saveSettings();
-				//If we just farckled the file system, stop Syncing to avoid race conditions.
-				if (getSettings().debugMode) {
-					log.debug(bModifiedFileSystem ? 'File System Modified.' : 'No synchronization changes.');
-				}
-			}
+    // Record remote updates in control payload (best-effort)
+    try {
+        for (const t of filteredUpdates) {
+            await this.plugin.service?.recordOperation(t.id, 'update' as any, {
+                projectId: t.projectId,
+                status: t.status,
+                ts: t.modifiedTime
+            });
+        }
+    } catch {}
+
+    await this.plugin.saveSettings();
+    //If we just farckled the file system, stop Syncing to avoid race conditions.
+    if (getSettings().debugMode) {
+        log.debug(bModifiedFileSystem ? 'File System Modified.' : 'No synchronization changes.');
+    }
+}
 			return bModifiedFileSystem;
 
 		} catch (err) {
@@ -1363,7 +1555,7 @@ export class SyncMan {
 		let added = false;
 		//it's a task. Is it a task item?
 		//is it a task at all?
-		if (!this.plugin.taskParser?.isMarkdownTask(lineText)) {
+		if (!this.plugin.taskParser?.isMarkdownTask(lineText) || !this.plugin.taskParser?.isTickTickTask(lineText)) {
 			//Nah Brah. Bail.
 			return false;
 		}
@@ -1378,7 +1570,7 @@ export class SyncMan {
 		}
 		if (!currentObject) {
 			//a text line of no interest.
-			log.warn('Item not found in file map: ', lineText);
+			log.warn('Item not found in file map: ', lineText, fileMap, lineNumber);
 			return false;
 		}
 
@@ -1465,7 +1657,27 @@ export class SyncMan {
 				}
 			}
 		}
+		// Conflict guard: consult control payload before issuing an update to remote
+		try {
+			const nowIso = new Date().toISOString();
+			const allow = this.plugin.service?.shouldApplyOperation(parentTask.id, 'update' as any, nowIso, 'local');
+			if (allow === false) {
+				log.info(`Skipping remote update for ${parentTask.id} due to control payload decision.`);
+				new Notice(`Update skipped for ${parentTask.id} (conflict).`);
+				return false;
+			}
+		} catch {}
 		const result = await this.plugin.tickTickRestAPI?.UpdateTask(parentTask);
+		// Log operation into control payload with file context (best-effort)
+		try {
+			if (result?.id) {
+				await this.plugin.service?.recordOperation(result.id, 'update' as any, {
+					projectId: result.projectId,
+					status: result.status,
+					filePath: filepath
+				});
+			}
+		} catch {}
 		const updateFailed = !result;
 		new Notice(`Task ${parentTask.title} modified.`);
 		return !updateFailed;

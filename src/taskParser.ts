@@ -4,7 +4,7 @@ import type { ITask, ITaskItem } from '@/api/types/Task';
 import { getSettings } from '@/settings';
 import { sha256 } from 'crypto-hash';
 import type { FileMap, ITaskRecord } from '@/services/fileMap';
-import log from 'loglevel';
+import log from '@/utils/logger';
 
 interface dataviewTaskObject {
 	status: string;

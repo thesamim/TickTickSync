@@ -3,10 +3,14 @@
   import LimitSyncSection from './LimitSyncSection.svelte';
   import AutoSyncIntervalSection from './AutoSyncIntervalSection.svelte';
   import FullVaultSyncSection from './FullVaultSyncSection.svelte';
+  import ControlTaskSection from './ControlTaskSection.svelte';
+  import ControlPayloadSection from './ControlPayloadSection.svelte';
 
   export let plugin;
 
   const sections = [
+    { key: 'control', component: ControlTaskSection },
+    { key: 'payload', component: ControlPayloadSection },
     { key: 'defaults', component: DefaultsSection },
     { key: 'limit', component: LimitSyncSection },
     { key: 'auto', component: AutoSyncIntervalSection },

@@ -5,7 +5,7 @@
 	import { Setting, TFile } from 'obsidian';
 	import { FolderSuggest } from '@/utils/FolderSuggester';
 	import { validateNewFolder } from '@/utils/FolderUtils';
-	import log from 'loglevel';
+ import log from '@/utils/logger';
 	import { FileMap } from '@/services/fileMap';
 
 	export let open = false;

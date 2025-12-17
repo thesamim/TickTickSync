@@ -4,7 +4,7 @@
 	import { onMount } from 'svelte';
 	import { settingsStore } from '@/ui/settings/settingsstore';
 	import { getSettings, updateSettings } from '@/settings';
-	import log from 'loglevel';
+ import log from '@/utils/logger';
 	import { getTick } from '@/api/tick_singleton_factory';
 
 	export let plugin: TickTickSync;

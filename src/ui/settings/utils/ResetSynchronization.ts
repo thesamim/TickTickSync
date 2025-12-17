@@ -1,6 +1,6 @@
 import { getSettings, updateSettings } from '@/settings';
 import type TickTickSync from '@/main';
-import log from 'loglevel';
+import log from '@/utils/logger';
 
 function resetTimeStamp(plugin: TickTickSync, timeStamp: string) {
 	const allTasks = getSettings().TickTickTasksData.tasks;

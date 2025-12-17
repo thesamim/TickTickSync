@@ -24,6 +24,13 @@ export interface ITickTickSyncSettings {
 	taskLinksInObsidian: string;
 	bkupFolder: string;
 
+	// Tracking task and device identification
+	trackingListId?: string; // TickTick list to host the tracking task
+	trackingListName?: string; // TickTick list to host the tracking task
+	trackingTaskName?: string; // Name of the tracking task
+	deviceNameOverride?: string; // Optional override for device name
+	preferredDeviceId?: string; // Optional user-preferred stable device id
+
 
 	debugMode: boolean;
 	logLevel: string;
@@ -42,6 +49,9 @@ export interface ITickTickSyncSettings {
 		tasks: ITask[];
 	};
 	//statistics: any;
+
+	// Conflict resolution tuning
+	deleteGraceSeconds?: number;
 }
 
 export const DEFAULT_SETTINGS: ITickTickSyncSettings = {
@@ -63,6 +73,13 @@ export const DEFAULT_SETTINGS: ITickTickSyncSettings = {
 	taskLinksInObsidian: 'taskLink',
 	bkupFolder: '/',
 
+	// Tracking defaults
+	trackingListId: '',
+	trackingListName: "TickTickSyncList",
+	trackingTaskName: 'Obsidian Tracking',
+	deviceNameOverride: '',
+	preferredDeviceId: '',
+
 	inboxID: '',
 	inboxName: 'Inbox',
 	checkPoint: 0,
@@ -73,6 +90,10 @@ export const DEFAULT_SETTINGS: ITickTickSyncSettings = {
 		projects: [],
 		tasks: []
 	}
+	,
+
+	// Conflict resolution tuning
+	deleteGraceSeconds: 30
 
 	//statistics: {}
 };

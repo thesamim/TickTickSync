@@ -111,6 +111,15 @@ export class TickTickRestAPI {
 		await this.initializeAPI();
 		try {
 			const newTask = await this.api?.addTask(taskToAdd);
+			// Record operation in control payload (best-effort)
+			try {
+				if (newTask?.id) {
+					await this.plugin.service?.recordOperation(newTask.id, 'create' as any, {
+						projectId: newTask.projectId,
+						status: newTask.status
+					});
+				}
+			} catch {}
 			return newTask;
 		} catch (error) {
 			throw new Error(`Error adding task: ${error.message}`);
@@ -121,6 +130,14 @@ export class TickTickRestAPI {
 		await this.initializeAPI();
 		try {
 			const response = await this.api?.deleteTask(deletedTaskId, deletedTaskProjectId);
+			// Record operation in control payload (best-effort)
+			try {
+				if (response) {
+					await this.plugin.service?.recordOperation(deletedTaskId, 'delete' as any, {
+						projectId: deletedTaskProjectId
+					});
+				}
+			} catch {}
 			return response;
 		} catch (error) {
 			throw new Error(`Error deleting task: ${error.message}`);
@@ -176,8 +193,15 @@ export class TickTickRestAPI {
 				updatedTask = await this.getTaskById(taskToUpdate.id, taskToUpdate.projectId);
 				if (updatedTask) {
 					updatedTask.dateHolder = saveDateHolder;
+					// Record operation in control payload (best-effort)
+					try {
+						await this.plugin.service?.recordOperation(updatedTask.id, 'update' as any, {
+							projectId: updatedTask.projectId,
+							status: updatedTask.status
+						});
+					} catch {}
 				} else {
-					log.error('Didn\'t get back the updated Task');
+					log.error('Didn\'t get back the updated Task', taskToUpdate.id, taskToUpdate.projectId);
 				}
 			}
 			return updatedTask;
@@ -396,6 +420,14 @@ export class TickTickRestAPI {
 		// sortorder thing, Just do it.
 		await this.api?.updateTask(task);
 
+		// Record operation in control payload (best-effort)
+		try {
+			await this.plugin.service?.recordOperation(task.id, 'move' as any, {
+				projectId: toProject,
+				status: task.status
+			});
+		} catch {}
+
 	}
 
 	async moveTaskParent(taskId: string, oldParentId: string, newParentId: string, projectId: string) {
@@ -415,6 +447,14 @@ export class TickTickRestAPI {
 
 		const moveResult = await this.api?.parentMove(taskId, newParentId, projectId);
 		// log.debug('moveResult of moveResult', moveResult);
+		// Record operation in control payload (best-effort)
+		try {
+			if (moveResult) {
+				await this.plugin.service?.recordOperation(taskId, 'move' as any, {
+					projectId
+				});
+			}
+		} catch {}
 	}
 
 }

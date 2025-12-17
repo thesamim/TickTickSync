@@ -4,6 +4,7 @@ import '@/static/styles.css';
 import { type Editor, type MarkdownFileInfo, Platform } from 'obsidian';
 import { MarkdownView, Notice, Plugin, TFolder } from 'obsidian';
 
+
 //settings
 import {
 	DEFAULT_SETTINGS,
@@ -36,6 +37,7 @@ import { TickTickSyncSettingTab } from './ui/settings';
 import { QueryInjector } from '@/query/injector';
 import store from '@/store';
 import { DateMan } from '@/dateMan';
+import { JsonDB } from '@/services/jsonDb';
 
 //logging
 import log from '@/utils/logger';
@@ -46,6 +48,7 @@ export default class TickTickSync extends Plugin {
 	readonly taskParser: TaskParser = new TaskParser(this.app, this);
 	readonly fileOperation: FileOperation = new FileOperation(this.app, this);
 	readonly cacheOperation: CacheOperation = new CacheOperation(this.app, this);
+	readonly db: JsonDB = new JsonDB(this);
 	readonly dateMan: DateMan = new DateMan();
 
 	readonly lastLines: Map<string, number> = new Map(); //lastLine object {path:line} is saved in lastLines map
@@ -55,6 +58,7 @@ export default class TickTickSync extends Plugin {
 	statusBar?: HTMLElement;
 	private syncIntervalId?: number;
 	private logger: any;
+
 
 	async onload() {
 		//We're doing too much at load time, and it's causing issues. Do it properly!
@@ -390,6 +394,9 @@ export default class TickTickSync extends Plugin {
 
 
 		try {
+			// Initialize lightweight JSON DB and seed from current in-memory cache
+			await this.db.init();
+			await this.db.seedFromCache(getTasks(), getSettings().fileMetadata);
 			await this.initializePlugin();
 		} catch (error) {
 			log.error(`API Initialization Failed.( ${error})`);
@@ -409,13 +416,18 @@ export default class TickTickSync extends Plugin {
 		});
 
 		//Used for testing adhoc code.
-		// const ribbonIconEl1 = this.addRibbonIcon('check', 'TTS Test', async (evt: MouseEvent) => {
-		// 	// Nothing to see here right now.
-		// 	// const foo = await this.tickTickRestAPI?.api?.getUserStatus()
-		// 	// log.debug(foo)
-		// 	log.debug("AppID", this.app.appid);
-		// 	log.debug("HostName", require('os').hostname())
-		// });
+		const ribbonIconEl1 = this.addRibbonIcon('check', 'TTS Test', async (evt: MouseEvent) => {
+			// Nothing to see here right now.
+			// const foo = await this.tickTickRestAPI?.api?.getUserStatus()
+			// log.debug(foo)
+			// const projectFoo = await this.tickTickRestAPI?.api?.addProject("Adding Programatically")
+			// if (projectFoo.id) {
+			// 	log.debug("We got :", projectFoo);
+			// } else {
+			// 	log.debug("Bad Shit happened: ", projectFoo.error);
+			// }
+			log.debug(await this.getDefaultDeviceName())
+		});
 
 
 		this.registerEvents();
@@ -635,7 +647,7 @@ export default class TickTickSync extends Plugin {
 		}
 		if ((!data.version) || (isOlder(data.version, '1.0.10'))) {
 			//get rid of username and password. we don't need them no more.
-			//delete data.username; //keep username for info
+			//delete data.username;
 			// @ts-ignore
 			delete data.username;
 			delete data.password;
@@ -692,7 +704,8 @@ export default class TickTickSync extends Plugin {
 		return await myModal.showModal();
 
 	}
-	getDefaultDeviceName() {
+
+	async getDefaultDeviceName() {
 		if (Platform.isDesktopApp) {
 			return (
 				// eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -705,19 +718,15 @@ export default class TickTickSync extends Plugin {
 							? "Linux"
 							: "Desktop")
 			);
+		} else {
+			const device = require("capacitor/device")
+			const info = await device.getInfo();
+			const deviceName = info?.name || '';
+
+			return deviceName;
 		}
-		if (Platform.isIosApp) {
-			if (Platform.isPhone) return "iPhone";
-			if (Platform.isTablet) return "iPad";
-			return "iOS Device";
-		}
-		if (Platform.isAndroidApp) {
-			if (Platform.isPhone) return "Android Phone";
-			if (Platform.isTablet) return "Android Tablet";
-			return "Android Device";
-		}
-		return "Unknown Device";
 	}
+
 }
 
 

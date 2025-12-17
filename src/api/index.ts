@@ -10,7 +10,7 @@ import type { ITask } from './types/Task';
 // import { IFilter } from './types/Filter';
 // import { IHabit } from './types/Habit';
 import { API_ENDPOINTS } from './utils/get-api-endpoints';
-import log from 'loglevel';
+import log from '@/utils/logger';
 import { getSettings, updateSettings } from '@/settings';
 
 const {
@@ -19,12 +19,13 @@ const {
 	allTagsEndPoint,
 	allHabitsEndPoint,
 	allProjectGroupsEndPoint,
-	allProjectsEndPoint,
 	allTasksEndPoint,
 	signInEndPoint,
 	userPreferencesEndPoint,
 	getSections,
 	getAllCompletedItems,
+	projects,
+	project,
 	exportData,
 	projectMove,
 	parentMove,
@@ -244,7 +245,7 @@ export class Tick {
 
 	async getProjects(): Promise<IProject[]> {
 		try {
-			const url = `${this.apiUrl}/${allProjectsEndPoint}`;
+			const url = `${this.apiUrl}/${projects}`;
 			const response = await this.makeRequest('Get Projects', url, 'GET', undefined);
 			if (response) {
 				return response;
@@ -581,6 +582,57 @@ export class Tick {
 		}
 	}
 
+	async addProject(listName: string): Promise<{id: string|null, name: string| null, error: string|null}> {
+		try {
+			const url = `${this.apiUrl}/${project}`;
+
+
+			const projectAddPayload = {
+				name: listName,
+				color: null,
+				//TODO: When we do folders, get folder ID. It's a groupID. It's a whole thing.
+				groupId: null,
+				inAll: true,
+				muted: false,
+				teamId: null,
+				kind: "NOTE", //hopefully make it less painful. go back to LIST if it doesn't
+				viewMode: "list",
+				showType: 1,
+				reminderType: 1,
+				openToTeam: false,
+				isOwner: true
+			}
+			const response = await this.makeRequest('Project Add', url, 'POST', projectAddPayload);
+			if (response) {
+				log.debug('Project Add Response: ', response);
+				const newProject =
+				{
+					"id": response.id,
+					"name": response.name,
+				}
+				return newProject;
+			} else {
+				const whatHappened = this.lastError;
+				let errMsg = ""
+				if (whatHappened.errorMessage.errorMessage.includes('exceed_quota')) {
+					errMsg = 'TickTick says you have reached the max number of projects.'
+				} else {
+					errMsg = whatHappened.errorMessage.errorMessage
+				}
+				// log.error('Project Add failed: ', whatHappened);
+				const badProject = {
+					id: null,
+					name: null,
+					error: errMsg
+				}
+				return badProject;
+			}
+		} catch (e) {
+			log.error('Project Add failed: ', e);
+			this.setError('Project Add', null, e);
+			return null;
+		}
+	}
 
 	async projectMove(taskId: string, fromProjectId: string, toProjectId: string): Promise<string | null> {
 		try {
@@ -740,6 +792,7 @@ export class Tick {
 					}
 				}
 				this._lastError = { operation, statusCode, errorMessage };
+				log.debug("Call Failed: ", operation, statusCode, errorMessage);
 			}
 		} else {
 			let errorMessage;

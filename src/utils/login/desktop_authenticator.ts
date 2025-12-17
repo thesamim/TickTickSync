@@ -1,6 +1,6 @@
 import { Notice } from 'obsidian';
 import { CookieUtils } from './cookie-utils';
-import log from 'loglevel';
+import log from '@/utils/logger';
 import { getSettings } from '@/settings';
 
 type SessionCookie = { name: string; value: string };
