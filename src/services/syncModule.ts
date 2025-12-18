@@ -15,7 +15,10 @@ import type { TaskDetail } from '@/services/cacheOperation';
 import { TaskDeletionModal } from '@/modals/TaskDeletionModal';
 import { getSettings, updateProjectGroups } from '@/settings';
 import { FileMap, type ITaskItemRecord } from '@/services/fileMap';
-import log from 'loglevel';
+import log from '@/utils/logger';
+import type { DBData, LocalTask } from '@/db/schema';
+import { upsertTask } from '@/db/db';
+
 
 type deletedTask = {
 	taskId: string,
@@ -919,6 +922,8 @@ export class SyncMan {
 	 *  false otherwise
 	 */
 	async syncTickTickToObsidian(): Promise<boolean> {
+		//****************
+		//****************
 		//Tasks in Obsidian, not in TickTick: upload
 		//Tasks in TickTick, not in Obsidian: Download
 		//Tasks in both: check for updates.
@@ -1479,4 +1484,19 @@ export class SyncMan {
 		}
 		return null; // Return null if no task or item is found for the given line number
 	}
+
+	async pullFromTickTick(db: Low<DBData>) {
+		const since = db.data.meta?.lastFullSync || 0;
+
+		const remoteTasks = await this.plugin.tickTickRestAPI?.getUpdatedTasks(since);
+
+		for (const rt of remoteTasks) {
+			let localTask: LocalTask = {};
+			localTask.task = rt;
+			localTask.source = "ticktick";
+
+			upsertTask(db, localTask);
+		}
+	}
+
 }

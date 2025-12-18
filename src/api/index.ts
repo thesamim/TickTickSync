@@ -10,7 +10,7 @@ import type { ITask } from './types/Task';
 // import { IFilter } from './types/Filter';
 // import { IHabit } from './types/Habit';
 import { API_ENDPOINTS } from './utils/get-api-endpoints';
-import log from 'loglevel';
+import log from '@/utils/logger';
 import { getSettings, updateSettings } from '@/settings';
 
 const {
@@ -30,7 +30,6 @@ const {
 	parentMove,
 	userStatus
 } = API_ENDPOINTS;
-
 
 
 interface IoptionsProps {
@@ -61,14 +60,11 @@ export class Tick {
 	loginUrl: string;
 	cookies: string[];
 	cookieHeader: string;
-	private originUrl: string;
-
 	ticktickServer: string = 'ticktick.com';
 	protocol: string = 'https://';
 	apiProtocol: string = 'https://api.';
 	apiVersion: string = '/api/v2';
-
-
+	private originUrl: string;
 	private userAgent: string;
 	private deviceAgent: string;
 
@@ -190,7 +186,7 @@ export class Tick {
 		}
 	}
 
-	async  	getInboxProperties(): Promise<boolean> {
+	async getInboxProperties(): Promise<boolean> {
 		try {
 			for (let i = 0; i < 10; i++) {
 				if (i !== 0) this.reset();
@@ -273,13 +269,28 @@ export class Tick {
 		}
 	}
 
+	async getUpdatedTasks(since: number): Promise<ITask[]> {
+		try {
+			log.debug('Get updated tasks', + since, 'from the beginning of time. ');
+			const url = `${this.apiUrl}/${allTasksEndPoint}` + since;
+			const response = await this.makeRequest('Get All Resources', url, 'GET', undefined);
+			if (response) {
+				return response.syncTaskBean.update;
+			}
+		} catch (e) {
+			log.error('Get All Resources failed: ', e);
+			this.setError('Get All Resources', null, e);
+		}
+		return [];
+	}
+
 	// RESOURCES =================================================================
 	async getAllResources(): Promise<IBatch | null> {
 		try {
 			let retry = 10; //TODO: really need to do this better. MB move to makeRequest and add delay?
 			while (retry > 0) {
 				const checkpointDate = new Date(this._checkpoint);
-				log.debug('Get All Resources', this._checkpoint? "as of: " + checkpointDate.toISOString() : 'from the beginning of time. ');
+				log.debug('Get All Resources', this._checkpoint ? 'as of: ' + checkpointDate.toISOString() : 'from the beginning of time. ');
 				const url = `${this.apiUrl}/${allTasksEndPoint}` + this._checkpoint;
 				const response = await this.makeRequest('Get All Resources', url, 'GET', undefined);
 				if (response) {
@@ -310,7 +321,7 @@ export class Tick {
 						if (getSettings().checkPoint != response.checkPoint) {
 							this._checkpoint = response.checkPoint;
 							getSettings().checkPoint = <number>this._checkpoint;
-							updateSettings({ checkPoint: this._checkpoint});
+							updateSettings({ checkPoint: this._checkpoint });
 						}
 						return response['syncTaskBean'];
 					} else {

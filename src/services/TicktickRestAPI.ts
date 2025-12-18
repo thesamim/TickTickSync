@@ -6,7 +6,7 @@ import type { IProject } from '@/api/types/Project';
 import { getSettings, updateSettings } from '@/settings';
 //logging
 import log from '@/utils/logger';
-import { getTick } from '@/api/tick_singleton_factory'
+import { getTick } from '@/api/tick_singleton_factory';
 
 export class TickTickRestAPI {
 	app: App;
@@ -327,7 +327,23 @@ export class TickTickRestAPI {
 		}
 	}
 
-	//TODO: Will need interpretation
+	async getUpdatedTasks(since: number): Promise<ITask[]> {
+		await this.initializeAPI();
+		if (!this.api) {
+			log.error('getAllResources No API.');
+			return [] as ITask[];
+		}
+		try {
+			const result = await this.api.getUpdatedTasks(since);
+			return result;
+
+		} catch (error) {
+			log.error('Error get updated tasks', error);
+		}
+		return [] as ITask[];
+	}
+
+
 	async getAllResources(): Promise<IBatch | null> {
 		await this.initializeAPI();
 		if (!this.api) {

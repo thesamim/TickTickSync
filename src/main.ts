@@ -39,6 +39,9 @@ import { DateMan } from '@/dateMan';
 
 //logging
 import log from '@/utils/logger';
+import { createDB } from '@/db/db';
+import { syncAll } from '@/sync/sync';
+import { initDB } from '@/db/dexie';
 
 export default class TickTickSync extends Plugin {
 
@@ -166,6 +169,10 @@ export default class TickTickSync extends Plugin {
 			new Notice(`error creating user data folder`);
 			return false;
 		}
+		//And now load the DB and sync it.
+		await initDB();
+		await syncAll(ticktickApi);
+
 		new Notice('TickTickSync loaded successfully.' + getSettings().skipBackup ? ' Skipping backup.' : 'TickTick data has been backed up.');
 		return true;
 	}
@@ -409,13 +416,18 @@ export default class TickTickSync extends Plugin {
 		});
 
 		//Used for testing adhoc code.
-		// const ribbonIconEl1 = this.addRibbonIcon('check', 'TTS Test', async (evt: MouseEvent) => {
-		// 	// Nothing to see here right now.
-		// 	// const foo = await this.tickTickRestAPI?.api?.getUserStatus()
-		// 	// log.debug(foo)
-		// 	log.debug("AppID", this.app.appid);
-		// 	log.debug("HostName", require('os').hostname())
-		// });
+		const ribbonIconEl1 = this.addRibbonIcon('check', 'TTS Test', async (evt: MouseEvent) => {
+			// Nothing to see here right now.
+			// const foo = await this.tickTickRestAPI?.api?.getUserStatus()
+			// log.debug(foo)
+			log.debug("AppID", this.app.appId);
+			log.debug("HostName", this.getDefaultDeviceName())
+			const db = await createDB(this);
+			await this.service.tickTickSync.pullFromTickTick(db)
+			log.debug("DB snapshot", structuredClone(db.data));
+			await db.write();
+			new Notice(`we have ${db.data.tasks.length} tasks in the DB`);
+		});
 
 
 		this.registerEvents();
@@ -635,7 +647,7 @@ export default class TickTickSync extends Plugin {
 		}
 		if ((!data.version) || (isOlder(data.version, '1.0.10'))) {
 			//get rid of username and password. we don't need them no more.
-			//delete data.username; //keep username for info
+			//delete data.username;
 			// @ts-ignore
 			delete data.username;
 			delete data.password;
@@ -692,7 +704,8 @@ export default class TickTickSync extends Plugin {
 		return await myModal.showModal();
 
 	}
-	getDefaultDeviceName() {
+
+	async getDefaultDeviceName() {
 		if (Platform.isDesktopApp) {
 			return (
 				// eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -705,17 +718,24 @@ export default class TickTickSync extends Plugin {
 							? "Linux"
 							: "Desktop")
 			);
+		} else {
+			const device = require("capacitor/device")
+			const info = await device.getInfo();
+			const deviceName = info?.name || '';
+
+			return deviceName;
+
 		}
-		if (Platform.isIosApp) {
-			if (Platform.isPhone) return "iPhone";
-			if (Platform.isTablet) return "iPad";
-			return "iOS Device";
-		}
-		if (Platform.isAndroidApp) {
-			if (Platform.isPhone) return "Android Phone";
-			if (Platform.isTablet) return "Android Tablet";
-			return "Android Device";
-		}
+		// if (Platform.isIosApp) {
+		// 	if (Platform.isPhone) return "iPhone";
+		// 	if (Platform.isTablet) return "iPad";
+		// 	return "iOS Device";
+		// }
+		// if (Platform.isAndroidApp) {
+		// 	if (Platform.isPhone) return "Android Phone";
+		// 	if (Platform.isTablet) return "Android Tablet";
+		// 	return "Android Device";
+		// }
 		return "Unknown Device";
 	}
 }

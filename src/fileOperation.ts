@@ -4,7 +4,7 @@ import type { ITask } from './api/types/Task';
 import { TaskDeletionModal } from './modals/TaskDeletionModal';
 import { getDefaultFolder, getSettings } from '@/settings';
 import { FileMap } from '@/services/fileMap';
-import log from 'loglevel';
+import log from '@/utils/logger';
 
 export class FileOperation {
 	app: App;

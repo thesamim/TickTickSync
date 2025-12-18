@@ -2,7 +2,7 @@ import { App, TFile } from 'obsidian';
 import type { ITask } from '@/api/types/Task';
 import type TickTickSync from '@/main';
 import { getSettings } from '@/settings';
-import log from 'loglevel';
+import log from '@/utils/logger';
 
 //logging
 
