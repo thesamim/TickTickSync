@@ -269,19 +269,23 @@ export class Tick {
 		}
 	}
 
-	async getUpdatedTasks(since: number): Promise<ITask[]> {
+	async getUpdatedTasks(since: number): Promise<{ update: ITask[], delete: string[] }> {
 		try {
-			log.debug('Get updated tasks', + since, 'from the beginning of time. ');
+			log.debug('Get updated tasks', new Date(since).toISOString());
 			const url = `${this.apiUrl}/${allTasksEndPoint}` + since;
 			const response = await this.makeRequest('Get All Resources', url, 'GET', undefined);
 			if (response) {
-				return response.syncTaskBean.update;
+				this._checkpoint = response.checkPoint;
+				return {
+					update: response.syncTaskBean.update,
+					delete: response.syncTaskBean.delete
+				};
 			}
 		} catch (e) {
 			log.error('Get All Resources failed: ', e);
 			this.setError('Get All Resources', null, e);
 		}
-		return [];
+		return { update: [], delete: [] };
 	}
 
 	// RESOURCES =================================================================
@@ -406,44 +410,44 @@ export class Tick {
 		}
 	}
 
-	async addTask(jsonOptions: any): Promise<any> {
+	async addTask(task: any): Promise<any> {
 		try {
 			let bIsAllDay = true;
-			if (jsonOptions.isAllDay == null) {
+			if (task.isAllDay == null) {
 				bIsAllDay = true;
 			} else {
-				bIsAllDay = jsonOptions.isAllDay;
+				bIsAllDay = task.isAllDay;
 			}
 			const thisTask: ITask = {
-				id: jsonOptions.id ? jsonOptions.id : ObjectID(),
-				projectId: jsonOptions.projectId ? jsonOptions.projectId : this.inboxProperties.id,
-				sortOrder: jsonOptions.sortOrder ? jsonOptions.sortOrder : this.inboxProperties.sortOrder,
-				title: jsonOptions.title,
-				content: jsonOptions.content ? jsonOptions.content : '',
-				desc: jsonOptions.desc ? jsonOptions.desc : '',
-				startDate: jsonOptions.startDate ? jsonOptions.startDate : null,
-				dueDate: jsonOptions.dueDate ? jsonOptions.dueDate : null,
-				timeZone: jsonOptions.timeZone ? jsonOptions.timeZone : 'America/New_York', // This needs to be updated to grab dynamically
+				id: task.id ? task.id : ObjectID(),
+				projectId: task.projectId ? task.projectId : this.inboxProperties.id,
+				sortOrder: task.sortOrder ? task.sortOrder : this.inboxProperties.sortOrder,
+				title: task.title,
+				content: task.content ? task.content : '',
+				desc: task.desc ? task.desc : '',
+				startDate: task.startDate ? task.startDate : null,
+				dueDate: task.dueDate ? task.dueDate : null,
+				timeZone: task.timeZone ? task.timeZone : 'America/New_York', // This needs to be updated to grab dynamically
 				isAllDay: bIsAllDay,
-				reminder: jsonOptions.reminder ? jsonOptions.reminder : null,
-				reminders: jsonOptions.reminders ? jsonOptions.reminders : [{
+				reminder: task.reminder ? task.reminder : null,
+				reminders: task.reminders ? task.reminders : [{
 					id: ObjectID(),
 					trigger: 'TRIGGER:PT0S'
 				}],
-				repeatFlag: jsonOptions.repeatFlag ? jsonOptions.repeatFlag : null,
-				priority: jsonOptions.priority ? jsonOptions.priority : 0,
-				status: jsonOptions.status ? jsonOptions.status : 0,
-				items: jsonOptions.items ? jsonOptions.items : [],
-				progress: jsonOptions.progress ? jsonOptions.progress : 0,
-				modifiedTime: jsonOptions.modifiedTime ? jsonOptions.modifiedTime : new Date().toISOString().replace('Z', '+0000'), //"2017-08-12T17:04:51.982+0000",
-				deleted: jsonOptions.deleted ? jsonOptions.deleted : 0,
-				assignee: jsonOptions.assignee ? jsonOptions.assignee : null,
-				isDirty: jsonOptions.isDirty ? jsonOptions.isDirty : true,
-				local: jsonOptions.local ? jsonOptions.local : true,
-				remindTime: jsonOptions.remindTime ? jsonOptions.remindTime : null,
-				tags: jsonOptions.tags ? jsonOptions.tags : [],
-				childIds: jsonOptions.childIds ? jsonOptions.childIds : [],
-				parentId: jsonOptions.parentId ? jsonOptions.parentId : null
+				repeatFlag: task.repeatFlag ? task.repeatFlag : null,
+				priority: task.priority ? task.priority : 0,
+				status: task.status ? task.status : 0,
+				items: task.items ? task.items : [],
+				progress: task.progress ? task.progress : 0,
+				modifiedTime: task.modifiedTime ? task.modifiedTime : new Date().toISOString().replace('Z', '+0000'), //"2017-08-12T17:04:51.982+0000",
+				deleted: task.deleted ? task.deleted : 0,
+				assignee: task.assignee ? task.assignee : null,
+				isDirty: task.isDirty ? task.isDirty : true,
+				local: task.local ? task.local : true,
+				remindTime: task.remindTime ? task.remindTime : null,
+				tags: task.tags ? task.tags : [],
+				childIds: task.childIds ? task.childIds : [],
+				parentId: task.parentId ? task.parentId : null
 			};
 
 			const url = `${this.apiUrl}/${TaskEndPoint}`;

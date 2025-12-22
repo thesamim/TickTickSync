@@ -7,13 +7,22 @@ import { getSettings, updateSettings } from '@/settings';
 //logging
 import log from '@/utils/logger';
 import { getTick } from '@/api/tick_singleton_factory';
+import Dexie from 'dexie';
 
 export class TickTickRestAPI {
+	get checkpoint(): number {
+		return this._checkpoint;
+	}
+
+	set checkpoint(value: number) {
+		this._checkpoint = value;
+	}
 	app: App;
 	plugin: TickTickSync;
 	api: Tick | null;
 	token: string;
 	baseURL: string;
+	private _checkpoint: number;
 
 	constructor(app: App, plugin: TickTickSync, api: Tick | null) {
 		//super(app,settings);
@@ -21,6 +30,7 @@ export class TickTickRestAPI {
 		this.plugin = plugin;
 		this.token = getSettings().token;
 		this.baseURL = getSettings().baseURL;
+		this._checkpoint = getSettings().checkPoint;
 
 		if (!this.token || this.token === '') {
 			new Notice('Please login from Settings.', 5000);
@@ -107,7 +117,7 @@ export class TickTickRestAPI {
 	}
 
 
-	async AddTask(taskToAdd: ITask) {
+	async createTask(taskToAdd: ITask) {
 		await this.initializeAPI();
 		try {
 			const newTask = await this.api?.addTask(taskToAdd);
@@ -155,7 +165,7 @@ export class TickTickRestAPI {
 	//Also note that to remove the due date of a task completely, you should set the due_string parameter to no date or no due date.
 	//api does not have a function to update task project id
 
-	async UpdateTask(taskToUpdate: ITask) {
+	async updateTask(taskToUpdate: ITask) {
 		await this.initializeAPI();
 
 		try {
@@ -327,20 +337,21 @@ export class TickTickRestAPI {
 		}
 	}
 
-	async getUpdatedTasks(since: number): Promise<ITask[]> {
+	async getUpdatedTasks(since: number): Promise<{ update: ITask[], delete: string[] }> {
 		await this.initializeAPI();
 		if (!this.api) {
 			log.error('getAllResources No API.');
-			return [] as ITask[];
+			return { update: [], delete: [] };
 		}
 		try {
 			const result = await this.api.getUpdatedTasks(since);
+			this._checkpoint = this.api.checkpoint;
 			return result;
 
 		} catch (error) {
 			log.error('Error get updated tasks', error);
 		}
-		return [] as ITask[];
+		return { update: [], delete: [] };
 	}
 
 

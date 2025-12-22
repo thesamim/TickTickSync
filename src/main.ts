@@ -39,9 +39,10 @@ import { DateMan } from '@/dateMan';
 
 //logging
 import log from '@/utils/logger';
-import { createDB } from '@/db/db';
 import { syncAll } from '@/sync/sync';
 import { initDB } from '@/db/dexie';
+import type { ITask } from '@/api/types/Task';
+import { getTasksByLabel, upsertLocalTask } from '@/db/tasks';
 
 export default class TickTickSync extends Plugin {
 
@@ -171,7 +172,9 @@ export default class TickTickSync extends Plugin {
 		}
 		//And now load the DB and sync it.
 		await initDB();
-		await syncAll(ticktickApi);
+		if (this.tickTickRestAPI) {
+			await syncAll(this.tickTickRestAPI);
+		}
 
 		new Notice('TickTickSync loaded successfully.' + getSettings().skipBackup ? ' Skipping backup.' : 'TickTick data has been backed up.');
 		return true;
@@ -420,13 +423,56 @@ export default class TickTickSync extends Plugin {
 			// Nothing to see here right now.
 			// const foo = await this.tickTickRestAPI?.api?.getUserStatus()
 			// log.debug(foo)
-			log.debug("AppID", this.app.appId);
-			log.debug("HostName", this.getDefaultDeviceName())
-			const db = await createDB(this);
-			await this.service.tickTickSync.pullFromTickTick(db)
-			log.debug("DB snapshot", structuredClone(db.data));
-			await db.write();
-			new Notice(`we have ${db.data.tasks.length} tasks in the DB`);
+			// log.debug("AppID", this.app.appId);
+			// log.debug("HostName", await this.getDefaultDeviceName())
+
+			const taskTitle = "Test Task" + await this.getDefaultDeviceName() + new Date().getTime() ;
+			const task1: ITask = {title: taskTitle,"projectId": "693c8f5c8f084d2444217218",				"tags": [
+					"ticktick",
+					"ohlook1"
+				] }
+			// const task2: ITask = {
+			// 	"projectId": "693c8f5c8f084d2444217218",
+			// 	"sortOrder": -7696581394433,
+			// 	"title": "One Task",
+			// 	"content": "With a brand new note.",
+			// 	"desc": "",
+			// 	"timeZone": "America/Chicago",
+			// 	"isFloating": false,
+			// 	"isAllDay": true,
+			// 	"reminder": "",
+			// 	"reminders": [],
+			// 	"exDate": [],
+			// 	"priority": 0,
+			// 	"status": 0,
+			// 	"items": [],
+			// 	"progress": 0,
+			// 	"modifiedTime": "2025-12-17T20:29:54.000+0000",
+			// 	"etag": "5uon5d06",
+			// 	"deleted": 0,
+			// 	"createdTime": "2025-10-18T14:09:25.547+0000",
+			// 	"creator": 122979062,
+			// 	"tags": [
+			// 		"ticktick",
+			// 		"ohlook1"
+			// 	],
+			// 	"childIds": [],
+			// 	"kind": "TEXT"
+			// }
+
+			await upsertLocalTask(task1, {file: "", deviceId: "6b2c97e2-95b8-4a7a-9bbc-d93783b7bd25", source: "obsidian"} );
+			// await upsertLocalTask(task2, {file: "", deviceId: "6b2c97e2-95b8-4a7a-9bbc-d93783b7bd25", source: "obsidian"} );
+
+			if (this.tickTickRestAPI) {
+				await syncAll(this.tickTickRestAPI);
+			}
+			const tasks = await getTasksByLabel('#ohlook1');
+			log.debug('Labeled Tasks are: ', tasks.map(t => ({ id: t.task.id, title: t.task.title })));
+
+
+
+
+
 		});
 
 
@@ -719,12 +765,18 @@ export default class TickTickSync extends Plugin {
 							: "Desktop")
 			);
 		} else {
-			const device = require("capacitor/device")
-			const info = await device.getInfo();
-			const deviceName = info?.name || '';
-
-			return deviceName;
-
+			try {
+				// Use the global Capacitor object if available in the Obsidian mobile environment
+				const devicePlugin = (window as any).Capacitor?.Plugins?.Device;
+				if (devicePlugin) {
+					const info = await devicePlugin.getInfo();
+					return info?.name || 'Mobile Device';
+				}
+			} catch (e) {
+				console.error("Failed to get device info via Capacitor", e);
+			}
+			
+			return "Mobile Device";
 		}
 		// if (Platform.isIosApp) {
 		// 	if (Platform.isPhone) return "iPhone";

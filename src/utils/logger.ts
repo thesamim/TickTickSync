@@ -1,4 +1,4 @@
-import log from '@/utils/logger';
+import log from 'loglevel';
 
 /* Use loglevel to do our logging because it keeps the line numbers in the console clickable
 *  with sincerest thanks to https://github.com/Mr0grog of https://github.com/pimterry for providing

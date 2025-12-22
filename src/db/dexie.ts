@@ -17,7 +17,7 @@ class TickTickDB extends Dexie {
 		super("TickTickSync");
 
 		this.version(2).stores({
-			tasks: "taskId, updatedAt, file, deleted",
+			tasks: "localId, taskId, updatedAt, file, deleted",
 			meta: "key",
 			mappings: "id, taskId, file"
 		});

@@ -17,7 +17,6 @@ import { getSettings, updateProjectGroups } from '@/settings';
 import { FileMap, type ITaskItemRecord } from '@/services/fileMap';
 import log from '@/utils/logger';
 import type { DBData, LocalTask } from '@/db/schema';
-import { upsertTask } from '@/db/db';
 
 
 type deletedTask = {
@@ -105,7 +104,7 @@ export class SyncMan {
 							if (taskURL) {
 								updatedTask.title = updatedTask.title + ' ' + taskURL;
 							}
-							let updateResult = await this.plugin.tickTickRestAPI?.UpdateTask(updatedTask);
+							let updateResult = await this.plugin.tickTickRestAPI?.updateTask(updatedTask);
 						}
 					} catch (error) {
 						log.error('Task Item removal failed: ', error);
@@ -213,11 +212,11 @@ export class SyncMan {
 			try {
 
 				const currentTask = await this.plugin.taskParser.convertLineToTask(lineTxt, line, fileMap.getFilePath(), fileMap, null);
-				const newTask = await this.plugin.tickTickRestAPI?.AddTask(currentTask) as ITask;
+				const newTask = await this.plugin.tickTickRestAPI?.createTask(currentTask) as ITask;
 				if (currentTask.parentId) {
 					let parentTask = this.plugin.cacheOperation?.loadTaskFromCacheID(currentTask.parentId);
 					parentTask = this.plugin.taskParser.addChildToParent(parentTask, currentTask.parentId);
-					parentTask = await this.plugin.tickTickRestAPI?.UpdateTask(parentTask);
+					parentTask = await this.plugin.tickTickRestAPI?.updateTask(parentTask);
 					await this.plugin.cacheOperation?.updateTaskToCache(parentTask);
 				}
 				const ticktick_id = newTask.id;
@@ -542,7 +541,7 @@ export class SyncMan {
 					savedTask.modifiedTime = this.plugin.dateMan?.formatDateToISO(new Date());
 
 					const saveDateHolder = lineTask.dateHolder; //because it's going to get clobered when we refetch the tas,
-					const updatedTask = <ITask>await this.plugin.tickTickRestAPI?.UpdateTask(lineTask);
+					const updatedTask = <ITask>await this.plugin.tickTickRestAPI?.updateTask(lineTask);
 					//TODO: This feels Kludgy AF. examine ways to get past this.
 					updatedTask.dateHolder = saveDateHolder;
 					updatedTask.lineHash = newHash;
@@ -715,7 +714,7 @@ export class SyncMan {
 					//do the update mambo. cache and api.
 					//TODO: Verify that pushing an item with title and status will just matically add it.
 					parentTask.modifiedTime = this.plugin.dateMan?.formatDateToISO(new Date());
-					const result = await this.plugin.tickTickRestAPI?.UpdateTask(parentTask);
+					const result = await this.plugin.tickTickRestAPI?.updateTask(parentTask);
 					await this.plugin.cacheOperation?.updateTaskToCache(parentTask);
 				}
 
@@ -1129,7 +1128,7 @@ export class SyncMan {
 			//upload local only tasks to TickTick
 
 			for (const task of reallyNewObsidianTasks) {
-				await this.plugin.tickTickRestAPI?.AddTask(task);
+				await this.plugin.tickTickRestAPI?.createTask(task);
 				bModifiedFileSystem = true;
 			}
 
@@ -1256,7 +1255,7 @@ export class SyncMan {
 
 
 					task.title = task.title + ' ' + taskURL;
-					const updatedTask = await this.plugin.tickTickRestAPI?.UpdateTask(task);
+					const updatedTask = await this.plugin.tickTickRestAPI?.updateTask(task);
 					//Cache the title without the URL because that's what we're going to do content compares on.
 					updatedTask.title = await this.plugin.taskParser?.stripOBSUrl(updatedTask.title);
 					await this.plugin.cacheOperation?.updateTaskToCache(updatedTask);
@@ -1306,7 +1305,7 @@ export class SyncMan {
 					const lineTask = await this.plugin.taskParser?.convertLineToTask(lineText, 0, fileMap.getFilePath(), fileMap, taskRecord);
 					const merged = { ...savedTask, ...lineTask };
 					Object.assign(lineTask, merged);
-					const updatedTask = <ITask>await this.plugin.tickTickRestAPI?.UpdateTask(lineTask);
+					const updatedTask = <ITask>await this.plugin.tickTickRestAPI?.updateTask(lineTask);
 					await this.plugin.cacheOperation?.updateTaskToCache(updatedTask, null);
 				}
 			}
@@ -1470,7 +1469,7 @@ export class SyncMan {
 				}
 			}
 		}
-		const result = await this.plugin.tickTickRestAPI?.UpdateTask(parentTask);
+		const result = await this.plugin.tickTickRestAPI?.updateTask(parentTask);
 		const updateFailed = !result;
 		new Notice(`Task ${parentTask.title} modified.`);
 		return !updateFailed;
@@ -1485,18 +1484,6 @@ export class SyncMan {
 		return null; // Return null if no task or item is found for the given line number
 	}
 
-	async pullFromTickTick(db: Low<DBData>) {
-		const since = db.data.meta?.lastFullSync || 0;
 
-		const remoteTasks = await this.plugin.tickTickRestAPI?.getUpdatedTasks(since);
-
-		for (const rt of remoteTasks) {
-			let localTask: LocalTask = {};
-			localTask.task = rt;
-			localTask.source = "ticktick";
-
-			upsertTask(db, localTask);
-		}
-	}
 
 }

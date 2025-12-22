@@ -2,10 +2,12 @@ import { db } from "@/db/dexie";
 import { pullFromTickTick } from "./pull";
 import { pushToTickTick } from "./push";
 import { logSyncEvent } from "./journal";
+import type { TickTickRestAPI } from '@/services/TicktickRestAPI';
+import log from '@/utils/logger';
 
 let syncing = false;
 
-export async function syncAll(ticktickApi) {
+export async function syncAll(ticktickRestApi: TickTickRestAPI, fullSync: boolean = true) {
 	if (syncing) return;
 	syncing = true;
 
@@ -16,25 +18,25 @@ export async function syncAll(ticktickApi) {
 		logSyncEvent(meta.deviceId, "sync:start");
 
 		const pulled = await pullFromTickTick(
-			ticktickApi,
-			meta
+			ticktickRestApi,
+			meta,
+			fullSync
 		);
 
 		const pushed = await pushToTickTick(
-			ticktickApi,
-			meta
+			ticktickRestApi,
+			meta,
+			fullSync
 		);
 
-		await db.meta.update("sync", {
-			lastDeltaSync: Date.now()
-		});
+
 
 		logSyncEvent(meta.deviceId, "sync:end", {
 			pulled,
 			pushed
 		});
 	} catch (err) {
-		console.error("[TickTickSync] sync failed", err);
+		log.error("[TickTickSync] sync failed", err);
 		logSyncEvent("unknown", "sync:error", {
 			message: err.message
 		});

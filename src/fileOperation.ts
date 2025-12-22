@@ -532,13 +532,13 @@ export class FileOperation {
 
 			if (!bUpdating) {
 				//we're updating the task to get the right OBS URL in there.
-				let addedTask = await this.plugin.tickTickRestAPI?.UpdateTask(task);
+				let addedTask = await this.plugin.tickTickRestAPI?.updateTask(task);
 				await this.plugin.cacheOperation?.appendTaskToCache(addedTask, file.path);
 			} else {
 				if (!bTaskMove) {
 					await this.plugin.cacheOperation?.updateTaskToCache(task, file.path);
 				} else {
-					let addedTask = await this.plugin.tickTickRestAPI?.UpdateTask(task);
+					let addedTask = await this.plugin.tickTickRestAPI?.updateTask(task);
 					await this.plugin.cacheOperation?.updateTaskToCache(addedTask, filePathForNewProject);
 				}
 

@@ -11,7 +11,8 @@ export type SyncMeta = {
 };
 
 export type LocalTask = {
-	taskId: string;
+	localId: string;             // ALWAYS present (UUID)
+	taskId: string;              // TickTick ID (optional until synced)
 	task: ITask;
 
 	updatedAt: number;
@@ -22,14 +23,15 @@ export type LocalTask = {
 
 	source: "ticktick" | "obsidian";
 };
-export type TaskFileMapping = {
-	id: string;          // `${taskId}:${file}`
-	taskId: string;
-	file: string;
 
-	section?: string;    // optional future use
+export type TaskFileMapping = {
+	id: string;            // `${localId}:${file}`
+	localId: string;
+	taskId?: string;
+	file: string;
 	createdAt: number;
 };
+
 
 export type DBData = {
 	tasks: LocalTask[];
