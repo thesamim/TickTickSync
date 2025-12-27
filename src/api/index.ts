@@ -271,7 +271,7 @@ export class Tick {
 
 	async getUpdatedTasks(since: number): Promise<{ update: ITask[], delete: string[] }> {
 		try {
-			log.debug('Get updated tasks', new Date(since).toISOString());
+			log.debug('Get updated tasks', 'Since', since > 0 ?new Date(since).toISOString() : 'from the beginning of time.');
 			const url = `${this.apiUrl}/${allTasksEndPoint}` + since;
 			const response = await this.makeRequest('Get All Resources', url, 'GET', undefined);
 			if (response) {
@@ -282,7 +282,7 @@ export class Tick {
 				};
 			}
 		} catch (e) {
-			log.error('Get All Resources failed: ', e);
+			log.error('Get Updated Tasks failed: ', e);
 			this.setError('Get All Resources', null, e);
 		}
 		return { update: [], delete: [] };
