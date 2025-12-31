@@ -5,6 +5,7 @@ import type { TaskFileMapping } from "./schema";
 import { defaultDBData } from "./schema";
 import { ensureSyncMeta } from "./meta";
 import { migrateDB } from "./migrations";
+import { getTasks, getSettings } from "@/settings";
 
 type MetaRow = SyncMeta & { key: "sync" };
 
@@ -27,13 +28,46 @@ class TickTickDB extends Dexie {
 export const db = new TickTickDB();
 
 export async function initDB() {
-	const rawMeta = await db.meta.get("sync");
+	let rawMeta = await db.meta.get("sync");
 
 	if (!rawMeta) {
-		const meta = ensureSyncMeta(structuredClone(defaultDBData.meta));
+		const meta = await ensureSyncMeta(structuredClone(defaultDBData.meta));
 		await db.meta.put({ ...meta, key: "sync" });
-		return;
+		
+		// Initial migration from old settings-based tasks
+		const oldTasks = getTasks();
+		const fileMetadata = getSettings().fileMetadata;
+		
+		if (oldTasks && oldTasks.length > 0) {
+			const tasksToPut: LocalTask[] = oldTasks.map(t => {
+				// Find file mapping
+				let filePath = "";
+				for (const [path, detail] of Object.entries(fileMetadata)) {
+					if (detail.TickTickTasks.some(dt => dt.taskId === t.id)) {
+						filePath = path;
+						break;
+					}
+				}
+
+				return {
+					localId: `tt:${t.id}`,
+					taskId: t.id,
+					task: t,
+					updatedAt: t.modifiedTime ? new Date(t.modifiedTime).getTime() : Date.now(),
+					lastModifiedByDeviceId: meta.deviceId || "unknown",
+					deleted: t.deleted === 1,
+					file: filePath,
+					source: "ticktick"
+				};
+			});
+
+			await db.tasks.bulkPut(tasksToPut);
+		}
+		
+		rawMeta = await db.meta.get("sync");
 	}
+
+	if (!rawMeta) return;
 
 	const migrated = migrateDB({
 		meta: rawMeta,
@@ -41,8 +75,9 @@ export async function initDB() {
 	});
 
 	await db.transaction("rw", db.tasks, db.meta, async () => {
-		await db.tasks.clear();
 		await db.tasks.bulkPut(migrated.tasks);
-		await db.meta.put({ ...ensureSyncMeta(migrated.meta), key: "sync" });
+		const finalizedMeta = await ensureSyncMeta(migrated.meta);
+		await db.meta.put({ ...finalizedMeta, key: "sync" });
+
 	});
 }

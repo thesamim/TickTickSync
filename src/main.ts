@@ -39,10 +39,11 @@ import { DateMan } from '@/dateMan';
 
 //logging
 import log from '@/utils/logger';
-import { syncAll } from '@/sync/sync';
+import { syncTickTickWithDexie } from '@/sync/sync';
 import { initDB } from '@/db/dexie';
 import type { ITask } from '@/api/types/Task';
 import { getTasksByLabel, upsertLocalTask } from '@/db/tasks';
+import { detectDeviceLabel, generateDeviceId } from '@/db/device';
 
 export default class TickTickSync extends Plugin {
 
@@ -115,7 +116,6 @@ export default class TickTickSync extends Plugin {
 				updateProjects(data.TickTickTasksData.projects);
 				updateTasks(data.TickTickTasksData.tasks);
 				updateProjectGroups(data.TickTickTasksData.projectGroups);
-				delete data.TickTickTasksData;
 			}
 			const settings = Object.assign({}, DEFAULT_SETTINGS, data);
 			updateSettings(settings);
@@ -148,7 +148,19 @@ export default class TickTickSync extends Plugin {
 	// return true of false
 	async initializePlugin(): Promise<boolean> {
 		if (!getSettings().token) {
+			new Notice(`Please login from settings.`);
 			return false;
+		}
+
+		const devID = getSettings().deviceId;
+		const devLabel = getSettings().deviceLabel;
+		const devLabeLen = devLabel?.length;
+		log.debug(`Device ID: ${devID}, Device Label: ${devLabel}, len: ${devLabeLen}`);
+		if (!getSettings().deviceId || getSettings().deviceId.length === 0 ) {
+			getSettings().deviceId = generateDeviceId();
+		}
+		if (!getSettings()?.deviceLabel || getSettings()?.deviceLabel.length === 0) {
+			getSettings().deviceLabel = await detectDeviceLabel();
 		}
 
 		const isProjectsSaved = await this.saveProjectsToCache();
@@ -172,9 +184,7 @@ export default class TickTickSync extends Plugin {
 		}
 		//And now load the DB and sync it.
 		await initDB();
-		if (this.tickTickRestAPI) {
-			await syncAll(this.tickTickRestAPI);
-		}
+		await this.service.synchronization(true);
 
 		new Notice('TickTickSync loaded successfully.' + getSettings().skipBackup ? ' Skipping backup.' : 'TickTick data has been backed up.');
 		return true;
@@ -301,7 +311,7 @@ export default class TickTickSync extends Plugin {
 
 	}
 
-	async scheduledSynchronization() {
+	async scheduledSynchronization(fullSync: boolean = false) {
 		if (!this.checkModuleClass()) {
 			return;
 		}
@@ -309,7 +319,7 @@ export default class TickTickSync extends Plugin {
 		const startTime = performance.now();
 		log.debug(`TickTick scheduled synchronization task started at ${new Date().toLocaleString()}`);
 		try {
-			await this.service.synchronization();
+			await this.service.synchronization(fullSync);
 		} catch (error) {
 			log.error('An error occurred: ', error);
 			new Notice(`An error occurred: ${error}`);
@@ -464,7 +474,7 @@ export default class TickTickSync extends Plugin {
 			// await upsertLocalTask(task2, {file: "", deviceId: "6b2c97e2-95b8-4a7a-9bbc-d93783b7bd25", source: "obsidian"} );
 
 			if (this.tickTickRestAPI) {
-				await syncAll(this.tickTickRestAPI);
+				await syncTickTickWithDexie(this.tickTickRestAPI);
 			}
 			const tasks = await getTasksByLabel('#ohlook1');
 			log.debug('Labeled Tasks are: ', tasks.map(t => ({ id: t.task.id, title: t.task.title })));
@@ -688,7 +698,7 @@ export default class TickTickSync extends Plugin {
 			}
 			//Force a sync
 			if (getSettings().token) {
-				await this.scheduledSynchronization();
+				await this.scheduledSynchronization(true);
 			}
 		}
 		if ((!data.version) || (isOlder(data.version, '1.0.10'))) {
@@ -751,45 +761,7 @@ export default class TickTickSync extends Plugin {
 
 	}
 
-	async getDefaultDeviceName() {
-		if (Platform.isDesktopApp) {
-			return (
-				// eslint-disable-next-line @typescript-eslint/no-var-requires
-				require("os").hostname() ||
-				(Platform.isMacOS
-					? "Mac"
-					: Platform.isWin
-						? "Windows"
-						: Platform.isLinux
-							? "Linux"
-							: "Desktop")
-			);
-		} else {
-			try {
-				// Use the global Capacitor object if available in the Obsidian mobile environment
-				const devicePlugin = (window as any).Capacitor?.Plugins?.Device;
-				if (devicePlugin) {
-					const info = await devicePlugin.getInfo();
-					return info?.name || 'Mobile Device';
-				}
-			} catch (e) {
-				console.error("Failed to get device info via Capacitor", e);
-			}
-			
-			return "Mobile Device";
-		}
-		// if (Platform.isIosApp) {
-		// 	if (Platform.isPhone) return "iPhone";
-		// 	if (Platform.isTablet) return "iPad";
-		// 	return "iOS Device";
-		// }
-		// if (Platform.isAndroidApp) {
-		// 	if (Platform.isPhone) return "Android Phone";
-		// 	if (Platform.isTablet) return "Android Tablet";
-		// 	return "Android Device";
-		// }
-		return "Unknown Device";
-	}
+
 }
 
 

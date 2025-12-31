@@ -25,14 +25,14 @@ export async function resetTasks(plugin: TickTickSync, setIsWorking?: (val: bool
 	log.debug('## reset from OBS to TT');
 	await hardResetFromOBS(plugin);
 	await plugin.saveSettings();
-	await plugin.scheduledSynchronization();
+	await plugin.scheduledSynchronization(true);
 
 	//update from Obs to TT.
 	log.debug('## reset from TT to OBS');
 	let timeStamp = '1970-01-01T00:00:00.000Z';
 	resetTimeStamp(plugin, timeStamp);
 	await plugin.saveSettings();
-	await plugin.scheduledSynchronization();
+	await plugin.scheduledSynchronization(true);
 
 
 	setIsWorking?.(false);

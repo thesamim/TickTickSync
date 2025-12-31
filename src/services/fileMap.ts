@@ -450,7 +450,7 @@ private getTaskLinesByIdx(taskIdx: number, taskRecord: ITaskRecord) {
 		return taskRecord;
 	}
 
-	private getParentId(id: string) {
+	public getParentId(id: string) {
 		const taskIdx = this.getTaskIndex(id);
 		return this.getParentIDByIdx(taskIdx);
 	}

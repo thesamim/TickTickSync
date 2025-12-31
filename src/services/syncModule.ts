@@ -17,6 +17,7 @@ import { getSettings, updateProjectGroups } from '@/settings';
 import { FileMap, type ITaskItemRecord } from '@/services/fileMap';
 import log from '@/utils/logger';
 import type { DBData, LocalTask } from '@/db/schema';
+import { db } from "@/db/dexie";
 
 
 type deletedTask = {
@@ -214,7 +215,7 @@ export class SyncMan {
 				const currentTask = await this.plugin.taskParser.convertLineToTask(lineTxt, line, fileMap.getFilePath(), fileMap, null);
 				const newTask = await this.plugin.tickTickRestAPI?.createTask(currentTask) as ITask;
 				if (currentTask.parentId) {
-					let parentTask = this.plugin.cacheOperation?.loadTaskFromCacheID(currentTask.parentId);
+					let parentTask = await this.plugin.cacheOperation?.loadTaskFromCacheID(currentTask.parentId);
 					parentTask = this.plugin.taskParser.addChildToParent(parentTask, currentTask.parentId);
 					parentTask = await this.plugin.tickTickRestAPI?.updateTask(parentTask);
 					await this.plugin.cacheOperation?.updateTaskToCache(parentTask);
@@ -336,7 +337,7 @@ export class SyncMan {
 			//convertLineToTask has become a pretty expensive operation avoid it.
 			//let's see if the saved task has a lineHash.
 
-			const savedTask = this.plugin.cacheOperation?.loadTaskFromCacheID(lineTask_ticktick_id);
+			const savedTask = await this.plugin.cacheOperation?.loadTaskFromCacheID(lineTask_ticktick_id);
 
 			let projectMoved = false;
 			let oldFilePath = '';
@@ -920,6 +921,92 @@ export class SyncMan {
 	 *  true if the function is in the process of modifying files
 	 *  false otherwise
 	 */
+	async syncVaultWithDexie(): Promise<void> {
+		const tasks = await db.tasks.toArray();
+		const syncTag = getSettings().SyncTag?.toLowerCase();
+		const syncProject = getSettings().SyncProject;
+		const andOr = getSettings().tagAndOr;
+
+		// Group tasks by file
+		const fileGroups: Map<string, { toAdd: ITask[], toUpdate: ITask[], toDelete: ITask[] }> = new Map();
+
+		for (const lt of tasks) {
+			const task = lt.task;
+			const matchesFilter = this.matchesFilter(task, syncTag, syncProject, andOr);
+
+			let targetFile = lt.file;
+			if (!targetFile && matchesFilter && !lt.deleted) {
+				// Determine target file for new tasks
+				targetFile = await this.plugin.cacheOperation.getFilepathForProjectId(task.projectId);
+				if (!targetFile) {
+					targetFile = await this.plugin.cacheOperation.getFilepathForProjectId(getSettings().defaultProjectId);
+				}
+			}
+
+			if (!targetFile) continue;
+
+			if (!fileGroups.has(targetFile)) {
+				fileGroups.set(targetFile, { toAdd: [], toUpdate: [], toDelete: [] });
+			}
+			const group = fileGroups.get(targetFile)!;
+
+			if (lt.deleted) {
+				if (lt.file) {
+					group.toDelete.push(task);
+				}
+			} else if (matchesFilter) {
+				if (lt.file) {
+					group.toUpdate.push(task);
+				} else {
+					group.toAdd.push(task);
+					// Update Dexie with the chosen file
+					await db.tasks.update(lt.localId, { file: targetFile });
+				}
+			} else if (lt.file) {
+				// No longer matches filter, remove from vault
+				group.toDelete.push(task);
+			}
+		}
+
+		for (const [filePath, group] of fileGroups) {
+			const file = this.app.vault.getAbstractFileByPath(filePath);
+
+			// 1. Handle Deletions (Delayed delete with tombstones: the record stays in Dexie)
+			for (const task of group.toDelete) {
+				if (file instanceof TFile) {
+					await this.plugin.fileOperation?.deleteTaskFromSpecificFile(file, task, true);
+				}
+				// Clear the file field since it's gone from vault, but KEEP the record in Dexie as a tombstone
+				const lt = tasks.find(t => t.task.id === task.id);
+				if (lt) {
+					await db.tasks.update(lt.localId, { file: "" });
+				}
+			}
+
+			// 2. Handle Updates
+			if (group.toUpdate.length > 0) {
+				await this.plugin.fileOperation?.synchronizeToVault(filePath, group.toUpdate, true);
+			}
+
+			// 3. Handle Additions
+			if (group.toAdd.length > 0) {
+				await this.plugin.fileOperation?.synchronizeToVault(filePath, group.toAdd, false);
+			}
+		}
+	}
+
+	private matchesFilter(task: ITask, syncTag?: string, syncProject?: string, andOr?: number): boolean {
+		if (!syncTag && !syncProject) return true;
+
+		const hasTag = syncTag ? task.tags?.some(t => t.toLowerCase() === syncTag) : false;
+		const hasProject = syncProject ? task.projectId === syncProject : false;
+
+		if (syncTag && syncProject) {
+			return andOr === 1 ? (hasTag && hasProject) : (hasTag || hasProject);
+		}
+		return hasTag || hasProject;
+	}
+
 	async syncTickTickToObsidian(): Promise<boolean> {
 		//****************
 		//****************
@@ -1067,10 +1154,20 @@ export class SyncMan {
 				newTickTickTasks.forEach((newTickTickTask: ITask) => {
 					this.plugin.dateMan?.addDateHolderToTask(newTickTickTask);
 				});
-				let result = await this.plugin.fileOperation?.synchronizeToVault(newTickTickTasks, false);
-				if (result) {
-					// Sleep for 1 seconds
-					await new Promise(resolve => setTimeout(resolve, 1000));
+				// Group by file
+				const tasksByFile = new Map<string, ITask[]>();
+				for (const task of newTickTickTasks) {
+					let taskFile = await this.plugin.cacheOperation.getFilepathForProjectId(task.projectId);
+					if (!taskFile) {
+						taskFile = await this.plugin.cacheOperation.getFilepathForProjectId(getSettings().defaultProjectId);
+					}
+					if (taskFile) {
+						if (!tasksByFile.has(taskFile)) tasksByFile.set(taskFile, []);
+						tasksByFile.get(taskFile)!.push(task);
+					}
+				}
+				for (const [taskFile, tasks] of tasksByFile) {
+					await this.plugin.fileOperation?.synchronizeToVault(taskFile, tasks, false);
 				}
 				bModifiedFileSystem = true;
 			}
@@ -1169,13 +1266,19 @@ export class SyncMan {
 
 
 			if (recentUpdates.length > 0) {
-				// this.dumpArray('== Update in  Obsidian:', recentUpdates)
-				let result = await this.plugin.fileOperation?.synchronizeToVault(recentUpdates, true);
-				if (result) {
-					// Sleep for 1 seconds
-					await new Promise(resolve => setTimeout(resolve, 1000));
-					bModifiedFileSystem = true;
+				// Group by file
+				const tasksByFile = new Map<string, ITask[]>();
+				for (const task of recentUpdates) {
+					const taskFile = this.plugin.cacheOperation.getFilepathForTask(task.id);
+					if (taskFile) {
+						if (!tasksByFile.has(taskFile)) tasksByFile.set(taskFile, []);
+						tasksByFile.get(taskFile)!.push(task);
+					}
 				}
+				for (const [taskFile, tasks] of tasksByFile) {
+					await this.plugin.fileOperation?.synchronizeToVault(taskFile, tasks, true);
+				}
+				bModifiedFileSystem = true;
 
 
 				await this.plugin.saveSettings();
@@ -1297,7 +1400,7 @@ export class SyncMan {
 			const lineText = lines[line];
 			if (this.plugin.taskParser?.hasTickTickId(lineText) && this.plugin.taskParser?.hasTickTickTag(lineText)) {
 				const taskId = this.plugin.taskParser.getTickTickId(lineText);
-				const savedTask = this.plugin.cacheOperation.loadTaskFromCacheID(taskId);
+				const savedTask = await this.plugin.cacheOperation.loadTaskFromCacheID(taskId);
 				if (taskId && savedTask) {
 					savedTask.modifiedTime = this.plugin.dateMan?.formatDateToISO(new Date());
 					const taskRecord = fileMap.getTaskRecord(taskId)
@@ -1395,7 +1498,7 @@ export class SyncMan {
 
 		const newItem = this.plugin.taskParser?.taskFromLine(lineText);
 
-		const parentTask = this.plugin.cacheOperation?.loadTaskFromCacheID(parentID);
+		const parentTask = await this.plugin.cacheOperation?.loadTaskFromCacheID(parentID);
 		if (parentTask && parentTask.items) { //we have some items.
 			if (itemId) {
 				const oldItem = parentTask.items.find((item) => item.id == itemId);

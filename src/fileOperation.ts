@@ -129,67 +129,30 @@ export class FileOperation {
 	}
 
 	// sync updated task content to file
-	async synchronizeToVault(tasks: ITask[], bUpdating: boolean): Promise<boolean> {
-		if (!tasks) {
-			log.error('No tasks to add.');
+	async synchronizeToVault(taskFile: string, tasks: ITask[], bUpdating: boolean): Promise<boolean> {
+		if (!tasks || tasks.length === 0) {
+			log.error('No tasks to process.');
 			return false;
 		}
-		//sort by project id and task id
-		tasks.sort((taskA, taskB) =>
-			(taskA.projectId.localeCompare(taskB.projectId) ||
-				taskA.id.localeCompare(taskB.id)));
 
-		const projectIds = [...new Set(tasks.map(task => task.projectId))];
+		// Sort the tasks for that file so that Parents are processed first
+		const sortedTasks = this.doTheSortMambo(tasks);
+		// log.debug('Sorted Tasks:');
+		// sortedTasks.forEach(t => {
+		// 	log.debug(`Task: id=${t.id}, ParentID=${t.parentId}, title=${t.title.substring(0, 20)}`);
+		// });
+		const result = await this.synchronizeToFile(taskFile, sortedTasks, bUpdating);
 
-		for (const projectId of projectIds) {
-			let result;
-			let taskFile: string | null | undefined = null;
-			let projectTasks = tasks.filter(task => task.projectId === projectId);
-
-				//If a task is in the default project, we need to find it on the file system.
-				// 1. Find file for each task
-				// 2. process the tasks by file.
-				const tasksForFiles: { file: string, tasks: ITask[] }[] = [];
-				const fileForDefaultProject = await this.plugin.cacheOperation?.getFilepathForProjectId(getSettings().defaultProjectId);
-				for (const task of projectTasks) {
-					if (task.parentId && task.parentId.length > 0) {
-						taskFile = this.plugin.cacheOperation.getFilepathForTask(task.parentId);
-					} else {
-						taskFile = this.plugin.cacheOperation.getFilepathForTask(task.id);
-					}
-					if (taskFile) {
-						this.addTaskToTFF(tasksForFiles, taskFile, task);
-					} else {
-						taskFile = await this.plugin.cacheOperation?.getFilepathForProjectId(task.projectId);
-						if(taskFile) {
-							this.addTaskToTFF(tasksForFiles, taskFile, task);
-						} else {
-							this.addTaskToTFF(tasksForFiles, fileForDefaultProject, task);
-						}
-					}
-
-				}
-				for (const { file, tasks } of tasksForFiles) {
-					//after redistributing the tasks, make sure they're still in parent/child order.
-					this.doTheSortMambo(tasks);
-					result = await this.synchronizeToFile(file, tasks, bUpdating);
-				}
-
-			// Sleep for 1 second
-			if (result) {
-				await new Promise(resolve => setTimeout(resolve, 1000));
-			}
-			if (getSettings().debugMode) {
-				let opString = '';
-				if (bUpdating) {
-					opString = 'updating';
-				} else {
-					opString = 'adding';
-				}
-				log.debug('===', taskFile, projectTasks, result ? 'Completed ' + opString + ' task(s).' : ' Failed ' + opString + ' task(s).');
-			}
+		// Sleep for 1 second if successful to allow vault to settle
+		if (result) {
+			await new Promise(resolve => setTimeout(resolve, 1000));
 		}
-		return true;
+
+		if (getSettings().debugMode) {
+			const opString = bUpdating ? 'updating' : 'adding';
+			log.debug('===', taskFile, tasks, result ? `Completed ${opString} task(s).` : ` Failed ${opString} task(s).`);
+		}
+		return result;
 	}
 
 	async getOrCreateDefaultFile(taskFile: string) {
@@ -422,8 +385,12 @@ export class FileOperation {
 			}
 		}
 
-		//make sure top level tasks are first
-		projectTasks = this.doTheSortMambo(projectTasks);
+		// //make sure top level tasks are first
+		// projectTasks = this.doTheSortMambo(projectTasks);
+		// log.debug('Sorted project Tasks:');
+		// projectTasks.forEach(t => {
+		// 	log.debug(`Task: id=${t.id}, ParentID=${t.parentId}, title=${t.title.substring(0, 20)}`);
+		// });
 
 		//only for debugging, in case I lose my sort shit again.
 		// let subset = projectTasks.map((task) => {
@@ -492,18 +459,23 @@ export class FileOperation {
 				}
 			} else {
 				//For updates doing the dateHolder mambo here because we need to make sure we get old dates....
-				const oldTask: ITask = this.plugin.cacheOperation?.loadTaskFromCacheID(task.id);
+ 			const oldTask: ITask = await this.plugin.cacheOperation?.loadTaskFromCacheID(task.id);
 				this.plugin.dateMan?.addDateHolderToTask(task, oldTask);
 				lineText = await this.plugin.taskParser?.convertTaskToLine(task, numParentTabs);
 				if (oldTask) {
+					// Compare incoming task (from DB/TickTick) with current vault state
+					const vaultProjectId = await this.plugin.cacheOperation?.getDefaultProjectIdForFilepath(file.path);
+					const vaultParentId = fileMap.getParentId(task.id);
+					const vaultTask: ITask = { ...task, projectId: vaultProjectId, parentId: vaultParentId };
+
 					//Only check for Project/Parent change if task is in cache.
-					if ((this.plugin.taskParser?.isProjectIdChanged(oldTask, task))) {
-						log.debug('Moving Task: ', task.id, task.title, ' from Project: ', oldTask.projectId, ' to Project: ', task.projectId);
-						filePathForNewProject = await this.handleTickTickStructureMove(task, oldTask, lineText, fileMap);
+					if ((this.plugin.taskParser?.isProjectIdChanged(vaultTask, task))) {
+						log.debug('Moving Task: ', task.id, task.title, ' from Project: ', vaultTask.projectId, ' to Project: ', task.projectId);
+						filePathForNewProject = await this.handleTickTickStructureMove(task, vaultTask, lineText, fileMap);
 						//because we need to update the OBS URL in TT and fix up the cache.
 						bTaskMove = true;
 					} else {
-						const bParentUpdate = this.plugin.taskParser?.isParentIdChanged(oldTask, task);
+						const bParentUpdate = this.plugin.taskParser?.isParentIdChanged(vaultTask, task);
 						fileMap.updateTask(task, lineText, bParentUpdate);
 					}
 				} else {
@@ -677,7 +649,7 @@ export class FileOperation {
 		await this.deleteTaskFromSpecificFile(tFilePath, task, false);
 		await this.plugin.cacheOperation?.deleteTaskFromCache(oldTaskId);
 
-		await this.synchronizeToVault([task]);
+		await this.synchronizeToVault(filepath, [task], false);
 		const cleanTitle = this.plugin.taskParser?.stripOBSUrl(task.title);
 		let message = '';
 		if (task.projectId != oldProjectId) {
@@ -825,11 +797,16 @@ export class FileOperation {
 		const jsonStringifiedTasks = JSON.parse(JSON.stringify(tasks)); // Deep copy the tasks
 		const sortedTasks = this.sortTasksByLevel(jsonStringifiedTasks);
 
-		// Format the result to show the hierarchy
-		const result = sortedTasks.map(task => {
-			const indent = '  '.repeat(task.level - 1);
-			return `${indent}${task.title} (Level: ${task.level})`;
-		}).join('\n');
+		// // Format the result to show the hierarchy
+		// const result = sortedTasks.map(task => {
+		// 	const indent = '  '.repeat(task.level - 1);
+		// 	return `${indent}${task.id} - ${task.parentId} - ${task.title} (Level: ${task.level})`;
+		// }).join('\n');
+		//
+		// log.debug('Sorted Tasks Hierarchy:');
+		// result.split('\n').forEach(line => {
+		// 	log.debug(line);
+		// });
 
 		return sortedTasks as ITask[];
 	}
@@ -881,12 +858,4 @@ export class FileOperation {
 		return sortedTasks;
 	}
 
-	private addTaskToTFF(taskForFiles: { file: string; tasks: ITask[] }[], taskFile: string | null, task: ITask) {
-		let fileTaskObj = taskForFiles.find(obj => obj.file === taskFile);
-		if (!fileTaskObj) {
-			fileTaskObj = { file: taskFile, tasks: [] };
-			taskForFiles.push(fileTaskObj);
-		}
-		fileTaskObj.tasks.push(task);
-	}
 }

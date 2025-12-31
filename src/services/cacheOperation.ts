@@ -7,6 +7,8 @@ import { getProjects, getSettings, getTasks, updateProjects, updateSettings, upd
 //Logging
 import log from '@/utils/logger';
 import { FileMap } from '@/services/fileMap';
+import { db } from "@/db/dexie";
+import { upsertLocalTask } from "@/db/tasks";
 
 
 export interface FileMetadata {
@@ -338,8 +340,8 @@ export class CacheOperation {
 	//Read all tasks from Cache
 	async loadTasksFromCache() {
 		try {
-			const savedTasks = getTasks();
-			return savedTasks;
+			const lts = await db.tasks.toArray();
+			return lts.map(lt => lt.task);
 		} catch (error) {
 			log.error(`Error loading tasks from Cache: ${error}`);
 			return [];
@@ -347,10 +349,25 @@ export class CacheOperation {
 	}
 
 	// Overwrite and save all tasks to cache
-	async saveTasksToCache(newTasks) {
+	async saveTasksToCache(newTasks: ITask[]) {
 		try {
-			updateTasks(newTasks);
-
+			// This is tricky because we might lose LocalTask metadata.
+			// But usually this is called after a full sync.
+			const meta = await db.meta.get("sync");
+			const deviceId = meta?.deviceId || "unknown";
+			
+			const tasksToPut = newTasks.map(t => ({
+				localId: `tt:${t.id}`,
+				taskId: t.id,
+				task: t,
+				updatedAt: Date.now(),
+				lastModifiedByDeviceId: deviceId,
+				file: this.getFilepathForTask(t.id) || "",
+				source: "ticktick" as const,
+				deleted: t.deleted === 1
+			}));
+			
+			await db.tasks.bulkPut(tasksToPut);
 		} catch (error) {
 			log.error(`Error saving tasks to Cache: ${error}`);
 			return false;
@@ -363,10 +380,15 @@ export class CacheOperation {
 			if (task === null) {
 				return;
 			}
-			const savedTasks = getTasks();
+			const meta = await db.meta.get("sync");
 			task.title = this.plugin.taskParser.stripOBSUrl(task.title);
-			savedTasks.push(task);
-			updateTasks(savedTasks);
+			
+			await upsertLocalTask(task, {
+				file: filePath,
+				deviceId: meta?.deviceId || "unknown",
+				source: "ticktick"
+			});
+			
 			await this.addTaskToMetadata(filePath, task);
 
 			await this.plugin.saveSettings();
@@ -377,11 +399,11 @@ export class CacheOperation {
 	}
 
 	//Read the task with the specified id
-	loadTaskFromCacheID(taskId?: string): ITask | undefined {
+	async loadTaskFromCacheID(taskId?: string): Promise<ITask | undefined> {
 		if (!taskId) return undefined;
 		try {
-			const savedTasks = getTasks();
-			return savedTasks.find((task: ITask) => task.id === taskId);
+			const lt = await db.tasks.where("taskId").equals(taskId).first();
+			return lt?.task;
 		} catch (error) {
 			log.error(`Error finding task from Cache:`, error);
 		}
@@ -390,15 +412,13 @@ export class CacheOperation {
 
 	//get Task titles
 	async getTaskTitles(taskIds: string []): Promise<string []> {
-
-		const savedTasks = getTasks();
-		let titles = savedTasks.filter(task => taskIds.includes(task.id)).map(task => task.title);
+		const lts = await db.tasks.where("taskId").anyOf(taskIds).toArray();
+		let titles = lts.map(lt => lt.task.title);
 		titles = titles.map((task: string) => {
 			return this.plugin.taskParser.stripOBSUrl(task);
 		});
 
 		return titles;
-
 	}
 
 	//Overwrite the task with the specified id in update
@@ -444,30 +464,22 @@ export class CacheOperation {
 
 
 	async getProjectIdForTask(taskId: string) {
-		const savedTasks = getTasks();
-		const taskIndex = savedTasks.findIndex((task) => task.id === taskId);
-
-		if (taskIndex !== -1) {
-			return savedTasks[taskIndex].projectId;
-		}
+		const lt = await db.tasks.where("taskId").equals(taskId).first();
+		return lt?.task.projectId;
 	}
 
 	//open a task status
 	async reopenTaskToCacheByID(taskId: string): Promise<string> {
-		let projectId = null;
 		try {
-			const savedTasks = getTasks();
-
-
-			const taskIndex = savedTasks.findIndex((task) => task.id === taskId);
-			if (taskIndex > -1) {
-				savedTasks[taskIndex].status = 0;
-				projectId = savedTasks[taskIndex].projectId;
+			const lt = await db.tasks.where("taskId").equals(taskId).first();
+			if (lt) {
+				lt.task.status = 0;
+				lt.updatedAt = Date.now();
+				lt.lastModifiedByDeviceId = getSettings().deviceId;
+				await db.tasks.put(lt);
+				return lt.task.projectId;
 			}
-
-			updateTasks(savedTasks);
-			return projectId;
-
+			return "";
 		} catch (error) {
 			log.error(`Error open task to Cache file: ${error}`);
 			throw error; // Throw an error so that the caller can catch and handle it
@@ -510,19 +522,16 @@ export class CacheOperation {
 
 	//close a task status
 	async closeTaskToCacheByID(taskId: string): Promise<string> {
-		let projectId = null;
 		try {
-			const savedTasks = getTasks();
-
-			const taskIndex = savedTasks.findIndex((task) => task.id === taskId);
-			if (taskIndex > -1) {
-				savedTasks[taskIndex].status = 2;
-				projectId = savedTasks[taskIndex].projectId;
+			const lt = await db.tasks.where("taskId").equals(taskId).first();
+			if (lt) {
+				lt.task.status = 2;
+				lt.updatedAt = Date.now();
+				lt.lastModifiedByDeviceId = getSettings().deviceId;
+				await db.tasks.put(lt);
+				return lt.task.projectId;
 			}
-
-			updateTasks(savedTasks);
-			return projectId;
-
+			return "";
 		} catch (error) {
 			log.error(`Error close task to Cache file: ${error}`);
 			throw error; // Throw an error so that the caller can catch and handle it
@@ -532,9 +541,7 @@ export class CacheOperation {
 	//Delete task by ID
 	async deleteTaskFromCache(taskId: string) {
 		try {
-			const savedTasks = getTasks();
-			const newSavedTasks = savedTasks.filter((t) => t.id !== taskId);
-			updateTasks(newSavedTasks);
+			await db.tasks.where("taskId").equals(taskId).delete();
 			//Also clean up meta data
 			await this.deleteTaskIdFromMetadataByTaskId(taskId);
 		} catch (error) {
@@ -545,14 +552,11 @@ export class CacheOperation {
 	//Delete task through ID array
 	async deleteTaskFromCacheByIDs(deletedTaskIds: string[]) {
 		try {
-			const savedTasks = getTasks();
-			const newSavedTasks = savedTasks.filter((t) => !deletedTaskIds.includes(t.id));
-			updateTasks(newSavedTasks);
+			await db.tasks.where("taskId").anyOf(deletedTaskIds).delete();
 			//clean up file meta data
-			deletedTaskIds.forEach(async taskId => {
+			for (const taskId of deletedTaskIds) {
 				await this.deleteTaskIdFromMetadataByTaskId(taskId);
-			});
-
+			}
 
 		} catch (error) {
 			log.error(`Error deleting task from Cache : ${error}`);

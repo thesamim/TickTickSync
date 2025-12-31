@@ -9,6 +9,11 @@ export interface ITickTickSyncSettings {
 	baseURL: string;
 	token?: string;
 	version?: string;
+
+	deviceId: string;
+	deviceLabel: string;
+
+
 	automaticSynchronizationInterval: number;
 	enableFullVaultSync: boolean;
 	tagAndOr: number; // 1 == And ; 2 == Or
@@ -62,6 +67,9 @@ export const DEFAULT_SETTINGS: ITickTickSyncSettings = {
 	fileLinksInTickTick: 'taskLink',
 	taskLinksInObsidian: 'taskLink',
 	bkupFolder: '/',
+
+	deviceId: '',
+	deviceLabel: '',
 
 	inboxID: '',
 	inboxName: 'Inbox',

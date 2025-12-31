@@ -10,6 +10,8 @@ import { FileMap } from '@/services/fileMap';
 //Logging
 import log from '@/utils/logger';
 import { getTick } from '@/api/tick_singleton_factory'
+import { syncTickTickWithDexie } from '@/sync/sync';
+import { db } from "@/db/dexie";
 
 const LOCK_TASKS = 'LOCK_TASKS';
 
@@ -98,15 +100,14 @@ export class TickTickService {
 		return null;
 	}
 
-	async synchronization() {
+	async synchronization(fullSync: boolean = false) {
 		try {
-			const bChanged = await doWithLock(LOCK_TASKS, async () => {
-				return await this.syncTickTickToObsidian();
+			await doWithLock(LOCK_TASKS, async () => {
+				if (this.plugin.tickTickRestAPI) {
+					await syncTickTickWithDexie(this.plugin.tickTickRestAPI, fullSync);
+					await this.tickTickSync.syncVaultWithDexie();
+				}
 			});
-			if (bChanged) {
-				//the file system is farckled. Wait until next sync to avoid race conditions.
-				return;
-			}
 			await this.syncFiles(false);
 		} catch (error) {
 			log.error('Error on synchronization: ', error);
@@ -236,7 +237,7 @@ export class TickTickService {
 					//log.debug(`${taskId}`)
 					let taskObject;
 					try {
-						taskObject = this.plugin.cacheOperation?.loadTaskFromCacheID(taskDetails.taskId);
+						taskObject = await this.plugin.cacheOperation?.loadTaskFromCacheID(taskDetails.taskId);
 					} catch (error) {
 						log.error('An error occurred while loading task cache: ', error);
 					}
@@ -277,7 +278,7 @@ export class TickTickService {
 						//log.debug(`${taskId}`)
 						let taskObject;
 						try {
-							taskObject = this.plugin.cacheOperation?.loadTaskFromCacheID(taskDetail.taskId);
+							taskObject = await this.plugin.cacheOperation?.loadTaskFromCacheID(taskDetail.taskId);
 						} catch (error) {
 							log.warn(`An error occurred while loading task ${taskDetail.taskId} from cache:`, error);
 						}

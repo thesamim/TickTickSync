@@ -2,11 +2,12 @@ import { db } from "@/db/dexie";
 import { resolveTaskConflict } from "./conflicts";
 import { logSyncEvent } from "./journal";
 import type { TickTickRestAPI } from '@/services/TicktickRestAPI';
-import type { LocalTask } from "@/db/schema";
+import type { LocalTask, SyncMeta } from "@/db/schema";
+import log from 'loglevel';
 
 export async function pullFromTickTick(
 	ticktickRestApi: TickTickRestAPI,
-	meta,
+	meta: SyncMeta,
 	fullSync = true
 ) {
 
@@ -17,14 +18,19 @@ export async function pullFromTickTick(
 	let applied = 0;
 
 	for (const rt of update) {
+		const remoteId = rt.id || (rt as any).taskId;
+		if (!remoteId) {
+			log.warn("[TickTickSync] Invalid task in update", rt);
+			continue;
+		}
 		// Ignore our own echoes
 		if (rt.lastModifiedBy === meta.deviceId) continue;
 
-		const local = await db.tasks.where("taskId").equals(rt.id).first();
+		const local = await db.tasks.where("taskId").equals(remoteId).first();
 
 		const remoteLocalTask: LocalTask = {
-			localId: local?.localId ?? `tt:${rt.id}`,
-			taskId: rt.id,
+			localId: local?.localId ?? `tt:${remoteId}`,
+			taskId: remoteId,
 			task: rt,
 			updatedAt: rt.updatedAt,
 			lastModifiedByDeviceId: rt.lastModifiedBy ?? "ticktick",
@@ -38,9 +44,23 @@ export async function pullFromTickTick(
 		await db.tasks.put(resolved);
 		applied++;
 	}
+	log.debug("[TickTickSync] deletedIds", deletedIds.length);
+	for (const taskIdOrObj of deletedIds) {
+		if (!taskIdOrObj) continue;
 
-	for (const id of deletedIds) {
-		const local = await db.tasks.where("taskId").equals(id).first();
+		const id = typeof taskIdOrObj === 'string' ? taskIdOrObj : (taskIdOrObj as any).taskId || (taskIdOrObj as any).id;
+		if (!id || typeof id !== 'string') {
+			log.warn("[TickTickSync] Invalid taskId in deletedIds", taskIdOrObj);
+			continue;
+		}
+
+		let local;
+		try {
+			local = await db.tasks.where("taskId").equals(id).first();
+		} catch (err) {
+			console.error("Failed to get local task for deleted task", id, err);
+			continue;
+		}
 		if (local && !local.deleted) {
 			await db.tasks.update(local.localId, {
 				deleted: true,

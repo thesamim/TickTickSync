@@ -299,7 +299,7 @@ export class TaskParser {
 			parentId = taskRecord.parentId;
 			hasParent = true;
 			// log.debug(`parent id is ${parentId}`)
-			parentTaskObject = this.plugin.cacheOperation?.loadTaskFromCacheID(parentId);
+			parentTaskObject = await this.plugin.cacheOperation?.loadTaskFromCacheID(parentId);
 		}
 
 		//find task items

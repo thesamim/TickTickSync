@@ -1,21 +1,21 @@
 import type { SyncMeta } from "./schema";
 import { generateDeviceId, detectDeviceLabel } from "./device";
 
-export function ensureSyncMeta(meta: SyncMeta): SyncMeta {
+export async function ensureSyncMeta(meta: SyncMeta): Promise<SyncMeta> {
 	let changed = false;
 
 	if (!meta.deviceId) {
 		meta.deviceId = generateDeviceId();
-		meta.deviceLabel = detectDeviceLabel();
+		meta.deviceLabel = await detectDeviceLabel();
 		changed = true;
 	}
 
-	if (typeof meta.lastFullSync !== "number") {
+	if (!meta.lastFullSync ) {
 		meta.lastFullSync = 0;
 		changed = true;
 	}
 
-	if (typeof meta.lastDeltaSync !== "number") {
+	if (!meta.lastDeltaSync) {
 		meta.lastDeltaSync = 0;
 		changed = true;
 	}
