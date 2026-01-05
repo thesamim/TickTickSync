@@ -71,4 +71,29 @@ describe('convertLineToTask note destination', () => {
     expect(task.content).toBe('alpha\nbeta');
     expect(task.desc).toBe('');
   });
+
+  it('omits the ticktick tag when converting a line to a TickTick task', async () => {
+    (getSettings as any)().noteDelimiter = '';
+    (getSettings as any)().fileLinksInTickTick = 'noLink';
+
+    const parser = new TaskParser({} as any, {} as any);
+    const plugin = makePlugin(parser);
+    parser.plugin = plugin;
+
+    const taggedLine = `- [ ] Task #ticktick #work %%[ticktick_id:: ${id}]%%`;
+
+    const fileMap = {
+      getTaskItems: (_: string) => [],
+      getTaskRecord: (_: string) => ({
+        task: taggedLine,
+        parentId: '',
+        taskLines: [],
+      } satisfies Partial<ITaskRecord>),
+      getTaskRecordByLine: async () => ({})
+    } as any;
+
+    const task = await parser.convertLineToTask(taggedLine, 0, filepath, fileMap, null);
+
+    expect(task.tags).toEqual(['work']);
+  });
 });
