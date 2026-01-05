@@ -334,7 +334,10 @@ export class TaskParser {
 
 		let timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
-		const tags = this.getAllTagsFromLineText(textWithoutIndentation);
+                const tags = this.getAllTagsFromLineText(textWithoutIndentation);
+                const tagsWithoutTickTick = tags?.filter(
+                        (tag) => tag.toLowerCase() !== keywords.TickTick_TAG.substring(1).toLowerCase()
+                );
 
 		let projectId = await this.plugin.cacheOperation?.getDefaultProjectIdForFilepath(filepath as string);
 
@@ -344,10 +347,10 @@ export class TaskParser {
 			}
 		} else {
 			//Check if we need to add this to a specific project by tag.
-			if (tags) {
-				for (const tag of tags) {
-					let labelName = tag.replace(/#/g, '');
-					labelName = labelName.replace(/_/g, ' ');
+                        if (tagsWithoutTickTick) {
+                                for (const tag of tagsWithoutTickTick) {
+                                        let labelName = tag.replace(/#/g, '');
+                                        labelName = labelName.replace(/_/g, ' ');
 
 					let hasProjectId = await this.plugin.cacheOperation?.getProjectIdByNameFromCache(labelName);
 					if (!hasProjectId) {
@@ -390,7 +393,7 @@ export class TaskParser {
 			startDate: actualStartDate || '',
 			completedTime: allDatesStruct?.completedTime?.isoDate || '',
 			isAllDay: allDatesStruct?.isAllDay || false,
-			tags: tags || [],
+                        tags: tagsWithoutTickTick || [],
 			priority: Number(priority),
 			modifiedTime: this.plugin.dateMan?.formatDateToISO(new Date()) || '',
 			status: isCompleted ? 2 : 0, //Status: 0 is no completed. Anything else is completed.
