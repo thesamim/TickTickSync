@@ -185,7 +185,9 @@ export class TickTickRestAPI {
 		try {
 			// @ts-ignore
 			let updatedTask: ITask | null | undefined = {};
+			log.error("taks title:",  taskToUpdate.title);
 			const saveDateHolder = taskToUpdate.dateHolder;
+			const saveLineHash = taskToUpdate.lineHash;
 			const updateResult = await this.api?.updateTask(taskToUpdate);
 			if (!updateResult) {
 				//bad shit happened.
@@ -200,6 +202,7 @@ export class TickTickRestAPI {
 				updatedTask = await this.getTaskById(taskToUpdate.id, taskToUpdate.projectId);
 				if (updatedTask) {
 					updatedTask.dateHolder = saveDateHolder;
+					updatedTask.lineHash = saveLineHash;
 				} else {
 					log.error('Didn\'t get back the updated Task');
 				}

@@ -464,7 +464,7 @@ export class TickTickService {
 
 					//NEW: Use TaskModificationDetector and TaskDeletionHandler
 					await this.plugin.taskModificationDetector.checkFileForNewTasks(filepath);
-					await this.tickTickSync?.fullTextModifiedTaskCheck(filepath);
+					await this.plugin.taskModificationDetector.checkFileForModifications(filepath);
 					await this.plugin.taskDeletionHandler.checkFileForDeletedTasks(filepath);
 
 				} catch (error) {
@@ -602,7 +602,7 @@ export class TickTickService {
 				}
 
 				try {
-					await this.tickTickSync?.fullTextModifiedTaskCheck(fileKey);
+					await this.plugin.taskModificationDetector.checkFileForModifications(fileKey);
 				} catch (error) {
 					log.error('An error occurred in fullTextModifiedTaskCheck:', error);
 				}

@@ -24,17 +24,17 @@ log.debug("[TickTickSync] meta", meta);
 			fullSync
 		);
 log.debug("[TickTickSync] pulled", pulled);
-		const pushed = await pushToTickTick(
-			ticktickRestApi,
-			meta,
-			fullSync
-		);
-log.debug("[TickTickSync] pushed", pushed);
+// TODO: This was added at some point. But I believe it's extraneous.
+// 		const pushed = await pushToTickTick(
+// 			ticktickRestApi,
+// 			meta,
+// 			fullSync
+// 		);
+// log.debug("[TickTickSync] pushed", pushed);
 
 
 		logSyncEvent(meta.deviceId, "sync:end", {
-			pulled,
-			pushed
+			pulled
 		});
 	} catch (err) {
 		log.error("[TickTickSync] sync failed", err);

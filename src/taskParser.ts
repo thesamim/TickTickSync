@@ -378,9 +378,7 @@ export class TaskParser {
 		const task: ITask = {
 			id: TickTick_id || '',
 			projectId: projectId,
-			//RSN We're going to have to figure putting it Items or in Description.
-			title: title.trim() + ' ' + taskURL,
-			//content: ??
+			title: title.trim() + (taskURL? '': ' ' + taskURL),
 			content: content ? content : '',
 			desc: description ? description : '',
 			items: taskItems || [],

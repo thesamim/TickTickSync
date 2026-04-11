@@ -5,6 +5,7 @@ import { getDefaultFolder, getSettings } from '@/settings';
 import { FileMap } from '@/services/fileMap';
 import log from '@/utils/logger';
 import { DeletionItem, TaskDeletionModal } from './modals/TaskDeletionModal';
+import { TaskRepository } from '@/repositories/TaskRepository';
 
 export class FileOperation {
 	app: App;
@@ -557,6 +558,7 @@ export class FileOperation {
 				//we're updating the task to get the right OBS URL in there.
 				let addedTask = await this.plugin.tickTickRestAPI?.updateTask(task);
 				addedTask.lineHash = lineHash;
+				TaskRepository
 				await this.plugin.cacheOperation?.appendTaskToCache(addedTask, file.path, Date.now());
 			} else {
 				if (!bTaskMove) {

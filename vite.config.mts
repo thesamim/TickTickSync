@@ -10,6 +10,7 @@ import {pathToFileURL} from "node:url";
 import tsconfigPaths from 'vite-tsconfig-paths';
 
 const DEV_PATH = path.join("..", "test-vault", ".obsidian", "plugins", "tickticksync");
+// const DEV_PATH = path.join("G:\\My Drive\\SyncFolder\\Obsidian\\", "test-vault-syncthing", ".obsidian", "plugins", "tickticksync");
 function getOutDir(prod: boolean): string | undefined {
 	if (!prod)
 		return DEV_PATH;

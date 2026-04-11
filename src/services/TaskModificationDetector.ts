@@ -246,7 +246,16 @@ export class TaskModificationDetector {
 
 		// Detect what changed
 		const modifications = this.detectModifications(lineTask, savedTask, taskRecord);
-		log.warn("modifications: ", lineText, JSON.stringify(modifications, null, 2	));
+		if (modifications.statusModified ||
+			modifications.tagsModified ||
+			modifications.datesModified ||
+			modifications.parentIdModified ||
+			modifications.priorityModified ||
+			modifications.taskItemsModified ||
+			modifications.notesModified ||
+			modifications.projectMoved) {
+			log.warn('modifications: ', lineText, JSON.stringify(modifications, null, 2));
+		}
 
 		// Apply modifications
 		return await this.applyModifications(lineTask, savedTask, modifications, filepath, taskId, newHash);
@@ -279,6 +288,45 @@ export class TaskModificationDetector {
 					log.error('Error checking task modification:', error);
 				}
 			}
+		}
+	}
+
+	/**
+	 * Check if a task's project changed to a different project group
+	 * If so, trigger file movement to the new project group's folder
+	 * @param task - The updated task from TickTick
+	 * @param localTask - The local task record from database
+	 */
+	async checkForProjectGroupChange(task: ITask, localTask: LocalTask): Promise<void> {
+		// Only check if folder organization is enabled
+		if (!getSettings().keepProjectFolders) {
+			return;
+		}
+
+		// Don't move unassociated files
+		if (!this.folderSyncService) {
+			return;
+		}
+
+		const shouldManage = await this.folderSyncService.shouldManageFile(localTask.file);
+		if (!shouldManage) {
+			log.debug(`File ${localTask.file} is user-managed, skipping project group change check`);
+			return;
+		}
+
+		try {
+			// Check if projects are in different groups
+			const groupsAreDifferent = await this.folderSyncService.projectsInDifferentGroups(
+				localTask.task.projectId,
+				task.projectId
+			);
+
+			if (groupsAreDifferent) {
+				log.info(`Task ${task.id} moved to different project group`);
+				await this.handleProjectGroupMove(task, localTask);
+			}
+		} catch (error) {
+			log.error(`Error checking for project group change for task ${task.id}:`, error);
 		}
 	}
 
@@ -412,45 +460,6 @@ export class TaskModificationDetector {
 		const message = `Task ${lineTask.id} moved from ${oldPath} to ${newPath}`;
 		new Notice(message, 5000);
 		log.debug(message);
-	}
-
-	/**
-	 * Check if a task's project changed to a different project group
-	 * If so, trigger file movement to the new project group's folder
-	 * @param task - The updated task from TickTick
-	 * @param localTask - The local task record from database
-	 */
-	async checkForProjectGroupChange(task: ITask, localTask: LocalTask): Promise<void> {
-		// Only check if folder organization is enabled
-		if (!getSettings().keepProjectFolders) {
-			return;
-		}
-
-		// Don't move unassociated files
-		if (!this.folderSyncService) {
-			return;
-		}
-
-		const shouldManage = await this.folderSyncService.shouldManageFile(localTask.file);
-		if (!shouldManage) {
-			log.debug(`File ${localTask.file} is user-managed, skipping project group change check`);
-			return;
-		}
-
-		try {
-			// Check if projects are in different groups
-			const groupsAreDifferent = await this.folderSyncService.projectsInDifferentGroups(
-				localTask.task.projectId,
-				task.projectId
-			);
-
-			if (groupsAreDifferent) {
-				log.info(`Task ${task.id} moved to different project group`);
-				await this.handleProjectGroupMove(task, localTask);
-			}
-		} catch (error) {
-			log.error(`Error checking for project group change for task ${task.id}:`, error);
-		}
 	}
 
 	/**
@@ -656,10 +665,10 @@ export class TaskModificationDetector {
 	): Promise<void> {
 		const numTabs = this.plugin.taskParser.getNumTabs(lineTxt);
 		const decoratedText = await this.plugin.taskParser?.convertTaskToLine(newTask, numTabs);
-		log.warn("updateTaskLineInFile:", decoratedText);
+		log.warn('updateTaskLineInFile:', decoratedText);
 
 		try {
-			await fileMap.modifyTask(decoratedText, line)
+			await fileMap.modifyTask(decoratedText, line);
 		} catch (error) {
 			log.error('Error updating task line in file:', error);
 		}

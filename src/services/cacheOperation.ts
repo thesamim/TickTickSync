@@ -43,61 +43,6 @@ export class CacheOperation {
 		this.plugin = plugin;
 	}
 
-	/**
-	 * @deprecated Use TaskCache.fill() instead
-	 * This method will be removed in a future version
-	 */
-	async fillTaskCache() {
-		try {
-			const tasks = await db.tasks.toArray();
-			this.taskCache = new Map(tasks.filter(lt => !!lt.taskId).map(lt => [lt.taskId, lt.task]));
-		} catch (error) {
-			log.error(`Error filling task cache: ${error}`);
-		}
-	}
-
-	/**
-	 * @deprecated Use TaskCache.clear() instead
-	 * This method will be removed in a future version
-	 */
-	clearTaskCache() {
-		this.taskCache = null;
-	}
-
-	async addTaskToMetadata(filepath: string, task: ITask) {
-		// With Dexie-only processing, task file relationship is maintained in db.tasks.
-		// upsertLocalTask already handles setting the file.
-		// We still ensure the file exists in the files table.
-		const file = await getFile(filepath);
-		if (!file) {
-			await upsertFile(filepath, task.projectId);
-		}
-	}
-
-	async addTaskItemToMetadata(filepath: string, taskId: string, itemid: string, projectId: string) {
-		// Task items are tracked via the iTask structure.
-		// This method is now mostly a no-op as the task itself will be updated in Dexie.
-	}
-
-	//This removes an Item from the metadata, and from the task
-	//assumes file metadata has been looked up.
-	async removeTaskItem(fileMetaData: FileDetail, taskId: string, taskItemIds: string[], filepath?: string) {
-		if (!fileMetaData) {
-			return undefined;
-		}
-		const task = await this.loadTaskFromCacheID(taskId);
-		if (!task || !task.items) {
-			return undefined;
-		}
-		let taskItems = task.items;
-		taskItemIds.forEach(taskItemId => {
-			//delete from Task
-			taskItems = taskItems.filter(item => item.id !== taskItemId);
-		});
-		task.items = taskItems;
-		return await this.updateTaskToCache(task, filepath, Date.now());
-	}
-
 
 	async getFileMetadata(filepath: string, projectId?: string): Promise<FileDetail | undefined> {
 		const file = await getFile(filepath);

@@ -2,7 +2,7 @@ import { db } from "@/db/dexie";
 import { logSyncEvent } from "./journal";
 import type { TickTickRestAPI } from '@/services/TicktickRestAPI';
 import type { Tick } from '@/api';
-import type { SyncMeta } from '@/db/schema';
+import type { LocalTask, SyncMeta } from '@/db/schema';
 import log from '@/utils/logger';
 
 export async function pushToTickTick(
@@ -16,6 +16,14 @@ export async function pushToTickTick(
 			t.lastModifiedByDeviceId === meta.deviceId
 		)
 		.toArray();
+
+
+	//debug only
+	log.debug( "last deltasync", new Date(meta.lastDeltaSync));
+	log.debug("last fullSync", new Date(meta.lastFullSync));
+	dirty.forEach((tick) => {
+		log.debug("updated at ",  new Date(tick.updatedAt))
+	})
 
 	let pushed = 0;
 	const toUpdateInDb: { localId: string, changes: Partial<LocalTask> }[] = [];
