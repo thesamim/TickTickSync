@@ -41,6 +41,7 @@ export interface ITask {
 	local?: boolean;
 	remindTime?: any;
 	tags?: any[];
+	timeLength?: number;
 	//This is not a TickTick data element. It must be managed separately.
 	dateHolder: date_holder_type;
 	lineHash: string;
