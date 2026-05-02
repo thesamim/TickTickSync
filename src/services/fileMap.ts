@@ -254,6 +254,9 @@ export class FileMap {
 	markAllTasks() {
 		let modified = false;
 		const lines = this.fileLines;
+		const filePath = this.getFilePath();
+		const taskFolderPath = getSettings().TickTickTasksFilePath;
+		const isInTaskFolder = filePath && taskFolderPath && filePath.startsWith(taskFolderPath);
 		for (let i = 0; i < lines.length; i++) {
 			const line = lines[i];
 			if (!this.plugin.taskParser?.isMarkdownTask(line)) {
@@ -268,7 +271,9 @@ export class FileMap {
 			const hasItemId = !!this.plugin.taskParser?.getLineItemId(line);
 			const hasTickId = !!this.plugin.taskParser?.hasTickTickId(line);
 			const hasTag = !!this.plugin.taskParser?.hasTickTickTag(line);
-			if (!hasTickId && !hasTag && !hasItemId && !isTwoSpaceChecklist) {
+			const hasHiddenSchedule = !!this.plugin.taskParser?.hasHiddenSchedule(line);
+			// In the task folder: skip tasks with existing ticktick_id. Elsewhere: skip tasks with hidden schedule, tag, or id.
+			if (!hasTickId && (!isInTaskFolder || (!hasHiddenSchedule && !hasTag)) && !hasItemId && !isTwoSpaceChecklist) {
 				let newLine = this.plugin.taskParser?.addTickTickTag(line);
 				lines[i] = newLine;
 				modified = true;
@@ -282,7 +287,10 @@ export class FileMap {
 	}
 
 	hasTasks(fullVaultSync: boolean) {
-		return this.fileLines.some(line => this.plugin.taskParser.isMarkdownTask(line) && (fullVaultSync || this.plugin.taskParser.hasTickTickId(line)));
+		const filePath = this.getFilePath();
+		const taskFolderPath = getSettings().TickTickTasksFilePath;
+		const isInTaskFolder = filePath && taskFolderPath && filePath.startsWith(taskFolderPath);
+		return this.fileLines.some(line => this.plugin.taskParser.isMarkdownTask(line) && (fullVaultSync || isInTaskFolder || this.plugin.taskParser.hasTickTickId(line) || this.plugin.taskParser.hasHiddenSchedule(line)));
 	}
 
 	private fixChildTabs(childID: string, parentIdx: number) {

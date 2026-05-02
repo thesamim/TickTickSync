@@ -303,10 +303,18 @@ export class TickTickService {
 				try {
 					log.debug('checking unsynced tasks');
 					const files = vault.getFiles();
+					const taskFolderPath = getSettings().TickTickTasksFilePath;
 					for (const v of files) {
 
 						if (v.extension == 'md') {
 							try {
+								// Only scan files in the configured task folder or files already being tracked
+								const isInTaskFolder = v.path.startsWith(taskFolderPath);
+								const isAlreadyTracked = getSettings().fileMetadata?.[v.path];
+								if (!isInTaskFolder && !isAlreadyTracked) {
+									continue;
+								}
+
 								log.debug(`Scanning file ${v.path}`);
 								//assume that if they want links in descriptions, it will be handled on task construction
 								if (getSettings().taskLinksInObsidian === "taskLink") {
@@ -317,6 +325,9 @@ export class TickTickService {
 									await fileMap.init();
 									await this.plugin.fileOperation?.addTickTickTagToFile(fileMap);
 								}
+								// Always check for new tasks in files, including those with hidden schedule metadata
+								// This ensures tasks with start::/end:: are discovered even without #ticktick tag
+								await this.tickTickSync?.fullTextNewTaskCheck(v.path);
 
 
 							} catch (error) {
