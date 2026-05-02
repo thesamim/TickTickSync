@@ -322,7 +322,7 @@ export class SyncMan {
 
 		//check task
 		let bHashCheckFailed;
-		if (this.plugin.taskParser?.hasTickTickId(lineText) && this.plugin.taskParser?.hasTickTickTag(lineText)) {
+		if (this.plugin.taskParser?.hasTickTickId(lineText)) {
 			const lineTask_ticktick_id = this.plugin.taskParser.getTickTickId(lineText);
 			//get notes if any
 			const taskRecord = fileMap.getTaskRecord(lineTask_ticktick_id);
@@ -694,7 +694,7 @@ export class SyncMan {
 				for (let i = lineNumber - 1; i >= 0; i--) {
 					const line = lines[i];
 					// Look for parent task with ticktick_id, or with hidden schedule (will sync and get id)
-					if (this.plugin.taskParser?.hasTickTickId(line) && this.plugin.taskParser?.hasTickTickTag(line)) {
+					if (this.plugin.taskParser?.hasTickTickId(line)) {
 						const ticktickid = this.plugin.taskParser.getTickTickId(line);
 						parentTask = await this.plugin.cacheOperation?.loadTaskFromCacheID(ticktickid);
 						if (parentTask && parentTask.items) { //we have some items. Let's assume the order is the same?
@@ -1304,7 +1304,7 @@ export class SyncMan {
 		const lines = fileMap.getFileLines().split('\n');
 		for (let line = 0; line < lines.length; line++) {
 			const lineText = lines[line];
-			if (this.plugin.taskParser?.hasTickTickId(lineText) && this.plugin.taskParser?.hasTickTickTag(lineText)) {
+			if (this.plugin.taskParser?.hasTickTickId(lineText)) {
 				const taskId = this.plugin.taskParser.getTickTickId(lineText);
 				const savedTask = this.plugin.cacheOperation.loadTaskFromCacheID(taskId);
 				if (taskId && savedTask) {

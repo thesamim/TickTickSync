@@ -272,8 +272,11 @@ export class FileMap {
 			const hasTickId = !!this.plugin.taskParser?.hasTickTickId(line);
 			const hasTag = !!this.plugin.taskParser?.hasTickTickTag(line);
 			const hasHiddenSchedule = !!this.plugin.taskParser?.hasHiddenSchedule(line);
-			// In the task folder: skip tasks with existing ticktick_id. Elsewhere: skip tasks with hidden schedule, tag, or id.
-			if (!hasTickId && (!isInTaskFolder || (!hasHiddenSchedule && !hasTag)) && !hasItemId && !isTwoSpaceChecklist) {
+			// The configured task folder is sync-scoped by location, so it does not need #ticktick markers.
+			if (isInTaskFolder) {
+				continue;
+			}
+			if (!hasTickId && !hasHiddenSchedule && !hasTag && !hasItemId && !isTwoSpaceChecklist) {
 				let newLine = this.plugin.taskParser?.addTickTickTag(line);
 				lines[i] = newLine;
 				modified = true;
@@ -582,4 +585,3 @@ private getTaskLinesByIdx(taskIdx: number, taskRecord: ITaskRecord) {
 		return moveMap;
 	}
 }
-

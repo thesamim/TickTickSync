@@ -34,7 +34,7 @@ export class FileOperation {
 
 		for (let i = 0; i < lines.length; i++) {
 			const line = lines[i];
-			if (line.includes(taskId) && this.plugin.taskParser?.hasTickTickTag(line)) {
+			if (line.includes(taskId)) {
 				lines[i] = line.replace('[ ]', '[x]');
 				modified = true;
 				break;
@@ -63,7 +63,7 @@ export class FileOperation {
 
 		for (let i = 0; i < lines.length; i++) {
 			const line = lines[i];
-			if (line.includes(taskId) && this.plugin.taskParser?.hasTickTickTag(line)) {
+			if (line.includes(taskId)) {
 				lines[i] = line.replace(/- \[(x|X)\]/g, '- [ ]');
 				modified = true;
 				break;
@@ -105,7 +105,7 @@ export class FileOperation {
 
 		for (let i = 0; i < lines.length; i++) {
 			const line = lines[i];
-			if (this.plugin.taskParser?.hasTickTickId(line) && this.plugin.taskParser?.hasTickTickTag(line)) {
+			if (this.plugin.taskParser?.hasTickTickId(line)) {
 				if (this.plugin.taskParser?.hasTickTickLink(line)) {
 					return;
 				}
