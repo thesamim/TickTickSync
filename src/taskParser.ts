@@ -162,7 +162,6 @@ export class TaskParser {
 		if (task.tags) {
 			resultLine = this.addTagsToLine(resultLine, task.tags);
 		}
-		resultLine = this.addTickTickTag(resultLine);
 
 		if (getSettings().taskLinksInObsidian === 'taskLink') {
 			resultLine = this.addTickTickLink(resultLine, task.id, task.projectId);
@@ -241,11 +240,8 @@ export class TaskParser {
 		//we're looking for the ticktick tag without the #
 		const regEx = new RegExp(keywords.TickTick_TAG.substring(1), 'i');
 		tags.forEach((tag: string) => {
-			//TickTick tag, if present, will be added at the end.
+			// #ticktick is a sync trigger, not user-facing task metadata.
 			if (!tag.match(regEx)) {
-				if (tag.includes('-')) {
-					tag = tag.replace(/-/g, '/');
-				}
 				resultLine = resultLine + ' #' + tag;
 			}
 		});

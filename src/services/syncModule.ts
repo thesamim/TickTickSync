@@ -15,6 +15,7 @@ import type { TaskDetail } from '@/services/cacheOperation';
 import { TaskDeletionModal } from '@/modals/TaskDeletionModal';
 import { getSettings, updateProjectGroups } from '@/settings';
 import { FileMap, type ITaskItemRecord } from '@/services/fileMap';
+import { isEligibleNewTaskLine } from '@/services/taskEligibility';
 import log from 'loglevel';
 
 type deletedTask = {
@@ -205,8 +206,22 @@ export class SyncMan {
 			return;
 		}
 
-		if ((!this.plugin.taskParser.hasTickTickId(lineTxt) && this.plugin.taskParser.hasTickTickTag(lineTxt))) {
-			//Whether #ticktick is included, but not ticktickid: Task just added.
+		const filePath = fileMap.getFilePath();
+		const taskFolderPath = getSettings().TickTickTasksFilePath;
+
+		// Tasks in the configured task folder are always eligible for sync
+		// Other files need #ticktick tag or hidden schedule metadata
+		const isEligible = isEligibleNewTaskLine(
+			lineTxt,
+			filePath,
+			taskFolderPath,
+			getSettings().syncOnlyTaskSyntax,
+			this.plugin.taskParser
+		);
+
+		if (!this.plugin.taskParser.hasTickTickId(lineTxt) && isEligible) {
+			// Whether #ticktick is included, but not ticktickid: Task just added.
+			// Also accept tasks in the configured task folder or with hidden schedule metadata.
 			try {
 
 				const currentTask = await this.plugin.taskParser.convertLineToTask(lineTxt, line, fileMap.getFilePath(), fileMap, null);
@@ -311,7 +326,7 @@ export class SyncMan {
 
 		//check task
 		let bHashCheckFailed;
-		if (this.plugin.taskParser?.hasTickTickId(lineText) && this.plugin.taskParser?.hasTickTickTag(lineText)) {
+		if (this.plugin.taskParser?.hasTickTickId(lineText)) {
 			const lineTask_ticktick_id = this.plugin.taskParser.getTickTickId(lineText);
 			//get notes if any
 			const taskRecord = fileMap.getTaskRecord(lineTask_ticktick_id);
@@ -661,6 +676,7 @@ export class SyncMan {
 
 		if (!this.plugin.taskParser?.hasTickTickId(lineText) &&
 			!this.plugin.taskParser?.hasTickTickTag(lineText) &&
+			!this.plugin.taskParser?.hasHiddenSchedule(lineText) &&
 			this.plugin.taskParser?.isMarkdownTask(lineText)) {
 			//check for deleted Items.
 			let modified = false;
@@ -681,7 +697,8 @@ export class SyncMan {
 				//TODO: Do we get here on deleting a character
 				for (let i = lineNumber - 1; i >= 0; i--) {
 					const line = lines[i];
-					if (this.plugin.taskParser?.hasTickTickId(line) && this.plugin.taskParser?.hasTickTickTag(line)) {
+					// Look for parent task with ticktick_id, or with hidden schedule (will sync and get id)
+					if (this.plugin.taskParser?.hasTickTickId(line)) {
 						const ticktickid = this.plugin.taskParser.getTickTickId(line);
 						parentTask = await this.plugin.cacheOperation?.loadTaskFromCacheID(ticktickid);
 						if (parentTask && parentTask.items) { //we have some items. Let's assume the order is the same?
@@ -1291,7 +1308,7 @@ export class SyncMan {
 		const lines = fileMap.getFileLines().split('\n');
 		for (let line = 0; line < lines.length; line++) {
 			const lineText = lines[line];
-			if (this.plugin.taskParser?.hasTickTickId(lineText) && this.plugin.taskParser?.hasTickTickTag(lineText)) {
+			if (this.plugin.taskParser?.hasTickTickId(lineText)) {
 				const taskId = this.plugin.taskParser.getTickTickId(lineText);
 				const savedTask = this.plugin.cacheOperation.loadTaskFromCacheID(taskId);
 				if (taskId && savedTask) {
