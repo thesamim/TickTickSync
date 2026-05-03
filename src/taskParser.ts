@@ -123,7 +123,7 @@ export const REGEX = {
 		REMOVE_COMPLETION_DATE: new RegExp(completion_date_strip_regex, 'gmu'),
 		REMOVE_OBSIDIAN_COMMENTS: /%%[\s\S]*?%%/gu,
 		REMOVE_INLINE_METADATA: /%%\[\w+::\s*\w+\]%%/,
-		REMOVE_DAY_PLANNER_TIME_PREFIX: /^\s*(?:[-*]\s+\[[xX ]\]\s*)?\d{1,2}:\d{2}\s*-\s*\d{1,2}:\d{2}\s+\S+\s*/u,
+		REMOVE_DAY_PLANNER_TIME_PREFIX: /^\s*(?:[-*]\s+\[[xX ]\]\s*)?(?:\[\s*\d{1,2}:\d{2}\s*-\s*\d{1,2}:\d{2}\s*\]\s*|\d{1,2}:\d{2}\s*-\s*\d{1,2}:\d{2}\s+\S+\s*)/u,
 		REMOVE_CHECKBOX: /^(-|\*)\s+\[(x|X| )\]\s/,
 		REMOVE_CHECKBOX_WITH_INDENTATION: /^([ \t]*)?(-|\*)\s+\[(x|X| )\]\s/,
 		REMOVE_TickTick_LINK: /\[link\]\(.*?\)/

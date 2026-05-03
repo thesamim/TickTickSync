@@ -15,7 +15,7 @@ function makePlugin(parser: TaskParser) {
     dateMan: {
       parseDates: (_: string) => ({}),
       stripDatesFromLine: (s: string) => s.replace(/[⏳📅]\s*\d{4}-\d{2}-\d{2}/gu, ''),
-      formatDateToISO: (_: Date) => '2025-01-01T00:00:00.000Z',
+      formatDateToISO: (date: Date) => date.toISOString().replace(/Z$/, '+0000'),
     },
     app: { vault: { getName: () => 'TestVault' } },
   } as any;
@@ -89,5 +89,54 @@ describe('convertLineToTask note destination', () => {
     const task = await parser.convertLineToTask(scheduledLine, 0, filepath, fileMap, null);
 
     expect(task.title).toBe('Prepare Systematic Theology I materials and schedule');
+  });
+
+  it('strips bracketed time-range prefixes from the TickTick title', async () => {
+    (getSettings as any)().noteDelimiter = '';
+    (getSettings as any)().fileLinksInTickTick = 'noLink';
+
+    const parser = new TaskParser({} as any, {} as any);
+    const plugin = makePlugin(parser);
+    parser.plugin = plugin;
+
+    const scheduledLine = '- [ ] [20:05 - 20:35]  Sending reports to people: Sieberhagen, Trawick, Juwon <span class="ticktick-task-meta-break"></span> #public-dossier #public-proof #industry-path %%[ticktick_id:: abcdefabcdefabcdefabcdef]%% 📅 2026-05-02 ⏳ 2026-05-02';
+    const fileMap = {
+      getTaskItems: (_: string) => [],
+      getTaskRecord: (_: string) => ({
+        task: scheduledLine,
+        parentId: '',
+        taskLines: [],
+      } satisfies Partial<ITaskRecord>),
+    } as any;
+
+    const task = await parser.convertLineToTask(scheduledLine, 0, filepath, fileMap, null);
+
+    expect(task.title).toBe('Sending reports to people: Sieberhagen, Trawick, Juwon');
+  });
+
+  it('strips normalized Day Planner prefixes and hidden schedule metadata from the TickTick title', async () => {
+    (getSettings as any)().noteDelimiter = '';
+    (getSettings as any)().fileLinksInTickTick = 'noLink';
+
+    const parser = new TaskParser({} as any, {} as any);
+    const plugin = makePlugin(parser);
+    parser.plugin = plugin;
+
+    const scheduledLine = '- [ ] 20:05-20:35 ☀️ Sending reports to people: Sieberhagen, Trawick, Juwon <span class="ticktick-task-meta-break"></span> #public-dossier #public-proof #industry-path %%[ticktick_id:: abcdefabcdefabcdefabcdef]%% %% start:: 2026-05-02T20:05:00-05:00 end:: 2026-05-02T20:35:00-05:00 mode:: visible_time_normalize %% 📅 2026-05-02 ⏳ 2026-05-02';
+    const fileMap = {
+      getTaskItems: (_: string) => [],
+      getTaskRecord: (_: string) => ({
+        task: scheduledLine,
+        parentId: '',
+        taskLines: [],
+      } satisfies Partial<ITaskRecord>),
+    } as any;
+
+    const task = await parser.convertLineToTask(scheduledLine, 0, filepath, fileMap, null);
+
+    expect(task.title).toBe('Sending reports to people: Sieberhagen, Trawick, Juwon');
+    expect(task.startDate).toBe('2026-05-03T01:05:00.000+0000');
+    expect(task.dueDate).toBe('2026-05-03T01:35:00.000+0000');
+    expect(task.timeLength).toBe(1800);
   });
 });
