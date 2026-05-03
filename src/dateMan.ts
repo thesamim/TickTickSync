@@ -61,16 +61,17 @@ export class DateMan {
 		// log.debug('parseDates: ', inString);
 		let myDateHolder = this.getEmptydateHolder();
 
-		//look for times at the beginning of the line and save them.
-		const times_regex = '\\[\\s*(\\d{1,2}:\\d{2})(?:\\s*-\\s*(\\d{1,2}:\\d{2}))?\\s*\\]';
+		// Look for either the native bracket syntax or Day Planner's visible
+		// "HH:mm - HH:mm icon" prefix and use it as scheduling metadata.
+		const times_regex = '\\[\\s*(\\d{1,2}:\\d{2})(?:\\s*-\\s*(\\d{1,2}:\\d{2}))?\\s*\\]|(?:[-*]\\s+\\[[xX ]\\]\\s*)?(\\d{1,2}:\\d{2})\\s*-\\s*(\\d{1,2}:\\d{2})\\s+\\S+';
 
 		const regEx = new RegExp(times_regex, 'i');
 		const times = inString.match(regEx);
 		let fromTime;
 		let toTime;
 		if (times) {
-			fromTime = times[1];
-			toTime = times[2];
+			fromTime = times[1] || times[3];
+			toTime = times[2] || times[4];
 		}
 		// log.debug('fromTime: ', fromTime, 'toTime: ', toTime);
 

@@ -72,6 +72,10 @@ export class Tick {
 	private userAgent: string;
 	private deviceAgent: string;
 
+	// Throttle: delay between individual API calls to avoid rate limits
+	private lastApiCallTime = 0;
+	private apiCallDelayMs = 200; // minimum ms between API calls
+
 	constructor({ username, password, baseUrl, token, checkPoint }: IoptionsProps) {
 		this.username = username;
 		this.password = password;
@@ -431,6 +435,7 @@ export class Tick {
 				local: jsonOptions.local ? jsonOptions.local : true,
 				remindTime: jsonOptions.remindTime ? jsonOptions.remindTime : null,
 				tags: jsonOptions.tags ? jsonOptions.tags : [],
+				timeLength: jsonOptions.timeLength ? jsonOptions.timeLength : undefined,
 				childIds: jsonOptions.childIds ? jsonOptions.childIds : [],
 				parentId: jsonOptions.parentId ? jsonOptions.parentId : null
 			};
@@ -490,6 +495,7 @@ export class Tick {
 				local: jsonOptions.local ? jsonOptions.local : true,
 				remindTime: jsonOptions.remindTime ? jsonOptions.remindTime : null,
 				tags: jsonOptions.tags ? jsonOptions.tags : [],
+				timeLength: jsonOptions.timeLength ? jsonOptions.timeLength : undefined,
 				childIds: jsonOptions.childIds ? jsonOptions.childIds : [],
 				parentId: jsonOptions.parentId ? jsonOptions.parentId : null
 			};
@@ -629,6 +635,14 @@ export class Tick {
 	}
 
 	async makeRequest(operation: string, url: string, method: string, body: any | undefined = undefined) {
+		// Throttle API calls to avoid rate limits
+		const now = Date.now();
+		const timeSinceLastCall = now - this.lastApiCallTime;
+		if (timeSinceLastCall < this.apiCallDelayMs) {
+			const waitTime = this.apiCallDelayMs - timeSinceLastCall;
+			await new Promise(resolve => setTimeout(resolve, waitTime));
+		}
+		this.lastApiCallTime = Date.now();
 
 		let error = '';
 		this.lastError = undefined;

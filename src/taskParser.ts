@@ -115,12 +115,15 @@ export const REGEX = {
 
 	PROJECT_NAME: /\[project::\s*(.*?)\]/,
 	TASK_CONTENT: {
+		REMOVE_META_BREAK: /<span\s+class=["']ticktick-task-meta-break["']><\/span>/gu,
 		REMOVE_PRIORITY: /[🔺⏫🔼🔽⏬]/ug, //accommodate UTF-16 languages.
 		REMOVE_TAGS: tag_regex,
 		REMOVE_SPACE: /^\s+|\s+$/g,
 		REMOVE_DATE: new RegExp(due_date_strip_regex, 'gmu'),
 		REMOVE_COMPLETION_DATE: new RegExp(completion_date_strip_regex, 'gmu'),
+		REMOVE_OBSIDIAN_COMMENTS: /%%[\s\S]*?%%/gu,
 		REMOVE_INLINE_METADATA: /%%\[\w+::\s*\w+\]%%/,
+		REMOVE_DAY_PLANNER_TIME_PREFIX: /^\s*(?:[-*]\s+\[[xX ]\]\s*)?(?:\[\s*\d{1,2}:\d{2}\s*-\s*\d{1,2}:\d{2}\s*\]\s*|\d{1,2}:\d{2}\s*-\s*\d{1,2}:\d{2}\s+\S+\s*)/u,
 		REMOVE_CHECKBOX: /^(-|\*)\s+\[(x|X| )\]\s/,
 		REMOVE_CHECKBOX_WITH_INDENTATION: /^([ \t]*)?(-|\*)\s+\[(x|X| )\]\s/,
 		REMOVE_TickTick_LINK: /\[link\]\(.*?\)/
@@ -156,6 +159,7 @@ export class TaskParser {
 		task.title = this.stripOBSUrl(task.title);
 
 		resultLine += `- [${task.status > 0 ? 'x' : ' '}] ${task.title}`;
+		resultLine = this.addMetaBreakToLine(resultLine);
 
 
 		//add Tags
@@ -219,17 +223,28 @@ export class TaskParser {
 
 	//Remove Extraneous data from line.
 	getTaskContentFromLineText(lineText: string) {
-		let taskContent = lineText.replace(REGEX.TASK_CONTENT.REMOVE_INLINE_METADATA, '')
+		let taskContent = lineText.replace(REGEX.TASK_CONTENT.REMOVE_OBSIDIAN_COMMENTS, '')
+			.replace(REGEX.TASK_CONTENT.REMOVE_META_BREAK, '')
+			.replace(REGEX.TASK_CONTENT.REMOVE_INLINE_METADATA, '')
 			.replace(REGEX.TASK_CONTENT.REMOVE_TickTick_LINK, '')
 			.replace(REGEX.TASK_CONTENT.REMOVE_PRIORITY, '')
-			.replace(REGEX.TASK_CONTENT.REMOVE_TAGS, '')
 			.replace(REGEX.TASK_CONTENT.REMOVE_CHECKBOX, '')
 			.replace(REGEX.TASK_CONTENT.REMOVE_CHECKBOX_WITH_INDENTATION, '')
+			.replace(REGEX.TASK_CONTENT.REMOVE_DAY_PLANNER_TIME_PREFIX, '')
+			.replace(REGEX.TASK_CONTENT.REMOVE_TAGS, '')
 			.replace(REGEX.TASK_CONTENT.REMOVE_SPACE, '');
 
 		taskContent = this.stripOBSUrl(taskContent);
 		taskContent = this.plugin.dateMan?.stripDatesFromLine(taskContent);
-		return (taskContent);
+		taskContent = taskContent.replace(REGEX.TASK_CONTENT.REMOVE_SPACE, '');
+		return taskContent.trim();
+	}
+
+	addMetaBreakToLine(resultLine: string) {
+		if (!resultLine.includes('ticktick-task-meta-break')) {
+			resultLine += ' <span class="ticktick-task-meta-break"></span>';
+		}
+		return resultLine;
 	}
 
 	stripLineItemId(lineText: string) {
@@ -264,6 +279,7 @@ export class TaskParser {
 		const TickTick_id = this.getTickTickId(textWithoutIndentation);
 
 		const allDatesStruct = this.plugin.dateMan?.parseDates(textWithoutIndentation);
+		const hiddenSchedule = this.getHiddenScheduleMetadata(textWithoutIndentation);
 
 		let taskRecord: ITaskRecord;
 
@@ -368,28 +384,55 @@ export class TaskParser {
 
 		const priority = this.getTaskPriority(textWithoutIndentation);
 
+		
+                let extractedDuration: number | undefined = undefined;
+                let extractedStartDate: string | undefined = undefined;
+                const textToParse = (content || '') + ' ' + (description || '');
+                if (textToParse) {
+                        const effortMatch = textToParse.match(/Effort:\s*(\w+)/i);
+                        if (effortMatch) {
+                                const effortVal = effortMatch[1].toLowerCase();
+                                if (effortVal === 'small') extractedDuration = 15 * 60;
+                                else if (effortVal === 'medium') extractedDuration = 45 * 60;
+                                else if (effortVal === 'large') extractedDuration = 120 * 60;
+                        }
+                        const startMatch = textToParse.match(/Start:\s*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2})/);
+                        if (startMatch) {
+                                try {
+                                        const dateObj = new Date(startMatch[1]);
+                                        extractedStartDate = dateObj.toISOString().replace(/\.\d{3}Z$/, '+0000');
+                                } catch (e) {}
+                        }
+                }
+
 		let actualStartDate = allDatesStruct?.startDate ?
 			allDatesStruct?.startDate.isoDate : //there's a start date
 			allDatesStruct?.scheduled_date ?
 				allDatesStruct?.scheduled_date.isoDate //there's a scheduled date
 				: allDatesStruct?.dueDate ? //there are neither start date nor scheduled date.
 					allDatesStruct?.dueDate.isoDate : '';  //use the due date if there is one.
+		const visibleDuration = this.getDurationSeconds(actualStartDate || undefined, allDatesStruct?.dueDate?.isoDate || undefined);
+		const hasHiddenSchedule = Boolean(hiddenSchedule.startDate || hiddenSchedule.dueDate);
+		const effectiveStartDate = hiddenSchedule.startDate || extractedStartDate || actualStartDate || '';
+		const effectiveDueDate = hiddenSchedule.dueDate || allDatesStruct?.dueDate?.isoDate || '';
+		const effectiveDuration = hiddenSchedule.timeLength || visibleDuration || extractedDuration;
 
 
 		const task: ITask = {
 			id: TickTick_id || '',
 			projectId: projectId,
 			//RSN We're going to have to figure putting it Items or in Description.
-			title: title.trim() + ' ' + taskURL,
+			title: taskURL ? `${title.trim()} ${taskURL}` : title.trim(),
 			//content: ??
 			content: content ? content : '',
 			desc: description ? description : '',
 			items: taskItems || [],
 			parentId: parentId || '',
-			dueDate: allDatesStruct?.dueDate?.isoDate || '',
-			startDate: actualStartDate || '',
+			dueDate: effectiveDueDate,
+			startDate: effectiveStartDate,
+			timeLength: effectiveDuration,
 			completedTime: allDatesStruct?.completedTime?.isoDate || '',
-			isAllDay: allDatesStruct?.isAllDay || false,
+			isAllDay: hasHiddenSchedule ? !hiddenSchedule.startDate : (allDatesStruct?.isAllDay || false),
 			tags: tags || [],
 			priority: Number(priority),
 			modifiedTime: this.plugin.dateMan?.formatDateToISO(new Date()) || '',
@@ -400,6 +443,35 @@ export class TaskParser {
 
 		return task;
 
+	}
+
+	getHiddenScheduleMetadata(lineText: string) {
+		const schedule: { startDate?: string, dueDate?: string, timeLength?: number } = {};
+		const startMatch = lineText.match(/start::\s*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?(?:[+-]\d{2}:?\d{2}|Z)?)/i);
+		const endMatch = lineText.match(/end::\s*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?(?:[+-]\d{2}:?\d{2}|Z)?)/i);
+
+		if (startMatch) {
+			schedule.startDate = this.plugin.dateMan?.formatDateToISO(new Date(startMatch[1]));
+		}
+		if (endMatch) {
+			schedule.dueDate = this.plugin.dateMan?.formatDateToISO(new Date(endMatch[1]));
+		}
+		schedule.timeLength = this.getDurationSeconds(schedule.startDate, schedule.dueDate);
+		return schedule;
+	}
+
+	getDurationSeconds(startDate?: string, dueDate?: string) {
+		if (!startDate || !dueDate) {
+			return undefined;
+		}
+
+		const start = new Date(startDate);
+		const end = new Date(dueDate);
+		if (isNaN(start.getTime()) || isNaN(end.getTime()) || end <= start) {
+			return undefined;
+		}
+
+		return Math.round((end.getTime() - start.getTime()) / 1000);
 	}
 
 	escapeRegExp(str: string) {
@@ -461,6 +533,12 @@ export class TaskParser {
 			result = REGEX.TickTick_ID_DV_NUM.test(text);
 		}
 		return (result);
+	}
+
+	/** Check whether text contains hidden schedule metadata (start:: / end::) */
+	hasHiddenSchedule(text: string): boolean {
+		return /start::\s*\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/i.test(text) ||
+			/end::\s*\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/i.test(text);
 	}
 
 	getLineItemId(text: string) {

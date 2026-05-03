@@ -7,7 +7,6 @@ import {viteStaticCopy} from "vite-plugin-static-copy";
 import tsConfigPaths from "vite-tsconfig-paths";
 import {configDefaults, defineConfig} from "vitest/config";
 import {pathToFileURL} from "node:url";
-import tsconfigPaths from 'vite-tsconfig-paths';
 
 const DEV_PATH = path.join("..", "test-vault", ".obsidian", "plugins", "tickticksync");
 function getOutDir(prod: boolean): string | undefined {
