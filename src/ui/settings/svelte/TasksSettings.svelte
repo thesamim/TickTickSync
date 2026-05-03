@@ -11,6 +11,7 @@
 	let fileLinksInTickTick: string;
 	let taskLinksInObsidian: string;
 	let syncNotes: boolean;
+	let syncOnlyTaskSyntax: boolean;
 	let linkBehaviorOptions: Record<string, string> = LINK_BEHAVIOR;
 
 	function setIsWorking(value: boolean) {
@@ -24,6 +25,7 @@
 	$: fileLinksInTickTick = $settingsStore.fileLinksInTickTick;
 	$: taskLinksInObsidian = $settingsStore.taskLinksInObsidian;
 	$: syncNotes = $settingsStore.syncNotes;
+	$: syncOnlyTaskSyntax = $settingsStore.syncOnlyTaskSyntax;
 
 	// Remove noteLink from options if needed
 	$: if (!syncNotes) {
@@ -43,8 +45,35 @@
 		settingsStore.update((s) => ({ ...s, fileLinksInTickTick: value }));
 		await plugin.saveSettings();
 	}
+
+	async function handleTaskSyntaxOnlyChange(checked: boolean) {
+		settingsStore.update((s) => ({ ...s, syncOnlyTaskSyntax: checked }));
+		await plugin.saveSettings();
+	}
 </script>
 <div class="{isWorking ? 'wait-cursor' : 'default-cursor'}">
+	<div class="task-settings ">
+		<div class="setting-item">
+			<div class="setting-item-info">
+				<div class="setting-item-name">Only sync task syntax lines</div>
+				<div class="setting-item-description">
+					When enabled, new TickTick tasks are created only from Markdown checkbox task lines.
+					Plain text lines in the task folder will be ignored.
+				</div>
+			</div>
+			<div class="setting-item-control">
+				<label class="toggle-switch">
+					<input
+						type="checkbox"
+						bind:checked={syncOnlyTaskSyntax}
+						on:change={(e: Event) => handleTaskSyntaxOnlyChange((e.target as HTMLInputElement).checked)}
+					/>
+					<span class="slider"></span>
+				</label>
+			</div>
+		</div>
+	</div>
+
 	{#if !syncNotes}
 		<div class="setting-item-info">
 			<hr>

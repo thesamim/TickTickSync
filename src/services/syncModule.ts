@@ -15,6 +15,7 @@ import type { TaskDetail } from '@/services/cacheOperation';
 import { TaskDeletionModal } from '@/modals/TaskDeletionModal';
 import { getSettings, updateProjectGroups } from '@/settings';
 import { FileMap, type ITaskItemRecord } from '@/services/fileMap';
+import { isEligibleNewTaskLine } from '@/services/taskEligibility';
 import log from 'loglevel';
 
 type deletedTask = {
@@ -207,13 +208,16 @@ export class SyncMan {
 
 		const filePath = fileMap.getFilePath();
 		const taskFolderPath = getSettings().TickTickTasksFilePath;
-		const isInTaskFolder = filePath && taskFolderPath && filePath.startsWith(taskFolderPath);
-		const hasExistingTag = this.plugin.taskParser.hasTickTickTag(lineTxt);
-		const hasHiddenSched = this.plugin.taskParser.hasHiddenSchedule(lineTxt);
 
 		// Tasks in the configured task folder are always eligible for sync
 		// Other files need #ticktick tag or hidden schedule metadata
-		const isEligible = isInTaskFolder || hasExistingTag || hasHiddenSched;
+		const isEligible = isEligibleNewTaskLine(
+			lineTxt,
+			filePath,
+			taskFolderPath,
+			getSettings().syncOnlyTaskSyntax,
+			this.plugin.taskParser
+		);
 
 		if (!this.plugin.taskParser.hasTickTickId(lineTxt) && isEligible) {
 			// Whether #ticktick is included, but not ticktickid: Task just added.
