@@ -223,14 +223,15 @@ export class TaskOperationsService {
 	/**
 	 * Move a task to a different project
 	 */
-	async moveTaskToProject(task: ITask, newProjectId: string): Promise<void> {
+	async moveTaskToProject(task: ITask, newProjectId: string, foundInAnotherFile: string|null = null): Promise<void> {
 		try {
 			const oldProjectId = task.projectId;
 			await this.plugin.tickTickRestAPI?.moveTaskProject(task, oldProjectId, newProjectId);
 
 			// Update in database
 			task.projectId = newProjectId;
-			await this.plugin.cacheOperation?.updateTaskToCache(task, null, Date.now());
+			await this.plugin.cacheOperation?.updateTaskToCache(task, foundInAnotherFile);
+			await this.plugin.tickTickRestAPI?.updateTask(task);
 
 			log.debug(`Moved task ${task.id} from project ${oldProjectId} to ${newProjectId}`);
 		} catch (error) {
