@@ -6,6 +6,7 @@ import { FileMap } from '@/services/fileMap';
 import log from '@/utils/logger';
 import { DeletionItem, TaskDeletionModal } from './modals/TaskDeletionModal';
 import { TaskRepository } from '@/repositories/TaskRepository';
+import { getProjectById } from '@/db/projects';
 
 export class FileOperation {
 	app: App;
@@ -163,7 +164,29 @@ export class FileOperation {
 			taskFile = taskFile.substring(1);
 		}
 
+		//TODO: Debug only.
+		log.debug("Taskfile: ", taskFile)
+		log.debug("doit exist: ", this.app.vault.getAbstractFileByPath(taskFile))
+		log.debug("ProjectId", projectId)
+		log.debug("ProjectName", await getProjectById(projectId))
+
 		try {
+			//do we have one?
+			if (taskFile) {
+				file = this.app.vault.getAbstractFileByPath(taskFile);
+				//does it exist?
+				if (file && projectId) {
+					const project = await getProjectById(projectId)
+					if (project) {
+						const projectName = project.name;
+						//assume can't have duplicate project names in one group
+						if (file.name.includes(projectName)) {
+							return file;
+						}
+					}
+				}
+
+			}
 			// Ensure all parent folders exist (supports TickTick folder structure)
 			const parentPath = taskFile.includes('/') ? taskFile.substring(0, taskFile.lastIndexOf('/')) : '';
 			if (parentPath) {
@@ -558,14 +581,13 @@ export class FileOperation {
 				//we're updating the task to get the right OBS URL in there.
 				let addedTask = await this.plugin.tickTickRestAPI?.updateTask(task);
 				addedTask.lineHash = lineHash;
-				TaskRepository
 				await this.plugin.cacheOperation?.appendTaskToCache(addedTask, file.path, Date.now());
 			} else {
 				if (!bTaskMove) {
 					task.lineHash = lineHash;
 					await this.plugin.cacheOperation?.updateTaskToCache(task, file.path, Date.now());
 				} else {
-					addedTask.lineHash = lineHash;
+					task.lineHash = lineHash;
 					let addedTask = await this.plugin.tickTickRestAPI?.updateTask(task);
 					await this.plugin.cacheOperation?.updateTaskToCache(addedTask, filePathForNewProject, Date.now());
 				}

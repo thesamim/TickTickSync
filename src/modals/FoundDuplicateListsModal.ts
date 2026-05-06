@@ -1,6 +1,7 @@
 import { App, Modal, Setting } from 'obsidian';
 import TickTickSync from '@/main';
 import { getSettings } from '@/settings';
+import type { IProject } from '@/api/types/Project';
 
 
 export class FoundDuplicateListsModal extends Modal {
@@ -15,7 +16,7 @@ export class FoundDuplicateListsModal extends Modal {
 	resolvePromise: (value: (PromiseLike<boolean> | boolean)) => void;
 	private plugin: TickTickSync;
 
-	constructor(app: App, plugin: TickTickSync, projects: [], onSubmit: (result: boolean) => void) {
+	constructor(app: App, plugin: TickTickSync, projects: IProject[], onSubmit: (result: boolean) => void) {
 		super(app);
 		this.plugin = plugin;
 		this.projects = projects;
