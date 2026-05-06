@@ -11,7 +11,7 @@ export class ConfirmFullSyncModal extends Modal {
 		'The "Items" will not be deleted.\nPlease proceed with Caution.';
 	cancelLabel = 'Cancel';
 	confirmLabel = 'Confirm Full Vault Task Sync';
-	result: boolean;
+	result: boolean = false;
 	onSubmit: (result: boolean) => void;
 	resolvePromise: (value: (PromiseLike<boolean> | boolean)) => void;
 

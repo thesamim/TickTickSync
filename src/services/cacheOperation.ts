@@ -13,6 +13,7 @@ import { getCurrentDeviceInfo } from '@/db/device';
 import { getAllProjects, getProjectById } from '@/db/projects';
 import { deleteFile, getAllFiles, getFile, updateFilePath as updateDbFilePath, upsertFile } from '@/db/files';
 import type { DeletionItem } from '@/modals/TaskDeletionModal';
+import type { LocalTask } from '@/db/schema';
 
 
 export interface FileMetadata {
@@ -248,10 +249,11 @@ export class CacheOperation {
 				}
 			}
 			const folder = await this.getFolderPathForProject(projectId);
-			log.debug("Returning folder: " + (folder ? folder + "/" : "")  + FILE_EXT);
+			log.debug("Returning folder: " + (folder || '') + FILE_EXT);
 
 			// Flat structure: baseFolder/<projectName>.md
-			return (folder ? folder + "/" : "")  + FILE_EXT;
+			//return (folder ? folder + "/" : "")  + FILE_EXT;
+			return (folder || '') + FILE_EXT;;
 		} else {
 			const folder = getDefaultFolder();
 			if (getSettings().defaultProjectName) {
@@ -658,11 +660,6 @@ export class CacheOperation {
 		//There's a case where we are making an entry for an undefined file. Not sure where it's coming from
 		// this should give us a clue.
 
-		if (filepath instanceof TAbstractFile) {
-			if (filepath instanceof TFile) {
-				filepath = filepath.name;
-			}
-		}
 
 		if (!filepath) {
 			log.error('Attempt to create undefined FileMetaData Entry: ', filepath);
@@ -678,25 +675,26 @@ export class CacheOperation {
 		return await this.getFileMetadata(filepath, projectId);
 	}
 
-	private async findInFile(file: TFile, listItemsCache: ListItemCache[]) {
-		const fileCachedContent: string = await this.app.vault.cachedRead(file);
-		const lines: string[] = fileCachedContent.split('\n');
+	//TODO: Do we need this at all?
+	// private async findInFile(file: TFile, listItemsCache: ListItemCache[]) {
+	// 	const fileCachedContent: string = await this.app.vault.cachedRead(file);
+	// 	const lines: string[] = fileCachedContent.split('\n');
+	//
+	// 	const tasks: (string | null | undefined)[] = listItemsCache
+	// 		// Get the position of each list item
+	// 		.map((listItemCache: ListItemCache) => listItemCache.position.start.line)
+	// 		// Get the line
+	// 		.map((idx) => lines[idx])
+	// 		// Create a Task from the line
+	// 		.map((line: string) => this.plugin.taskParser.getTickTickId(line))
+	// 		// Filter out the nulls
+	// 		.filter((taskId: string | null) => taskId !== null)
+	// 	;
+	//
+	// 	return tasks;
+	// }
 
-		const tasks: (string | null | undefined)[] = listItemsCache
-			// Get the position of each list item
-			.map((listItemCache: ListItemCache) => listItemCache.position.start.line)
-			// Get the line
-			.map((idx) => lines[idx])
-			// Create a Task from the line
-			.map((line: string) => this.plugin.taskParser.getTickTickId(line))
-			// Filter out the nulls
-			.filter((taskId: string | null) => taskId !== null)
-		;
-
-		return tasks;
-	}
-
-	private async showFoundDuplicatesModal(app, plugin, projects: IProject[]) {
+	private async showFoundDuplicatesModal(app: App, plugin: TickTickSync, projects: IProject[]) {
 		const myModal = new FoundDuplicateListsModal(app, plugin, projects, (result) => {
 			const ret = result;
 		});
