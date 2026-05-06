@@ -199,6 +199,7 @@ export class TaskModificationDetector {
 		// Get saved task from database
 		const savedTask = await this.plugin.cacheOperation?.loadTaskFromCacheID(taskId);
 		if (!savedTask) {
+			//TODO: Erroneous task deletion might happen after a task move. If not handled before here, has to be handled here.
 			// Task in file but not in database - delete from file
 			log.error(`Task ${taskId} not in database. Deleting from file ${filepath}`);
 			new Notice(`Task not found in database. It will be removed from the file.`);
@@ -454,10 +455,10 @@ export class TaskModificationDetector {
 	 * Handle task moving between projects/files
 	 * Also checks if project groups differ and moves file if necessary
 	 */
-	private async handleProjectMove(lineTask: ITask, savedTask: ITask, oldPath: string, newPath: string): Promise<void> {
-		await this.plugin.tickTickRestAPI?.moveTaskProject(lineTask, savedTask.projectId, lineTask.projectId);
+	private async handleProjectMove(newTask: ITask, oldTask: ITask, oldPath: string, newPath: string): Promise<void> {
+		await this.plugin.tickTickRestAPI?.moveTaskProject(newTask, oldTask.projectId, newTask.projectId);
 
-		const message = `Task ${lineTask.id} moved from ${oldPath} to ${newPath}`;
+		const message = `Task ${newTask.id} moved from ${oldPath} to ${newPath}`;
 		new Notice(message, 5000);
 		log.debug(message);
 	}

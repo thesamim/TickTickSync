@@ -3,15 +3,15 @@ import TickTickSync from '@/main';
 import type { ITask } from '@/api/types/Task';
 import type { IProject } from '@/api/types//Project';
 import { FoundDuplicateListsModal } from '@/modals/FoundDuplicateListsModal';
-import { getSettings, updateSettings, getDefaultFolder } from '@/settings';
+import { getDefaultFolder, getSettings } from '@/settings';
 //Logging
 import log from '@/utils/logger';
 import { FileMap } from '@/services/fileMap';
-import { db } from "@/db/dexie";
-import { upsertLocalTask } from "@/db/tasks";
-import { getCurrentDeviceInfo } from "@/db/device";
-import { getAllProjects, getProjectById } from "@/db/projects";
-import { getAllFiles, getFile, upsertFile, deleteFile, updateFilePath as updateDbFilePath } from "@/db/files";
+import { db } from '@/db/dexie';
+import { upsertLocalTask } from '@/db/tasks';
+import { getCurrentDeviceInfo } from '@/db/device';
+import { getAllProjects, getProjectById } from '@/db/projects';
+import { deleteFile, getAllFiles, getFile, updateFilePath as updateDbFilePath, upsertFile } from '@/db/files';
 import type { DeletionItem } from '@/modals/TaskDeletionModal';
 
 
@@ -407,7 +407,6 @@ export class CacheOperation {
 			} else {
 				filePath = movedPath;
 			}
-
 			//Assume that dateHolder has been handled before this.
 			//Delete the existing task
 			await this.deleteTaskFromCache(task.id);
