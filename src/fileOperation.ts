@@ -566,6 +566,7 @@ export class FileOperation {
 					task.title = task.title + ' ' + taskURL;
 				}
 			}
+			log.debug("LFT Persist to file: ", task.title)
 
 			// Calculate hash for change detection
 			const taskRecord = fileMap.getTaskRecord(task.id);

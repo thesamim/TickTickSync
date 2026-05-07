@@ -111,15 +111,7 @@ export class TaskDeletionHandler {
 				const foundInAnotherFile = await this.findTaskInVault(taskId, filePath);
 
 				if (foundInAnotherFile) {
-					log.debug(`Task ${taskId} moved from ${filePath} to ${foundInAnotherFile}`);
-					// Update the database mapping to reflect the new location
-					const task = await this.plugin.cacheOperation?.loadTaskFromCacheID(taskId);
-					if (task) {
-
-						//TODO: Not sure this is the right place to do this, but update to TickTick anyway.
-						const projectId = await this.plugin.cacheOperation.getDefaultProjectIdForFilepath(foundInAnotherFile);
-						await this.plugin.taskOperationsService.moveTaskToProject(task, projectId, foundInAnotherFile)
-					}
+					log.trace(`Task ${taskId} moved from ${filePath} to ${foundInAnotherFile}`);
 				} else {
 					// Task not found anywhere in vault - it's actually deleted
 					actuallyDeleted.push(taskId);
