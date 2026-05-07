@@ -293,6 +293,7 @@ export class TaskParser {
 		if (getSettings().fileLinksInTickTick === 'noteLink') {
 			noteURL = url + '\n';
 		}
+		log.debug("LFT Line to Task -- taskURL ", taskURL, " noteURL: ", noteURL)
 
 		//Detect parentID
 		if (taskRecord.parentId && taskRecord.parentId.length > 0) {
@@ -374,11 +375,12 @@ export class TaskParser {
 			allDatesStruct?.dueDate ? //there are neither start date nor scheduled date.
 					allDatesStruct?.dueDate.isoDate : '';  //use the due date if there is one.
 
+		log.debug("LFT" , title.trim(), "[", taskURL, "]" , "[", (taskURL? '': ' ' + taskURL),"]")
 
 		const task: ITask = {
 			id: TickTick_id || '',
 			projectId: projectId,
-			title: title.trim() + (taskURL? '': ' ' + taskURL),
+			title: title.trim() + (taskURL? ' ' + taskURL : '' ),
 			content: content ? content : '',
 			desc: description ? description : '',
 			items: taskItems || [],
@@ -395,6 +397,7 @@ export class TaskParser {
 			dateHolder: allDatesStruct //Assume that there's a dateStruct of some kind
 		};
 
+		log.debug("LFT Line To Task: Title: ", task.title)
 		return task;
 
 	}
