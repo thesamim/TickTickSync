@@ -1,11 +1,10 @@
 import { App, Notice, TFile, TFolder } from 'obsidian';
 import TickTickSync from '@/main';
 import type { ITask } from './api/types/Task';
-import { getDefaultFolder, getSettings } from '@/settings';
-import { FileMap } from '@/services/fileMap';
+import { getSettings } from '@/settings';
+import { FileMap, type ITaskRecord } from '@/services/fileMap';
 import log from '@/utils/logger';
 import { DeletionItem, TaskDeletionModal } from './modals/TaskDeletionModal';
-import { TaskRepository } from '@/repositories/TaskRepository';
 import { getProjectById } from '@/db/projects';
 
 export class FileOperation {
@@ -25,7 +24,7 @@ export class FileOperation {
 	async completeTaskInTheFile(taskId: string) {
 		// Get the task file path
 		const currentTask = await this.plugin.cacheOperation?.loadTaskFromCacheID(taskId);
-		const filepath =  this.plugin.cacheOperation?.getFilepathForTask(taskId);
+		const filepath = this.plugin.cacheOperation?.getFilepathForTask(taskId);
 
 		// Get the file object and update the content
 		const file = this.app.vault.getAbstractFileByPath(filepath);
@@ -54,7 +53,7 @@ export class FileOperation {
 	async uncompleteTaskInTheFile(taskId: string) {
 		// Get the task file path
 		const currentTask = await this.plugin.cacheOperation?.loadTaskFromCacheID(taskId);
-		const filepath =  this.plugin.cacheOperation?.getFilepathForTask(taskId);
+		const filepath = this.plugin.cacheOperation?.getFilepathForTask(taskId);
 
 		// Get the file object and update the content
 		const file = this.app.vault.getAbstractFileByPath(filepath);
@@ -165,10 +164,10 @@ export class FileOperation {
 		}
 
 		//TODO: Debug only.
-		log.debug("Taskfile: ", taskFile)
-		log.debug("doit exist: ", this.app.vault.getAbstractFileByPath(taskFile))
-		log.debug("ProjectId", projectId)
-		log.debug("ProjectName", await getProjectById(projectId))
+		log.debug('Taskfile: ', taskFile);
+		log.debug('doit exist: ', this.app.vault.getAbstractFileByPath(taskFile));
+		log.debug('ProjectId', projectId);
+		log.debug('ProjectName', await getProjectById(projectId));
 
 		try {
 			//do we have one?
@@ -176,7 +175,7 @@ export class FileOperation {
 				file = this.app.vault.getAbstractFileByPath(taskFile);
 				//does it exist?
 				if (file && projectId) {
-					const project = await getProjectById(projectId)
+					const project = await getProjectById(projectId);
 					if (project) {
 						const projectName = project.name;
 						//assume can't have duplicate project names in one group
@@ -330,7 +329,7 @@ export class FileOperation {
 		const oldContent = fileMap.getFileLines();
 		const deletedIds = fileMap.deleteTasks(tasks.map(t => (t.id || (t as any).taskId)));
 		const newContent = fileMap.getFileLines();
-		
+
 		if (oldContent !== newContent) {
 			await this.app.vault.modify(filePath, newContent);
 			log.info(`File ${filePath.path} modified with deletions.`);
@@ -345,7 +344,7 @@ export class FileOperation {
 		const taskId = task.id;
 		// Get the task file path
 
-		const filepath =  this.plugin.cacheOperation?.getFilepathForTask(taskId);
+		const filepath = this.plugin.cacheOperation?.getFilepathForTask(taskId);
 		const file = this.app.vault.getAbstractFileByPath(filepath);
 		if (filepath) {
 			await this.deleteTaskFromSpecificFile(file, task, false);
@@ -479,7 +478,7 @@ export class FileOperation {
 		// For every task
 		// 	if it has a parent, add it after the parent.
 		//  else add at the the insertion point in lines.
-		log.debug("Processing File: ", file.path)
+		log.debug('Processing File: ', file.path);
 		const fileMap = new FileMap(this.app, this.plugin, file);
 		await fileMap.init();
 		let bTaskMove: boolean = false;
@@ -490,9 +489,6 @@ export class FileOperation {
 		// log.debug('Data: \n', fileMap.getFileLines());
 		// log.debug('file: ', file);
 		// log.debug('================');
-
-		const addedTasks: string[] = [];
-
 		for (const task of tasks) {
 			let numParentTabs = 0;
 			const parentID = task.parentId;
@@ -502,25 +498,24 @@ export class FileOperation {
 			}
 
 			let lineText = '';
-			let filePathForNewProject = '';
+			let filePath = fileMap.getFilePath();
+
+			lineText = await this.plugin.taskParser?.convertTaskToLine(task, numParentTabs);
 			//Tired of seeing duplicates because of Sync conflicts.
 			if (!bUpdating) {
-				lineText = await this.plugin.taskParser?.convertTaskToLine(task, numParentTabs);
 				if (fileMap.getTaskIndex(task.id) != -1) {
 					log.warn('A Task was being added but was already in file: ', task.id, task.title);
 					//it's in the file, but not in cache. Just update it.
 					fileMap.updateTask(task, lineText);
 					await this.plugin.cacheOperation?.updateTaskToCache(task, file.path, Date.now());
-					addedTasks.push(task.id);
 					continue;
 				} else {
 					fileMap.addTask(task, lineText);
 				}
 			} else {
 				//For updates doing the dateHolder mambo here because we need to make sure we get old dates....
- 			const oldTask: ITask = await this.plugin.cacheOperation?.loadTaskFromCacheID(task.id);
+				const oldTask: ITask = await this.plugin.cacheOperation?.loadTaskFromCacheID(task.id);
 				this.plugin.dateMan?.addDateHolderToTask(task, oldTask);
-				lineText = await this.plugin.taskParser?.convertTaskToLine(task, numParentTabs);
 				if (oldTask) {
 					// Compare incoming task (from DB/TickTick) with current vault state
 					const vaultProjectId = await this.plugin.cacheOperation?.getDefaultProjectIdForFilepath(file.path);
@@ -530,7 +525,7 @@ export class FileOperation {
 					//Only check for Project/Parent change if task is in cache.
 					if ((this.plugin.taskParser?.isProjectIdChanged(vaultTask, task))) {
 						log.debug('Moving Task: ', task.id, task.title, ' from Project: ', vaultTask.projectId, ' to Project: ', task.projectId);
-						filePathForNewProject = await this.handleTickTickStructureMove(task, vaultTask, lineText, fileMap);
+						filePath = await this.handleTickTickStructureMove(task, vaultTask, lineText, fileMap);
 						//because we need to update the OBS URL in TT and fix up the cache.
 						bTaskMove = true;
 
@@ -549,27 +544,9 @@ export class FileOperation {
 				}
 			}
 
-			//We just added tags and url foo, update it on ticktick now.
-			let tags = this.plugin.taskParser?.getAllTagsFromLineText(lineText);
-			if (tags) {
-				task.tags = tags;
-			}
-
-			if (getSettings().fileLinksInTickTick !== 'noLink') {
-				let taskURL = "";
-				if (!bTaskMove) {
-					taskURL = this.plugin.taskParser?.getObsidianUrlFromFilepath(file.path);
-				} else {
-					taskURL = this.plugin.taskParser?.getObsidianUrlFromFilepath(filePathForNewProject);
-				}
-				if (taskURL) {
-					task.title = task.title + ' ' + taskURL;
-				}
-			}
-			log.debug("LFT Persist to file: ", task.title)
-
 			// Calculate hash for change detection
-			const taskRecord = fileMap.getTaskRecord(task.id);
+			//TODO:consider getting the taskRecord from getTaskPayload and be done....
+			let taskRecord:ITaskRecord = fileMap.getTaskRecord(task.id);
 			const taskString = taskRecord.task;
 			const stringToHash = taskString + this.plugin.taskParser.getNoteString(taskRecord, task.id);
 			let lineHash = await this.plugin.taskParser?.getLineHash(stringToHash);
@@ -577,6 +554,16 @@ export class FileOperation {
 				lineHash = '';
 			}
 
+			//we've made changes. Let's get the TTversion of the task right.
+			const linkLoc = this.plugin.taskParser.getLinkLocation(filePath)
+			if (linkLoc.taskURL) {
+				task.title = task.title + linkLoc.taskURL;
+			} else if (linkLoc.noteURL) {
+				const taskPayLoad = this.plugin.taskParser.getTaskPayLoad(fileMap, task.id, linkLoc.noteURL);
+				task.content = taskPayLoad.content ? taskPayLoad.content : '';
+				task.desc = taskPayLoad.description ? taskPayLoad.description : '';
+
+			}
 
 			if (!bUpdating) {
 				//we're updating the task to get the right OBS URL in there.
@@ -628,7 +615,7 @@ export class FileOperation {
 			let errmsg = `File not found for moved newTask:  ${newTask.id}, ${newTask.title}`;
 			throw new Error(errmsg);
 		}
-		const tFilePathForProject = await this.plugin.fileOperation.getOrCreateDefaultFile(filePathForNewProject, newTask.projectId)
+		const tFilePathForProject = await this.plugin.fileOperation.getOrCreateDefaultFile(filePathForNewProject, newTask.projectId);
 		if (!tFilePathForProject || (!(tFilePathForProject instanceof TFile))) {
 			let errmsg = `File not found for moved newTask:  ${newTask.id}, ${newTask.title}, ${filePathForNewProject}`;
 			throw new Error(errmsg);
@@ -674,13 +661,13 @@ export class FileOperation {
 		}
 
 		new Notice(message, 5000);
-		return filePathForNewProject
+		return filePathForNewProject;
 
 	}
 
 
 	private async deleteTaskFromOldFile(oldTask: ITask, newTask: ITask, fileMap: FileMap) {
-		const oldFilePath =  this.plugin.cacheOperation?.getFilepathForTask(oldTask.id);
+		const oldFilePath = this.plugin.cacheOperation?.getFilepathForTask(oldTask.id);
 		log.debug('oldFilePath: ', oldFilePath);
 		if (!oldFilePath) {
 			let errmsg = `File not found for moved newTask:  ${newTask.id}, ${newTask.title}`;
