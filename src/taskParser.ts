@@ -279,20 +279,7 @@ export class TaskParser {
 		let description = null;
 		let content = null;
 
-		let taskURL = '';
-		let noteURL = '';
-		let url = '';
-		if (getSettings().fileLinksInTickTick !== 'noLink') {
-			if (filepath) {
-				url = this.plugin.taskParser.getObsidianUrlFromFilepath(filepath);
-			}
-		}
-		if (getSettings().fileLinksInTickTick === 'taskLink') {
-			taskURL = url;
-		}
-		if (getSettings().fileLinksInTickTick === 'noteLink') {
-			noteURL = url + '\n';
-		}
+		let { taskURL, noteURL } = this.getLinkLocation(filepath);
 		log.debug("LFT Line to Task -- taskURL ", taskURL, " noteURL: ", noteURL)
 
 		//Detect parentID
@@ -303,35 +290,12 @@ export class TaskParser {
 			parentTaskObject = await this.plugin.cacheOperation?.loadTaskFromCacheID(parentId);
 		}
 
-		//find task items
-		const taskLineItems = fileMap.getTaskItems(TickTick_id, lineNumber);
-		if (taskLineItems && taskLineItems.length > 0) {
-			for (const taskLineItem in taskLineItems) {
-				taskItems.push(this.getItemFromLine(taskLineItems[taskLineItem]));
-			}
-		}
 
 		//Do the description/content thing
-		if (taskRecord) {
-			if (taskRecord.taskLines.length > 0) {
-				const textContent = this.getNoteString(taskRecord,TickTick_id);
-				let noteText = noteURL + textContent;
-				if (taskLineItems && taskLineItems.length > 0) {
-					description = noteText;
-				} else {
-					content = noteText;
-				}
-			} else { //no notes
-				if (noteURL) {
-					if (taskItems.length > 0) { //has task items
-						description = noteURL
-					} else { //has no notes, not task items.
-						content = noteURL;
-					}
-				}
-
-			}
-		}
+		const __ret = this.getTaskPayLoad(fileMap, TickTick_id, noteURL);
+		description = __ret.description;
+		content = __ret.content;
+		taskItems = __ret.taskItems;
 
 		let timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
@@ -400,6 +364,62 @@ export class TaskParser {
 		log.debug("LFT Line To Task: Title: ", task.title)
 		return task;
 
+	}
+
+	getTaskPayLoad(fileMap: FileMap, TickTick_id: string, noteURL: string) : {description:string, content: string, taskItems: ITaskItem []} {
+
+		const taskRecord = fileMap.getTaskRecord(TickTick_id);
+		const taskItems: ITaskItem[] = [];
+		let description ="";
+		let content = "";
+
+		//find task items
+		const taskLineItems = fileMap.getTaskItems(TickTick_id);
+		if (taskLineItems && taskLineItems.length > 0) {
+			for (const taskLineItem in taskLineItems) {
+				taskItems.push(this.getItemFromLine(taskLineItems[taskLineItem]));
+			}
+		}
+
+		if (taskRecord) {
+			if (taskRecord.taskLines.length > 0) {
+				const textContent = this.getNoteString(taskRecord, TickTick_id);
+				let noteText = noteURL + textContent;
+				if (taskLineItems && taskLineItems.length > 0) {
+					description = noteText;
+				} else {
+					content = noteText;
+				}
+			} else { //no notes
+				if (noteURL) {
+					if (taskItems.length > 0) { //has task items
+						description = noteURL;
+					} else { //has no notes, not task items.
+						content = noteURL;
+					}
+				}
+
+			}
+		}
+		return { description, content, taskItems };
+	}
+
+	getLinkLocation(filepath: string) {
+		let taskURL = '';
+		let noteURL = '';
+		let url = '';
+		if (getSettings().fileLinksInTickTick !== 'noLink') {
+			if (filepath) {
+				url = this.plugin.taskParser.getObsidianUrlFromFilepath(filepath);
+			}
+		}
+		if (getSettings().fileLinksInTickTick === 'taskLink') {
+			taskURL = url;
+		}
+		if (getSettings().fileLinksInTickTick === 'noteLink') {
+			noteURL = url + '\n';
+		}
+		return { taskURL, noteURL };
 	}
 
 	escapeRegExp(str: string) {
