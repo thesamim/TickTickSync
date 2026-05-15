@@ -827,6 +827,8 @@ export class SyncMan {
 
 	///End of Test
 
+
+	//Update TT after reconstructing the task
 	async forceUpdates(file_path: string) {
 		let file;
 		if (file_path) {
@@ -843,7 +845,7 @@ export class SyncMan {
 		} else {
 			throw new Error('No file path provided');
 		}
-		const fileMap = new FileMap(this.app, this.plugin, file);
+		const fileMap = new FileMap(this.app, this.plugin, file as TFile);
 		await fileMap.init();
 
 		const lines = fileMap.getFileLines().split('\n');
@@ -860,10 +862,18 @@ export class SyncMan {
 					const merged = { ...savedTask, ...lineTask };
 					Object.assign(lineTask, merged);
 					const updatedTask = <ITask>await this.plugin.tickTickRestAPI?.updateTask(lineTask);
+					//let's go ahead and do the file while we're at it.
+					const updatedLineText = await this.plugin.taskParser.convertTaskToLine(updatedTask, this.plugin.taskParser.getNumTabs(lineText))
+					fileMap.updateTask(updatedTask, updatedLineText )
 					await this.plugin.cacheOperation?.updateTaskToCache(updatedTask, null, Date.now());
 				}
 			}
 		}
+		const fileLines = fileMap.getFileLines()
+		await this.app.vault.process(file as TFile, (data) => {
+			data = fileLines
+			return data;
+		});
 	}
 
 	//get the TickTick data into the task line.

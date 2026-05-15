@@ -27,16 +27,9 @@ async function hardResetFromOBS(plugin: TickTickSync) {
 export async function resetTasks(plugin: TickTickSync, setIsWorking?: (val: boolean) => void) {
     setIsWorking?.(true);
 	updateSettings({ checkPoint: 0 });
-	//update from TT to Obs.
-	log.debug('## reset from OBS to TT');
+	//One Swell Foop update
+	log.debug('## reset all tasks');
 	await hardResetFromOBS(plugin);
-	await plugin.saveSettings();
-	await plugin.scheduledSynchronization(true);
-
-	//update from Obs to TT.
-	log.debug('## reset from TT to OBS');
-	let timeStamp = '1970-01-01T00:00:00.000Z';
-	await resetTimeStamp(plugin, timeStamp);
 	await plugin.saveSettings();
 	await plugin.scheduledSynchronization(true);
 
