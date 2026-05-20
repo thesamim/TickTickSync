@@ -6,27 +6,6 @@ import { sha256 } from 'crypto-hash';
 import type { FileMap, ITaskRecord } from '@/services/fileMap';
 import log from '@/utils/logger';
 
-interface dataviewTaskObject {
-	status: string;
-	checked: boolean;
-	completed: boolean;
-	fullyCompleted: boolean;
-	text: string;
-	visual: string;
-	line: number;
-	lineCount: number;
-	path: string;
-	section: string;
-	tags: string[];
-	outlinks: string[];
-	link: string;
-	children: any[];
-	task: boolean;
-	annotated: boolean;
-	parent: number;
-	blockId: string;
-}
-
 const priorityEmojis = ['⏬', '🔽', '🔼', '⏫', '🔺'];
 const prioritySymbols = {
 	Highest: '🔺', High: '⏫', Medium: '🔼', Low: '🔽', Lowest: '⏬', None: ''
@@ -178,11 +157,11 @@ export class TaskParser {
 
 		if (getSettings().syncNotes || getSettings().taskLinksInObsidian === 'noteLink') {
 			if (this.plugin.taskParser.hasDescription(task)) {
-				resultLine = this.addNote(resultLine, task.desc, numTabs, 'Description', task.id, task.projectId);
+				resultLine = await this.addNote(resultLine, task.desc, numTabs, 'Description', task.id, task.projectId);
 			} else if (this.plugin.taskParser.hasNote(task)) {
-				resultLine = this.addNote(resultLine, task.content, numTabs, 'Note', task.id, task.projectId);
+				resultLine = await this.addNote(resultLine, task.content, numTabs, 'Note', task.id, task.projectId);
 			} else if (getSettings().taskLinksInObsidian === 'noteLink') {
-				resultLine = this.addNote(resultLine, task.content, numTabs, 'Note', task.id, task.projectId);
+				resultLine = await this.addNote(resultLine, task.content, numTabs, 'Note', task.id, task.projectId);
 			}
 		}
 
@@ -627,7 +606,22 @@ export class TaskParser {
 	isProjectIdChanged(lineTask: ITask, TickTickTask: ITask) {
 		if (lineTask.projectId !== TickTickTask.projectId) {
 			log.debug('Project ID changed: ', lineTask.projectId, TickTickTask.projectId);
-			return true;
+			//make sure that they're not in a non-project file.
+			const taskFile = this.plugin.cacheOperation.getFilepathForTask(TickTickTask.id);
+			if (taskFile) {
+				// log.debug('Task file: ', taskFile);
+				const hasADefaultProject = this.plugin.cacheOperation.filepathHasDefaultProjectID(taskFile)
+				if (hasADefaultProject) {
+					return true;
+				} else {
+					log.debug('Task file does not have a default project: ', taskFile);
+					//hate to do a notification from here, but I don't want to blindside them either.
+					new Notice(`Task ${TickTickTask.title} was moved in TickTick, but is in ${taskFile}. Assuming that this is intentional and not moving it.`, 10000	);
+
+					return false;
+				}
+
+			}
 		} else {
 			return false;
 		}
@@ -871,17 +865,22 @@ export class TaskParser {
 		return resultLine;
 	}
 
-	private addNote(resultLine: string, content: string, numbTabs: number, type: string, id: string, projectId: string) {
+	private async addNote(resultLine: string, content: string, numbTabs: number, type: string, id: string, projectId: string) {
 		//TODO figure out Note presentation
 		//admonitions just don't work in indented tasks. Until I sort out the presentation, keep it simple until I
 		//get all the functionality sorted out,
-		const linkRegex = new RegExp(`\\[.*\\]\\(obsidian://open\\?vault=.*&file=.*\\)`, 'giu');
+		let path =  await this.plugin.cacheOperation.getFilepathForProjectId(projectId);
+		//we want the encoded version of the path name
+		path = encodeURI(path);
+
+		const linkRegex = new RegExp(`\\[.*\\]\\(obsidian://open\\?vault=.*&file=${path}\\)`, 'giu');
+		log.debug("linkRegex:", linkRegex);
 		let noteLines: string[];
 
 		if (content.length > 0) {
 			noteLines = content.split('\n');
 		} else {
-			return resultLine;
+			noteLines = [];
 		}
 
 		if (getSettings().taskLinksInObsidian === 'taskLink' && getSettings().fileLinksInTickTick == 'noteLink') {
@@ -918,6 +917,8 @@ export class TaskParser {
 
 
 		noteLines.forEach(item => {
+			log.debug("addnote noteLine:", item);
+			log.debug("result:", item.search(linkRegex))
 			if (item.search(linkRegex) < 0) {
 				resultLine = `${resultLine}${prefix}${item}`;
 			}

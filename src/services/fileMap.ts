@@ -79,12 +79,6 @@ export class FileMap {
 		let taskLines = taskLine.split('\n');
 
 		this.fileLines.splice(insertLine, 0, ...taskLines);
-
-		// Consolidate task items for the parent if this task has a parent
-		if (task.parentId) {
-			this.consolidateTaskItems(task.parentId);
-		}
-
 		return insertLine;
 	}
 
@@ -127,9 +121,6 @@ export class FileMap {
 				this.fixUpChildren(moveMap);
 			}
 		}
-
-		// Consolidate scattered task items and remove duplicates
-		this.consolidateTaskItems(task.id);
 	}
 
 	deleteTask(id: string, bKillTheChildren: boolean = false): number {
@@ -140,10 +131,8 @@ export class FileMap {
 		} else {
 			//TODO: There are no actual usages of this. Do we even need it anymore
 			let moveMap: IChildMap = {};
-			const taskIdx = this.getTaskIndex(id);
-			if (taskIdx === -1) return -1;
-			const parentTabs = this.plugin.taskParser.getTabs(this.fileLines[taskIdx]);
-			const childIds = this.findChildren(taskIdx, parentTabs);
+			const parentTabs = this.plugin.taskParser.getTabs(this.fileLines[id]);
+			const childIds = this.findChildren(this.getTaskIndex(id), parentTabs);
 			moveMap = this.buildMoveMap(id, childIds, moveMap);
 			const sortedEntries = Object.entries(moveMap).sort(
 				([, a], [, b]) => a.depth - b.depth
@@ -196,148 +185,22 @@ export class FileMap {
 		return this.plugin.taskParser.getNumTabs(this.fileLines[this.getTaskIndex(parentId)]);
 	}
 
-	getTaskItems(parentId: string | undefined, parentIdx: number = -1) {
-		if (parentIdx === -1) {
-			parentIdx = this.getTaskIndex(parentId);
-		}
-		if (parentIdx === -1) {
-			return [];
-		}
+	getTaskItems(parentId: string | undefined) {
+		const parentIdx = this.getTaskIndex(parentId);
 		const taskItems: string[] = [];
-		const parentLine = this.fileLines[parentIdx];
-		const parentNumTabs = this.plugin.taskParser.getNumTabs(parentLine);
-		const expectedItemIndent = parentNumTabs + 1;
-
 		for (let i = parentIdx + 1; i < this.fileLines.length; i++) {
 			const fileLine = this.fileLines[i];
-			const lineNumTabs = this.plugin.taskParser.getNumTabs(fileLine);
-
-			// Stop if we hit a task at the same or lower indent level as the parent
-			if (lineNumTabs <= parentNumTabs && this.plugin.taskParser.isMarkdownTask(fileLine)) {
-				break;
-			}
-
 			if (this.plugin.taskParser.isMarkdownTask(fileLine)) {
-				// Only collect task items that are direct children (exactly one indent level deeper)
-				if (lineNumTabs === expectedItemIndent && this.plugin.taskParser.getLineItemId(fileLine)) {
-					// This is a task item (has line item ID) at the correct indent level
+				if (this.plugin.taskParser.getTickTickId(fileLine)) {
+					//we're on the next task down. Bail.
+					break;
+				} else if (this.plugin.taskParser.getLineItemId(fileLine)) {
 					taskItems.push(fileLine);
 				}
-				// Skip task items that are deeper (they belong to subtasks)
 			}
 		}
 		// log.debug(`Found ${taskItems}`);
 		return taskItems;
-	}
-
-	/**
-	 * Consolidates scattered task items by moving them adjacent to their parent task.
-	 * Removes duplicate task items based on their line item ID.
-	 * Should be called after task updates to clean up the file structure.
-	 */
-	consolidateTaskItems(parentId: string) {
-		const parentIdx = this.getTaskIndex(parentId);
-		if (parentIdx === -1) {
-			return;
-		}
-
-		const parentLine = this.fileLines[parentIdx];
-		const parentNumTabs = this.plugin.taskParser.getNumTabs(parentLine);
-		const expectedItemIndent = parentNumTabs + 1;
-		const itemTabs = '\t'.repeat(expectedItemIndent);
-
-		// Find all task items belonging to this parent (scattered throughout)
-		const foundItems = new Map<string, string>(); // Map<itemId, line>
-		const itemIndicesToRemove: number[] = [];
-
-		for (let i = parentIdx + 1; i < this.fileLines.length; i++) {
-			const fileLine = this.fileLines[i];
-			const lineNumTabs = this.plugin.taskParser.getNumTabs(fileLine);
-
-			// Stop if we hit a task at the same or lower indent level as the parent
-			if (lineNumTabs <= parentNumTabs && this.plugin.taskParser.isMarkdownTask(fileLine)) {
-				break;
-			}
-
-			// Look for task items at the correct indent level
-			if (lineNumTabs === expectedItemIndent &&
-			    this.plugin.taskParser.isMarkdownTask(fileLine) &&
-			    this.plugin.taskParser.getLineItemId(fileLine)) {
-
-				const itemId = this.plugin.taskParser.getLineItemId(fileLine);
-				if (itemId) {
-					if (!foundItems.has(itemId)) {
-						// First occurrence - keep it
-						foundItems.set(itemId, fileLine);
-					} else {
-						// Duplicate - mark for removal
-						itemIndicesToRemove.push(i);
-					}
-				}
-			}
-		}
-
-		// Remove duplicates in reverse order to maintain indices
-		for (let i = itemIndicesToRemove.length - 1; i >= 0; i--) {
-			this.fileLines.splice(itemIndicesToRemove[i], 1);
-		}
-
-		// Now check if items need to be moved (are they adjacent after parent?)
-		// Find where items should start (right after parent, before any subtasks)
-		let insertPosition = parentIdx + 1;
-
-		// Skip any existing adjacent items to find where non-adjacent items are
-		const adjacentItems = new Set<string>();
-		for (let i = parentIdx + 1; i < this.fileLines.length; i++) {
-			const fileLine = this.fileLines[i];
-			const lineNumTabs = this.plugin.taskParser.getNumTabs(fileLine);
-
-			if (lineNumTabs === expectedItemIndent &&
-			    this.plugin.taskParser.isMarkdownTask(fileLine) &&
-			    this.plugin.taskParser.getLineItemId(fileLine)) {
-				const itemId = this.plugin.taskParser.getLineItemId(fileLine);
-				if (itemId) {
-					adjacentItems.add(itemId);
-				}
-			} else if (this.plugin.taskParser.isMarkdownTask(fileLine) &&
-			           this.plugin.taskParser.getTickTickId(fileLine)) {
-				// Hit a subtask - stop looking for adjacent items
-				break;
-			}
-		}
-
-		// Find and move non-adjacent items
-		const itemsToMove: Array<{index: number, line: string, itemId: string}> = [];
-
-		for (let i = parentIdx + 1; i < this.fileLines.length; i++) {
-			const fileLine = this.fileLines[i];
-			const lineNumTabs = this.plugin.taskParser.getNumTabs(fileLine);
-
-			// Stop if we hit a task at same or lower indent
-			if (lineNumTabs <= parentNumTabs && this.plugin.taskParser.isMarkdownTask(fileLine)) {
-				break;
-			}
-
-			// Find non-adjacent items
-			if (lineNumTabs === expectedItemIndent &&
-			    this.plugin.taskParser.isMarkdownTask(fileLine) &&
-			    this.plugin.taskParser.getLineItemId(fileLine)) {
-
-				const itemId = this.plugin.taskParser.getLineItemId(fileLine);
-				if (itemId && !adjacentItems.has(itemId)) {
-					itemsToMove.push({index: i, line: fileLine, itemId});
-				}
-			}
-		}
-
-		// Move items in reverse order to maintain indices
-		for (let i = itemsToMove.length - 1; i >= 0; i--) {
-			const item = itemsToMove[i];
-			// Remove from current position
-			this.fileLines.splice(item.index, 1);
-			// Insert after other adjacent items
-			this.fileLines.splice(insertPosition, 0, item.line);
-		}
 	}
 
 	getFilePath() {
@@ -345,25 +208,8 @@ export class FileMap {
 	}
 
 	//this relies on the caller passing a proper ID. It could be a task ID or a Item ID, we don't discriminate.
-	getTaskIndex(ID: string | undefined): number {
-		if (!ID) {
-			return -1;
-		}
-		const lowerID = ID.toLowerCase();
-		return this.fileLines.findIndex(str => {
-			if (!this.plugin.taskParser.isMarkdownTask(str)) {
-				return false;
-			}
-			const tickTickId = this.plugin.taskParser.getTickTickId(str);
-			if (tickTickId && tickTickId.toLowerCase() === lowerID) {
-				return true;
-			}
-			const lineItemId = this.plugin.taskParser.getLineItemId(str);
-			if (lineItemId && lineItemId.toLowerCase() === lowerID) {
-				return true;
-			}
-			return str.toLowerCase().includes(lowerID);
-		});
+	getTaskIndex(ID: string): number {
+		return this.fileLines.findIndex(str => this.plugin.taskParser.isMarkdownTask(str) && str.includes(ID));
 	}
 
 	getTaskString(taskId: string): String {
@@ -406,6 +252,10 @@ export class FileMap {
 		const parentId = this.getParentIDByIdx(lineNumber);
 		taskRecord = this.getTaskLinesByIdx(lineNumber, taskRecord);
 		taskRecord.parentId = parentId;
+		//TODO: Why did I think this was necessary?
+		//we're adding a task. The task notes, if any are going to be added
+		//back in when we do the inevitable update. Get rid of the original
+		//note lines here.
 		if (taskRecord.taskLines && taskRecord.taskLines.length > 0) {
 			this.fileLines.splice(lineNumber + 1, taskRecord.taskLines.length - 1);
 			//rewrite the file to gett rid of them
@@ -446,16 +296,8 @@ export class FileMap {
 		return modified;
 	}
 
-	async modifyTask(text: string, line: number) {
-		const existingTaskRecord: ITaskRecord = await this.getTaskRecordByLine(line)
-		if (existingTaskRecord) {
-			this.fileLines.splice(line, 1, text)
-		} else {
-			log.warn("there wasn't a task record when we're trying to modify.")
-			this.fileLines[line] = text;
-		}
-		const newContent = this.fileLines.join('\n');
-		await this.app.vault.modify(this.file, newContent);
+	modifyTask(text: string, line: number) {
+		this.fileLines[line] = text;
 	}
 
 	hasTasks(fullVaultSync: boolean) {
@@ -470,23 +312,16 @@ export class FileMap {
 
 	private deleteTaskAndLines(id: string) {
 		const taskIdx = this.getTaskIndex(id);
-		if (taskIdx === -1) {
-			log.warn(`Task ${id} not found in file ${this.file.path} for deletion.`);
-			return;
-		}
-		const endLine = this.getTaskEndLineByIdx(taskIdx);
-		const linesToDelete = endLine - taskIdx + 1;
+		const linesToDelete = this.getTaskEndLineByTaskID(id) - taskIdx + 1;
 		this.fileLines.splice(taskIdx, linesToDelete);
 	}
 
 	private getTaskEndLineByTaskID(taskId: string) {
 		const parentIdx = this.getTaskIndex(taskId);
-		if (parentIdx === -1) return -1;
 		return this.getTaskEndLineByIdx(parentIdx);
 	}
 
 	private getTaskEndLineByIdx(taskIdx: number) {
-		if (taskIdx < 0 || taskIdx >= this.fileLines.length) return -1;
 		const taskTabs = this.plugin.taskParser.getTabs(this.fileLines[taskIdx]);
 		const numTaskTabs = taskTabs.length;
 		const notePrefix = taskTabs + '  ';
@@ -634,33 +469,21 @@ private getTaskLinesByIdx(taskIdx: number, taskRecord: ITaskRecord) {
 		return taskRecord;
 	}
 
-	public getParentId(id: string) {
+	private getParentId(id: string) {
 		const taskIdx = this.getTaskIndex(id);
 		return this.getParentIDByIdx(taskIdx);
 	}
 
 	private getParentIDByIdx(taskIdx: number) {
-		if (taskIdx < 0 || taskIdx >= this.fileLines.length) {
-			return '';
-		}
-		const childLine = this.fileLines[taskIdx];
-		let childNumTabs: number = this.plugin.taskParser.getNumTabs(childLine);
-		const childIndentation = this.plugin.taskParser.getIndentation(childLine);
-
+		let childNumTabs: number = this.plugin.taskParser.getNumTabs(this.fileLines[taskIdx]);
 		let tickTickId = '';
 		for (let i = taskIdx - 1; i >= 0; i--) {
 			const line = this.fileLines[i];
 			//the first Task above this one with tabs less than this one. is the parent.
-			if (this.plugin.taskParser.isMarkdownTask(line)) {
-				const lineNumbTabs = this.plugin.taskParser.getNumTabs(line);
-				const lineIndentation = this.plugin.taskParser.getIndentation(line);
+			if (this.plugin.taskParser.isMarkdownTask(line) && this.plugin.taskParser.hasTickTickId(line) ) {
+				const lineNumbTabs = this.plugin.taskParser.getNumTabs(this.fileLines[i]);
 				const tempTickTickId = this.plugin.taskParser.getTickTickId(line);
 				if (lineNumbTabs < childNumTabs) {
-					//found the parent. If tempTickTickId is null, it's a task that has not been added yet.
-					// We'll deal with it later.'
-					tickTickId = tempTickTickId ? tempTickTickId : '';
-					break;
-				} else if (lineNumbTabs === childNumTabs && childIndentation.startsWith(lineIndentation) && childIndentation.length > lineIndentation.length) {
 					//found the parent. If tempTickTickId is null, it's a task that has not been added yet.
 					// We'll deal with it later.'
 					tickTickId = tempTickTickId ? tempTickTickId : '';
