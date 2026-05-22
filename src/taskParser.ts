@@ -1,4 +1,4 @@
-import { type App } from 'obsidian';
+import { type App, Notice } from 'obsidian';
 import type TickTickSync from '@/main';
 import type { ITask, ITaskItem } from '@/api/types/Task';
 import { getSettings } from '@/settings';
@@ -603,14 +603,14 @@ export class TaskParser {
 
 
 	//task project id compare
-	isProjectIdChanged(lineTask: ITask, TickTickTask: ITask) {
+	async isProjectIdChanged(lineTask: ITask, TickTickTask: ITask) {
 		if (lineTask.projectId !== TickTickTask.projectId) {
 			log.debug('Project ID changed: ', lineTask.projectId, TickTickTask.projectId);
 			//make sure that they're not in a non-project file.
-			const taskFile = this.plugin.cacheOperation.getFilepathForTask(TickTickTask.id);
+			const taskFile = await this.plugin.cacheOperation.getFilepathForTask(TickTickTask.id);
 			if (taskFile) {
 				// log.debug('Task file: ', taskFile);
-				const hasADefaultProject = this.plugin.cacheOperation.filepathHasDefaultProjectID(taskFile)
+				const hasADefaultProject = await this.plugin.cacheOperation.filepathHasDefaultProjectID(taskFile)
 				if (hasADefaultProject) {
 					return true;
 				} else {
