@@ -17,6 +17,12 @@ vi.mock('@/db/dexie', () => ({
 	},
 }));
 
+vi.mock('@/db/device', () => ({
+	getCurrentDeviceInfo: vi.fn(() => ({
+		deviceId: 'test-device-id',
+	})),
+}));
+
 vi.mock('@/settings', () => ({
 	getSettings: vi.fn(() => ({
 		deviceId: 'test-device-id',

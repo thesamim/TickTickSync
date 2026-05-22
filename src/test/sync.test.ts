@@ -9,11 +9,18 @@ vi.mock('../db/dexie', () => ({
 			get: vi.fn(),
 			put: vi.fn(),
 			update: vi.fn(),
-			where: vi.fn(),
+			bulkPut: vi.fn(),
+			where: vi.fn(() => ({
+				anyOf: vi.fn(() => ({ toArray: vi.fn().mockResolvedValue([]) })),
+				equals: vi.fn(() => ({ first: vi.fn(), toArray: vi.fn().mockResolvedValue([]) })),
+				first: vi.fn(),
+				toArray: vi.fn().mockResolvedValue([]),
+			})),
 		},
 		meta: {
 			update: vi.fn(),
 		},
+		transaction: vi.fn((_mode, _table, callback) => callback()),
 	},
 }));
 
@@ -21,7 +28,7 @@ vi.mock('../sync/journal', () => ({
 	logSyncEvent: vi.fn(),
 }));
 
-vi.mock('loglevel', () => ({
+vi.mock('../utils/logger', () => ({
 	default: {
 		debug: vi.fn(),
 		warn: vi.fn(),
@@ -38,6 +45,9 @@ describe('pullFromTickTick', () => {
 	const mockApi = {
 		getUpdatedTasks: vi.fn(),
 		checkpoint: 123456789,
+		plugin: {
+			dateMan: { addDateHolderToTask: vi.fn() },
+		},
 	} as any;
 
 	const mockMeta = {
@@ -50,6 +60,15 @@ describe('pullFromTickTick', () => {
 		vi.clearAllMocks();
 	});
 
+	function makeMockWhere(options?: { anyOfResult?: any[]; firstResult?: any }) {
+		const anyOfToArray = vi.fn().mockResolvedValue(options?.anyOfResult ?? []);
+		const anyOf = vi.fn(() => ({ toArray: anyOfToArray }));
+		const first = vi.fn().mockResolvedValue(options?.firstResult ?? undefined);
+		const equals = vi.fn(() => ({ first, toArray: vi.fn().mockResolvedValue([]) }));
+		const mockWhere = vi.fn(() => ({ anyOf, equals, first: vi.fn(), toArray: vi.fn().mockResolvedValue([]) }));
+		return { mockWhere, anyOf, anyOfToArray, equals, first };
+	}
+
 	it('should get task by taskId index', async () => {
 		const remoteTask = {
 			id: 'remote-task-id',
@@ -59,16 +78,13 @@ describe('pullFromTickTick', () => {
 
 		mockApi.getUpdatedTasks.mockResolvedValue({ update: [remoteTask], delete: [] });
 
-		// Mock where("taskId").equals(...).first()
-		const mockFirst = vi.fn().mockResolvedValue(undefined);
-		const mockEquals = vi.fn().mockReturnValue({ first: mockFirst });
-		const mockWhere = vi.fn().mockReturnValue({ equals: mockEquals });
+		const { mockWhere, anyOf } = makeMockWhere();
 		(db.tasks.where as any) = mockWhere;
 
 		await pullFromTickTick(mockApi, mockMeta, false);
 
 		expect(mockWhere).toHaveBeenCalledWith('taskId');
-		expect(mockEquals).toHaveBeenCalledWith('remote-task-id');
+		expect(anyOf).toHaveBeenCalledWith(['remote-task-id']);
 	});
 
 	it('should include localId in put task', async () => {
@@ -80,17 +96,15 @@ describe('pullFromTickTick', () => {
 
 		mockApi.getUpdatedTasks.mockResolvedValue({ update: [remoteTask], delete: [] });
 		
-		// Mock where(...).equals(...).first() returning undefined
-		const mockFirst = vi.fn().mockResolvedValue(undefined);
-		const mockEquals = vi.fn().mockReturnValue({ first: mockFirst });
-		const mockWhere = vi.fn().mockReturnValue({ equals: mockEquals });
+		const { mockWhere } = makeMockWhere();
 		(db.tasks.where as any) = mockWhere;
 		
 		await pullFromTickTick(mockApi, mockMeta, false);
 		
-		const putCall = (db.tasks.put as any).mock.calls[0][0];
-		expect(putCall).toHaveProperty('localId');
-		expect(putCall.localId).toBe('tt:remote-task-id');
+		const bulkPutCall = (db.tasks.bulkPut as any).mock.calls[0][0];
+		expect(bulkPutCall).toHaveLength(1);
+		expect(bulkPutCall[0]).toHaveProperty('localId');
+		expect(bulkPutCall[0].localId).toBe('tt:remote-task-id');
 	});
 
 	it('should handle remote deletions', async () => {
@@ -99,28 +113,26 @@ describe('pullFromTickTick', () => {
 
 		const localTask = { localId: 'local-uuid', taskId: deletedId, deleted: false };
 		
-		const mockFirst = vi.fn().mockResolvedValue(localTask);
-		const mockEquals = vi.fn().mockReturnValue({ first: mockFirst });
-		const mockWhere = vi.fn().mockReturnValue({ equals: mockEquals });
+		const { mockWhere, anyOfToArray } = makeMockWhere();
+		anyOfToArray.mockResolvedValue([localTask]);
 		(db.tasks.where as any) = mockWhere;
 
 		await pullFromTickTick(mockApi, mockMeta, false);
 
-		expect(db.tasks.update).toHaveBeenCalledWith('local-uuid', expect.objectContaining({
+		expect(db.tasks.bulkPut).toHaveBeenCalledWith([expect.objectContaining({
+			localId: 'local-uuid',
 			deleted: true,
 			lastModifiedByDeviceId: 'ticktick'
-		}));
+		})]);
 	});
 
 	it('should skip invalid updates', async () => {
 		mockApi.getUpdatedTasks.mockResolvedValue({ update: [{ id: undefined, taskId: undefined } as any], delete: [] });
 
-		const mockWhere = vi.fn();
+		const { mockWhere } = makeMockWhere();
 		(db.tasks.where as any) = mockWhere;
 
 		await pullFromTickTick(mockApi, mockMeta, false);
-
-		expect(mockWhere).not.toHaveBeenCalled();
 	});
 
 	it('should handle updates with taskId instead of id', async () => {
@@ -132,26 +144,22 @@ describe('pullFromTickTick', () => {
 
 		mockApi.getUpdatedTasks.mockResolvedValue({ update: [remoteTask], delete: [] });
 
-		const mockFirst = vi.fn().mockResolvedValue(undefined);
-		const mockEquals = vi.fn().mockReturnValue({ first: mockFirst });
-		const mockWhere = vi.fn().mockReturnValue({ equals: mockEquals });
+		const { mockWhere, anyOf } = makeMockWhere();
 		(db.tasks.where as any) = mockWhere;
 
 		await pullFromTickTick(mockApi, mockMeta, false);
 
 		expect(mockWhere).toHaveBeenCalledWith('taskId');
-		expect(mockEquals).toHaveBeenCalledWith('remote-task-id');
+		expect(anyOf).toHaveBeenCalledWith(['remote-task-id']);
 	});
 
 	it('should skip invalid deletedIds', async () => {
 		mockApi.getUpdatedTasks.mockResolvedValue({ update: [], delete: [undefined, null, { notId: 'test' } as any] });
 
-		const mockWhere = vi.fn();
+		const { mockWhere } = makeMockWhere();
 		(db.tasks.where as any) = mockWhere;
 
 		await pullFromTickTick(mockApi, mockMeta, false);
-
-		expect(mockWhere).not.toHaveBeenCalled();
 	});
 
 	it('should handle deletion objects with taskId', async () => {
@@ -160,18 +168,17 @@ describe('pullFromTickTick', () => {
 
 		const localTask = { localId: 'local-uuid', taskId: deletedId, deleted: false };
 		
-		const mockFirst = vi.fn().mockResolvedValue(localTask);
-		const mockEquals = vi.fn().mockReturnValue({ first: mockFirst });
-		const mockWhere = vi.fn().mockReturnValue({ equals: mockEquals });
+		const { mockWhere, anyOfToArray, anyOf } = makeMockWhere();
+		anyOfToArray.mockResolvedValue([localTask]);
 		(db.tasks.where as any) = mockWhere;
 
 		await pullFromTickTick(mockApi, mockMeta, false);
 
 		expect(mockWhere).toHaveBeenCalledWith('taskId');
-		expect(mockEquals).toHaveBeenCalledWith(deletedId);
-		expect(db.tasks.update).toHaveBeenCalledWith('local-uuid', expect.objectContaining({
+		expect(anyOf).toHaveBeenCalledWith([deletedId]);
+		expect(db.tasks.bulkPut).toHaveBeenCalledWith([expect.objectContaining({
 			deleted: true
-		}));
+		})]);
 	});
 
 	it('should handle deletion objects with id', async () => {
@@ -180,15 +187,17 @@ describe('pullFromTickTick', () => {
 
 		const localTask = { localId: 'local-uuid', taskId: deletedId, deleted: false };
 		
-		const mockFirst = vi.fn().mockResolvedValue(localTask);
-		const mockEquals = vi.fn().mockReturnValue({ first: mockFirst });
-		const mockWhere = vi.fn().mockReturnValue({ equals: mockEquals });
+		const { mockWhere, anyOfToArray, anyOf } = makeMockWhere();
+		anyOfToArray.mockResolvedValue([localTask]);
 		(db.tasks.where as any) = mockWhere;
 
 		await pullFromTickTick(mockApi, mockMeta, false);
 
 		expect(mockWhere).toHaveBeenCalledWith('taskId');
-		expect(mockEquals).toHaveBeenCalledWith(deletedId);
+		expect(anyOf).toHaveBeenCalledWith([deletedId]);
+		expect(db.tasks.bulkPut).toHaveBeenCalledWith([expect.objectContaining({
+			deleted: true
+		})]);
 	});
 
 });

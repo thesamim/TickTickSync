@@ -23,7 +23,7 @@ export class FileOperation {
 	//Complete a task and mark it as completed
 	async completeTaskInTheFile(taskId: string) {
 		// Get the task file path
-		const currentTask = await this.plugin.cacheOperation?.loadTaskFromCacheID(taskId);
+		const currentTask = await this.plugin.taskRepository.loadTaskById(taskId);
 		const filepath = this.plugin.cacheOperation?.getFilepathForTask(taskId);
 
 		// Get the file object and update the content
@@ -52,7 +52,7 @@ export class FileOperation {
 	// uncheck completed tasks,
 	async uncompleteTaskInTheFile(taskId: string) {
 		// Get the task file path
-		const currentTask = await this.plugin.cacheOperation?.loadTaskFromCacheID(taskId);
+		const currentTask = await this.plugin.taskRepository.loadTaskById(taskId);
 		const filepath = this.plugin.cacheOperation?.getFilepathForTask(taskId);
 
 		// Get the file object and update the content
@@ -111,7 +111,7 @@ export class FileOperation {
 					return;
 				}
 				const taskID = this.plugin.taskParser?.getTickTickId(line);
-				const taskObject = await this.plugin.cacheOperation?.loadTaskFromCacheID(taskID);
+				const taskObject = await this.plugin.taskRepository.loadTaskById(taskID);
 				const newLine = this.plugin.taskParser?.addTickTickLink(line, taskObject.id, taskObject.projectId);
 				lines[i] = newLine;
 				modified = true;
@@ -507,14 +507,14 @@ export class FileOperation {
 					log.warn('A Task was being added but was already in file: ', task.id, task.title);
 					//it's in the file, but not in cache. Just update it.
 					fileMap.updateTask(task, lineText);
-					await this.plugin.cacheOperation?.updateTaskToCache(task, file.path, Date.now());
+					await this.plugin.taskRepository.upsertTask(task, file.path, Date.now());
 					continue;
 				} else {
 					fileMap.addTask(task, lineText);
 				}
 			} else {
 				//For updates doing the dateHolder mambo here because we need to make sure we get old dates....
-				const oldTask: ITask = await this.plugin.cacheOperation?.loadTaskFromCacheID(task.id);
+				const oldTask: ITask = await this.plugin.taskRepository.loadTaskById(task.id);
 				this.plugin.dateMan?.addDateHolderToTask(task, oldTask);
 				if (oldTask) {
 					// Compare incoming task (from DB/TickTick) with current vault state
@@ -530,7 +530,7 @@ export class FileOperation {
 						bTaskMove = true;
 
 						// Check if project groups differ and move file if necessary
-						const localTaskRecord = await this.plugin.cacheOperation?.loadLocalTaskFromCacheID(task.id);
+						const localTaskRecord = await this.plugin.taskRepository.loadLocalTaskById(task.id);
 						if (localTaskRecord) {
 							await this.plugin.taskModificationDetector?.checkForProjectGroupChange(task, localTaskRecord);
 						}
@@ -569,15 +569,15 @@ export class FileOperation {
 				//we're updating the task to get the right OBS URL in there.
 				let addedTask = await this.plugin.tickTickRestAPI?.updateTask(task);
 				addedTask.lineHash = lineHash;
-				await this.plugin.cacheOperation?.appendTaskToCache(addedTask, file.path, Date.now());
+				await this.plugin.taskRepository.upsertTask(addedTask, file.path, Date.now());
 			} else {
 				if (!bTaskMove) {
 					task.lineHash = lineHash;
-					await this.plugin.cacheOperation?.updateTaskToCache(task, file.path, Date.now());
+					await this.plugin.taskRepository.upsertTask(task, file.path, Date.now());
 				} else {
 					task.lineHash = lineHash;
 					let addedTask = await this.plugin.tickTickRestAPI?.updateTask(task);
-					await this.plugin.cacheOperation?.updateTaskToCache(addedTask, filePathForNewProject, Date.now());
+					await this.plugin.taskRepository.upsertTask(addedTask, filePathForNewProject, Date.now());
 				}
 
 			}
@@ -628,7 +628,7 @@ export class FileOperation {
 		fileMap.deleteTask(oldTask.id);
 		log.debug('deleted from: ', fileMap.getFilePath());
 
-		await this.plugin.cacheOperation?.deleteTaskFromCache(oldTask.id);
+		await this.plugin.taskRepository.deleteTask(oldTask.id);
 
 		const newFileMap = new FileMap(this.app, this.plugin, tFilePathForProject);
 		await newFileMap.init();
@@ -652,7 +652,7 @@ export class FileOperation {
 			message = 'Task Moved.\nTask: ' + cleanTitle + '\nwas moved from\n ' + oldProjectName + '\nto\n' + newProjectName;
 		} else {
 			if (newTask.parentId) {
-				const parentTask = await this.plugin.cacheOperation?.loadTaskFromCacheID(newTask.parentId);
+				const parentTask = await this.plugin.taskRepository.loadTaskById(newTask.parentId);
 				const cleanParentTaskTitle = this.plugin.taskParser?.stripOBSUrl(parentTask.title);
 				message = 'Task has new Parent.\nTask: ' + cleanTitle + '\nis now a child of\n ' + cleanParentTaskTitle;
 			} else {
@@ -686,7 +686,7 @@ export class FileOperation {
 				continue;
 			}
 			//get it from cache
-			const currentChild = await this.plugin.cacheOperation?.loadTaskFromCacheID(childId);
+			const currentChild = await this.plugin.taskRepository.loadTaskById(childId);
 			if (currentChild) {
 				currentChild.parentId = newTask.id;
 				currentChild.projectId = newTask.projectId;
@@ -695,7 +695,7 @@ export class FileOperation {
 				await this.moveTask(filepath, currentChild, numChildTaskItems, currentChild.id, currentChild.projectId);
 				const currentChildHasChildren = this.hasChildren(currentChild);
 				if (currentChildHasChildren) {
-					const currentChild = await this.plugin.cacheOperation?.loadTaskFromCacheID(childId);
+					const currentChild = await this.plugin.taskRepository.loadTaskById(childId);
 					await this.moveChildTasks(currentChild, toBeProcessed, filepath);
 				}
 			} else {
@@ -710,7 +710,7 @@ export class FileOperation {
 	private async moveTask(filepath: string, task: ITask, oldtaskItemNum: number, oldTaskId: string, oldProjectId: string) {
 		const tFilePath = this.app.vault.getAbstractFileByPath(filepath);
 		await this.deleteTaskFromSpecificFile(tFilePath, task, false);
-		await this.plugin.cacheOperation?.deleteTaskFromCache(oldTaskId);
+		await this.plugin.taskRepository.deleteTask(oldTaskId);
 
 		await this.synchronizeToVault(filepath, [task], false);
 		const cleanTitle = this.plugin.taskParser?.stripOBSUrl(task.title);
@@ -721,7 +721,7 @@ export class FileOperation {
 			message = 'Task Moved.\nTask: ' + cleanTitle + '\nwas moved from\n ' + oldProjectName + '\nto\n' + newProjectName;
 		} else {
 			if (task.parentId) {
-				const parentTask = await this.plugin.cacheOperation?.loadTaskFromCacheID(task.parentId);
+				const parentTask = await this.plugin.taskRepository.loadTaskById(task.parentId);
 				const cleanParentTaskTitle = this.plugin.taskParser?.stripOBSUrl(parentTask.title);
 				message = 'Task has new Parent.\nTask: ' + cleanTitle + '\nis now a child of\n ' + cleanParentTaskTitle;
 			} else {

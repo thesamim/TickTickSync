@@ -200,7 +200,7 @@ export class TaskDeletionHandler {
 
 			// Update in database
 			if (updatedTask) {
-				await this.plugin.cacheOperation?.updateTaskToCache(updatedTask, filepath, Date.now());
+				await this.plugin.taskRepository.upsertTask(updatedTask, filepath, Date.now());
 			}
 
 			log.debug(`Removed ${itemIds.length} items from task ${task.id}`);
@@ -240,7 +240,7 @@ export class TaskDeletionHandler {
 				}
 
 				// Mark as deleted in database (tombstone pattern)
-				await this.plugin.cacheOperation?.deleteTaskFromCache(taskId);
+				await this.plugin.taskRepository.deleteTask(taskId);
 				deletedTaskIds.push(taskId);
 
 			} catch (error) {

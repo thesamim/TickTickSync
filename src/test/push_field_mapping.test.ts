@@ -8,10 +8,12 @@ vi.mock('../db/dexie', () => ({
 		tasks: {
 			update: vi.fn(),
 			where: vi.fn(),
+			transaction: vi.fn(),
 		},
 		meta: {
 			update: vi.fn(),
 		},
+		transaction: vi.fn((mode, table, callback) => callback()),
 	},
 }));
 

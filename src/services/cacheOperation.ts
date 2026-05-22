@@ -1,4 +1,4 @@
-import { App, type ListItemCache, Notice, TAbstractFile, TFile, TFolder } from 'obsidian';
+import { App, Notice, TFile, TFolder } from 'obsidian';
 import TickTickSync from '@/main';
 import type { ITask } from '@/api/types/Task';
 import type { IProject } from '@/api/types//Project';
@@ -8,8 +8,6 @@ import { getDefaultFolder, getSettings } from '@/settings';
 import log from '@/utils/logger';
 import { FileMap } from '@/services/fileMap';
 import { db } from '@/db/dexie';
-import { upsertLocalTask } from '@/db/tasks';
-import { getCurrentDeviceInfo } from '@/db/device';
 import { getAllProjects, getProjectById } from '@/db/projects';
 import { deleteFile, getAllFiles, getFile, updateFilePath as updateDbFilePath, upsertFile } from '@/db/files';
 import type { DeletionItem } from '@/modals/TaskDeletionModal';
@@ -36,10 +34,8 @@ const FILE_EXT = '.md';
 export class CacheOperation {
 	app: App;
 	plugin: TickTickSync;
-	private taskCache: Map<string, ITask> | null = null;
 
 	constructor(app: App, plugin: TickTickSync) {
-		//super(app,settings);
 		this.app = app;
 		this.plugin = plugin;
 	}
@@ -308,68 +304,6 @@ export class CacheOperation {
 		}
 	}
 
-	/**
-	 * @deprecated Use TaskRepository.upsertTask() instead
-	 * This method will be removed in a future version
-	 */
-	//Append to Cache file
-	async appendTaskToCache(task: ITask, filePath: string, lastVaultSync?: number) {
-		try {
-			if (task === null) {
-				return;
-			}
-			const meta = await db.meta.get("sync");
-			task.title = this.plugin.taskParser.stripOBSUrl(task.title);
-
-			if (!task.lineHash) {
-				log.error("linehash not set.")
-			}
-			
-			await upsertLocalTask(task, {
-				file: filePath,
-				deviceId: meta?.deviceId || "unknown",
-				source: "ticktick",
-				lastVaultSync: lastVaultSync
-			});
-
-		} catch (error) {
-			log.error(`Error appending task to Cache: ${error}`);
-		}
-	}
-
-	/**
-	 * @deprecated Use TaskRepository.loadTaskById() instead
-	 * This method will be removed in a future version
-	 */
-	//Read the task with the specified id
-	async loadTaskFromCacheID(taskId?: string): Promise<ITask | undefined> {
-		if (!taskId) return undefined;
-		if (this.taskCache) {
-			return this.taskCache.get(taskId);
-		}
-		try {
-			const lt = await db.tasks.where("taskId").equals(taskId).first();
-			return lt?.task;
-		} catch (error) {
-			log.error(`Error finding task from Cache:`, taskId, error);
-		}
-		return undefined;
-	}
-
-	/**
-	 * @deprecated Use TaskRepository.loadLocalTaskById() instead
-	 * This method will be removed in a future version
-	 */
-	async loadLocalTaskFromCacheID(taskId?: string): Promise<LocalTask | undefined> {
-		if (!taskId) return undefined;
-		try {
-			return await db.tasks.where("taskId").equals(taskId).first();
-		} catch (error) {
-			log.error(`Error finding local task from Cache:`, error);
-		}
-		return undefined;
-	}
-
 	//get Task titles
 	async getTaskTitles(taskIds: string []): Promise<string []> {
 		const lts = await db.tasks.where("taskId").anyOf(taskIds).toArray();
@@ -389,38 +323,6 @@ export class CacheOperation {
 		}));
 	}
 
-	/**
-	 * @deprecated Use TaskRepository.upsertTask() instead
-	 * This method will be removed in a future version
-	 */
-	//Overwrite the task with the specified id in update
-	async updateTaskToCache(task: ITask, movedPath: string | null = null, lastVaultSync?: number) {
-		try {
-			let filePath: string | null = '';
-			if (!movedPath) {
-				filePath = await this.getFilepathForTask(task.id);
-				if (!filePath) {
-					filePath = await this.getFilepathForProjectId(task.projectId);
-				}
-				if (!filePath) {
-					//we're not likely to get here, but just in case
-					throw new Error(`File not found for ${task.id} - ${task.title}`);
-				}
-			} else {
-				filePath = movedPath;
-			}
-			//Assume that dateHolder has been handled before this.
-			//Delete the existing task
-			await this.deleteTaskFromCache(task.id);
-			//Add new task
-			await this.appendTaskToCache(task, filePath, lastVaultSync);
-			return task;
-		} catch (error) {
-			log.error(`Error updating task to Cache: ${error}`);
-			return [];
-		}
-	}
-
 	async getFilepathForTask(taskId: string) {
 		const lt = await db.tasks.where("taskId").equals(taskId).first();
 		return lt?.file || null;
@@ -431,117 +333,6 @@ export class CacheOperation {
 	async getProjectIdForTask(taskId: string) {
 		const lt = await db.tasks.where("taskId").equals(taskId).first();
 		return lt?.task.projectId;
-	}
-
-	/**
-	 * @deprecated Use TaskRepository.reopenTask() instead
-	 * This method will be removed in a future version
-	 */
-	//open a task status
-	async reopenTaskToCacheByID(taskId: string): Promise<string> {
-		try {
-			const lt = await db.tasks.where("taskId").equals(taskId).first();
-			if (lt) {
-				lt.task.status = 0;
-				lt.updatedAt = Date.now();
-				lt.lastModifiedByDeviceId = getCurrentDeviceInfo()?.deviceId || "unknown";
-				await db.tasks.put(lt);
-				return lt.task.projectId;
-			}
-			return "";
-		} catch (error) {
-			log.error(`Error open task to Cache file: ${error}`);
-			throw error; // Throw an error so that the caller can catch and handle it
-		}
-	}
-
-	//The structure of due {date: "2025-02-25",isRecurring: false,lang: "en",string: "2025-02-25"}
-
-
-	// modifyTaskToCacheByID(taskId: string, { content, due }: { content?: string, due?: Due }): void {
-	// try {
-	// const savedTasks = this.plugin.settings.TickTickTasksData.tasks;
-	// const taskIndex = savedTasks.findIndex((task) => task.id === taskId);
-
-	// if (taskIndex !== -1) {
-	// const updatedTask = { ...savedTasks[taskIndex] };
-
-	// if (content !== undefined) {
-	// updatedTask.content = content;
-	// }
-
-	// if (due !== undefined) {
-	// if (due === null) {
-	// updatedTask.due = null;
-	// } else {
-	// updatedTask.due = due;
-	// }
-	// }
-
-	// savedTasks[taskIndex] = updatedTask;
-
-	// this.plugin.settings.TickTickTasksData.tasks = savedTasks;
-	// } else {
-	// throw new Error(`Task with ID ${taskId} not found in cache.`);
-	// }
-	// } catch (error) {
-	// // Handle the error appropriately, eg by logging it or re-throwing it.
-	// }
-	// }
-
-	/**
-	 * @deprecated Use TaskRepository.closeTask() instead
-	 * This method will be removed in a future version
-	 */
-	//close a task status
-	async closeTaskToCacheByID(taskId: string): Promise<string> {
-		try {
-			const lt = await db.tasks.where("taskId").equals(taskId).first();
-			if (lt) {
-				lt.task.status = 2;
-				lt.updatedAt = Date.now();
-				lt.lastModifiedByDeviceId = getCurrentDeviceInfo()?.deviceId || "unknown";
-				await db.tasks.put(lt);
-				return lt.task.projectId;
-			}
-			return "";
-		} catch (error) {
-			log.error(`Error close task to Cache file: ${error}`);
-			throw error; // Throw an error so that the caller can catch and handle it
-		}
-	}
-
-	//Delete task by ID
-	/**
-	 * @deprecated Use TaskRepository.deleteTask() instead
-	 * This method will be removed in a future version
-	 */
-	async deleteTaskFromCache(taskId: string) {
-		try {
-			await db.tasks.where("taskId").equals(taskId).delete();
-			//Also clean up meta data
-			await this.deleteTaskIdFromMetadataByTaskId(taskId);
-		} catch (error) {
-			log.error(`Error deleting task from Cache file: ${error}`);
-		}
-	}
-
-	/**
-	 * @deprecated Use TaskRepository.deleteTasks() instead
-	 * This method will be removed in a future version
-	 */
-	//Delete task through ID array
-	async deleteTaskFromCacheByIDs(deletedTaskIds: string[]) {
-		try {
-			await db.tasks.where("taskId").anyOf(deletedTaskIds).delete();
-			//clean up file meta data
-			for (const taskId of deletedTaskIds) {
-				await this.deleteTaskIdFromMetadataByTaskId(taskId);
-			}
-
-		} catch (error) {
-			log.error(`Error deleting task from Cache : ${error}`);
-		}
 	}
 
 	//Find project id by name
@@ -635,27 +426,6 @@ export class CacheOperation {
 		}
 	}
 
-	// // TODO: why did I think I needed this?
-	// findTaskInMetada(taskId: string, filePath: string) {
-	// 	const fileMetadata = getSettings().fileMetadata;
-	// 	for (const file in fileMetadata) {
-	// 		log.debug('in file: :', file);
-	// 		if (file == filePath) {
-	// 			log.debug('breaking');
-	// 			continue;
-	// 		}
-	// 		const tasks = fileMetadata[file].TickTickTasks;
-	// 		for (const task of tasks) {
-	// 			if (task.taskId === taskId) {
-	// 				log.debug('found');
-	// 				return true;
-	// 			}
-	// 		}
-	// 	}
-	// 	log.debug('not found');
-	// 	return false;
-	// }
-
 	protected async newEmptyFileMetadata(filepath: string, projectId?: string): Promise<FileDetail | undefined> {
 		//There's a case where we are making an entry for an undefined file. Not sure where it's coming from
 		// this should give us a clue.
@@ -674,25 +444,6 @@ export class CacheOperation {
 		await upsertFile(filepath, projectId);
 		return await this.getFileMetadata(filepath, projectId);
 	}
-
-	//TODO: Do we need this at all?
-	// private async findInFile(file: TFile, listItemsCache: ListItemCache[]) {
-	// 	const fileCachedContent: string = await this.app.vault.cachedRead(file);
-	// 	const lines: string[] = fileCachedContent.split('\n');
-	//
-	// 	const tasks: (string | null | undefined)[] = listItemsCache
-	// 		// Get the position of each list item
-	// 		.map((listItemCache: ListItemCache) => listItemCache.position.start.line)
-	// 		// Get the line
-	// 		.map((idx) => lines[idx])
-	// 		// Create a Task from the line
-	// 		.map((line: string) => this.plugin.taskParser.getTickTickId(line))
-	// 		// Filter out the nulls
-	// 		.filter((taskId: string | null) => taskId !== null)
-	// 	;
-	//
-	// 	return tasks;
-	// }
 
 	private async showFoundDuplicatesModal(app: App, plugin: TickTickSync, projects: IProject[]) {
 		const myModal = new FoundDuplicateListsModal(app, plugin, projects, (result) => {

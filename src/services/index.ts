@@ -265,7 +265,7 @@ export class TickTickService {
 				// Move each task to the new project
 				for (const currentTask of tasks) {
 					try {
-						const task = await this.plugin.cacheOperation?.loadTaskFromCacheID(currentTask.taskId);
+						const task = await this.plugin.taskRepository.loadTaskById(currentTask.taskId);
 						if (task && task.projectId !== groupChange.newProjectId) {
 							// Update project in TickTick
 							await this.plugin.tickTickRestAPI?.moveTaskProject(
@@ -276,7 +276,7 @@ export class TickTickService {
 
 							// Update local cache
 							task.projectId = groupChange.newProjectId;
-							await this.plugin.cacheOperation?.updateTaskToCache(task, filePath, Date.now());
+							await this.plugin.taskRepository.upsertTask(task, filePath, Date.now());
 
 							log.debug(`Moved task ${task} to project ${groupChange.newProjectId}`);
 						}
@@ -403,7 +403,7 @@ export class TickTickService {
 				const allTaskIds = Array.from(new Set([...dbTaskIds, ...physicalTaskIds]));
 
 				for (const taskId of allTaskIds) {
-					const localTask = await this.cacheOperation?.loadLocalTaskFromCacheID(taskId);
+					const localTask = await this.plugin.taskRepository.loadLocalTaskById(taskId);
 					let taskObject = localTask?.task;
 
 					// Check if marked as deleted in DB
@@ -415,7 +415,7 @@ export class TickTickService {
 
 					if (localTask && (!localTask.lastVaultSync || localTask.lastVaultSync < localTask.updatedAt || !localTask.file)) {
 						log.debug(`Cleaning up sync timestamps for task ${taskId} in ${filepath}`);
-						await this.cacheOperation.updateTaskToCache(localTask.task, filepath, Date.now());
+						await this.plugin.taskRepository.upsertTask(localTask.task, filepath, Date.now());
 					}
 
 					if (!taskObject) {
@@ -429,7 +429,7 @@ export class TickTickService {
 									continue;
 								}
 								// If found, update cache and mark as synced to vault
-								await this.cacheOperation.updateTaskToCache(taskObject, filepath, Date.now());
+								await this.plugin.taskRepository.upsertTask(taskObject, filepath, Date.now());
 							}
 						} catch (error) {
 							if (error.message?.includes('404')) {
