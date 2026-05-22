@@ -451,7 +451,7 @@ export class TickTickRestAPI {
 
 		if (oldParentId) {
 			//Turns out TT does not adjust the parent's children. We have to do it.
-			const task = await this.plugin.cacheOperation.loadTaskFromCacheID(oldParentId);
+			const task = await this.plugin.taskRepository.loadTaskById(oldParentId);
 			// log.debug('childIds before filtering:', task?.childIds);
 			if (task?.childIds && task.childIds.length > 0) {
 				task.childIds = task.childIds.filter(id => id !== taskId);

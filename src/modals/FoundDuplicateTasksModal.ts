@@ -47,7 +47,7 @@ export class FoundDuplicateTasksModal extends Modal {
         const uniqueTaskIds = [...new Set(this.selections.map(s => s.taskId))];
         const taskMap = new Map<string, string>();
         await Promise.all(uniqueTaskIds.map(async (id) => {
-            const task = await this.plugin.cacheOperation.loadTaskFromCacheID(id);
+            const task = await this.plugin.taskRepository.loadTaskById(id);
             taskMap.set(id, task?.title);
         }));
 

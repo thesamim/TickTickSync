@@ -101,10 +101,10 @@ export class TaskModificationDetector {
 
 				// Handle parent-child relationship
 				if (currentTask.parentId) {
-					let parentTask = await this.plugin.cacheOperation?.loadTaskFromCacheID(currentTask.parentId);
+					let parentTask = await this.plugin.taskRepository.loadTaskById(currentTask.parentId);
 					parentTask = this.plugin.taskParser.addChildToParent(parentTask, currentTask.parentId);
 					parentTask = await this.plugin.tickTickRestAPI?.updateTask(parentTask);
-					await this.plugin.cacheOperation?.updateTaskToCache(parentTask, null, Date.now());
+					await this.plugin.taskRepository.upsertTask(parentTask, null, Date.now());
 				}
 
 				new Notice(`New task created: ${newTask.title} (ID: ${newTask.id})`);
@@ -112,7 +112,7 @@ export class TaskModificationDetector {
 				// If task was created as completed, close it in TickTick
 				if (currentTask.status != 0) {
 					await this.plugin.tickTickRestAPI?.CloseTask(newTask.id, newTask.projectId);
-					await this.plugin.cacheOperation?.closeTaskToCacheByID(newTask.id);
+					await this.plugin.taskRepository.closeTask(newTask.id);
 				}
 
 				// Preserve date holder (Obsidian-specific data)
@@ -128,7 +128,7 @@ export class TaskModificationDetector {
 				newTask.lineHash = await this.plugin.taskParser?.getLineHash(stringToHash);
 
 				// Save to database
-				await this.plugin.cacheOperation?.appendTaskToCache(newTask, fileMap.getFilePath());
+				await this.plugin.taskRepository.upsertTask(newTask, fileMap.getFilePath());
 				await this.plugin.saveSettings();
 
 			} catch (error) {
@@ -197,7 +197,7 @@ export class TaskModificationDetector {
 		}
 
 		// Get saved task from database
-		const savedTask = await this.plugin.cacheOperation?.loadTaskFromCacheID(taskId);
+		const savedTask = await this.plugin.taskRepository.loadTaskById(taskId);
 		if (!savedTask) {
 			//TODO: Erroneous task deletion might happen after a task move. If not handled before here, has to be handled here.
 			// Task in file but not in database - delete from file
@@ -224,10 +224,10 @@ export class TaskModificationDetector {
 
 			if (!moveCheck.moved && !parentChanged) {
 				// Task hasn't changed, ensure sync timestamps are current
-				const localTask = await this.plugin.cacheOperation?.loadLocalTaskFromCacheID(taskId);
+				const localTask = await this.plugin.taskRepository.loadLocalTaskById(taskId);
 				if (localTask && (!localTask.lastVaultSync || localTask.lastVaultSync < localTask.updatedAt || !localTask.file)) {
 					log.debug(`Updating sync timestamps for task ${taskId}`);
-					await this.plugin.cacheOperation?.updateTaskToCache(localTask.task, filepath, Date.now());
+					await this.plugin.taskRepository.upsertTask(localTask.task, filepath, Date.now());
 				}
 				return false;
 			}
@@ -239,7 +239,7 @@ export class TaskModificationDetector {
 		// Ensure task has required fields
 		if (!savedTask.dateHolder) {
 			this.plugin.dateMan?.addDateHolderToTask(savedTask, undefined);
-			await this.plugin.cacheOperation?.updateTaskToCache(savedTask, null, Date.now());
+			await this.plugin.taskRepository.upsertTask(savedTask, null, Date.now());
 		}
 		if (!savedTask.lineHash) {
 			savedTask.lineHash = newHash;
@@ -410,7 +410,7 @@ export class TaskModificationDetector {
 			updatedTask.lineHash = newHash;
 
 			const targetPath = modifications.projectMoved ? filepath : null;
-			await this.plugin.cacheOperation?.updateTaskToCache(updatedTask, targetPath, Date.now());
+			await this.plugin.taskRepository.upsertTask(updatedTask, targetPath, Date.now());
 			modified = true;
 
 			this.notifyUserOfChanges(taskId, modifications);
@@ -419,7 +419,7 @@ export class TaskModificationDetector {
 		// Update hash even if no API call was made
 		if (!modified && newHash !== savedTask.lineHash) {
 			lineTask.lineHash = newHash;
-			await this.plugin.cacheOperation?.updateTaskToCache(lineTask, null, Date.now());
+			await this.plugin.taskRepository.upsertTask(lineTask, null, Date.now());
 		}
 
 		return modified;
@@ -506,8 +506,8 @@ export class TaskModificationDetector {
 	private async handleParentChange(lineTask: ITask, savedTask: ITask, taskId: string): Promise<void> {
 		await this.plugin.tickTickRestAPI?.moveTaskParent(taskId, savedTask.parentId, lineTask.parentId, lineTask.projectId);
 
-		const oldParent = await this.plugin.cacheOperation?.loadTaskFromCacheID(savedTask.parentId);
-		const newParent = await this.plugin.cacheOperation?.loadTaskFromCacheID(lineTask.parentId);
+		const oldParent = await this.plugin.taskRepository.loadTaskById(savedTask.parentId);
+		const newParent = await this.plugin.taskRepository.loadTaskById(lineTask.parentId);
 
 		const message = `Task ${taskId} parent changed from "${oldParent?.title || 'none'}" to "${newParent?.title || 'none'}"`;
 		new Notice(message, 5000);
@@ -520,10 +520,10 @@ export class TaskModificationDetector {
 	private async handleStatusChange(lineTask: ITask): Promise<void> {
 		if (lineTask.status != 0) {
 			await this.plugin.tickTickRestAPI?.CloseTask(lineTask.id, lineTask.projectId);
-			await this.plugin.cacheOperation?.closeTaskToCacheByID(lineTask.id);
+			await this.plugin.taskRepository.closeTask(lineTask.id);
 		} else {
 			await this.plugin.tickTickRestAPI?.OpenTask(lineTask.id, lineTask.projectId);
-			await this.plugin.cacheOperation?.reopenTaskToCacheByID(lineTask.id);
+			await this.plugin.taskRepository.reopenTask(lineTask.id);
 		}
 		new Notice(`Task ${lineTask.id} status updated`);
 	}
@@ -581,7 +581,7 @@ export class TaskModificationDetector {
 		let modified = false;
 
 		const newItem = this.plugin.taskParser?.taskFromLine(lineText);
-		const parentTask = await this.plugin.cacheOperation?.loadTaskFromCacheID(parentID);
+		const parentTask = await this.plugin.taskRepository.loadTaskById(parentID);
 
 		if (parentTask && parentTask.items) {
 			if (itemId) {
@@ -643,7 +643,7 @@ export class TaskModificationDetector {
 			try {
 				const updatedTask = await this.plugin.tickTickRestAPI?.updateTask(parentTask);
 				if (updatedTask) {
-					await this.plugin.cacheOperation?.updateTaskToCache(updatedTask, null, Date.now());
+					await this.plugin.taskRepository.upsertTask(updatedTask, null, Date.now());
 				}
 			} catch (error) {
 				log.error('Error updating parent task:', error);
@@ -664,16 +664,27 @@ export class TaskModificationDetector {
 		line: number | null,
 		fileMap: FileMap
 	): Promise<void> {
+		const newTaskCopy = { ...newTask };
+		newTaskCopy.items = [];
+
 		const numTabs = this.plugin.taskParser.getNumTabs(lineTxt);
-		const decoratedText = await this.plugin.taskParser?.convertTaskToLine(newTask, numTabs);
+		const decoratedText = await this.plugin.taskParser?.convertTaskToLine(newTaskCopy, numTabs);
 		log.warn('updateTaskLineInFile:', decoratedText);
 
 		try {
-			await fileMap.modifyTask(decoratedText, line);
+			if (editor && cursor) {
+				const from = { line: cursor.line, ch: 0 };
+				const to = { line: cursor.line, ch: lineTxt.length };
+				editor.replaceRange(decoratedText, from, to);
+			} else if (line !== null) {
+				fileMap.modifyTask(decoratedText, line);
+				const file = this.app.vault.getAbstractFileByPath(fileMap.getFilePath());
+				if (file instanceof TFile) {
+					await this.app.vault.modify(file, fileMap.getFileLines());
+				}
+			}
 		} catch (error) {
 			log.error('Error updating task line in file:', error);
 		}
-
-
 	}
 }

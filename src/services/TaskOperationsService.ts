@@ -33,7 +33,7 @@ export class TaskOperationsService {
 	 */
 	async closeTask(taskId: string): Promise<void> {
 		try {
-			const projectId = await this.plugin.cacheOperation?.closeTaskToCacheByID(taskId);
+			const projectId = await this.plugin.taskRepository.closeTask(taskId);
 			await this.plugin.tickTickRestAPI?.CloseTask(taskId, projectId);
 			await this.plugin.saveSettings();
 			new Notice(`Task ${taskId} is closed.`);
@@ -48,7 +48,7 @@ export class TaskOperationsService {
 	 */
 	async reopenTask(taskId: string): Promise<void> {
 		try {
-			const projectId = await this.plugin.cacheOperation?.reopenTaskToCacheByID(taskId);
+			const projectId = await this.plugin.taskRepository.reopenTask(taskId);
 			await this.plugin.tickTickRestAPI?.OpenTask(taskId, projectId);
 			await this.plugin.fileOperation.uncompleteTaskInTheFile(taskId);
 			await this.plugin.saveSettings();
@@ -86,7 +86,7 @@ export class TaskOperationsService {
 				// Cache the title without the URL (for content comparison)
 				if (updatedTask) {
 					updatedTask.title = await this.plugin.taskParser?.stripOBSUrl(updatedTask.title);
-					await this.plugin.cacheOperation?.updateTaskToCache(updatedTask, null, Date.now());
+					await this.plugin.taskRepository.upsertTask(updatedTask, null, Date.now());
 				}
 			}
 
@@ -120,7 +120,7 @@ export class TaskOperationsService {
 				    this.plugin.taskParser?.hasTickTickTag(lineText)) {
 
 					const taskId = this.plugin.taskParser.getTickTickId(lineText);
-					const savedTask = await this.plugin.cacheOperation.loadTaskFromCacheID(taskId);
+					const savedTask = await this.plugin.taskRepository.loadTaskById(taskId);
 
 					if (taskId && savedTask) {
 						// Update modification time to force sync
@@ -143,7 +143,7 @@ export class TaskOperationsService {
 						const updatedTask = await this.plugin.tickTickRestAPI?.updateTask(lineTask) as ITask;
 
 						// Update in database
-						await this.plugin.cacheOperation?.updateTaskToCache(updatedTask, null, Date.now());
+						await this.plugin.taskRepository.upsertTask(updatedTask, null, Date.now());
 					}
 				}
 			}
@@ -162,7 +162,7 @@ export class TaskOperationsService {
 		try {
 			for (const taskId of taskIds) {
 				await this.plugin.fileOperation.completeTaskInTheFile(taskId);
-				await this.plugin.cacheOperation?.closeTaskToCacheByID(taskId);
+				await this.plugin.taskRepository.closeTask(taskId);
 				new Notice(`Task ${taskId} is closed.`);
 			}
 
@@ -180,7 +180,7 @@ export class TaskOperationsService {
 		try {
 			for (const taskId of taskIds) {
 				await this.plugin.fileOperation.uncompleteTaskInTheFile(taskId);
-				await this.plugin.cacheOperation?.reopenTaskToCacheByID(taskId);
+				await this.plugin.taskRepository.reopenTask(taskId);
 				new Notice(`Task ${taskId} is reopened.`);
 			}
 
@@ -230,7 +230,7 @@ export class TaskOperationsService {
 
 			// Update in database
 			task.projectId = newProjectId;
-			await this.plugin.cacheOperation?.updateTaskToCache(task, foundInAnotherFile);
+			await this.plugin.taskRepository.upsertTask(task, foundInAnotherFile);
 			await this.plugin.tickTickRestAPI?.updateTask(task);
 
 			log.debug(`Moved task ${task.id} from project ${oldProjectId} to ${newProjectId}`);
@@ -245,7 +245,7 @@ export class TaskOperationsService {
 	 */
 	async moveTaskToParent(taskId: string, newParentId: string | undefined, projectId: string): Promise<void> {
 		try {
-			const task = await this.plugin.cacheOperation?.loadTaskFromCacheID(taskId);
+			const task = await this.plugin.taskRepository.loadTaskById(taskId);
 			if (!task) {
 				throw new Error(`Task ${taskId} not found`);
 			}
@@ -255,7 +255,7 @@ export class TaskOperationsService {
 
 			// Update in database
 			task.parentId = newParentId;
-			await this.plugin.cacheOperation?.updateTaskToCache(task, null, Date.now());
+			await this.plugin.taskRepository.upsertTask(task, null, Date.now());
 
 			log.debug(`Moved task ${taskId} from parent ${oldParentId} to ${newParentId}`);
 		} catch (error) {
@@ -287,7 +287,7 @@ export class TaskOperationsService {
 	 */
 	async updateTaskPriority(taskId: string, priority: number): Promise<void> {
 		try {
-			const task = await this.plugin.cacheOperation?.loadTaskFromCacheID(taskId);
+			const task = await this.plugin.taskRepository.loadTaskById(taskId);
 			if (!task) {
 				throw new Error(`Task ${taskId} not found`);
 			}
@@ -296,7 +296,7 @@ export class TaskOperationsService {
 			const updatedTask = await this.plugin.tickTickRestAPI?.updateTask(task);
 
 			if (updatedTask) {
-				await this.plugin.cacheOperation?.updateTaskToCache(updatedTask, null, Date.now());
+				await this.plugin.taskRepository.upsertTask(updatedTask, null, Date.now());
 			}
 
 			log.debug(`Updated priority for task ${taskId} to ${priority}`);
@@ -311,7 +311,7 @@ export class TaskOperationsService {
 	 */
 	async addTagsToTask(taskId: string, tags: string[]): Promise<void> {
 		try {
-			const task = await this.plugin.cacheOperation?.loadTaskFromCacheID(taskId);
+			const task = await this.plugin.taskRepository.loadTaskById(taskId);
 			if (!task) {
 				throw new Error(`Task ${taskId} not found`);
 			}
@@ -324,7 +324,7 @@ export class TaskOperationsService {
 			const updatedTask = await this.plugin.tickTickRestAPI?.updateTask(task);
 
 			if (updatedTask) {
-				await this.plugin.cacheOperation?.updateTaskToCache(updatedTask, null, Date.now());
+				await this.plugin.taskRepository.upsertTask(updatedTask, null, Date.now());
 			}
 
 			log.debug(`Added tags to task ${taskId}:`, tags);
@@ -339,7 +339,7 @@ export class TaskOperationsService {
 	 */
 	async removeTagsFromTask(taskId: string, tags: string[]): Promise<void> {
 		try {
-			const task = await this.plugin.cacheOperation?.loadTaskFromCacheID(taskId);
+			const task = await this.plugin.taskRepository.loadTaskById(taskId);
 			if (!task) {
 				throw new Error(`Task ${taskId} not found`);
 			}
@@ -351,7 +351,7 @@ export class TaskOperationsService {
 			const updatedTask = await this.plugin.tickTickRestAPI?.updateTask(task);
 
 			if (updatedTask) {
-				await this.plugin.cacheOperation?.updateTaskToCache(updatedTask, null, Date.now());
+				await this.plugin.taskRepository.upsertTask(updatedTask, null, Date.now());
 			}
 
 			log.debug(`Removed tags from task ${taskId}:`, tags);
