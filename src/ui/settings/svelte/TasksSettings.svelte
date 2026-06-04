@@ -13,6 +13,8 @@
 	let syncNotes: boolean;
 	let keepProjectFolders: boolean;
 	let linkBehaviorOptions: Record<string, string> = LINK_BEHAVIOR;
+	let showKeepFoldersModal = false;
+	let modalWorking = false;
 
 	function setIsWorking(value: boolean) {
 		isWorking = value;
@@ -20,6 +22,22 @@
 
 	let resetTasksText: string = '';
 	$: resetTasksText = 'Update Tasks in TickTick and Obsidian?';
+
+	async function confirmKeepFoldersChange() {
+		modalWorking = true;
+		try {
+			await plugin.reorganizeFilesToFolders();
+		} catch (error) {
+			console.error('Error reorganizing files:', error);
+		} finally {
+			showKeepFoldersModal = false;
+			modalWorking = false;
+		}
+	}
+
+	function closeKeepFoldersModal() {
+		if (!modalWorking) showKeepFoldersModal = false;
+	}
 
 	// Use store subscription for values, and mirror them for form controls
 	$: fileLinksInTickTick = $settingsStore.fileLinksInTickTick;
@@ -52,29 +70,47 @@
 		await plugin.saveSettings();
 		
 		if (checked) {
-			// Offer to reorganize existing files
-			//todo: put up confirmation dialog same as other dialogs.
-			const shouldReorganize = confirm(
-				'Would you like to reorganize existing task files into folders now?\n\n' +
-				'This will move plugin-managed files to match your TickTick folder structure.\n' +
-				'Files without a default project will not be moved.'
-			);
-			
-			if (shouldReorganize) {
-				setIsWorking(true);
-				try {
-					await plugin.reorganizeFilesToFolders();
-				} catch (error) {
-					console.error('Error reorganizing files:', error);
-				} finally {
-					setIsWorking(false);
-				}
-			}
+			showKeepFoldersModal = true;
 		}
 	}
 </script>
 <div class="{isWorking ? 'wait-cursor' : 'default-cursor'}">
-	{#if !syncNotes}
+	{#if showKeepFoldersModal}
+	<div
+		class="local-modal-backdrop"
+		on:click={modalWorking ? undefined : closeKeepFoldersModal}
+		style={modalWorking ? 'cursor: wait;' : ''}
+	></div>
+	<div
+		class="local-modal-dialog"
+		role="dialog"
+		aria-modal="true"
+		style={modalWorking ? 'cursor: wait;' : ''}
+	>
+		<div class="local-modal-content">
+			<h2>Reorganize Files?</h2>
+			<p>Would you like to reorganize existing task files into folders now?</p>
+			<p>This will move plugin-managed files to match your TickTick folder structure.</p>
+			<p style="color:var(--text-warning);"><em>Files without a default project will not be moved.</em></p>
+			<div class="local-modal-actions">
+				<button class="mod-cta"
+					on:click={confirmKeepFoldersChange}
+					disabled={modalWorking}>
+					{modalWorking ? 'Reorganizing...' : 'Yes, reorganize'}
+				</button>
+				<button
+					style="margin-left:1em;"
+					on:click={closeKeepFoldersModal}
+					disabled={modalWorking}
+				>
+					No, cancel
+				</button>
+			</div>
+		</div>
+	</div>
+{/if}
+
+{#if !syncNotes}
 		<div class="setting-item-info">
 			<hr>
 			<div class="setting-item-name">Notice:</div>

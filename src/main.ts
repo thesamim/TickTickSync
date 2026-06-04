@@ -8,7 +8,8 @@ import { MarkdownView, Notice, Plugin, TFolder } from 'obsidian';
 import {
 	DEFAULT_SETTINGS,
 	getSettings,
-	updateSettings
+	updateSettings,
+	mergeDeviceLists
 } from './settings';
 
 import { TickTickService } from '@/services';
@@ -158,14 +159,32 @@ export default class TickTickSync extends Plugin {
 
 	async saveSettings() {
 		try {
-			const settings = getSettings();
+			const inMemorySettings = getSettings();
 			// Verify that the setting exists and is not empty
-			if (settings && Object.keys(settings).length > 0) {
-				const settingsToSave = { ...settings };
+			if (inMemorySettings && Object.keys(inMemorySettings).length > 0) {
+				const settingsToSave = { ...inMemorySettings };
 				// Large data is now in Dexie only
 				delete (settingsToSave as any).fileMetadata;
 				delete (settingsToSave as any).TickTickTasksData;
-				
+
+				// Defensive merge: on-disk data.json may have been updated by
+				// another device via Obsidian Sync. Merge devices so that entries
+				// added by other instances are not lost on the next persist.
+				try {
+					const onDiskData = await this.loadData();
+					if (onDiskData?.devices && Array.isArray(onDiskData.devices)) {
+						const merged = mergeDeviceLists(
+							onDiskData.devices,
+							settingsToSave.devices || []
+						);
+						settingsToSave.devices = merged;
+						// Sync module-level settings so getSettings() reflects the merge
+						getSettings().devices = merged;
+					}
+				} catch (e) {
+					log.warn('Could not read on-disk settings for device merge', e);
+				}
+
 				await this.saveData(settingsToSave);
 			} else {
 				log.warn('Settings are empty or invalid, not saving to avoid data loss.');
@@ -474,61 +493,24 @@ export default class TickTickSync extends Plugin {
 		//Used for testing adhoc code.
 		const ribbonIconEl1 = this.addRibbonIcon('check', 'TTS Test', async (evt: MouseEvent) => {
 			// Nothing to see here right now.
-			// const foo = await this.tickTickRestAPI?.api?.getUserStatus()
-			// log.debug(foo)
-			// log.debug("AppID", this.app.appId);
-			// log.debug("HostName", await this.getDefaultDeviceName())
-
-			// const taskTitle = "Test Task" + await this.getDefaultDeviceName() + new Date().getTime() ;
-			// const task1: ITask = {title: taskTitle,"projectId": "693c8f5c8f084d2444217218",				"tags": [
-			// 		"ticktick",
-			// 		"ohlook1"
-			// 	] }
-			// const task2: ITask = {
-			// 	"projectId": "693c8f5c8f084d2444217218",
-			// 	"sortOrder": -7696581394433,
-			// 	"title": "One Task",
-			// 	"content": "With a brand new note.",
-			// 	"desc": "",
-			// 	"timeZone": "America/Chicago",
-			// 	"isFloating": false,
-			// 	"isAllDay": true,
-			// 	"reminder": "",
-			// 	"reminders": [],
-			// 	"exDate": [],
-			// 	"priority": 0,
-			// 	"status": 0,
-			// 	"items": [],
-			// 	"progress": 0,
-			// 	"modifiedTime": "2025-12-17T20:29:54.000+0000",
-			// 	"etag": "5uon5d06",
-			// 	"deleted": 0,
-			// 	"createdTime": "2025-10-18T14:09:25.547+0000",
-			// 	"creator": 122979062,
-			// 	"tags": [
-			// 		"ticktick",
-			// 		"ohlook1"
-			// 	],
-			// 	"childIds": [],
-			// 	"kind": "TEXT"
-			// }
-			//
-			// await upsertLocalTask(task1, {file: "", deviceId: "6b2c97e2-95b8-4a7a-9bbc-d93783b7bd25", source: "obsidian"} );
-			// // await upsertLocalTask(task2, {file: "", deviceId: "6b2c97e2-95b8-4a7a-9bbc-d93783b7bd25", source: "obsidian"} );
-			//
-			// if (this.tickTickRestAPI) {
-			// 	await syncTickTickWithDexie(this.tickTickRestAPI);
-			// }
-			// const tasks = await getTasksByLabel('#ohlook1');
-			// log.debug('Labeled Tasks are: ', tasks.map(t => ({ id: t.task.id, title: t.task.title })));
-
-
 			const vaultId = this.app.vault.getName();
 			log.debug(`Vault ID: ${vaultId}`);
 			this.dumpDB();
+		});
 
-
-
+		//Used for testing adhoc code.
+		const ribbonIconEl2 = this.addRibbonIcon('dice', 'TTS Test 2', async (evt: MouseEvent) => {
+			// Nothing to see here right now.
+			for (const file of this.app.vault.getMarkdownFiles()) {
+				if (file.path.includes("List 1")) {
+					const fileMap = new FileMap(this.app, this, file);
+					await fileMap.init();
+					const taskRecord = fileMap.getTaskRecord("6a08733c9086963234d145a5")
+					const taskItems = fileMap.getTaskItems("6a08733c9086963234d145a5")
+					log.debug("record", taskRecord)
+					log.debug("items", taskItems)
+				}
+			}
 		});
 
 

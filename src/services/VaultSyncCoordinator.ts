@@ -41,16 +41,16 @@ export class VaultSyncCoordinator {
 		const fileGroups: Map<string, { toAdd: ITask[], toUpdate: ITask[], toDelete: ITask[] }> = new Map();
 		const dbUpdates: { localId: string, changes: Partial<LocalTask> }[] = [];
 		const projectIdToFilepathCache: Map<string, string> = new Map();
+		const movedTaskIds: Set<string> = new Set();
 
 		// Categorize tasks by their target file and action needed
 		for (const lt of tasks) {
 			const task = lt.task;
 			const matchesFilter = this.matchesFilter(task, syncTag, syncProject, andOr);
 
-			let targetFile = lt.file;
-			if (!targetFile && matchesFilter && !lt.deleted) {
-				targetFile = await this.determineTargetFile(task, projectIdToFilepathCache);
-			}
+			let targetFile = matchesFilter && !lt.deleted
+				? await this.determineTargetFile(task, projectIdToFilepathCache)
+				: lt.file;
 
 			if (!targetFile) continue;
 
@@ -76,6 +76,8 @@ export class VaultSyncCoordinator {
 				} else if (actionNeeded.action === 'move') {
 					// Task moved to a different file (project change)
 					const oldFile = lt.file!;
+					const taskId = task.id || (task as any).taskId;
+					movedTaskIds.add(taskId);
 					if (!fileGroups.has(oldFile)) {
 						fileGroups.set(oldFile, { toAdd: [], toUpdate: [], toDelete: [] });
 					}
@@ -95,7 +97,7 @@ export class VaultSyncCoordinator {
 		log.debug("VaultSync: File groups prepared", { fileCount: fileGroups.size });
 
 		// Handle deletions with user confirmation
-		const proceedWithDeletions = await this.confirmDeletions(fileGroups);
+		const proceedWithDeletions = await this.confirmDeletions(fileGroups, movedTaskIds);
 
 		// Process each file group
 		await this.processFileGroups(fileGroups, proceedWithDeletions, tasks, dbUpdates);
@@ -240,11 +242,17 @@ export class VaultSyncCoordinator {
 	 * Confirm deletions with the user
 	 */
 	private async confirmDeletions(
-		fileGroups: Map<string, { toAdd: ITask[], toUpdate: ITask[], toDelete: ITask[] }>
+		fileGroups: Map<string, { toAdd: ITask[], toUpdate: ITask[], toDelete: ITask[] }>,
+		movedTaskIds: Set<string> = new Set()
 	): Promise<boolean> {
 		const tasksToConfirmDeletionIds: string[] = [];
 		for (const group of fileGroups.values()) {
-			tasksToConfirmDeletionIds.push(...group.toDelete.map(t => (t.id || (t as any).taskId)));
+			for (const task of group.toDelete) {
+				const id = task.id || (task as any).taskId;
+				if (!movedTaskIds.has(id)) {
+					tasksToConfirmDeletionIds.push(id);
+				}
+			}
 		}
 
 		if (tasksToConfirmDeletionIds.length === 0) {

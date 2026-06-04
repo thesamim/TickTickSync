@@ -12,19 +12,32 @@ import type { DeviceInfo } from '@/settings';
 type MetaRow = SyncMeta & { key: "sync" };
 
 /**
- * Track a device in the settings devices array if not already present
+ * Track a device in the settings devices array if not already present.
+ * Ensures at most one entry per deviceLabel to prevent duplicates when
+ * IndexedDB is lost and a new deviceId is generated for the same device.
  */
 function trackDeviceInSettings(deviceId: string, deviceLabel: string): void {
 	const settings = getSettings();
 	const existing = settings.devices.find(d => d.deviceId === deviceId);
 
 	if (!existing) {
-		// Add new device
-		updateSettings({
-			devices: [...settings.devices, { deviceId, deviceLabel }]
-		});
+		// No entry with this deviceId. Check if an entry with this label
+		// already exists (from a prior deviceId after IndexedDB loss).
+		const labelMatch = settings.devices.find(d => d.deviceLabel === deviceLabel);
+		if (labelMatch) {
+			updateSettings({
+				devices: settings.devices.map(d =>
+					d.deviceLabel === deviceLabel
+						? { deviceId, deviceLabel }
+						: d
+				)
+			});
+		} else {
+			updateSettings({
+				devices: [...settings.devices, { deviceId, deviceLabel }]
+			});
+		}
 	} else if (existing.deviceLabel !== deviceLabel) {
-		// Update device label if changed
 		updateSettings({
 			devices: settings.devices.map(d =>
 				d.deviceId === deviceId ? { deviceId, deviceLabel } : d
