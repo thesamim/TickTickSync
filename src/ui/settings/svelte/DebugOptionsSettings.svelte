@@ -14,13 +14,6 @@
 	let debugString = '';
 	let copyStatus = '';
 
-	async function handleDebugModeChange(event: Event) {
-		const checked = (event.target as HTMLInputElement).checked;
-		debugMode = checked;
-		updateSettings({ debugMode: checked });
-		await plugin.saveSettings();
-	}
-
 	onMount(async () => {
 		debugMode = getSettings().debugMode;
 	});
@@ -31,7 +24,7 @@
 		const fileMetaData = await plugin.cacheOperation.getFileMetadatas();
 		const fmdData = [];
 		for (const file in fileMetaData) {
-			const numFiles = fileMetaData[file].TickTickTasks? fileMetaData[file].TickTickTasks.length: "TickTickTasks not found" ;
+			const numFiles = fileMetaData[file].TickTickTasks ? fileMetaData[file].TickTickTasks.length : 'TickTickTasks not found';
 			fmdData.push(`${file}, ${numFiles}`);
 		}
 
@@ -75,7 +68,7 @@
 
 	async function generateDebug() {
 		let debugInfo = await generateDebugInfoSubset();
-		debugString = "```\n" + JSON.stringify(debugInfo, null, 2) + "\n```";
+		debugString = '```\n' + JSON.stringify(debugInfo, null, 2) + '\n```';
 		showDebugInfo = true;
 		log.debug(debugString);
 	}
@@ -106,7 +99,9 @@
 					bind:checked={debugMode}
 					on:change={async () => {
 							const logLevel = getSettings().logLevel;
-							updateSettings({ debugMode: debugMode , logLevel: debugMode ? logLevel : 'info'});
+							const newLevel = debugMode ? logLevel : 'info';
+							updateSettings({ debugMode: debugMode , logLevel: newLevel});
+							log.setLevel(newLevel);
 							await plugin.saveSettings();
 					  }}
 				/>
@@ -151,9 +146,9 @@
 		<div style="margin-top: 1em;">
     <textarea
 		readonly
-		rows="10"
-		style="width:100%;"
-		bind:value={debugString}
+	    rows="10"
+	    style="width:100%;"
+	    bind:value={debugString}
 	></textarea>
 			<div style="display:flex; align-items:center; gap: 1em; margin-top: 0.5em;">
 				<button on:click={copyToClipboard}>Copy to clipboard</button>

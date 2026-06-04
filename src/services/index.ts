@@ -581,6 +581,9 @@ export class TickTickService {
 
 		//Now do the task checking.
 		await doWithLock(LOCK_TASKS, async () => {
+			// Phase 1: Process new tasks and modifications for all files first.
+			// This detects and handles task moves (updating the DB file field),
+			// so deletions in Phase 2 won't see moved tasks as "missing".
 			for (const fileKey in newFilesToSync) {
 				if (getSettings().debugMode) {
 					log.debug(fileKey);
@@ -595,7 +598,6 @@ export class TickTickService {
 				}
 
 				try {
-					//NEW: Use TaskModificationDetector
 					await this.plugin.taskModificationDetector.checkFileForNewTasks(fileKey);
 				} catch (error) {
 					log.error('An error occurred in fullTextNewTaskCheck:', error);
@@ -606,9 +608,13 @@ export class TickTickService {
 				} catch (error) {
 					log.error('An error occurred in fullTextModifiedTaskCheck:', error);
 				}
+			}
 
+			// Phase 2: Process deletions for all files.
+			// Moved tasks already have updated file paths, so they won't be
+			// detected as deleted from their old file.
+			for (const fileKey in newFilesToSync) {
 				try {
-					//NEW: Use TaskDeletionHandler
 					await this.plugin.taskDeletionHandler.checkFileForDeletedTasks(fileKey);
 				} catch (error) {
 					log.error('An error occurred in deletedTaskCheck:', error);

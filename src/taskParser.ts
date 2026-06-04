@@ -442,7 +442,7 @@ export class TaskParser {
 				textContent = descriptionStrings.length > 0 ? descriptionStrings.join('\n') : '';
 			}
 		}
-		log.warn('Text Content in GetNoteString', textContent);
+		// log.warn('Text Content in GetNoteString', textContent);
 		return textContent;
 	}
 
