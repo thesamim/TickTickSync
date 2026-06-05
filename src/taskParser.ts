@@ -4,6 +4,7 @@ import type { ITask, ITaskItem } from '@/api/types/Task';
 import { getSettings } from '@/settings';
 import { sha256 } from 'crypto-hash';
 import type { FileMap, ITaskRecord } from '@/services/fileMap';
+import { tasksTextToRRule, rruleToTasksText } from '@/utils/RecurrenceConverter';
 import log from '@/utils/logger';
 
 const priorityEmojis = ['⏬', '🔽', '🔼', '⏫', '🔺'];
@@ -29,9 +30,9 @@ const keywords = {
 	TIME: '⌚',
 	TASK_DUE_DATE: '📅',
 	TASK_COMPLETE: '✅',
-	ALL_TASK_EMOJI: '➕|⏳|🛫|📅|✅|❌',
+	RECURRENCE: '🔁',
+	ALL_TASK_EMOJI: '➕|⏳|🛫|📅|✅|❌|🔁',
 	// priorityIcons: "⏬|🔽|🔼|⏫|🔺",
-	// priority: `\s([${priorityEmojis.toString()}])\s`
 	priority: `\\s([\u{23EC}\u{1F53D}\u{1F53C}\u{23EB}\u{1F53A}])\\s`
 };
 
@@ -99,6 +100,7 @@ export const REGEX = {
 		REMOVE_DATE: new RegExp(due_date_strip_regex, 'gmu'),
 		REMOVE_COMPLETION_DATE: new RegExp(completion_date_strip_regex, 'gmu'),
 		REMOVE_INLINE_METADATA: /%%\[\w+::\s*\w+\]%%/g,
+		REMOVE_RECURRENCE: /🔁\s+[^🔁➕⏳🛫📅✅❌\n]+/gu,
 		REMOVE_CHECKBOX: /^(-|\*)\s+\[(x|X| )\]\s/,
 		REMOVE_CHECKBOX_WITH_INDENTATION: /^([ \t]*)?(-|\*)\s+\[(x|X| )\]\s/,
 		REMOVE_TickTick_LINK: /\[link\]\(.*?\)/
@@ -110,6 +112,7 @@ export const REGEX = {
 	TASK_PRIORITY: new RegExp(keywords.priority),
 	priorityRegex: /^.*([🔺⏫🔼🔽⏬]).*$/u,
 	BLANK_LINE: /^\s*$/,
+	RECURRENCE_RULE: /🔁\s+([^🔁➕⏳🛫📅✅❌]+?)(?=\s*[➕⏳🛫📅✅❌]|\s*$)/u,
 	TickTick_EVENT_DATE: /(\d{4})-(\d{2})-(\d{2})/,
 	ITEM_LINE: /\[(.*?)\]\s*(.*?)\s*%%(.*?)%%/,
 	LINE_ITEM_ID: /%%(?!\[ticktick_id::\s)[a-f0-9]{24}%%/g
@@ -150,6 +153,15 @@ export class TaskParser {
 
 		//add priority
 		resultLine = this.addPriorityToLine(resultLine, task);
+
+		//add recurrence
+		if (task.repeatFlag) {
+			const recurrenceText = rruleToTasksText(task.repeatFlag);
+			if (recurrenceText) {
+				const suffix = task.repeatFrom === 'completedDate' ? ' when done' : '';
+				resultLine += ` ${keywords.RECURRENCE} ${recurrenceText}${suffix}`;
+			}
+		}
 
 		//add dates
 		resultLine = this.plugin.dateMan?.addDatesToLine(resultLine, task);
@@ -199,6 +211,7 @@ export class TaskParser {
 		let taskContent = lineText.replace(REGEX.TASK_CONTENT.REMOVE_INLINE_METADATA, '')
 			.replace(REGEX.TASK_CONTENT.REMOVE_TickTick_LINK, '')
 			.replace(REGEX.TASK_CONTENT.REMOVE_PRIORITY, '')
+			.replace(REGEX.TASK_CONTENT.REMOVE_RECURRENCE, '')
 			.replace(REGEX.TASK_CONTENT.REMOVE_TAGS, ' ')
 			.replace(REGEX.TASK_CONTENT.REMOVE_CHECKBOX, '')
 			.replace(REGEX.TASK_CONTENT.REMOVE_CHECKBOX_WITH_INDENTATION, '')
@@ -242,6 +255,9 @@ export class TaskParser {
 		const TickTick_id = this.getTickTickId(textWithoutIndentation);
 
 		const allDatesStruct = this.plugin.dateMan?.parseDates(textWithoutIndentation);
+
+		const recurrenceMatch = textWithoutIndentation.match(REGEX.RECURRENCE_RULE);
+		const recurrenceResult = recurrenceMatch ? tasksTextToRRule(recurrenceMatch[1]) : null;
 
 		let taskRecord: ITaskRecord;
 
@@ -336,6 +352,8 @@ export class TaskParser {
 			modifiedTime: this.plugin.dateMan?.formatDateToISO(new Date()) || '',
 			status: isCompleted ? 2 : 0, //Status: 0 is no completed. Anything else is completed.
 			timeZone: timeZone,
+			repeatFlag: recurrenceResult?.repeatFlag || '',
+			repeatFrom: recurrenceResult?.repeatFrom,
 			dateHolder: allDatesStruct //Assume that there's a dateStruct of some kind
 		};
 
