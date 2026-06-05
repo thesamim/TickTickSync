@@ -136,7 +136,7 @@ export class TaskRepository {
 					source: "obsidian",
 					lastVaultSync: filepath ? now : undefined
 				};
-				await db.tasks.add(newLocalTask);
+				await db.tasks.put(newLocalTask);
 			}
 		} catch (error) {
 			log.error(`Error upserting task ${task.id}:`, error);

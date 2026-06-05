@@ -10,7 +10,7 @@ vi.mock('@/db/dexie', () => ({
 		tasks: {
 			where: vi.fn(),
 			toArray: vi.fn(),
-			add: vi.fn(),
+			put: vi.fn(),
 			update: vi.fn(),
 			count: vi.fn(),
 		},
@@ -239,11 +239,11 @@ describe('TaskRepository', () => {
 				}),
 			});
 
-			(db.tasks.add as any).mockResolvedValue('local123');
+			(db.tasks.put as any).mockResolvedValue('local123');
 
 			await repository.upsertTask(newTask, 'test.md', Date.now());
 
-			expect(db.tasks.add).toHaveBeenCalledWith(
+			expect(db.tasks.put).toHaveBeenCalledWith(
 				expect.objectContaining({
 					localId: 'tt:task123',
 					taskId: 'task123',
