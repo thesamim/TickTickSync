@@ -405,6 +405,19 @@ export class TaskModificationDetector {
 		if (this.hasContentChanges(modifications)) {
 			savedTask.modifiedTime = this.plugin.dateMan?.formatDateToISO(new Date());
 			const saveDateHolder = lineTask.dateHolder;
+			// Preserve reminder fields from saved task when line task lacks them
+			if ((!lineTask.reminders || lineTask.reminders.length === 0) && savedTask.reminders?.length) {
+				lineTask.reminders = savedTask.reminders;
+			}
+			if (!lineTask.reminder && savedTask.reminder) {
+				lineTask.reminder = savedTask.reminder;
+			}
+			if (!lineTask.remindTime && savedTask.remindTime) {
+				lineTask.remindTime = savedTask.remindTime;
+			}
+			if (!lineTask.repeatFlag && savedTask.repeatFlag) {
+				lineTask.repeatFlag = savedTask.repeatFlag;
+			}
 			const updatedTask = await this.plugin.tickTickRestAPI?.updateTask(lineTask) as ITask;
 			updatedTask.dateHolder = saveDateHolder;
 			updatedTask.lineHash = newHash;

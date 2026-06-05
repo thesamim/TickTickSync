@@ -102,6 +102,20 @@ export class TaskRepository {
 			const deviceId = getCurrentDeviceInfo()?.deviceId || "unknown";
 
 			if (existingTask) {
+				// Preserve reminder fields from the existing task if the incoming task lacks them
+				if ((!task.reminders || task.reminders.length === 0) && existingTask.task.reminders?.length) {
+					task.reminders = existingTask.task.reminders;
+				}
+				if (!task.reminder && existingTask.task.reminder) {
+					task.reminder = existingTask.task.reminder;
+				}
+				if (!task.remindTime && existingTask.task.remindTime) {
+					task.remindTime = existingTask.task.remindTime;
+				}
+				if (!task.repeatFlag && existingTask.task.repeatFlag) {
+					task.repeatFlag = existingTask.task.repeatFlag;
+				}
+
 				// Update existing
 				await db.tasks.update(existingTask.localId, {
 					task: task,
