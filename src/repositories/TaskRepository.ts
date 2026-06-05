@@ -112,9 +112,10 @@ export class TaskRepository {
 				if (!task.remindTime && existingTask.task.remindTime) {
 					task.remindTime = existingTask.task.remindTime;
 				}
-				if (!task.repeatFlag && existingTask.task.repeatFlag) {
-					task.repeatFlag = existingTask.task.repeatFlag;
-				}
+			if (!task.repeatFlag && existingTask.task.repeatFlag) {
+				task.repeatFlag = existingTask.task.repeatFlag;
+				task.repeatFrom = existingTask.task.repeatFrom;
+			}
 
 				// Update existing
 				await db.tasks.update(existingTask.localId, {

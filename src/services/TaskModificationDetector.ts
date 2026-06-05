@@ -27,6 +27,7 @@ import { FolderSyncService } from '@/services/FolderSyncService';
 import { getSettings } from '@/settings';
 import log from '@/utils/logger';
 import ObjectID from 'bson-objectid';
+import { normalizeRepeatFlag } from '@/utils/RecurrenceConverter';
 
 export interface TaskModifications {
 	titleModified: boolean;
@@ -38,6 +39,7 @@ export interface TaskModifications {
 	taskItemsModified: boolean;
 	notesModified: boolean;
 	projectMoved: boolean;
+	repeatFlagModified: boolean;
 }
 
 export class TaskModificationDetector {
@@ -344,7 +346,8 @@ export class TaskModificationDetector {
 			priorityModified: lineTask.priority !== savedTask.priority,
 			taskItemsModified: this.plugin.taskParser.areItemsChanged(lineTask.items, savedTask.items),
 			notesModified: this.detectNotesModification(lineTask, savedTask),
-			projectMoved: false // Will be set separately
+			projectMoved: false, // Will be set separately
+			repeatFlagModified: normalizeRepeatFlag(lineTask.repeatFlag) !== normalizeRepeatFlag(savedTask.repeatFlag)
 		};
 	}
 
@@ -449,7 +452,8 @@ export class TaskModificationDetector {
 			modifications.priorityModified ||
 			modifications.taskItemsModified ||
 			modifications.notesModified ||
-			modifications.projectMoved;
+			modifications.projectMoved ||
+			modifications.repeatFlagModified;
 	}
 
 	/**

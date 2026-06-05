@@ -10,7 +10,14 @@ The plugin works best when the [Tasks](https://github.com/obsidian-tasks-group/o
 
 - Bidirectional synchronization of Tasks and Notes.
 - Date/Time compatibility with the [Tasks](https://github.com/obsidian-tasks-group/obsidian-tasks) plugin.   
+- Recurrence (repeat) syncing — see [Recurrence](#recurrence) below.
 - Mobile Compatible.
+
+## Recurrence
+
+Setting recurrence follows the [Obsidian Tasks Plugin](https://publish.obsidian.md/tasks/) format using the `🔁` emoji (e.g. `🔁 every week on Monday`, `🔁 every month on the 15th when done`). This is converted to and from TickTick's RRULE-based recurrence format automatically.
+
+**TT proprietary limitations:** TickTick supports custom recurrence properties (e.g. `TT_SKIP=WEEKEND` for skipping weekends, `TT_CALENDAR` for calendar-based exclusions) that have no equivalent in the Obsidian Tasks format. These properties are silently stripped during sync since they cannot be represented in markdown. If you rely on these features, configure them directly in the TickTick app — they will persist on TickTick's side but will not be reflected in Obsidian.
 
 ## Documentation
 
