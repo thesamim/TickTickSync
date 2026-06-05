@@ -62,7 +62,11 @@ export async function pullFromTickTick(
 	}
 
 	if (toPut.length > 0) {
-		await db.tasks.bulkPut(toPut);
+		const unique = Array.from(new Map(toPut.map(t => [t.localId, t])).values());
+		if (unique.length !== toPut.length) {
+			log.warn(`[TickTickSync] pull: deduplicated ${toPut.length - unique.length} duplicate tasks`);
+		}
+		await db.tasks.bulkPut(unique);
 	}
 
 	// 2️⃣ Handle deletions
