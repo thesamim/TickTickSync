@@ -710,13 +710,7 @@ export class TaskParser {
 	}
 
 	addTickTickTag(str: string): string {
-		//TODO: assumption that there is at least one space before. validate.
-		if (str.charAt(str.length - 1) === ' ') {
-			str = (str + `${keywords.TickTick_TAG}`);
-		} else {
-			str = (str + ` ${keywords.TickTick_TAG} `);
-		}
-
+		str = (str + ` ${keywords.TickTick_TAG}`);
 		return str;
 	}
 

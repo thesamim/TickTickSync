@@ -80,6 +80,11 @@ export class TaskOperationsService {
 				// Add URL to task title
 				task.title = task.title + ' ' + taskURL;
 
+				// Ensure the ticktick tag is in the task's TickTick tags
+				if (!task.tags?.includes('ticktick')) {
+					task.tags = [...(task.tags || []), 'ticktick'];
+				}
+
 				// Update in TickTick
 				const updatedTask = await this.plugin.tickTickRestAPI?.updateTask(task);
 
