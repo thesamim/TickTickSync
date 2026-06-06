@@ -557,12 +557,17 @@ export class FileOperation {
 			//we've made changes. Let's get the TTversion of the task right.
 			const linkLoc = this.plugin.taskParser.getLinkLocation(filePath)
 			if (linkLoc.taskURL) {
-				task.title = task.title + linkLoc.taskURL;
+				task.title = task.title + ' ' + linkLoc.taskURL;
 			} else if (linkLoc.noteURL) {
 				const taskPayLoad = this.plugin.taskParser.getTaskPayLoad(fileMap, task.id, linkLoc.noteURL);
 				task.content = taskPayLoad.content ? taskPayLoad.content : '';
 				task.desc = taskPayLoad.description ? taskPayLoad.description : '';
 
+			}
+
+			// Ensure the ticktick tag is in the task's TickTick tags
+			if (!task.tags?.includes('ticktick')) {
+				task.tags = [...(task.tags || []), 'ticktick'];
 			}
 
 			if (!bUpdating) {
