@@ -4,7 +4,8 @@ import type { ITask } from './api/types/Task';
 import { getSettings } from '@/settings';
 import { NewFileMap, type ITaskRecord } from '@/services/NewFileMap';
 import log from '@/utils/logger';
-import { DeletionItem, TaskDeletionModal } from './modals/TaskDeletionModal';
+import type { DeletionItem } from './modals/TaskDeletionModal';
+import { TaskDeletionModal } from './modals/TaskDeletionModal';
 import { getProjectById } from '@/db/projects';
 import { db } from '@/db/dexie';
 
