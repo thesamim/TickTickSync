@@ -1,4 +1,5 @@
-import Dexie, { Table } from "dexie";
+import Dexie from "dexie";
+import type { Table } from "dexie";
 import type { LocalTask, SyncMeta } from "./schema";
 import type { TaskFileMapping, LocalProject, LocalProjectGroup, LocalFile } from "./schema";
 
