@@ -151,7 +151,7 @@ export class TaskModificationDetector {
 		}
 
 		// Ensure file is registered in metadata before scanning
-		await this.plugin.cacheOperation?.getFileMetadata(file_path);
+		await this.plugin.fileMetadataService?.getFileMetadata(file_path);
 
 		const fileMap = new NewFileMap(this.app, this.plugin, file);
 		await fileMap.init();
@@ -475,7 +475,7 @@ export class TaskModificationDetector {
 		moved: boolean;
 		oldFilePath: string
 	}> {
-		const oldFilePath = await this.plugin.cacheOperation.getFilepathForTask(taskId);
+		const oldFilePath = await this.plugin.fileMetadataService.getFilepathForTask(taskId);
 		const moved = !!(oldFilePath && oldFilePath !== currentPath);
 		return { moved, oldFilePath: oldFilePath || '' };
 	}
@@ -701,12 +701,19 @@ export class TaskModificationDetector {
 		log.warn('updateTaskLineInFile:', decoratedText);
 
 		try {
+			const taskLine = line ?? cursor?.line ?? 0;
+			const taskRec = await fileMap.getTaskRecordByLine(taskLine);
+			const noteLineCount = taskRec.taskLines ? taskRec.taskLines.length : 0;
+
 			if (editor && cursor) {
 				const from = { line: cursor.line, ch: 0 };
-				const to = { line: cursor.line, ch: lineTxt.length };
+				const endLine = cursor.line + noteLineCount;
+				const to = noteLineCount > 0
+					? { line: endLine, ch: editor.getLine(endLine).length }
+					: { line: cursor.line, ch: lineTxt.length };
 				editor.replaceRange(decoratedText, from, to);
 			} else if (line !== null) {
-				fileMap.modifyTask(decoratedText, line);
+				fileMap.replaceLines(line, 1 + noteLineCount, decoratedText);
 				const file = this.app.vault.getAbstractFileByPath(fileMap.getFilePath());
 				if (file instanceof TFile) {
 					await this.app.vault.modify(file, fileMap.getFileLines());

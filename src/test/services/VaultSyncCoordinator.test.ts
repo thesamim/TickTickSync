@@ -212,7 +212,7 @@ describe('VaultSyncCoordinator', () => {
 			const movedTaskIds = new Set(['moved-1']);
 
 			(coordinator as any).plugin = {
-				cacheOperation: {
+				fileMetadataService: {
 					getDeletionItems: vi.fn().mockResolvedValue([
 						{ title: 'Deleted task', filePath: 'OldFile.md' },
 					]),
@@ -224,7 +224,7 @@ describe('VaultSyncCoordinator', () => {
 			expect(result).toBe(true);
 
 			// Verify only the deleted task (not the moved one) was passed to getDeletionItems
-			const getDeletionItems = (coordinator as any).plugin.cacheOperation.getDeletionItems;
+			const getDeletionItems = (coordinator as any).plugin.fileMetadataService.getDeletionItems;
 			expect(getDeletionItems).toHaveBeenCalledWith(['deleted-1']);
 		});
 
@@ -242,7 +242,7 @@ describe('VaultSyncCoordinator', () => {
 			const movedTaskIds = new Set(['moved-1']);
 
 			(coordinator as any).plugin = {
-				cacheOperation: {
+				fileMetadataService: {
 					getDeletionItems: vi.fn(),
 				},
 			};
@@ -251,7 +251,7 @@ describe('VaultSyncCoordinator', () => {
 
 			// Should return true immediately without calling getDeletionItems
 			expect(result).toBe(true);
-			expect((coordinator as any).plugin.cacheOperation.getDeletionItems).not.toHaveBeenCalled();
+			expect((coordinator as any).plugin.fileMetadataService.getDeletionItems).not.toHaveBeenCalled();
 		});
 
 		it('should treat missing movedTaskIds as empty set', async () => {
@@ -266,7 +266,7 @@ describe('VaultSyncCoordinator', () => {
 			});
 
 			(coordinator as any).plugin = {
-				cacheOperation: {
+				fileMetadataService: {
 					getDeletionItems: vi.fn().mockResolvedValue([
 						{ title: 'Deleted task', filePath: 'File.md' },
 					]),
@@ -276,7 +276,7 @@ describe('VaultSyncCoordinator', () => {
 			const result = await (coordinator as any).confirmDeletions(fileGroups);
 
 			expect(result).toBe(true);
-			expect((coordinator as any).plugin.cacheOperation.getDeletionItems).toHaveBeenCalledWith(['deleted-1']);
+			expect((coordinator as any).plugin.fileMetadataService.getDeletionItems).toHaveBeenCalledWith(['deleted-1']);
 		});
 	});
 });

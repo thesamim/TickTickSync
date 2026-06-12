@@ -21,7 +21,7 @@
 	async function generateDebugInfoSubset() {
 		const settings = getSettings();
 		const currentDevice = getCurrentDeviceInfo();
-		const fileMetaData = await plugin.cacheOperation.getFileMetadatas();
+		const fileMetaData = await plugin.fileMetadataService?.getAllFileMetadata() ?? {};
 		const fmdData = [];
 		for (const file in fileMetaData) {
 			const numFiles = fileMetaData[file].TickTickTasks ? fileMetaData[file].TickTickTasks.length : 'TickTickTasks not found';

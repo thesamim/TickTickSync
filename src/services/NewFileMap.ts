@@ -271,11 +271,6 @@ export class NewFileMap {
 		const parentId = this.getParentIDByIdx(lineNumber);
 		taskRecord = this.getTaskLinesByIdx(lineNumber, taskRecord);
 		taskRecord.parentId = parentId;
-		if (taskRecord.taskLines && taskRecord.taskLines.length > 0) {
-			this.fileLines.splice(lineNumber + 1, taskRecord.taskLines.length - 1);
-			const newContent = this.fileLines.join('\n');
-			await this.app.vault.modify(this.file, newContent);
-		}
 		return taskRecord;
 	}
 
@@ -314,6 +309,12 @@ export class NewFileMap {
 
 	modifyTask(text: string, line: number) {
 		this.fileLines[line] = text;
+		this.rebuildEntries();
+	}
+
+	replaceLines(line: number, count: number, newText: string) {
+		const newLines = newText.split('\n');
+		this.fileLines.splice(line, count, ...newLines);
 		this.rebuildEntries();
 	}
 

@@ -165,7 +165,7 @@ export class FoundDuplicateTasksModal extends Modal {
             log.info(`Removing ${taskIds.length} duplicate task references from metadata and file ${filePath}`);
             
             for (const taskId of taskIds) {
-                await this.plugin.cacheOperation.deleteTaskIdFromMetadata(filePath, taskId);
+                await this.plugin.fileMetadataService.removeTaskFromFile(filePath, taskId);
             }
 
             const file = this.app.vault.getAbstractFileByPath(filePath);

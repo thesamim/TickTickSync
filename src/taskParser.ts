@@ -4,6 +4,8 @@ import type { ITask, ITaskItem } from '@/api/types/Task';
 import { getSettings } from '@/settings';
 import { sha256 } from 'crypto-hash';
 import type { NewFileMap, ITaskRecord } from '@/services/NewFileMap';
+import { db } from '@/db/dexie';
+import { getAllProjects } from '@/db/projects';
 import { tasksTextToRRule, rruleToTasksText } from '@/utils/RecurrenceConverter';
 import log from '@/utils/logger';
 
@@ -286,7 +288,7 @@ export class TaskParser {
 
 
 		//Do the description/content thing
-		const __ret = this.getTaskPayLoad(fileMap, TickTick_id, noteURL);
+		const __ret = this.getTaskPayLoad(fileMap, TickTick_id, noteURL, taskRecord);
 		description = __ret.description;
 		content = __ret.content;
 		taskItems = __ret.taskItems;
@@ -296,7 +298,7 @@ export class TaskParser {
 		const tags = this.getAllTagsFromLineText(textWithoutIndentation);
 		log.debug('tags', tags);
 
-		let projectId = await this.plugin.cacheOperation?.getDefaultProjectIdForFilepath(filepath as string);
+		let projectId = await this.plugin.fileTaskQueries?.getDefaultProjectIdForFilepath(filepath as string);
 
 		if (hasParent) {
 			if (parentTaskObject) {
@@ -309,7 +311,7 @@ export class TaskParser {
 					let labelName = tag.replace(/#/g, '');
 					labelName = labelName.replace(/_/g, ' ');
 
-					let hasProjectId = await this.plugin.cacheOperation?.getProjectIdByNameFromCache(labelName);
+					const hasProjectId = (await getAllProjects()).find(obj => obj.name.toLowerCase() === labelName.toLowerCase())?.id;
 					if (!hasProjectId) {
 						continue;
 					}
@@ -362,7 +364,7 @@ export class TaskParser {
 
 	}
 
-	getTaskPayLoad(fileMap: NewFileMap | null, TickTick_id: string, noteURL: string): {
+	getTaskPayLoad(fileMap: NewFileMap | null, TickTick_id: string, noteURL: string, inTaskRecord?: ITaskRecord): {
 		description: string,
 		content: string,
 		taskItems: ITaskItem []
@@ -371,7 +373,7 @@ export class TaskParser {
 			return { description: '', content: '', taskItems: [] };
 		}
 
-		const taskRecord = fileMap.getTaskRecord(TickTick_id);
+		const taskRecord = inTaskRecord || fileMap.getTaskRecord(TickTick_id);
 		const taskItems: ITaskItem[] = [];
 		let description = '';
 		let content = '';
@@ -385,7 +387,7 @@ export class TaskParser {
 		}
 
 		if (taskRecord) {
-			if (taskRecord.taskLines.length > 0) {
+			if (taskRecord.taskLines && taskRecord.taskLines.length > 0) {
 				const textContent = this.getNoteString(taskRecord, TickTick_id);
 				let noteText = noteURL + textContent;
 				if (taskLineItems && taskLineItems.length > 0) {
@@ -628,10 +630,10 @@ export class TaskParser {
 		if (lineTask.projectId !== TickTickTask.projectId) {
 			log.debug('Project ID changed: ', lineTask.projectId, TickTickTask.projectId);
 			//make sure that they're not in a non-project file.
-			const taskFile = await this.plugin.cacheOperation.getFilepathForTask(TickTickTask.id);
+			const taskFile = await this.plugin.fileMetadataService.getFilepathForTask(TickTickTask.id);
 			if (taskFile) {
 				// log.debug('Task file: ', taskFile);
-				const hasADefaultProject = await this.plugin.cacheOperation.filepathHasDefaultProjectID(taskFile)
+				const hasADefaultProject = await this.plugin.fileTaskQueries.filepathHasDefaultProjectID(taskFile)
 				if (hasADefaultProject) {
 					return true;
 				} else {
@@ -915,7 +917,7 @@ export class TaskParser {
 		//TODO figure out Note presentation
 		//admonitions just don't work in indented tasks. Until I sort out the presentation, keep it simple until I
 		//get all the functionality sorted out,
-		let path =  await this.plugin.cacheOperation.getFilepathForProjectId(projectId);
+		let path =  await this.plugin.fileMetadataService.getFilepathForProjectId(projectId);
 		//we want the encoded version of the path name
 		path = encodeURI(path);
 

@@ -3,6 +3,7 @@ import TickTickSync from '@/main';
 import { getSettings } from '@/settings';
 import { getAllProjects } from "@/db/projects";
 import { getAllFiles } from "@/db/files";
+import { db } from "@/db/dexie";
 
 
 interface MyProject {
@@ -29,8 +30,9 @@ export class SetDefaultProjectForFileModal extends Modal {
 		contentEl.empty();
 		contentEl.createEl('h5', { text: 'Set default project for TickTick tasks in the current file' });
 
-		this.defaultProjectId = await this.plugin.cacheOperation.getDefaultProjectIdForFilepath(this.filepath);
-		this.defaultProjectName = await this.plugin.cacheOperation.getProjectNameByIdFromCache(this.defaultProjectId);
+		this.defaultProjectId = await this.plugin.fileTaskQueries.getDefaultProjectIdForFilepath(this.filepath);
+		const projectRecord = this.defaultProjectId ? await db.projects.get(this.defaultProjectId) : undefined;
+		this.defaultProjectName = projectRecord?.project?.name || this.defaultProjectId;
 		// log.debug(this.defaultProjectId)
 		// log.debug(this.defaultProjectName)
 		const allFiles = await getAllFiles();
@@ -53,7 +55,7 @@ export class SetDefaultProjectForFileModal extends Modal {
 					.addOption('', '')
 					.addOptions(myProjectsOptions)
 					.onChange(async (value) => {
-						await this.plugin.cacheOperation?.setDefaultProjectIdForFilepath(this.filepath, value);
+						await this.plugin.fileMetadataService?.updateFileMetadata(this.filepath, { defaultProjectId: value, TickTickTasks: [], TickTickCount: 0 });
 						await this.plugin.setStatusBarText();
 						this.close();
 					})

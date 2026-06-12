@@ -18,7 +18,6 @@ import { TickTickRestAPI } from '@/services/TicktickRestAPI';
 //task parser
 import { TaskParser } from './taskParser';
 //cache task read and write
-import { CacheOperation } from '@/services/cacheOperation';
 //file operation
 import { FileOperation } from './fileOperation';
 
@@ -46,12 +45,14 @@ import type { ITask } from '@/api/types/Task';
 import { getTasksByLabel, upsertLocalTask } from '@/db/tasks';
 
 //NEW: Repository layer
+import { FileMetadataService } from '@/repositories/FileMetadataService';
 import { TaskRepository } from '@/repositories/TaskRepository';
 import { FileTaskQueries } from '@/repositories/FileTaskQueries';
 import { TaskCache } from '@/repositories/TaskCache';
 import { ProjectGroupRepository } from '@/repositories/ProjectGroupRepository';
 
 //NEW: Service layer
+import { ProjectSyncService } from '@/services/ProjectSyncService';
 import { EventHandlerService } from '@/services/EventHandlerService';
 import { VaultSyncCoordinator } from '@/services/VaultSyncCoordinator';
 import { TaskModificationDetector } from '@/services/TaskModificationDetector';
@@ -68,7 +69,7 @@ export default class TickTickSync extends Plugin {
 	readonly service: TickTickService = new TickTickService(this);
 	readonly taskParser: TaskParser = new TaskParser(this.app, this);
 	readonly fileOperation: FileOperation = new FileOperation(this.app, this);
-	readonly cacheOperation: CacheOperation = new CacheOperation(this.app, this);
+	readonly fileMetadataService: FileMetadataService = new FileMetadataService(this.app, this);
 	readonly dateMan: DateMan = new DateMan();
 
 	readonly lastLines: Map<string, number> = new Map(); //lastLine object {path:line} is saved in lastLines map
@@ -80,6 +81,7 @@ export default class TickTickSync extends Plugin {
 	projectGroupRepository!: ProjectGroupRepository;
 
 	//NEW: Service layer
+	projectSyncService!: ProjectSyncService;
 	eventHandlerService!: EventHandlerService;
 	vaultSyncCoordinator!: VaultSyncCoordinator;
 	taskModificationDetector!: TaskModificationDetector;
@@ -221,6 +223,7 @@ export default class TickTickSync extends Plugin {
 		this.projectGroupRepository = new ProjectGroupRepository();
 
 		//NEW: Initialize services
+		this.projectSyncService = new ProjectSyncService(this.app, this);
 		this.folderSyncService = new FolderSyncService(this.app, this, this.projectGroupRepository);
 		this.folderMigrationService = new FolderMigrationService(this.app, this.folderSyncService);
 		this.vaultSyncCoordinator = new VaultSyncCoordinator(this.app, this, this.folderSyncService);
@@ -369,7 +372,7 @@ export default class TickTickSync extends Plugin {
 		}
 
 		const filepath = markDownView.file.path;
-		let defaultProjectName = await this.cacheOperation.getDefaultProjectNameForFilepath(filepath);
+		let defaultProjectName = await this.fileMetadataService.getDefaultProjectNameForFilepath(filepath);
 		if (!defaultProjectName) {
 			if (filepath.startsWith('Inbox')) {
 				defaultProjectName = 'Inbox';

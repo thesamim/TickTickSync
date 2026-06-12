@@ -371,7 +371,8 @@ export class FolderSyncService {
 			}
 			let newProjectName;
 			if (oldLocation.filename === newLocation.filename) {
-				newProjectName = await this.plugin.cacheOperation.getProjectNameByIdFromCache(newProjectId);
+				const projectRecord = await db.projects.get(newProjectId);
+				newProjectName = projectRecord?.project?.name;
 			}
 			else {
 				newProjectName = newLocation.filename.replace('.md', '');

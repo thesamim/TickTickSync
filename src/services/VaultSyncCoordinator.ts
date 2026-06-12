@@ -146,7 +146,8 @@ export class VaultSyncCoordinator {
 		// Use FolderSyncService if available (handles folder structure)
 		let targetFile: string | undefined;
 		if (this.folderSyncService && getSettings().keepProjectFolders) {
-			const projectName = await this.plugin.cacheOperation.getProjectNameByIdFromCache(task.projectId);
+			const projectRecord = await db.projects.get(task.projectId);
+			const projectName = projectRecord?.project?.name;
 			if (projectName) {
 				targetFile = await this.folderSyncService.getFilePathForTask(task, projectName);
 				log.debug(`Determined target file for task ${task.id}: ${targetFile}`);
@@ -161,9 +162,9 @@ export class VaultSyncCoordinator {
 
 		// Fallback to legacy behavior
 		if (!targetFile) {
-			targetFile = await this.plugin.cacheOperation.getFilepathForProjectId(task.projectId);
+			targetFile = await this.plugin.fileMetadataService.getFilepathForProjectId(task.projectId);
 			if (!targetFile) {
-				targetFile = await this.plugin.cacheOperation.getFilepathForProjectId(defaultProjectId);
+				targetFile = await this.plugin.fileMetadataService.getFilepathForProjectId(defaultProjectId);
 			}
 		}
 
@@ -259,7 +260,7 @@ export class VaultSyncCoordinator {
 			return true;
 		}
 
-		const items = await this.plugin.cacheOperation.getDeletionItems(tasksToConfirmDeletionIds);
+		const items = await this.plugin.fileMetadataService.getDeletionItems(tasksToConfirmDeletionIds);
 		const modal = new TaskDeletionModal(
 			this.app,
 			items,

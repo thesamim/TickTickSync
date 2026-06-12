@@ -4,7 +4,6 @@ import { getSettings, updateSettings } from '@/settings';
 import { doWithLock } from '@/utils/locks';
 import { SyncMan } from '@/services/syncModule';
 import { Editor, type MarkdownFileInfo, type MarkdownView, Notice, TFile } from 'obsidian';
-import { CacheOperation } from '@/services/cacheOperation';
 import { FileOperation } from '@/fileOperation';
 import { NewFileMap } from '@/services/NewFileMap';
 //Logging
@@ -30,7 +29,6 @@ export class TickTickService {
 	plugin: TickTickSync;
 	tickTickSync!: SyncMan;
 	api?: Tick;
-	cacheOperation!: CacheOperation;
 	fileOperation?: FileOperation;
 
 	constructor(plugin: TickTickSync) {
@@ -54,8 +52,6 @@ export class TickTickService {
 				token: token,
 				checkPoint: getSettings().checkPoint
 			});
-			//initialize data read and write object
-			this.cacheOperation = new CacheOperation(this.plugin.app, this.plugin);
 			//initialize file operation
 			this.fileOperation = new FileOperation(this.plugin.app, this.plugin);
 			this.tickTickSync = new SyncMan(this.plugin.app, this.plugin);
@@ -194,7 +190,7 @@ export class TickTickService {
 				await db.projectGroups.clear();
 				await db.projectGroups.bulkPut(groups.map(g => ({ id: g.id, group: g })));
 			}
-			if (!await this.cacheOperation.saveProjectsToCache(projects)) {
+			if (!await this.plugin.projectSyncService.saveProjectsToCache(projects)) {
 				projects = undefined;
 			}
 		}
@@ -234,7 +230,7 @@ export class TickTickService {
 	async renamedFileCheck(filePath: string, oldPath: string): Promise<boolean> {
 		//NEW: Use FileTaskQueries
 		const hasTasks = await this.plugin.fileTaskQueries.fileHasTasks(oldPath);
-		const hasDefaultProjectId = await this.cacheOperation.filepathHasDefaultProjectID(oldPath);
+		const hasDefaultProjectId = await this.plugin.fileTaskQueries.filepathHasDefaultProjectID(oldPath);
 
 		// Only process rename if file has tasks OR has a default project ID
 		if (!hasTasks && !hasDefaultProjectId) {
@@ -296,7 +292,7 @@ export class TickTickService {
 
 			//NEW: Use TaskOperationsService
 			await this.plugin.taskOperationsService.updateTaskContentForFile(filePath);
-			await this.cacheOperation.updateRenamedFilePath(oldPath, filePath);
+			await this.plugin.fileMetadataService.updateFilePath(oldPath, filePath);
 		});
 		return true;
 	}
@@ -347,18 +343,18 @@ export class TickTickService {
 			for (const dbFile of dbFiles) {
 				const vaultFile = vault.getAbstractFileByPath(dbFile.path);
 				if (!vaultFile || !(vaultFile instanceof TFile)) {
-					const metadata = await this.cacheOperation.getFileMetadata(dbFile.path);
+					const metadata = await this.plugin.fileMetadataService.getFileMetadata(dbFile.path);
 					if (metadata && metadata.TickTickTasks && metadata.TickTickTasks.length > 0) {
 						const task1 = metadata.TickTickTasks[0];
 						const searchResult = await this.fileOperation?.searchFilepathsByTaskidInVault(task1.taskId);
 						if (searchResult) {
 							log.debug(`File ${dbFile.path} moved to ${searchResult}. Updating DB.`);
-							await this.cacheOperation.updateRenamedFilePath(dbFile.path, searchResult);
+							await this.plugin.fileMetadataService.updateFilePath(dbFile.path, searchResult);
 							continue;
 						}
 					}
 					log.debug(`Removing DB entry for non-existent file: ${dbFile.path}`);
-					await this.cacheOperation.deleteFilepathFromMetadata(dbFile.path);
+					await this.plugin.fileMetadataService.deleteFileMetadata(dbFile.path);
 				}
 			}
 
@@ -387,7 +383,7 @@ export class TickTickService {
 			}
 
 			// 3. Consistency check for tasks and missed tasks
-			const metadatas = await this.cacheOperation?.getFileMetadatas();
+			const metadatas = await this.plugin.fileMetadataService?.getAllFileMetadata();
 			if (!metadatas) return;
 
 			for (const filepath in metadatas) {
@@ -534,7 +530,7 @@ export class TickTickService {
 					if (ttTask.deleted === 1) { log.debug(`[checkDB] TT-scan: skip ${ttId} — deleted on TickTick`); continue; }
 					if (allLocalIds.has(ttId)) { log.debug(`[checkDB] TT-scan: skip ${ttId} — already in local IDs`); continue; }
 					if (resolveIds.has(ttId)) { log.debug(`[checkDB] TT-scan: skip ${ttId} — already in resolve list`); continue; }
-					const filepath = await this.plugin.cacheOperation?.getFilepathForProjectId(ttTask.projectId) || '';
+					const filepath = await this.plugin.fileMetadataService?.getFilepathForProjectId(ttTask.projectId) || '';
 					log.debug(`[checkDB] TT-scan: ORPHAN ${ttId} — no local reference (title="${ttTask.title}", projectId=${ttTask.projectId}, filepath="${filepath}")`);
 					tasksToResolve.push({
 						filepath,
@@ -556,7 +552,8 @@ export class TickTickService {
 			const orphanItems: OrphanItem[] = await Promise.all(tasksToResolve.map(async (t) => {
 				let projectName: string | undefined;
 				if (!t.filepath) {
-					projectName = await this.plugin.cacheOperation?.getProjectNameByIdFromCache(t.projectId) || 'Unknown Project';
+					const project = t.projectId ? await db.projects.get(t.projectId) : undefined;
+					projectName = project?.project?.name || 'Unknown Project';
 				}
 				return {
 					title: this.plugin.taskParser.stripOBSUrl(t.title),
@@ -570,7 +567,7 @@ export class TickTickService {
 			if (action === 'add') {
 				await doWithLock(LOCK_TASKS, async () => {
 					for (const t of tasksToResolve) {
-						const targetFilepath = t.filepath || (await this.plugin.cacheOperation?.getFilepathForProjectId(t.projectId)) || '';
+						const targetFilepath = t.filepath || (await this.plugin.fileMetadataService?.getFilepathForProjectId(t.projectId)) || '';
 						await this.plugin.taskRepository.upsertTask(t.task, targetFilepath, Date.now());
 						if (!t.inFile && targetFilepath) {
 							try {
@@ -598,7 +595,7 @@ export class TickTickService {
 							}
 						}
 						if (t.filepath) {
-							await this.cacheOperation?.deleteTaskIdFromMetadata(t.filepath, t.taskId);
+							await this.plugin.fileMetadataService?.removeTaskFromFile(t.filepath, t.taskId);
 						}
 					}
 				});
@@ -630,7 +627,7 @@ export class TickTickService {
 							await this.plugin.fileOperation?.deleteTasksFromSpecificFile(file, taskIds.map(id => ({ id } as ITask)), false);
 						}
 						for (const taskId of taskIds) {
-							await this.cacheOperation?.deleteTaskIdFromMetadata(path, taskId);
+							await this.plugin.fileMetadataService?.removeTaskFromFile(path, taskId);
 						}
 					}
 				});
@@ -664,7 +661,7 @@ export class TickTickService {
 	 * @param bForceUpdate
 	 */
 	async syncFiles(bForceUpdate: boolean) {
-		const filesToSync = await this.cacheOperation?.getFileMetadatas();
+		const filesToSync = await this.plugin.fileMetadataService?.getAllFileMetadata();
 		if (!filesToSync) {
 			log.warn('No sync files found.');
 			return;
@@ -679,7 +676,7 @@ export class TickTickService {
 
 		//Check for duplicates before we do anything
 		try {
-			const result = await this.cacheOperation?.checkForDuplicates(newFilesToSync);
+			const result = await this.plugin.fileMetadataService?.checkForDuplicates(newFilesToSync);
 			if (result?.duplicates && (JSON.stringify(result.duplicates) != '{}')) {
 				const modal = new FoundDuplicateTasksModal(this.plugin.app, this.plugin, result.duplicates, result.taskIds);
 				const resolved = await modal.showModal();
@@ -691,7 +688,7 @@ export class TickTickService {
 				}
 				
 				// Re-fetch metadata after deletions if user chose to proceed
-				newFilesToSync = await this.cacheOperation?.getFileMetadatas();
+				newFilesToSync = await this.plugin.fileMetadataService?.getAllFileMetadata();
 			}
 
 		} catch (error) {
@@ -708,7 +705,7 @@ export class TickTickService {
 			const file = this.plugin.app.vault.getAbstractFileByPath(fileKey);
 			if (!file) {
 				log.debug('File ', fileKey, ' was deleted before last sync.');
-				await this.cacheOperation?.deleteFilepathFromMetadata(fileKey);
+				await this.plugin.fileMetadataService?.deleteFileMetadata(fileKey);
 				delete newFilesToSync[fileKey];
 			}
 		}

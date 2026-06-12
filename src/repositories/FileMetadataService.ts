@@ -206,6 +206,21 @@ export class FileMetadataService {
 	}
 
 	/**
+	 * Clear the file association for a task (by task ID regardless of current file)
+	 */
+	async clearTaskFile(taskId: string): Promise<void> {
+		try {
+			const localTask = await db.tasks.where("taskId").equals(taskId).first();
+			if (localTask) {
+				await db.tasks.update(localTask.localId, { file: "" });
+			}
+		} catch (error) {
+			log.error(`Error clearing file for task ${taskId}:`, error);
+			throw error;
+		}
+	}
+
+	/**
 	 * Update a file path (e.g., after rename)
 	 */
 	async updateFilePath(oldPath: string, newPath: string): Promise<void> {
@@ -231,7 +246,7 @@ export class FileMetadataService {
 	/**
 	 * Check for duplicate tasks across files
 	 */
-	async checkForDuplicates(filesMetadata: FileMetadata): Promise<{ duplicates: any; taskIds: string[] } | undefined> {
+	async checkForDuplicates(filesMetadata: FileMetadata): Promise<{ duplicates: Record<string, string[]>; taskIds: Record<string, string> } | undefined> {
 		try {
 			const taskIdToFiles = new Map<string, string[]>();
 
@@ -246,19 +261,20 @@ export class FileMetadataService {
 			}
 
 			// Find duplicates (tasks appearing in multiple files)
-			const duplicates: any = {};
-			const duplicateTaskIds: string[] = [];
+			const duplicates: Record<string, string[]> = {};
+			const taskIds: Record<string, string> = {};
 
 			for (const [taskId, files] of taskIdToFiles) {
 				if (files.length > 1) {
-					duplicates[taskId] = files;
-					duplicateTaskIds.push(taskId);
+					// First file is the "original", rest are duplicates
+					taskIds[taskId] = files[0];
+					duplicates[taskId] = files.slice(1);
 				}
 			}
 
 			return {
 				duplicates,
-				taskIds: duplicateTaskIds
+				taskIds
 			};
 		} catch (error) {
 			log.error("Error checking for duplicates:", error);

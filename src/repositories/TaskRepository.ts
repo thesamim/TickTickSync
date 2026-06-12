@@ -227,6 +227,45 @@ export class TaskRepository {
 	}
 
 	/**
+	 * Bulk upsert tasks from a full sync (preserves metadata, sets device ID)
+	 */
+	async bulkUpsertTasks(newTasks: ITask[], deviceId: string, getFilepathForTask: (taskId: string) => Promise<string | null>): Promise<void> {
+		try {
+			const tasksToPut = [];
+			for (const t of newTasks) {
+				const filepath = await getFilepathForTask(t.id);
+				tasksToPut.push({
+					localId: `tt:${t.id}`,
+					taskId: t.id,
+					task: t,
+					updatedAt: Date.now(),
+					lastModifiedByDeviceId: deviceId,
+					file: filepath || "",
+					source: "ticktick" as const,
+					deleted: t.deleted === 1
+				});
+			}
+			await db.tasks.bulkPut(tasksToPut);
+		} catch (error) {
+			log.error(`Error bulk upserting tasks:`, error);
+			throw error;
+		}
+	}
+
+	/**
+	 * Get task titles for a list of task IDs
+	 */
+	async getTaskTitles(taskIds: string[], stripOBSUrl: (title: string) => string): Promise<string[]> {
+		try {
+			const lts = await db.tasks.where("taskId").anyOf(taskIds).toArray();
+			return lts.map(lt => stripOBSUrl(lt.task.title));
+		} catch (error) {
+			log.error(`Error getting task titles:`, error);
+			return [];
+		}
+	}
+
+	/**
 	 * Get the project ID for a task
 	 */
 	async getProjectIdForTask(taskId: string): Promise<string | undefined> {

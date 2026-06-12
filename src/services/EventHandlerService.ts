@@ -143,7 +143,7 @@ export class EventHandlerService {
 
 				// Register the file in metadata so it can be scanned for tasks
 				if (this.plugin.fileOperation.isMarkdownFile(file.name)) {
-					await this.plugin.cacheOperation?.getFileMetadata(file.path);
+					await this.plugin.fileMetadataService?.getFileMetadata(file.path);
 				} else {
 					log.debug('non markdown file detected.', file.name);
 				}

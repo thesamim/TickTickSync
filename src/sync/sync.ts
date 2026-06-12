@@ -1,6 +1,5 @@
 import { db } from "@/db/dexie";
 import { pullFromTickTick } from "./pull";
-import { pushToTickTick } from "./push";
 import { logSyncEvent } from "./journal";
 import type { TickTickRestAPI } from '@/services/TicktickRestAPI';
 import log from '@/utils/logger';
@@ -24,14 +23,6 @@ log.debug("[TickTickSync] meta", meta);
 			fullSync
 		);
 log.debug("[TickTickSync] pulled", pulled);
-// TODO: This was added at some point. But I believe it's extraneous.
-// 		const pushed = await pushToTickTick(
-// 			ticktickRestApi,
-// 			meta,
-// 			fullSync
-// 		);
-// log.debug("[TickTickSync] pushed", pushed);
-
 
 		logSyncEvent(meta.deviceId, "sync:end", {
 			pulled

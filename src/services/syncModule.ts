@@ -115,7 +115,7 @@ export class SyncMan {
 			}
 
 			// this.dumpArray('== remote:', tasksFromTickTic);
-			let tasksInCache = await this.plugin.cacheOperation?.loadTasksFromCache();
+			let tasksInCache = await this.plugin.taskRepository?.loadAllTasks();
 			// this.dumpArray("cache", tasksInCache)
 
 			if (getSettings().debugMode) {
@@ -157,7 +157,7 @@ export class SyncMan {
 			//      VERIFY: This doesn't bite us in the ass.
 
 			let newTickTickTasks = [];
- 		const filesMetadata = await this.plugin.cacheOperation.getFileMetadatas();
+ 		const filesMetadata = await this.plugin.fileMetadataService.getAllFileMetadata();
  		if (Object.keys(filesMetadata).length === 0) {
 				newTickTickTasks = tasksFromTickTic;
 			} else {
@@ -174,9 +174,9 @@ export class SyncMan {
 				// Group by file
 				const tasksByFile = new Map<string, ITask[]>();
 				for (const task of newTickTickTasks) {
-					let taskFile = await this.plugin.cacheOperation.getFilepathForProjectId(task.projectId);
+					let taskFile = await this.plugin.fileMetadataService.getFilepathForProjectId(task.projectId);
 					if (!taskFile) {
-						taskFile = await this.plugin.cacheOperation.getFilepathForProjectId(getSettings().defaultProjectId);
+						taskFile = await this.plugin.fileMetadataService.getFilepathForProjectId(getSettings().defaultProjectId);
 					}
 					if (taskFile) {
 						if (!tasksByFile.has(taskFile)) tasksByFile.set(taskFile, []);
@@ -286,7 +286,7 @@ export class SyncMan {
 				// Group by file
 				const tasksByFile = new Map<string, ITask[]>();
 				for (const task of recentUpdates) {
- 				const taskFile = await this.plugin.cacheOperation.getFilepathForTask(task.id);
+  				const taskFile = await this.plugin.fileMetadataService.getFilepathForTask(task.id);
 					if (taskFile) {
 						if (!tasksByFile.has(taskFile)) tasksByFile.set(taskFile, []);
 						tasksByFile.get(taskFile)!.push(task);
@@ -358,7 +358,7 @@ export class SyncMan {
 			}
 			if (!file) {
 				log.error(`File: ${file_path} not found. Removing from Meta Data`);
-				await this.plugin.cacheOperation?.deleteFilepathFromMetadata(file_path);
+				await this.plugin.fileMetadataService?.deleteFileMetadata(file_path);
 				return false;
 			}
 		} else {
@@ -396,7 +396,7 @@ export class SyncMan {
 	}
 
 	private async confirmDeletion(taskIds: string[], reason: string) {
-		const items = await this.plugin.cacheOperation?.getDeletionItems(taskIds);
+		const items = await this.plugin.fileMetadataService?.getDeletionItems(taskIds);
 
 
 		const myModal = new TaskDeletionModal(this.app, items, reason, (result) => {

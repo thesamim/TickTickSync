@@ -1,16 +1,20 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { TaskParser } from '@/taskParser';
 import type { ITaskRecord } from '@/services/NewFileMap';
 import { getSettings } from '@/settings';
 
+vi.mock('@/db/projects', () => ({
+  getAllProjects: vi.fn().mockResolvedValue([]),
+}));
+
 function makePlugin(parser: TaskParser) {
   return {
     taskParser: parser,
-    cacheOperation: {
+    fileTaskQueries: {
       getDefaultProjectIdForFilepath: (_: string) => 'proj-1',
-      getProjectIdByNameFromCache: async (_: string) => null,
+    },
+    fileMetadataService: {
       getFilepathForTask: (_: string) => 'Some/Path.md',
-      loadTaskFromCacheID: (_: string) => null,
     },
     dateMan: {
       parseDates: (_: string) => ({}),
