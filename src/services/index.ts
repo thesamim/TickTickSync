@@ -6,11 +6,12 @@ import { SyncMan } from '@/services/syncModule';
 import { Editor, type MarkdownFileInfo, type MarkdownView, Notice, TFile } from 'obsidian';
 import { CacheOperation } from '@/services/cacheOperation';
 import { FileOperation } from '@/fileOperation';
-import { FileMap } from '@/services/fileMap';
+import { NewFileMap } from '@/services/newFileMap';
 //Logging
 import log from '@/utils/logger';
 import { FoundDuplicateTasksModal } from '@/modals/FoundDuplicateTasksModal';
 import { TaskDeletionModal } from '@/modals/TaskDeletionModal';
+import { OrphanTaskModal, type OrphanItem } from '@/modals/OrphanTaskModal';
 import type { ITask } from '@/api/types/Task';
 import { getTick } from '@/api/tick_singleton_factory'
 import { syncTickTickWithDexie } from '@/sync/sync';
@@ -312,7 +313,7 @@ export class TickTickService {
 	async lineModifiedTaskCheck(filepath: string, lastLineText: string, lastLine: number): Promise<boolean> {
 		return await doWithLock(LOCK_TASKS, async () => {
 			const file = this.plugin.app.vault.getAbstractFileByPath(filepath) as TFile;
-			const fileMap = new FileMap(this.plugin.app, this.plugin, file);
+				const fileMap = new NewFileMap(this.plugin.app, this.plugin, file);
 			await fileMap.init();
 			//NEW: Use TaskModificationDetector
 			return await this.plugin.taskModificationDetector.checkLineForModifications(filepath, lastLineText, lastLine, fileMap);
@@ -333,6 +334,8 @@ export class TickTickService {
 		log.debug(`Checking database for ${markdownFiles.length} markdown files and ${dbFiles.length} DB entries.`);
 
 		const tasksToDelete: { filepath: string, taskId: string, title: string }[] = [];
+		const tasksToResolve: { filepath: string, taskId: string, title: string, projectId: string, task: ITask, inFile: boolean }[] = [];
+		const allLocalIds = new Set<string>();
 
 		await doWithLock(LOCK_TASKS, async () => {
 			// 1. Handle files that were moved/renamed (have tasks but wrong path in DB)
@@ -387,59 +390,97 @@ export class TickTickService {
 				const obsidianURL = this.plugin.taskParser.getObsidianUrlFromFilepath(filepath);
 
 				const file = vault.getAbstractFileByPath(filepath);
-				if (!(file instanceof TFile)) continue;
+				if (!(file instanceof TFile)) {
+					log.debug(`[checkDB] SKIP file ${filepath} — not a valid TFile`);
+					continue;
+				}
 
-				const fileMap = new FileMap(this.plugin.app, this.plugin, file);
+			const fileMap = new NewFileMap(this.plugin.app, this.plugin, file);
 				await fileMap.init();
 				
 				// We check tasks actually in the file and tasks the DB thinks are in the file
 				const dbTaskIds = value.TickTickTasks.map(t => t.taskId);
 				const physicalTaskIds = fileMap.getTasks();
+				log.debug(`[checkDB] File ${filepath}: dbTaskIds=${dbTaskIds.length}, physicalTaskIds=${physicalTaskIds.length}, allTaskIds=${Array.from(new Set([...dbTaskIds, ...physicalTaskIds])).length}`);
 				//NEW: Use FileTaskQueries for duplicate detection
 				const duplicates = await this.plugin.fileTaskQueries.findDuplicateTasks(filepath);
 				if (duplicates.length > 0) {
 					log.warn(`Found ${duplicates.length} duplicate tasks in ${filepath}:`, duplicates.map(d => d.taskId));
 				}
 				const allTaskIds = Array.from(new Set([...dbTaskIds, ...physicalTaskIds]));
+				for (const id of allTaskIds) allLocalIds.add(id);
 
-				for (const taskId of allTaskIds) {
-					const localTask = await this.plugin.taskRepository.loadLocalTaskById(taskId);
-					let taskObject = localTask?.task;
+			for (const taskId of allTaskIds) {
+				log.debug(`[checkDB] Processing task ${taskId} in file ${filepath} (inDB=${dbTaskIds.includes(taskId)}, inFile=${physicalTaskIds.includes(taskId)})`);
 
-					// Check if marked as deleted in DB
+				// Skip tasks without #ticktick tag
+				if (!dbTaskIds.includes(taskId) && physicalTaskIds.includes(taskId)) {
+					const taskLine = fileMap.getTaskRecord(taskId).task;
+					if (!this.plugin.taskParser?.hasTickTickTag(taskLine)) {
+						log.debug(`[checkDB] SKIP task ${taskId} — no #ticktick tag on line: "${taskLine}"`);
+						continue;
+					}
+				}
+
+				const localTask = await this.plugin.taskRepository.loadLocalTaskById(taskId);
+				let taskObject = localTask?.task;
+
+				log.debug(`[checkDB] task ${taskId}: localTask exists=${!!localTask}, taskObject exists=${!!taskObject}, localTask.deleted=${localTask?.deleted}, taskObject.deleted=${taskObject?.deleted}`);
+
+				const inFile = physicalTaskIds.includes(taskId);
+
+				// If the task is locally deleted, data is missing, or absent from the file, verify with TickTick
+				if (!taskObject || localTask?.deleted === true || taskObject?.deleted === 1 || !inFile) {
+					log.debug(`[checkDB] ENTER TickTick check for ${taskId}: reason=!taskObj=${!taskObject}, localDel=${localTask?.deleted === true}, objDel=${taskObject?.deleted === 1}, inFile=${inFile}`);
+					try {
+						const tickTickTask = await this.plugin.tickTickRestAPI?.getTaskById(taskId);
+						if (tickTickTask && tickTickTask.deleted !== 1) {
+							// getTaskById may not return parentId; supplement from local DB if needed
+							if (!tickTickTask.parentId && taskObject?.parentId) {
+								tickTickTask.parentId = taskObject.parentId;
+							}
+							// Task is alive on TickTick — treat as orphan and let user decide
+							log.debug(`[checkDB] ORPHAN task ${taskId} — alive on TickTick (title="${tickTickTask.title}", projectId=${tickTickTask.projectId}), adding to resolve list`);
+							tasksToResolve.push({
+								filepath,
+								taskId: taskId,
+								title: tickTickTask.title || taskId,
+								projectId: tickTickTask.projectId,
+								task: tickTickTask,
+								inFile
+							});
+							continue;
+						} else if (tickTickTask && tickTickTask.deleted === 1) {
+							// Deleted on TickTick too
+							log.debug(`[checkDB] DELETE task ${taskId} — also deleted in TickTick (title="${tickTickTask.title}")`);
+							tasksToDelete.push({ filepath, taskId: taskId, title: tickTickTask.title || taskId });
+							continue;
+						}
+						// tickTickTask was null/undefined — can't confirm with API
+						log.debug(`[checkDB] NULL/UNDEFINED from TickTick API for ${taskId} — falling through to local-state check`);
+					} catch (error) {
+						if (error.message?.includes('404')) {
+							log.debug(`[checkDB] DELETE task ${taskId} — 404 from TickTick API (task not found)`);
+							tasksToDelete.push({ filepath, taskId: taskId, title: taskId });
+							continue;
+						}
+						log.error(`[checkDB] Error loading task ${taskId} from API:`, error);
+						continue;
+					}
+					// If locally marked as deleted, proceed with deletion
 					if (localTask?.deleted === true || taskObject?.deleted === 1) {
-						log.debug("pushing because marked as deleted in DB: ", filepath, taskObject?.title || taskId)
+						log.debug(`[checkDB] DELETE task ${taskId} — API returned null, but locally marked as deleted`);
 						tasksToDelete.push({ filepath, taskId: taskId, title: taskObject?.title || taskId });
 						continue;
 					}
+					// Otherwise silently skip (can't verify status with TickTick)
+					log.debug(`[checkDB] SKIP task ${taskId} — API returned null, not locally marked as deleted`);
+					continue;
+				}
 
 					if (localTask && (!localTask.lastVaultSync || localTask.lastVaultSync < localTask.updatedAt || !localTask.file)) {
 						log.debug(`Cleaning up sync timestamps for task ${taskId} in ${filepath}`);
 						await this.plugin.taskRepository.upsertTask(localTask.task, filepath, Date.now());
-					}
-
-					if (!taskObject) {
-						// Try to get from TickTick
-						try {
-							taskObject = await this.plugin.tickTickRestAPI?.getTaskById(taskId);
-							if (taskObject) {
-								if (taskObject.deleted === 1) {
-									log.debug("pushing because marked as deleted in TickTick: ", filepath, taskObject?.title)
-									tasksToDelete.push({ filepath, taskId: taskId, title: taskObject.title });
-									continue;
-								}
-								// If found, update cache and mark as synced to vault
-								await this.plugin.taskRepository.upsertTask(taskObject, filepath, Date.now());
-							}
-						} catch (error) {
-							if (error.message?.includes('404')) {
-								log.debug("pushing because not found: ", filepath, taskId)
-								tasksToDelete.push({ filepath, taskId: taskId, title: taskId });
-								continue;
-							}
-							log.error(`Error loading task ${taskId} from API:`, error);
-							continue;
-						}
 					}
 
 					// Verify Obsidian URL in TickTick
@@ -462,10 +503,9 @@ export class TickTickService {
 						await this.plugin.fileOperation?.addTickTickLinkToFile(filepath);
 					}
 
-					//NEW: Use TaskModificationDetector and TaskDeletionHandler
+					//NEW: Use TaskModificationDetector
 					await this.plugin.taskModificationDetector.checkFileForNewTasks(filepath);
 					await this.plugin.taskModificationDetector.checkFileForModifications(filepath);
-					await this.plugin.taskDeletionHandler.checkFileForDeletedTasks(filepath);
 
 				} catch (error) {
 					log.error(`Error scanning file ${filepath}:`, error);
@@ -474,13 +514,102 @@ export class TickTickService {
 		});
 		log.debug(`Finished checking database for ${markdownFiles.length} markdown files and ${dbFiles.length} DB entries.`);
 		log.debug(`Found ${tasksToDelete.length} tasks to be deleted.`);
+		log.debug(`Known local task IDs: ${allLocalIds.size}.`);
+
+		// Scan TickTick for tasks that have no local reference at all
+		try {
+			const allTickTickData = await this.plugin.tickTickRestAPI?.getAllTasks() || {};
+			const allTickTickTasks: any[] = allTickTickData.update || [];
+			log.debug(`[checkDB] TickTick-wide scan: got ${allTickTickTasks.length} live tasks from API`);
+			if (allTickTickTasks.length > 0) {
+				const resolveIds = new Set(tasksToResolve.map(t => t.taskId));
+				for (const ttTask of allTickTickTasks) {
+					const ttId = ttTask.id || ttTask.taskId;
+					if (!ttId) { log.debug(`[checkDB] TT-scan: skip task with no id`); continue; }
+					if (ttTask.deleted === 1) { log.debug(`[checkDB] TT-scan: skip ${ttId} — deleted on TickTick`); continue; }
+					if (allLocalIds.has(ttId)) { log.debug(`[checkDB] TT-scan: skip ${ttId} — already in local IDs`); continue; }
+					if (resolveIds.has(ttId)) { log.debug(`[checkDB] TT-scan: skip ${ttId} — already in resolve list`); continue; }
+					const filepath = await this.plugin.cacheOperation?.getFilepathForProjectId(ttTask.projectId) || '';
+					log.debug(`[checkDB] TT-scan: ORPHAN ${ttId} — no local reference (title="${ttTask.title}", projectId=${ttTask.projectId}, filepath="${filepath}")`);
+					tasksToResolve.push({
+						filepath,
+						taskId: ttId,
+						title: ttTask.title || ttId,
+						projectId: ttTask.projectId,
+						task: ttTask,
+						inFile: false
+					});
+				}
+				log.debug(`[checkDB] TickTick-wide scan complete: ${tasksToResolve.length} total orphaned tasks.`);
+			}
+		} catch (err) {
+			log.error('Error scanning all TickTick tasks:', err);
+		}
+
+		if (tasksToResolve.length > 0) {
+			log.debug(`[checkDB] Showing OrphanTaskModal for ${tasksToResolve.length} tasks: ${tasksToResolve.map(t => `${t.taskId} (${t.title})`).join(', ')}`);
+			const orphanItems: OrphanItem[] = await Promise.all(tasksToResolve.map(async (t) => {
+				let projectName: string | undefined;
+				if (!t.filepath) {
+					projectName = await this.plugin.cacheOperation?.getProjectNameByIdFromCache(t.projectId) || 'Unknown Project';
+				}
+				return {
+					title: this.plugin.taskParser.stripOBSUrl(t.title),
+					filePath: t.filepath || undefined,
+					projectName
+				};
+			}));
+			const modal = new OrphanTaskModal(this.plugin.app, orphanItems);
+			const action = await modal.showModal();
+			log.debug(`[checkDB] User chose action "${action}" for orphaned tasks`);
+			if (action === 'add') {
+				await doWithLock(LOCK_TASKS, async () => {
+					for (const t of tasksToResolve) {
+						const targetFilepath = t.filepath || (await this.plugin.cacheOperation?.getFilepathForProjectId(t.projectId)) || '';
+						await this.plugin.taskRepository.upsertTask(t.task, targetFilepath, Date.now());
+						if (!t.inFile && targetFilepath) {
+							try {
+								await this.plugin.fileOperation?.synchronizeToVault(targetFilepath, [t.task], false);
+							} catch (err) {
+								log.warn(`Could not add task ${t.taskId} to file ${t.filepath}:`, err);
+							}
+						}
+					}
+				});
+				new Notice(`Added ${tasksToResolve.length} orphaned task(s) to vault and database.`);
+			} else if (action === 'delete') {
+				await doWithLock(LOCK_TASKS, async () => {
+					for (const t of tasksToResolve) {
+						try {
+							await this.plugin.tickTickRestAPI?.deleteTask(t.taskId, t.projectId);
+							log.debug(`Deleted task ${t.taskId} from TickTick.`);
+						} catch (err) {
+							log.warn(`Failed to delete task ${t.taskId} from TickTick:`, err);
+						}
+						if (t.inFile && t.filepath) {
+							const file = this.plugin.app.vault.getAbstractFileByPath(t.filepath);
+							if (file instanceof TFile) {
+								await this.plugin.fileOperation?.deleteTasksFromSpecificFile(file, [{ id: t.taskId } as ITask], false);
+							}
+						}
+						if (t.filepath) {
+							await this.cacheOperation?.deleteTaskIdFromMetadata(t.filepath, t.taskId);
+						}
+					}
+				});
+				new Notice(`Deleted ${tasksToResolve.length} orphaned task(s) from TickTick.`);
+			}
+		}
+
 		if (tasksToDelete.length > 0) {
+			log.debug(`[checkDB] Showing TaskDeletionModal for ${tasksToDelete.length} tasks: ${tasksToDelete.map(t => `${t.taskId} (${t.title})`).join(', ')}`);
 			const items = tasksToDelete.map(t => ({
 				title: this.plugin.taskParser.stripOBSUrl(t.title),
 				filePath: t.filepath
 			}));
 			const modal = new TaskDeletionModal(this.plugin.app, items, 'they are deleted in TickTick or marked as deleted in the database.', (result) => { });
 			const confirmed = await modal.showModal();
+			log.debug(`[checkDB] User confirmed deletion: ${confirmed}`);
 			if (confirmed) {
 				await doWithLock(LOCK_TASKS, async () => {
 					const byFile: Record<string, Set<string>> = {};

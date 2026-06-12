@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 //TODO: task parser tests are failing because it imports obsidian, which is not available in vitest
 import { REGEX, TaskParser } from '../taskParser';
-import { FileMap } from '@/services/fileMap';
+import { NewFileMap } from '@/services/newFileMap';
 import { getSettings } from '@/settings';
 
 const TASK1 = '- [ ] ttsb_task11 #ttsb  [link](https://ticktick.com/webapp/#p/67326d9f5f088184d96f1d4f/tasks/673ae6b7e143d55b24bd0271) #ticktick  %%[ticktick_id:: 673ae6b7e143d55b24bd0271]%% 📅 2024-11-19';
@@ -53,7 +53,7 @@ it('collects note lines including checklist items without IDs in no-delimiter mo
 		} as any;
 
 		// Fake FileMap instance with minimal API used by getTaskLinesByIdx
-		const fm = new (class extends (FileMap as any) {
+		const fm = new (class extends (NewFileMap as any) {
 			constructor() { super({}, plugin, {}); this.fileLines = lines; }
 			getParentIDByIdx() { return ''; }
 			getTaskIndex() { return 0; }
@@ -86,7 +86,7 @@ it('collects note lines including checklist items without IDs in no-delimiter mo
 			taskParser: new TaskParser({} as any, {} as any),
 		} as any;
 
-		const fm = new (class extends (FileMap as any) {
+		const fm = new (class extends (NewFileMap as any) {
 			constructor() { super({}, plugin, {}); this.fileLines = lines; }
 			getParentIDByIdx() { return ''; }
 			getTaskIndex() { return 0; }

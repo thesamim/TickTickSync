@@ -1,7 +1,7 @@
 import '@/static/index.css';
 import '@/static/styles.css';
 
-import { type Editor, type MarkdownFileInfo, Platform } from 'obsidian';
+import { type Editor, type MarkdownFileInfo, type MarkdownPostProcessor, Platform } from 'obsidian';
 import { MarkdownView, Notice, Plugin, TFolder } from 'obsidian';
 
 //settings
@@ -32,7 +32,7 @@ import { TickTickSyncSettingTab } from './ui/settings';
 import { QueryInjector } from '@/query/injector';
 import store from '@/store';
 import { DateMan } from '@/dateMan';
-import { FileMap } from '@/services/fileMap';
+import { NewFileMap } from '@/services/newFileMap';
 
 //logging
 import log from '@/utils/logger';
@@ -59,6 +59,9 @@ import { TaskDeletionHandler } from '@/services/TaskDeletionHandler';
 import { TaskOperationsService } from '@/services/TaskOperationsService';
 import { FolderSyncService } from '@/services/FolderSyncService';
 import { FolderMigrationService } from '@/services/FolderMigrationService';
+
+import {getTasksWithChildren} from '@/FuckAboutParse';
+
 
 export default class TickTickSync extends Plugin {
 
@@ -89,6 +92,7 @@ export default class TickTickSync extends Plugin {
 	statusBar?: HTMLElement;
 	private syncIntervalId?: number;
 	private logger: any;
+	private codeBlockProcessor?: MarkdownPostProcessor;
 
 	async onload() {
 		//We're doing too much at load time, and it's causing issues. Do it properly!
@@ -126,6 +130,11 @@ export default class TickTickSync extends Plugin {
 	// }
 
 	async onunload() {
+		if (this.codeBlockProcessor) {
+			MarkdownPostProcessor.unregisterPostProcessor(this.codeBlockProcessor);
+			this.codeBlockProcessor = undefined;
+		}
+		super.onunload();
 		if (this.syncIntervalId) {
 			window.clearInterval(this.syncIntervalId);
 		}
@@ -325,7 +334,7 @@ export default class TickTickSync extends Plugin {
 					if (itemID) {
 						const markDownView = this.app.workspace.getActiveViewOfType(MarkdownView);
 						if (markDownView?.file) {
-							const fileMap = new FileMap(this.app, this, markDownView.file);
+							const fileMap = new NewFileMap(this.app, this, markDownView.file);
 							await fileMap.init();
 							await this.service.tickTickSync.handleTaskItem(clickedText, fileMap, line);
 						}
@@ -478,11 +487,11 @@ export default class TickTickSync extends Plugin {
 		}
 
 		store.service.set(this.service);
-		const queryInjector = new QueryInjector(this);
-		this.registerMarkdownCodeBlockProcessor(
-			'ticktick',
-			queryInjector.onNewBlock.bind(queryInjector)
-		);
+		// const queryInjector = new QueryInjector(this);
+		// this.codeBlockProcessor = this.registerMarkdownCodeBlockProcessor(
+		// 	'ticktick',
+		// 	queryInjector.onNewBlock.bind(queryInjector)
+		// );
 
 
 		const ribbonIconEl = this.addRibbonIcon('sync', 'TickTickSync', async (evt: MouseEvent) => {
@@ -501,16 +510,35 @@ export default class TickTickSync extends Plugin {
 		//Used for testing adhoc code.
 		const ribbonIconEl2 = this.addRibbonIcon('dice', 'TTS Test 2', async (evt: MouseEvent) => {
 			// Nothing to see here right now.
-			for (const file of this.app.vault.getMarkdownFiles()) {
-				if (file.path.includes("List 1")) {
-					const fileMap = new FileMap(this.app, this, file);
-					await fileMap.init();
-					const taskRecord = fileMap.getTaskRecord("6a08733c9086963234d145a5")
-					const taskItems = fileMap.getTaskItems("6a08733c9086963234d145a5")
-					log.debug("record", taskRecord)
-					log.debug("items", taskItems)
-				}
+			// for (const file of this.app.vault.getMarkdownFiles()) {
+			// 	if (file.path.includes("List 1")) {
+			// 		const fileMap = new NewFileMap(this.app, this, file);
+			// 		await fileMap.init();
+			// 		const taskRecord = fileMap.getTaskRecord("6a08733c9086963234d145a5")
+			// 		const taskItems = fileMap.getTaskItems("6a08733c9086963234d145a5")
+			// 		log.debug("record", taskRecord)
+			// 		log.debug("items", taskItems)
+			// 	}
+			// }
+			// Example Usage inside a command or event:
+			const targetFolder = 'Folder 1';
+
+			// Get every file in the vault and filter by path prefix
+			const allFilesInFolder = this.app.vault.getFiles().filter(file =>
+				file.path.startsWith(targetFolder + '/')
+			);
+
+			for (const file of allFilesInFolder) {
+				const activeFile = this.app.vault.getFileByPath(file)
+				const tasks = await getTasksWithChildren(activeFile, this.app);
+				// const fm = new NewFileMap(this.app, this, activeFile);
+				// await fm.init();
+				// const tasks = fm.getTasks();
+
+				log.debug("In File: ", file.name, "\nStructured Tasks:\n", JSON.stringify(tasks,null, 4));
 			}
+
+
 		});
 
 

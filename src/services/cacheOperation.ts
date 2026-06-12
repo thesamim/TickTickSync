@@ -6,7 +6,7 @@ import { FoundDuplicateListsModal } from '@/modals/FoundDuplicateListsModal';
 import { getDefaultFolder, getSettings } from '@/settings';
 //Logging
 import log from '@/utils/logger';
-import { FileMap } from '@/services/fileMap';
+import { NewFileMap } from '@/services/newFileMap';
 import { db } from '@/db/dexie';
 import { getAllProjects, getProjectById } from '@/db/projects';
 import { deleteFile, getAllFiles, getFile, updateFilePath as updateDbFilePath, upsertFile } from '@/db/files';
@@ -571,7 +571,7 @@ export class CacheOperation {
 		const otherduplicates: Record<string, string[]> = {};
 		for (const file of markdownFiles) {
 			try {
-				const fileMap = new FileMap(this.plugin.app, this.plugin, file);
+				const fileMap = new NewFileMap(this.plugin.app, this.plugin, file);
 				await fileMap.init();
 
 				if (fileMap.hasTasks(settings.enableFullVaultSync)) {

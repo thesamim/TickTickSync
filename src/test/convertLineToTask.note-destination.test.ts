@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { TaskParser } from '@/taskParser';
-import type { ITaskRecord } from '@/services/fileMap';
+import type { ITaskRecord } from '@/services/newFileMap';
 import { getSettings } from '@/settings';
 
 function makePlugin(parser: TaskParser) {

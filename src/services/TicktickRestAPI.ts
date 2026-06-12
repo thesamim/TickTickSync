@@ -406,16 +406,21 @@ export class TickTickRestAPI {
 	//TODO: Will need interpretation
 	async getAllTasks(): Promise<any[]> {
 		await this.initializeAPI();
+		const oldCheckPoint = this._checkpoint;
+		this._checkpoint = 0;
+
 		try {
 			//This returns the SyncBean object, which has ALL the task details
 			const result = await this.api?.getTaskDetails();
 			if (!result || result.length === 0 && this.api?.lastError.statusCode != 200) {
 				throw new Error('No Results.');
 			}
+			this._checkpoint = oldCheckPoint;
 			return (result);
 
 		} catch (error) {
 			log.error('Error get all Tasks', error);
+			this._checkpoint = oldCheckPoint;
 			return [];
 		}
 	}
