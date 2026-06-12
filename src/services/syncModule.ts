@@ -344,14 +344,6 @@ export class SyncMan {
 
 	}
 
-	/**
-	 * @deprecated Use TaskOperationsService.updateTaskContentForFile() instead
-	 * This method will be removed in a future version
-	 */
-	async updateTaskContent(filepath: string) {
-		await this.plugin.taskOperationsService.updateTaskContentForFile(filepath);
-	}
-
 	///End of Test
 
 
