@@ -32,7 +32,7 @@ import { TickTickSyncSettingTab } from './ui/settings';
 import { QueryInjector } from '@/query/injector';
 import store from '@/store';
 import { DateMan } from '@/dateMan';
-import { NewFileMap } from '@/services/newFileMap';
+import { NewFileMap } from '@/services/NewFileMap';
 
 //logging
 import log from '@/utils/logger';

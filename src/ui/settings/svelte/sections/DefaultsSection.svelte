@@ -6,7 +6,7 @@
 	import { FolderSuggest } from '@/utils/FolderSuggester';
 	import { validateNewFolder } from '@/utils/FolderUtils';
 	import log from 'loglevel';
-	import { FileMap } from '@/services/fileMap';
+	import { NewFileMap } from '@/services/NewFileMap'
 
 	export let open = false;
 	export let plugin;
@@ -156,7 +156,7 @@
 			}
 			try {
 				countForDebug++;
-				const fileMap = new FileMap(plugin.app, plugin, file);
+				const fileMap = new NewFileMap(plugin.app, plugin, file);
 				await fileMap.init();
 
 				if (fileMap.hasTasks(settings.enableFullVaultSync, countForDebug)) {

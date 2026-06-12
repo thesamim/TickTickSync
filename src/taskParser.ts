@@ -3,7 +3,7 @@ import type TickTickSync from '@/main';
 import type { ITask, ITaskItem } from '@/api/types/Task';
 import { getSettings } from '@/settings';
 import { sha256 } from 'crypto-hash';
-import type { NewFileMap, ITaskRecord } from '@/services/newFileMap';
+import type { NewFileMap, ITaskRecord } from '@/services/NewFileMap';
 import { tasksTextToRRule, rruleToTasksText } from '@/utils/RecurrenceConverter';
 import log from '@/utils/logger';
 

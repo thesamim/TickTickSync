@@ -2,7 +2,7 @@ import { App, Notice, TFile, TFolder } from 'obsidian';
 import TickTickSync from '@/main';
 import type { ITask } from './api/types/Task';
 import { getSettings } from '@/settings';
-import { NewFileMap, type ITaskRecord } from '@/services/newFileMap';
+import { NewFileMap, type ITaskRecord } from '@/services/NewFileMap';
 import log from '@/utils/logger';
 import { DeletionItem, TaskDeletionModal } from './modals/TaskDeletionModal';
 import { getProjectById } from '@/db/projects';

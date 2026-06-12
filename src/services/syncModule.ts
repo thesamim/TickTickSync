@@ -10,7 +10,7 @@ import type { ITask } from '@/api/types/Task';
 import ObjectID from 'bson-objectid';
 import { TaskDeletionModal } from '@/modals/TaskDeletionModal';
 import { getSettings } from '@/settings';
-import { NewFileMap, type ITaskItemRecord } from '@/services/newFileMap';
+import { NewFileMap, type ITaskItemRecord } from '@/services/NewFileMap';
 import log from '@/utils/logger';
 import { db } from "@/db/dexie";
 

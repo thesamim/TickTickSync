@@ -6,7 +6,7 @@ import { SyncMan } from '@/services/syncModule';
 import { Editor, type MarkdownFileInfo, type MarkdownView, Notice, TFile } from 'obsidian';
 import { CacheOperation } from '@/services/cacheOperation';
 import { FileOperation } from '@/fileOperation';
-import { NewFileMap } from '@/services/newFileMap';
+import { NewFileMap } from '@/services/NewFileMap';
 //Logging
 import log from '@/utils/logger';
 import { FoundDuplicateTasksModal } from '@/modals/FoundDuplicateTasksModal';

@@ -6,7 +6,7 @@ import { FoundDuplicateListsModal } from '@/modals/FoundDuplicateListsModal';
 import { getDefaultFolder, getSettings } from '@/settings';
 //Logging
 import log from '@/utils/logger';
-import { NewFileMap } from '@/services/newFileMap';
+import { NewFileMap } from '@/services/NewFileMap';
 import { db } from '@/db/dexie';
 import { getAllProjects, getProjectById } from '@/db/projects';
 import { deleteFile, getAllFiles, getFile, updateFilePath as updateDbFilePath, upsertFile } from '@/db/files';

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 //TODO: task parser tests are failing because it imports obsidian, which is not available in vitest
 import { REGEX, TaskParser } from '../taskParser';
-import { NewFileMap } from '@/services/newFileMap';
+import { NewFileMap } from '@/services/NewFileMap';
 import { getSettings } from '@/settings';
 
 const TASK1 = '- [ ] ttsb_task11 #ttsb  [link](https://ticktick.com/webapp/#p/67326d9f5f088184d96f1d4f/tasks/673ae6b7e143d55b24bd0271) #ticktick  %%[ticktick_id:: 673ae6b7e143d55b24bd0271]%% 📅 2024-11-19';

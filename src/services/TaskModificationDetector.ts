@@ -22,7 +22,7 @@ import {
 import type TickTickSync from '@/main';
 import type { ITask } from '@/api/types/Task';
 import type { LocalTask } from '@/db/schema';
-import { NewFileMap } from '@/services/newFileMap';
+import { NewFileMap } from '@/services/NewFileMap';
 import { FolderSyncService } from '@/services/FolderSyncService';
 import { getSettings } from '@/settings';
 import log from '@/utils/logger';
