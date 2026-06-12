@@ -386,16 +386,16 @@ export default class TickTickSync extends Plugin {
 			return;
 		}
 
-		const startTime = performance.now();
-		log.debug(`TickTick scheduled synchronization task started at ${new Date().toLocaleString()}`);
+
+
 		try {
 			await this.service.synchronization(fullSync);
 		} catch (error) {
 			log.error('An error occurred: ', error);
 			new Notice(`An error occurred: ${error}`);
 		}
-		const endTime = performance.now();
-		log.debug(`TickTick scheduled synchronization task completed at ${new Date().toLocaleString()}, took ${(endTime - startTime).toFixed(2)} ms`);
+
+
 	}
 
 

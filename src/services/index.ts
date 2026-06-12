@@ -109,7 +109,10 @@ export class TickTickService {
 	}
 
 	async synchronization(fullSync: boolean = false) {
+		const startTime = performance.now();
 		try {
+
+			log.debug(`TickTick scheduled synchronization task started at ${new Date().toLocaleString()}`);
 			// NEW: Use TaskCache
 			await this.plugin.taskCache.fill();
 
@@ -155,6 +158,8 @@ export class TickTickService {
 		} finally {
 			// NEW: Clear TaskCache
 			this.plugin.taskCache.clear();
+			const endTime = performance.now();
+			log.debug(`TickTick scheduled synchronization task completed at ${new Date().toLocaleString()}, took ${(endTime - startTime).toFixed(2)} ms`);
 		}
 	}
 
