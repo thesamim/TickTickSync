@@ -22,7 +22,7 @@ import {
 import type TickTickSync from '@/main';
 import type { ITask } from '@/api/types/Task';
 import type { LocalTask } from '@/db/schema';
-import { FileMap } from '@/services/fileMap';
+import { NewFileMap } from '@/services/newFileMap';
 import { FolderSyncService } from '@/services/FolderSyncService';
 import { getSettings } from '@/settings';
 import log from '@/utils/logger';
@@ -64,7 +64,7 @@ export class TaskModificationDetector {
 		const linetxt = editor.getLine(line);
 		const beforeLength = fileContent?.length;
 
-		const fileMap = new FileMap(this.app, this.plugin, view.file);
+		const fileMap = new NewFileMap(this.app, this.plugin, view.file);
 		await fileMap.init(fileContent);
 		await this.addNewTask(linetxt, line, editor, cursor, fileMap);
 
@@ -80,7 +80,7 @@ export class TaskModificationDetector {
 		line: number,
 		editor: Editor | null,
 		cursor: EditorPosition | null,
-		fileMap: FileMap
+		fileMap: NewFileMap
 	): Promise<void> {
 		if (!lineTxt || lineTxt.length == 0) {
 			return;
@@ -153,7 +153,7 @@ export class TaskModificationDetector {
 		// Ensure file is registered in metadata before scanning
 		await this.plugin.cacheOperation?.getFileMetadata(file_path);
 
-		const fileMap = new FileMap(this.app, this.plugin, file);
+		const fileMap = new NewFileMap(this.app, this.plugin, file);
 		await fileMap.init();
 
 		// Add TickTick tags if full vault sync is enabled
@@ -178,14 +178,26 @@ export class TaskModificationDetector {
 		filepath: string | undefined,
 		lineText: string,
 		lineNumber: number | undefined,
-		fileMap: FileMap
+		fileMap: NewFileMap
 	): Promise<boolean> {
-		// Early validation
+		// Only process full tasks here.  taskParser.isTaskItem handles item
+		// identification; note-level content is skipped entirely.
 		if (!this.plugin.taskParser?.hasTickTickId(lineText) ||
 			!this.plugin.taskParser?.hasTickTickTag(lineText)) {
-			// Check if it's a task item instead
-			if (this.plugin.taskParser.isMarkdownTask(lineText)) {
-				return await this.checkTaskItemModification(lineText, fileMap, lineNumber);
+			// Not a full task — check if it's a genuine task item.
+			if (lineNumber !== undefined) {
+				const fileLines = fileMap.getFileLines().split('\n');
+				const lineTabs = this.plugin.taskParser.getNumTabs(lineText);
+				for (let i = lineNumber - 1; i >= 0; i--) {
+					const ancestorLine = fileLines[i];
+					if (this.plugin.taskParser.isMarkdownTask(ancestorLine) && this.plugin.taskParser.hasTickTickId(ancestorLine)) {
+						const ancestorTabs = this.plugin.taskParser.getNumTabs(ancestorLine);
+						if (this.plugin.taskParser.isTaskItem(lineText, ancestorTabs)) {
+							return await this.checkTaskItemModification(lineText, fileMap, lineNumber);
+						}
+						break;
+					}
+				}
 			}
 			return false;
 		}
@@ -277,7 +289,7 @@ export class TaskModificationDetector {
 			return;
 		}
 
-		const fileMap = new FileMap(this.app, this.plugin, file);
+		const fileMap = new NewFileMap(this.app, this.plugin, file);
 		await fileMap.init();
 
 		const lines: string[] = fileMap.getFileLines().split('\n');
@@ -570,7 +582,7 @@ export class TaskModificationDetector {
 	/**
 	 * Check for task item (sub-task) modifications
 	 */
-	private async checkTaskItemModification(lineText: string, fileMap: FileMap, lineNumber: number | undefined): Promise<boolean> {
+	private async checkTaskItemModification(lineText: string, fileMap: NewFileMap, lineNumber: number | undefined): Promise<boolean> {
 		if (!this.plugin.taskParser?.isMarkdownTask(lineText)) {
 			return false;
 		}
@@ -679,7 +691,7 @@ export class TaskModificationDetector {
 		editor: Editor | null,
 		cursor: EditorPosition | null,
 		line: number | null,
-		fileMap: FileMap
+		fileMap: NewFileMap
 	): Promise<void> {
 		const newTaskCopy = { ...newTask };
 		newTaskCopy.items = [];

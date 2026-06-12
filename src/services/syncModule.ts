@@ -10,7 +10,7 @@ import type { ITask } from '@/api/types/Task';
 import ObjectID from 'bson-objectid';
 import { TaskDeletionModal } from '@/modals/TaskDeletionModal';
 import { getSettings } from '@/settings';
-import { FileMap, type ITaskItemRecord } from '@/services/fileMap';
+import { NewFileMap, type ITaskItemRecord } from '@/services/newFileMap';
 import log from '@/utils/logger';
 import { db } from "@/db/dexie";
 
@@ -372,7 +372,7 @@ export class SyncMan {
 		} else {
 			throw new Error('No file path provided');
 		}
-		const fileMap = new FileMap(this.app, this.plugin, file as TFile);
+		const fileMap = new NewFileMap(this.app, this.plugin, file as TFile);
 		await fileMap.init();
 
 		const lines = fileMap.getFileLines().split('\n');
@@ -414,7 +414,7 @@ export class SyncMan {
 		return bConfirmation;
 	}
 
-	async handleTaskItem(lineText: string, fileMap: FileMap, lineNumber: number | undefined) {
+	async handleTaskItem(lineText: string, fileMap: NewFileMap, lineNumber: number | undefined) {
 		if (lineText.contains("Copy Tasks from")) {
 			log.debug("Copy Tasks from found.");
 		}
@@ -443,6 +443,21 @@ export class SyncMan {
 
 		if ((!currentObject.parentId || currentObject.parentId === '' || currentObject.parentId.length < 1)) {
 			return false;
+		}
+
+		// Verify this is a genuine task item, not note-level content.
+		if (lineNumber !== undefined) {
+			const fileLines = fileMap.getFileLines().split('\n');
+			for (let i = lineNumber - 1; i >= 0; i--) {
+				const ancestorLine = fileLines[i];
+				if (this.plugin.taskParser.isMarkdownTask(ancestorLine) && this.plugin.taskParser.hasTickTickId(ancestorLine)) {
+					const ancestorTabs = this.plugin.taskParser.getNumTabs(ancestorLine);
+					if (!this.plugin.taskParser.isTaskItem(lineText, ancestorTabs)) {
+						return false;
+					}
+					break;
+				}
+			}
 		}
 
 		const parentID = currentObject.parentId;

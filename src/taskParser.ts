@@ -3,7 +3,7 @@ import type TickTickSync from '@/main';
 import type { ITask, ITaskItem } from '@/api/types/Task';
 import { getSettings } from '@/settings';
 import { sha256 } from 'crypto-hash';
-import type { FileMap, ITaskRecord } from '@/services/fileMap';
+import type { NewFileMap, ITaskRecord } from '@/services/newFileMap';
 import { tasksTextToRRule, rruleToTasksText } from '@/utils/RecurrenceConverter';
 import log from '@/utils/logger';
 
@@ -244,7 +244,7 @@ export class TaskParser {
 	}
 
 	//convert line text to a task object
-	async convertLineToTask(lineText: string, lineNumber: number, filepath: string, fileMap: FileMap, inTaskRecord: ITaskRecord | null) {
+	async convertLineToTask(lineText: string, lineNumber: number, filepath: string, fileMap: NewFileMap | null, inTaskRecord: ITaskRecord | null) {
 		let hasParent = false;
 		let parentId = null;
 		let parentTaskObject = null;
@@ -362,11 +362,14 @@ export class TaskParser {
 
 	}
 
-	getTaskPayLoad(fileMap: FileMap, TickTick_id: string, noteURL: string): {
+	getTaskPayLoad(fileMap: NewFileMap | null, TickTick_id: string, noteURL: string): {
 		description: string,
 		content: string,
 		taskItems: ITaskItem []
 	} {
+		if (!fileMap) {
+			return { description: '', content: '', taskItems: [] };
+		}
 
 		const taskRecord = fileMap.getTaskRecord(TickTick_id);
 		const taskItems: ITaskItem[] = [];
@@ -664,6 +667,37 @@ export class TaskParser {
 			tabs = tabs + '\t';
 		}
 		return tabs;
+	}
+
+	/**
+	 * A line is a task item if it is a markdown checklist at exactly
+	 * parentTabs + 1 tabs of indentation — one tab deeper than the parent.
+	 * Note content (same tabs + 2 spaces) and siblings (same tabs) are excluded.
+	 */
+	isTaskItem(line: string, parentTabs: number): boolean {
+		if (!this.isMarkdownTask(line)) return false;
+		const lineTabs = this.getNumTabs(line);
+		if (lineTabs !== parentTabs + 1) return false;
+		const afterTabs = line.slice(lineTabs);
+		return afterTabs.startsWith('- [');
+	}
+
+	/**
+	 * A line is note-level content if it is indented with the same number of
+	 * tabs as the parent, followed by two spaces (the note prefix).  Note
+	 * content — including note checklists — must never be parsed as task items.
+	 *
+	 * Also checks for orphaned note content that was originally under a child
+	 * item (parentTabs + 1 tabs + 2 spaces).
+	 */
+	isNoteLevel(line: string, parentTabs: number): boolean {
+		if (!this.isMarkdownTask(line)) return false;
+		const lineTabs = this.getNumTabs(line);
+		if (lineTabs > parentTabs + 1) return false;
+		for (let p = parentTabs; p <= parentTabs + 1; p++) {
+			if (line.startsWith('\t'.repeat(p) + '  ')) return true;
+		}
+		return false;
 	}
 
 	getIndentation(lineText: string) {

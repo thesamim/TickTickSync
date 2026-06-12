@@ -2,7 +2,7 @@ import { App, Notice, TFile, TFolder } from 'obsidian';
 import TickTickSync from '@/main';
 import type { ITask } from './api/types/Task';
 import { getSettings } from '@/settings';
-import { FileMap, type ITaskRecord } from '@/services/fileMap';
+import { NewFileMap, type ITaskRecord } from '@/services/newFileMap';
 import log from '@/utils/logger';
 import { DeletionItem, TaskDeletionModal } from './modals/TaskDeletionModal';
 import { getProjectById } from '@/db/projects';
@@ -79,7 +79,7 @@ export class FileOperation {
 	}
 
 	//add #TickTick at the end of task line, if full vault sync enabled
-	async addTickTickTagToFile(fileMap: FileMap) {
+	async addTickTickTagToFile(fileMap: NewFileMap) {
 
 
 		if (fileMap.markAllTasks()) {
@@ -323,7 +323,7 @@ export class FileOperation {
 		}
 		log.info(`Deleting ${tasks.length} tasks from file: `, filePath.path);
 
-		const fileMap: FileMap = new FileMap(this.app, this.plugin, filePath);
+		const fileMap: NewFileMap = new NewFileMap(this.app, this.plugin, filePath);
 		await fileMap.init();
 
 		const oldContent = fileMap.getFileLines();
@@ -479,7 +479,7 @@ export class FileOperation {
 		// 	if it has a parent, add it after the parent.
 		//  else add at the the insertion point in lines.
 		log.debug('Processing File: ', file.path);
-		const fileMap = new FileMap(this.app, this.plugin, file);
+		const fileMap = new NewFileMap(this.app, this.plugin, file);
 		await fileMap.init();
 		let bTaskMove: boolean = false;
 
@@ -613,7 +613,7 @@ export class FileOperation {
 
 
 	//Just the notification now.
-	private async handleTickTickStructureMove(newTask: ITask, oldTask: ITask, lineText: string, fileMap: FileMap) {
+	private async handleTickTickStructureMove(newTask: ITask, oldTask: ITask, lineText: string, fileMap: NewFileMap) {
 		log.debug('deleting old task: ', oldTask.id, oldTask.title, ' from file');
 		let filePathForNewProject = await this.plugin.cacheOperation?.getFilepathForProjectId(newTask.projectId);
 		if (!filePathForNewProject) {
@@ -635,12 +635,12 @@ export class FileOperation {
 
 		await this.plugin.taskRepository.deleteTask(oldTask.id);
 
-		const newFileMap = new FileMap(this.app, this.plugin, tFilePathForProject);
-		await newFileMap.init();
+		const destFileMap = new NewFileMap(this.app, this.plugin, tFilePathForProject);
+		await destFileMap.init();
 		//insert into the new file.
-		log.debug('Adding Task: ', newTask.id, newTask.title, ' to new file: ', newFileMap.getFilePath());
-		newFileMap.addTask(newTask, lineText);
-		const newData = newFileMap.getFileLines();
+		log.debug('Adding Task: ', newTask.id, newTask.title, ' to new file: ', destFileMap.getFilePath());
+		destFileMap.addTask(newTask, lineText);
+		const newData = destFileMap.getFileLines();
 		await this.app.vault.process(tFilePathForProject, (data) => {
 			data = newData;
 			return data;
@@ -671,7 +671,7 @@ export class FileOperation {
 	}
 
 
-	private async deleteTaskFromOldFile(oldTask: ITask, newTask: ITask, fileMap: FileMap) {
+	private async deleteTaskFromOldFile(oldTask: ITask, newTask: ITask, fileMap: NewFileMap) {
 		const oldFilePath = this.plugin.cacheOperation?.getFilepathForTask(oldTask.id);
 		log.debug('oldFilePath: ', oldFilePath);
 		if (!oldFilePath) {
