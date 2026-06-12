@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { TaskParser } from '@/taskParser';
-import type { ITaskRecord } from '@/services/newFileMap';
+import type { ITaskRecord } from '@/services/NewFileMap';
 import { getSettings } from '@/settings';
 
 // Dedicated tests for TaskParser.getNoteString covering delimiter and no-delimiter modes
