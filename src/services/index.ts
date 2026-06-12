@@ -493,7 +493,7 @@ export class TickTickService {
 						const title = taskObject.title || '';
 						if (!title.includes(obsidianURL)) {
 							try {
-								await this.tickTickSync?.updateTaskContent(filepath);
+								await this.plugin.taskOperationsService.updateTaskContentForFile(filepath);
 							} catch (error) {
 								log.warn(`Error updating task content for ${filepath}:`, error);
 							}
