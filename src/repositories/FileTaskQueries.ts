@@ -11,6 +11,7 @@ import { getAllFiles, getFile } from "@/db/files";
 import type { LocalTask } from "@/db/schema";
 import type { ITask } from "@/api/types/Task";
 import log from "@/utils/logger";
+import { getSettings } from '@/settings';
 
 export class FileTaskQueries {
 	/**
@@ -229,6 +230,40 @@ export class FileTaskQueries {
 		} catch (error) {
 			log.error("Error getting file summaries:", error);
 			return [];
+		}
+	}
+
+	/**
+	 * Check if a file has a default project ID associated
+	 */
+	async filepathHasDefaultProjectID(filepath: string): Promise<boolean> {
+		try {
+			const file = await getFile(filepath);
+			return !!(file && file.defaultProjectId);
+		} catch (error) {
+			log.error(`Error checking default project ID for ${filepath}:`, error);
+			return false;
+		}
+	}
+
+	/**
+	 * Get the default project ID for a filepath with fallback chain
+	 * Falls back: file.defaultProjectId → settings.defaultProjectId → settings.inboxID
+	 */
+	async getDefaultProjectIdForFilepath(filepath: string): Promise<string | undefined> {
+		try {
+			const file = await getFile(filepath);
+			if (file && file.defaultProjectId) {
+				return file.defaultProjectId;
+			}
+			let defaultProjectId = getSettings().defaultProjectId;
+			if (!defaultProjectId) {
+				defaultProjectId = getSettings().inboxID;
+			}
+			return defaultProjectId;
+		} catch (error) {
+			log.error(`Error getting default project ID for ${filepath}:`, error);
+			return undefined;
 		}
 	}
 

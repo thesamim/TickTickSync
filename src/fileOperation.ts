@@ -6,6 +6,7 @@ import { NewFileMap, type ITaskRecord } from '@/services/NewFileMap';
 import log from '@/utils/logger';
 import { DeletionItem, TaskDeletionModal } from './modals/TaskDeletionModal';
 import { getProjectById } from '@/db/projects';
+import { db } from '@/db/dexie';
 
 export class FileOperation {
 	app: App;
@@ -24,7 +25,7 @@ export class FileOperation {
 	async completeTaskInTheFile(taskId: string) {
 		// Get the task file path
 		const currentTask = await this.plugin.taskRepository.loadTaskById(taskId);
-		const filepath = this.plugin.cacheOperation?.getFilepathForTask(taskId);
+		const filepath = await this.plugin.fileMetadataService?.getFilepathForTask(taskId);
 
 		// Get the file object and update the content
 		const file = this.app.vault.getAbstractFileByPath(filepath);
@@ -53,7 +54,7 @@ export class FileOperation {
 	async uncompleteTaskInTheFile(taskId: string) {
 		// Get the task file path
 		const currentTask = await this.plugin.taskRepository.loadTaskById(taskId);
-		const filepath = this.plugin.cacheOperation?.getFilepathForTask(taskId);
+		const filepath = await this.plugin.fileMetadataService?.getFilepathForTask(taskId);
 
 		// Get the file object and update the content
 		const file = this.app.vault.getAbstractFileByPath(filepath);
@@ -211,14 +212,14 @@ export class FileOperation {
 				file = await this.app.vault.create(taskFile, `== Added by ${whoAdded} == `);
 				if (projectId) {
 					// Associate this file with the project in DB (used for folder management decisions)
-					await this.plugin.cacheOperation.setDefaultProjectIdForFilepath(taskFile, projectId);
+					await this.plugin.fileMetadataService.updateFileMetadata(taskFile, { defaultProjectId: projectId, TickTickTasks: [], TickTickCount: 0 });
 				}
 			} catch (error) {
 				if (error.message.includes('File already exists')) {
 					log.info('Attempting to find existing file', taskFile);
 					file = this.app.vault.getAbstractFileByPath(taskFile);
 					if (projectId) {
-						await this.plugin.cacheOperation.setDefaultProjectIdForFilepath(taskFile, projectId);
+						await this.plugin.fileMetadataService.updateFileMetadata(taskFile, { defaultProjectId: projectId, TickTickTasks: [], TickTickCount: 0 });
 					}
 					if (!file) {
 						const fileName = taskFile.split('/').pop();
@@ -344,7 +345,7 @@ export class FileOperation {
 		const taskId = task.id;
 		// Get the task file path
 
-		const filepath = this.plugin.cacheOperation?.getFilepathForTask(taskId);
+		const filepath = await this.plugin.fileMetadataService?.getFilepathForTask(taskId);
 		const file = this.app.vault.getAbstractFileByPath(filepath);
 		if (filepath) {
 			await this.deleteTaskFromSpecificFile(file, task, false);
@@ -437,14 +438,14 @@ export class FileOperation {
 				}
 			} else {
 				// File exists on disk. Ensure it's in our database association.
-				const hasAssociation = await this.plugin.cacheOperation.filepathHasDefaultProjectID(taskFile);
+				const hasAssociation = await this.plugin.fileTaskQueries.filepathHasDefaultProjectID(taskFile);
 				if (!hasAssociation && projectTasks.length > 0) {
 					const projectId = projectTasks[0].projectId;
 					// Only associate if this file is actually the one intended for this project,
 					// or if it's the global default project file.
-					const expectedFilepath = await this.plugin.cacheOperation.getFilepathForProjectId(projectId);
+					const expectedFilepath = await this.plugin.fileMetadataService.getFilepathForProjectId(projectId);
 					if (expectedFilepath && expectedFilepath.replace(/^\//, '') === taskFile) {
-						await this.plugin.cacheOperation.setDefaultProjectIdForFilepath(taskFile, projectId);
+						await this.plugin.fileMetadataService.updateFileMetadata(taskFile, { defaultProjectId: projectId, TickTickTasks: [], TickTickCount: 0 });
 					}
 				}
 			}
@@ -518,7 +519,7 @@ export class FileOperation {
 				this.plugin.dateMan?.addDateHolderToTask(task, oldTask);
 				if (oldTask) {
 					// Compare incoming task (from DB/TickTick) with current vault state
-					const vaultProjectId = await this.plugin.cacheOperation?.getDefaultProjectIdForFilepath(file.path);
+					const vaultProjectId = await this.plugin.fileTaskQueries?.getDefaultProjectIdForFilepath(file.path);
 					const vaultParentId = fileMap.getParentId(task.id);
 					const vaultTask: ITask = { ...task, projectId: vaultProjectId, parentId: vaultParentId };
 
@@ -615,7 +616,7 @@ export class FileOperation {
 	//Just the notification now.
 	private async handleTickTickStructureMove(newTask: ITask, oldTask: ITask, lineText: string, fileMap: NewFileMap) {
 		log.debug('deleting old task: ', oldTask.id, oldTask.title, ' from file');
-		let filePathForNewProject = await this.plugin.cacheOperation?.getFilepathForProjectId(newTask.projectId);
+		let filePathForNewProject = await this.plugin.fileMetadataService?.getFilepathForProjectId(newTask.projectId);
 		if (!filePathForNewProject) {
 			let errmsg = `File not found for moved newTask:  ${newTask.id}, ${newTask.title}`;
 			throw new Error(errmsg);
@@ -652,8 +653,10 @@ export class FileOperation {
 		const cleanTitle = this.plugin.taskParser?.stripOBSUrl(newTask.title);
 		let message = '';
 		if (newTask.projectId != oldTask.projectId) {
-			const newProjectName = await this.plugin.cacheOperation?.getProjectNameByIdFromCache(newTask.projectId);
-			const oldProjectName = await this.plugin.cacheOperation?.getProjectNameByIdFromCache(oldTask.projectId);
+			const newProject = newTask.projectId ? await db.projects.get(newTask.projectId) : undefined;
+			const oldProject = oldTask.projectId ? await db.projects.get(oldTask.projectId) : undefined;
+			const newProjectName = newProject?.project?.name || 'Unknown Project';
+			const oldProjectName = oldProject?.project?.name || 'Unknown Project';
 			message = 'Task Moved.\nTask: ' + cleanTitle + '\nwas moved from\n ' + oldProjectName + '\nto\n' + newProjectName;
 		} else {
 			if (newTask.parentId) {
@@ -672,7 +675,7 @@ export class FileOperation {
 
 
 	private async deleteTaskFromOldFile(oldTask: ITask, newTask: ITask, fileMap: NewFileMap) {
-		const oldFilePath = this.plugin.cacheOperation?.getFilepathForTask(oldTask.id);
+		const oldFilePath = await this.plugin.fileMetadataService?.getFilepathForTask(oldTask.id);
 		log.debug('oldFilePath: ', oldFilePath);
 		if (!oldFilePath) {
 			let errmsg = `File not found for moved newTask:  ${newTask.id}, ${newTask.title}`;
@@ -721,8 +724,10 @@ export class FileOperation {
 		const cleanTitle = this.plugin.taskParser?.stripOBSUrl(task.title);
 		let message = '';
 		if (task.projectId != oldProjectId) {
-			const newProjectName = await this.plugin.cacheOperation?.getProjectNameByIdFromCache(task.projectId);
-			const oldProjectName = await this.plugin.cacheOperation?.getProjectNameByIdFromCache(oldProjectId);
+			const newProject = task.projectId ? await db.projects.get(task.projectId) : undefined;
+			const oldProject = oldProjectId ? await db.projects.get(oldProjectId) : undefined;
+			const newProjectName = newProject?.project?.name || 'Unknown Project';
+			const oldProjectName = oldProject?.project?.name || 'Unknown Project';
 			message = 'Task Moved.\nTask: ' + cleanTitle + '\nwas moved from\n ' + oldProjectName + '\nto\n' + newProjectName;
 		} else {
 			if (task.parentId) {

@@ -6,8 +6,9 @@
 	import { FolderSuggest } from '@/utils/FolderSuggester';
 	import { validateNewFolder } from '@/utils/FolderUtils';
 	import log from 'loglevel';
-	import { NewFileMap } from '@/services/NewFileMap'
-
+import { NewFileMap } from '@/services/NewFileMap'
+import { db } from '@/db/dexie'
+ 
 	export let open = false;
 	export let plugin;
 	let defaultProjectId = '';
@@ -99,7 +100,7 @@
 			value = getSettings().inboxID;
 		}
 		if (value && value !== '') {
-			updateSettings({ defaultProjectName: await plugin.cacheOperation?.getProjectNameByIdFromCache(value) });
+			updateSettings({ defaultProjectName: (await db.projects.get(value))?.project?.name ?? 'Unknown' });
 			updateSettings({ defaultProjectId: value });
 			await ensureCorrectDefaultPaths();
 			await plugin.saveSettings();

@@ -111,16 +111,6 @@ describe('TickTickService', () => {
 
 		service = new TickTickService(mockPlugin);
 		service.api = {} as any;
-		service.cacheOperation = {
-			getFileMetadatas: vi.fn().mockResolvedValue({}),
-			checkForDuplicates: vi.fn().mockResolvedValue({ duplicates: {} }),
-			deleteFilepathFromMetadata: vi.fn(),
-			saveProjectsToCache: vi.fn().mockResolvedValue(true),
-			getFilepathForProjectId: vi.fn(),
-			filepathHasDefaultProjectID: vi.fn().mockResolvedValue(false),
-			updateRenamedFilePath: vi.fn(),
-			getDefaultProjectIdForFilepath: vi.fn(),
-		} as any;
 	});
 
 	describe('syncFiles - two-phase ordering', () => {
@@ -128,7 +118,11 @@ describe('TickTickService', () => {
 			const filesToSync: Record<string, any> = {
 				'Projects/ProjectA.md': { defaultProjectId: 'proj-a' },
 			};
-			service.cacheOperation!.getFileMetadatas = vi.fn().mockResolvedValue(filesToSync);
+			mockPlugin.fileMetadataService = {
+				getAllFileMetadata: vi.fn().mockResolvedValue(filesToSync),
+				checkForDuplicates: vi.fn().mockResolvedValue({ duplicates: {} }),
+				deleteFileMetadata: vi.fn(),
+			};
 
 			await service.syncFiles(false);
 
@@ -147,7 +141,11 @@ describe('TickTickService', () => {
 				'Projects/ProjectB.md': { defaultProjectId: 'proj-b' },
 				'Projects/ProjectC.md': { defaultProjectId: 'proj-c' },
 			};
-			service.cacheOperation!.getFileMetadatas = vi.fn().mockResolvedValue(filesToSync);
+			mockPlugin.fileMetadataService = {
+				getAllFileMetadata: vi.fn().mockResolvedValue(filesToSync),
+				checkForDuplicates: vi.fn().mockResolvedValue({ duplicates: {} }),
+				deleteFileMetadata: vi.fn(),
+			};
 
 			// Track call order
 			const callOrder: string[] = [];
@@ -170,7 +168,11 @@ describe('TickTickService', () => {
 		});
 
 		it('should not call deletions if there are no files to sync', async () => {
-			service.cacheOperation!.getFileMetadatas = vi.fn().mockResolvedValue({});
+			mockPlugin.fileMetadataService = {
+				getAllFileMetadata: vi.fn().mockResolvedValue({}),
+				checkForDuplicates: vi.fn().mockResolvedValue({ duplicates: {} }),
+				deleteFileMetadata: vi.fn(),
+			};
 
 			await service.syncFiles(false);
 
@@ -181,7 +183,11 @@ describe('TickTickService', () => {
 			const filesToSync: Record<string, any> = {
 				'Projects/ProjectA.md': { defaultProjectId: 'proj-a' },
 			};
-			service.cacheOperation!.getFileMetadatas = vi.fn().mockResolvedValue(filesToSync);
+			mockPlugin.fileMetadataService = {
+				getAllFileMetadata: vi.fn().mockResolvedValue(filesToSync),
+				checkForDuplicates: vi.fn().mockResolvedValue({ duplicates: {} }),
+				deleteFileMetadata: vi.fn(),
+			};
 
 			// Make modifications throw
 			mockPlugin.taskModificationDetector.checkFileForModifications = vi.fn().mockRejectedValue(new Error('mod error'));

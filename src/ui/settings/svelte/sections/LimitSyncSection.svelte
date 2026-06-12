@@ -41,7 +41,7 @@
 		settingsStore.update((s) => ({ ...s, SyncProject: value }));
 		selectedSyncProject = value;
 
-		const fileMetaData = await plugin.cacheOperation.getFileMetadatas();
+		const fileMetaData = await plugin.fileMetadataService?.getAllFileMetadata() ?? {};
 		const defaultProjectFileEntry = Object.values(fileMetaData).find(
 			(obj: any) => obj.defaultProjectId === value
 		);

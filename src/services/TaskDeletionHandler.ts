@@ -229,7 +229,7 @@ export class TaskDeletionHandler {
 		// Delete each task from TickTick and database
 		for (const taskId of taskIds) {
 			try {
-				const projectId = await this.plugin.cacheOperation?.getProjectIdForTask(taskId);
+				const projectId = await this.plugin.taskRepository?.getProjectIdForTask(taskId);
 
 				// Delete from TickTick
 				if (projectId) {
@@ -318,7 +318,7 @@ export class TaskDeletionHandler {
 		}
 
 		// Clean up file metadata
-		await this.plugin.cacheOperation?.deleteFilepathFromMetadata(filepath);
+		await this.plugin.fileMetadataService?.deleteFileMetadata(filepath);
 	}
 
 	/**
@@ -326,7 +326,7 @@ export class TaskDeletionHandler {
 	 */
 	async cleanupOrphanedTasks(): Promise<number> {
 		try {
-			const allTasks = await this.plugin.cacheOperation?.loadTasksFromCache();
+			const allTasks = await this.plugin.taskRepository?.loadAllTasks();
 			let orphanedCount = 0;
 
 			for (const task of allTasks || []) {
