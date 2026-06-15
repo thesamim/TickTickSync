@@ -44,7 +44,7 @@ export class TaskDeletionHandler {
 			}
 			filepath = file_path;
 			if (file instanceof TFile) {
-				currentFileValue = await this.app.vault.read(file);
+				currentFileValue = await this.plugin.fileOperation.readFileContent(file);
 			} else {
 				return;
 			}

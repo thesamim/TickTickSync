@@ -38,7 +38,11 @@ vi.mock('../utils/logger', () => ({
 }));
 
 vi.mock('../sync/conflicts', () => ({
-	resolveTaskConflict: vi.fn((local, remote) => remote), // Default to remote for testing
+	resolveTaskConflict: vi.fn((local, remote) => ({
+		resolved: remote,
+		conflictDetected: false,
+		winner: "remote" as const,
+	})),
 }));
 
 describe('pullFromTickTick field mapping and echo detection', () => {

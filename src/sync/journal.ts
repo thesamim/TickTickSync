@@ -1,38 +1,46 @@
+import { db } from '@/db/dexie';
+import type { JournalEntry } from '@/db/schema';
 import log from '@/utils/logger';
 
-type SyncEvent = {
-	timestamp: number;
-	deviceId: string;
-	action: string;
-	details?: any;
-};
+const MAX_ENTRIES = 1000;
+const PRUNE_INTERVAL = 50;
 
-const MAX_ENTRIES = 500;
-const journal: SyncEvent[] = [];
+let writeCount = 0;
 
 export function logSyncEvent(
 	deviceId: string,
 	action: string,
-	details?: any
+	details?: unknown
 ) {
-	journal.push({
-		timestamp: Date.now(),
-		deviceId,
-		action,
-		details
-	});
-
-	if (journal.length > MAX_ENTRIES) {
-		journal.shift();
-	}
-
 	log.debug("[TickTickSync]", action, details ?? "");
+	persistEntry({ timestamp: Date.now(), deviceId, action, details });
 }
 
-export function getSyncJournal() {
-	return [...journal];
+async function persistEntry(entry: Omit<JournalEntry, "id">) {
+	if (!db?.journal) return;
+	try {
+		await db.journal.add(entry);
+		writeCount++;
+		if (writeCount % PRUNE_INTERVAL === 0) {
+			const count = await db.journal.count();
+			if (count > MAX_ENTRIES) {
+				await db.journal
+					.orderBy("id")
+					.limit(count - MAX_ENTRIES)
+					.delete();
+			}
+		}
+	} catch (e) {
+		log.warn("[TickTickSync] Failed to persist journal entry", e);
+	}
 }
 
-export function clearJournal() {
-	journal.length = 0;
+export async function getSyncJournal(): Promise<JournalEntry[]> {
+	if (!db?.journal) return [];
+	return db.journal.orderBy("id").reverse().limit(MAX_ENTRIES).toArray();
+}
+
+export async function clearJournal(): Promise<void> {
+	if (!db?.journal) return;
+	await db.journal.clear();
 }

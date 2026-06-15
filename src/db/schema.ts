@@ -43,6 +43,14 @@ export type LocalFile = {
 	managedByPlugin?: boolean; // true = plugin manages location, false/undefined = user manages
 };
 
+export type JournalEntry = {
+	id?: number;
+	timestamp: number;
+	deviceId: string;
+	action: string;
+	details?: unknown;
+};
+
 export type TaskFileMapping = {
 	id: string;            // `${localId}:${file}`
 	localId: string;

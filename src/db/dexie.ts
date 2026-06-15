@@ -1,7 +1,7 @@
 import Dexie from "dexie";
 import type { Table } from "dexie";
 import type { LocalTask, SyncMeta } from "./schema";
-import type { TaskFileMapping, LocalProject, LocalProjectGroup, LocalFile } from "./schema";
+import type { TaskFileMapping, LocalProject, LocalProjectGroup, LocalFile, JournalEntry } from "./schema";
 
 import { defaultDBData } from "./schema";
 import { ensureSyncMeta } from "./meta";
@@ -54,6 +54,7 @@ class TickTickDB extends Dexie {
 	projects!: Table<LocalProject, string>;
 	projectGroups!: Table<LocalProjectGroup, string>;
 	files!: Table<LocalFile, string>;
+	journal!: Table<JournalEntry, number>;
 
 	constructor(vaultName: string) {
 		super(vaultName + "TickTickSync");
@@ -65,6 +66,16 @@ class TickTickDB extends Dexie {
 			projects: "id",
 			projectGroups: "id",
 			files: "path"
+		});
+
+		this.version(5).stores({
+			tasks: "localId, taskId, updatedAt, lastVaultSync, file, deleted",
+			meta: "key",
+			mappings: "id, taskId, file",
+			projects: "id",
+			projectGroups: "id",
+			files: "path",
+			journal: "++id, timestamp, deviceId, action"
 		});
 	}
 }
