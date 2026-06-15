@@ -1,7 +1,7 @@
 <script lang="ts">
 	import CollapsibleSection from '@/ui/settings/svelte/sections/CollapsibleSection.svelte';
-	import { createEventDispatcher } from 'svelte';
-	import { getSettings, updateSettings } from '../../../../settings';
+	import { createEventDispatcher, onMount } from 'svelte';
+	import { getSettings, updateSettings, mergeDeviceLists } from '../../../../settings';
 	import { getCurrentDeviceInfo, setCurrentDeviceInfo } from '@/db/device';
 	import { db } from '@/db/dexie';
 	import log from 'loglevel';
@@ -16,7 +16,22 @@
 
 	// All known devices (from settings, synced across devices)
 	let devices = getSettings().devices;
-	log.debug('devices', devices);
+
+	// On mount, merge on-disk devices to catch devices added via Obsidian Sync
+	onMount(async () => {
+		try {
+			const onDiskData = await plugin.loadData();
+			if (onDiskData?.devices && Array.isArray(onDiskData.devices)) {
+				const merged = mergeDeviceLists(onDiskData.devices, getSettings().devices);
+				if (JSON.stringify(merged) !== JSON.stringify(getSettings().devices)) {
+					updateSettings({ devices: merged });
+				}
+				devices = merged;
+			}
+		} catch (e) {
+			log.warn('Could not refresh devices from disk', e);
+		}
+	});
 
 	// Editing state for current device label
 	let isEditingLabel = false;

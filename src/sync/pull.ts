@@ -56,7 +56,15 @@ export async function pullFromTickTick(
 			lastVaultSync: local?.lastVaultSync
 		};
 
-		const resolved = resolveTaskConflict(local, remoteLocalTask);
+		const { resolved, conflictDetected, winner } = resolveTaskConflict(local, remoteLocalTask);
+		if (conflictDetected) {
+			logSyncEvent(meta.deviceId, "conflict:resolved", {
+				taskId: resolved.taskId,
+				winner,
+				localUpdatedAt: local?.updatedAt ? new Date(local.updatedAt).toLocaleString() : undefined,
+				remoteUpdatedAt: new Date(remoteUpdatedAt).toLocaleString()
+			});
+		}
 		toPut.push(resolved);
 		applied++;
 	}

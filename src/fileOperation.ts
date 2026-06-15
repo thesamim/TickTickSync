@@ -22,6 +22,22 @@ export class FileOperation {
 	}
 
 
+	/**
+	 * Read file content, preferring the editor buffer when the file is active.
+	 * This prevents sync from reading stale filesystem data after editor changes.
+	 */
+	async readFileContent(file: TFile): Promise<string> {
+		const activeFile = this.app.workspace.getActiveFile();
+		if (activeFile?.path === file.path) {
+			const editor = this.app.workspace.activeEditor?.editor;
+			if (editor) {
+				return editor.getValue();
+			}
+		}
+		return await this.app.vault.read(file);
+	}
+
+
 	//Complete a task and mark it as completed
 	async completeTaskInTheFile(taskId: string) {
 		// Get the task file path
@@ -274,7 +290,7 @@ export class FileOperation {
 					continue;
 				}
 				try {
-					const content = await this.app.vault.read(currentFile);
+					const content = await this.readFileContent(currentFile);
 					for (let taskListKey in taskList) {
 						// Only consider task ids that appear in the exact TickTick metadata pattern
 						// %%[ticktick_id:: <hex>]%% where <hex> is 24 hex chars
@@ -359,7 +375,7 @@ export class FileOperation {
 	//search TickTick_id by content
 	async searchTickTickIdFromFilePath(filepath: string, searchTerm: string): Promise<string | null> {
 		const file = this.app.vault.getAbstractFileByPath(filepath);
-		const fileContent = await this.app.vault.read(file);
+		const fileContent = await this.readFileContent(file);
 		const fileLines = fileContent.split('\n');
 		let TickTickId: string | null = null;
 

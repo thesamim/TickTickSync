@@ -6,6 +6,7 @@
 	import { LOG_LEVEL } from '@/ui/settings/svelte/constants.svelte.js';
 	import './SettingsStyles.css';
 	import { getCurrentDeviceInfo } from '@/db/device';
+	import { SyncJournalModal } from '@/modals/SyncJournalModal';
 
 	export let plugin: TickTickSync;
 
@@ -84,6 +85,11 @@
 		}
 	}
 
+	function openJournal() {
+		const modal = new SyncJournalModal(plugin.app);
+		modal.open();
+	}
+
 </script>
 
 <div class="debug-options">
@@ -159,6 +165,17 @@
 		</div>
 	{/if}
 
+	<div class="setting-item">
+		<div class="setting-item-info">
+			<div class="setting-item-name">View Sync Journal</div>
+			<div class="setting-item-description">Browse and export sync journal entries</div>
+		</div>
+		<div class="setting-item-control">
+			<button class="mod-cta" on:click={openJournal}>
+				View Journal
+			</button>
+		</div>
+	</div>
 
 </div>
 

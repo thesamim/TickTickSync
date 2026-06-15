@@ -72,7 +72,7 @@ export class NewFileMap {
 		if (!!inFileContent) {
 			fileContent = inFileContent;
 		} else {
-			fileContent = await this.app.vault.read(this.file);
+			fileContent = await this.plugin.fileOperation.readFileContent(this.file);
 		}
 		if (fileContent) {
 			this.fileLines = fileContent.split('\n');
