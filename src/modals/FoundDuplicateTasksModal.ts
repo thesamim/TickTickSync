@@ -2,6 +2,8 @@ import { App, Modal, Setting, TFile } from 'obsidian';
 import TickTickSync from '@/main';
 import log from '@/utils/logger';
 import type { ITask } from '@/api/types/Task';
+import { db } from "@/db/dexie";
+import { getFile } from "@/db/files";
 
 export interface DuplicateSelection {
     taskId: string;
@@ -173,6 +175,54 @@ export class FoundDuplicateTasksModal extends Modal {
                 // We use fake ITask objects as only 'id' is required by deleteTasksFromSpecificFile
                 const dummyTasks = taskIds.map(id => ({ id } as ITask));
                 await this.plugin.fileOperation.deleteTasksFromSpecificFile(file, dummyTasks, false);
+            }
+        }
+
+        // Reconcile kept instances: update DB file/projectId and TickTick if needed
+        const keptByTaskId = new Map<string, DuplicateSelection[]>();
+        for (const item of this.selections) {
+            if (!item.selected) {
+                if (!keptByTaskId.has(item.taskId)) {
+                    keptByTaskId.set(item.taskId, []);
+                }
+                keptByTaskId.get(item.taskId)!.push(item);
+            }
+        }
+
+        for (const [taskId, keeps] of keptByTaskId) {
+            if (keeps.length !== 1) continue;
+
+            const keepFile = keeps[0].filePath;
+            const fileRecord = await getFile(keepFile);
+            const targetProjectId = fileRecord?.defaultProjectId;
+
+            const localTask = await db.tasks.where("taskId").equals(taskId).first();
+            if (!localTask) continue;
+
+            if (targetProjectId && targetProjectId !== localTask.task.projectId) {
+                const oldProjectId = localTask.task.projectId;
+                localTask.task.projectId = targetProjectId;
+                await db.tasks.update(localTask.localId, {
+                    file: keepFile,
+                    task: localTask.task,
+                    updatedAt: Date.now(),
+                    lastVaultSync: Date.now()
+                });
+
+                try {
+                    const remoteTask = await this.plugin.tickTickRestAPI?.getTaskById(taskId, oldProjectId);
+                    if (remoteTask && remoteTask.projectId !== targetProjectId) {
+                        await this.plugin.tickTickRestAPI?.moveTaskProject(localTask.task, remoteTask.projectId, targetProjectId);
+                    }
+                } catch (err) {
+                    log.error(`Failed to reconcile task ${taskId} project on TickTick:`, err);
+                }
+            } else {
+                await db.tasks.update(localTask.localId, {
+                    file: keepFile,
+                    updatedAt: Date.now(),
+                    lastVaultSync: Date.now()
+                });
             }
         }
     }

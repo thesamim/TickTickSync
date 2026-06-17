@@ -8,8 +8,7 @@ import { MarkdownView, Notice, Plugin, TFolder } from 'obsidian';
 import {
 	DEFAULT_SETTINGS,
 	getSettings,
-	updateSettings,
-	mergeDeviceLists
+	updateSettings
 } from './settings';
 
 import { TickTickService } from '@/services';
@@ -39,6 +38,7 @@ import log from '@/utils/logger';
 //database
 import { syncTickTickWithDexie } from '@/sync/sync';
 import { initDB } from '@/db/dexie';
+import { migrateFromDataJson } from '@/db/migrations';
 
 //tasks
 import type { ITask } from '@/api/types/Task';
@@ -62,6 +62,7 @@ import { FolderSyncService } from '@/services/FolderSyncService';
 import { FolderMigrationService } from '@/services/FolderMigrationService';
 
 import {getTasksWithChildren} from '@/FuckAboutParse';
+import { generateDeviceId } from '@/db/device';
 
 
 export default class TickTickSync extends Plugin {
@@ -177,24 +178,7 @@ export default class TickTickSync extends Plugin {
 				// Large data is now in Dexie only
 				delete (settingsToSave as any).fileMetadata;
 				delete (settingsToSave as any).TickTickTasksData;
-
-				// Defensive merge: on-disk data.json may have been updated by
-				// another device via Obsidian Sync. Merge devices so that entries
-				// added by other instances are not lost on the next persist.
-				try {
-					const onDiskData = await this.loadData();
-					if (onDiskData?.devices && Array.isArray(onDiskData.devices)) {
-						const merged = mergeDeviceLists(
-							onDiskData.devices,
-							settingsToSave.devices || []
-						);
-						settingsToSave.devices = merged;
-						// Sync module-level settings so getSettings() reflects the merge
-						getSettings().devices = merged;
-					}
-				} catch (e) {
-					log.warn('Could not read on-disk settings for device merge', e);
-				}
+				delete (settingsToSave as any).__migratedDBData;
 
 				await this.saveData(settingsToSave);
 			} else {
@@ -524,22 +508,23 @@ export default class TickTickSync extends Plugin {
 			// 	}
 			// }
 			// Example Usage inside a command or event:
-			const targetFolder = 'Folder 1';
-
-			// Get every file in the vault and filter by path prefix
-			const allFilesInFolder = this.app.vault.getFiles().filter(file =>
-				file.path.startsWith(targetFolder + '/')
-			);
-
-			for (const file of allFilesInFolder) {
-				const activeFile = this.app.vault.getFileByPath(file)
-				const tasks = await getTasksWithChildren(activeFile, this.app);
-				// const fm = new NewFileMap(this.app, this, activeFile);
-				// await fm.init();
-				// const tasks = fm.getTasks();
-
-				log.debug("In File: ", file.name, "\nStructured Tasks:\n", JSON.stringify(tasks,null, 4));
-			}
+			// const targetFolder = 'Folder 1';
+			//
+			// // Get every file in the vault and filter by path prefix
+			// const allFilesInFolder = this.app.vault.getFiles().filter(file =>
+			// 	file.path.startsWith(targetFolder + '/')
+			// );
+			//
+			// for (const file of allFilesInFolder) {
+			// 	const activeFile = this.app.vault.getFileByPath(file)
+			// 	const tasks = await getTasksWithChildren(activeFile, this.app);
+			// 	// const fm = new NewFileMap(this.app, this, activeFile);
+			// 	// await fm.init();
+			// 	// const tasks = fm.getTasks();
+			//
+			// 	log.debug("In File: ", file.name, "\nStructured Tasks:\n", JSON.stringify(tasks,null, 4));
+			// }
+			generateDeviceId();
 
 
 		});
@@ -587,16 +572,6 @@ export default class TickTickSync extends Plugin {
 		this.eventHandlerService.registerAll();
 	}
 
-	/**
-	 * Public entrypoint for Settings UI: reorganize existing task files into TickTick folder structure.
-	 */
-	async reorganizeFilesToFolders(): Promise<number> {
-		if (!this.folderMigrationService) {
-			throw new Error('FolderMigrationService is not initialized');
-		}
-		return await this.folderMigrationService.reorganizeFilesToFolders();
-	}
-
 	private async migrateData(data: any) {
 		if (!data) return data;
 
@@ -641,6 +616,12 @@ export default class TickTickSync extends Plugin {
 		}
 		if ((!data.version) || (isOlder(data.version, '1.1.16'))) {
 			notableChanges.push(['Note handling improvements', 'Can now have checklist items and TickTick Task links in notes.', 'priorTo1.1.15']);
+		}
+		if ((!data.version) || (isOlder(data.version, '1.1.17'))) {
+			// Migrate from legacy data.json repository to Dexie-based repository
+			const dbData = migrateFromDataJson(data);
+			(data as any).__migratedDBData = dbData;
+			notableChanges.push(['version 2.0', 'A complete re-architecture to allow better cross-device handling. General performance improvements..', 'priorTo1.1.17']);
 		}
 
 		if (notableChanges.length > 0) {

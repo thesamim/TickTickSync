@@ -7,7 +7,6 @@ import { db } from "@/db/dexie";
 import type { ITask } from "@/api/types/Task";
 import type { LocalTask } from "@/db/schema";
 import log from "@/utils/logger";
-import { getCurrentDeviceInfo } from "@/db/device";
 
 export class TaskRepository {
 	/**
@@ -99,7 +98,6 @@ export class TaskRepository {
 		try {
 			const existingTask = await db.tasks.where("taskId").equals(task.id).first();
 			const now = timestamp || Date.now();
-			const deviceId = getCurrentDeviceInfo()?.deviceId || "unknown";
 
 			if (existingTask) {
 				// Preserve reminder fields from the existing task if the incoming task lacks them
@@ -121,7 +119,6 @@ export class TaskRepository {
 				await db.tasks.update(existingTask.localId, {
 					task: task,
 					updatedAt: now,
-					lastModifiedByDeviceId: deviceId,
 					...(filepath && { file: filepath, lastVaultSync: now })
 				});
 			} else {
@@ -131,7 +128,6 @@ export class TaskRepository {
 					taskId: task.id,
 					task: task,
 					updatedAt: now,
-					lastModifiedByDeviceId: deviceId,
 					file: filepath || "",
 					source: "obsidian",
 					lastVaultSync: filepath ? now : undefined
@@ -154,8 +150,7 @@ export class TaskRepository {
 				// Mark as deleted rather than hard delete (tombstone pattern)
 				await db.tasks.update(localTask.localId, {
 					deleted: true,
-					updatedAt: Date.now(),
-					lastModifiedByDeviceId: getCurrentDeviceInfo()?.deviceId || "unknown"
+					updatedAt: Date.now()
 				});
 			}
 		} catch (error) {
@@ -174,8 +169,7 @@ export class TaskRepository {
 				localId: lt.localId,
 				changes: {
 					deleted: true,
-					updatedAt: Date.now(),
-					lastModifiedByDeviceId: getCurrentDeviceInfo()?.deviceId || "unknown"
+					updatedAt: Date.now()
 				}
 			}));
 
@@ -229,7 +223,7 @@ export class TaskRepository {
 	/**
 	 * Bulk upsert tasks from a full sync (preserves metadata, sets device ID)
 	 */
-	async bulkUpsertTasks(newTasks: ITask[], deviceId: string, getFilepathForTask: (taskId: string) => Promise<string | null>): Promise<void> {
+	async bulkUpsertTasks(newTasks: ITask[], getFilepathForTask: (taskId: string) => Promise<string | null>): Promise<void> {
 		try {
 			const tasksToPut = [];
 			for (const t of newTasks) {
@@ -239,7 +233,6 @@ export class TaskRepository {
 					taskId: t.id,
 					task: t,
 					updatedAt: Date.now(),
-					lastModifiedByDeviceId: deviceId,
 					file: filepath || "",
 					source: "ticktick" as const,
 					deleted: t.deleted === 1

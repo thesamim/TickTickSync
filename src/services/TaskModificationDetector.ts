@@ -402,6 +402,11 @@ export class TaskModificationDetector {
 			await this.handleProjectMove(lineTask, savedTask, moveCheck.oldFilePath, filepath);
 			modifications.projectMoved = true;
 			modified = true;
+
+			// Immediately persist the new file mapping to DB so subsequent API
+			// failures don't leave the local record stale, preventing a sync loop.
+			lineTask.lineHash = newHash;
+			await this.plugin.taskRepository.upsertTask(lineTask, filepath, Date.now());
 		}
 
 		// Handle parent change

@@ -1,12 +1,10 @@
 import { App, Modal, Setting } from 'obsidian';
 import { getSyncJournal, clearJournal } from '@/sync/journal';
-import { getSettings } from '@/settings';
 import log from '@/utils/logger';
 
 export class SyncJournalModal extends Modal {
 	entries: any[] = [];
 	loading = true;
-	deviceMap: Record<string, string> = {};
 
 	constructor(app: App) {
 		super(app);
@@ -15,11 +13,6 @@ export class SyncJournalModal extends Modal {
 	async onOpen() {
 		const { titleEl, contentEl } = this;
 		titleEl.setText('Sync Journal');
-
-		const settings = getSettings();
-		for (const d of settings.devices) {
-			this.deviceMap[d.deviceId] = d.deviceLabel;
-		}
 
 		contentEl.createEl('p', {
 			text: 'Loading journal entries...',
@@ -33,10 +26,6 @@ export class SyncJournalModal extends Modal {
 		}
 		this.loading = false;
 		this.render(contentEl);
-	}
-
-	private resolveLabel(deviceId: string): string {
-		return this.deviceMap[deviceId] ?? deviceId.slice(0, 8);
 	}
 
 	render(contentEl: HTMLElement) {
@@ -67,11 +56,11 @@ export class SyncJournalModal extends Modal {
 				row.style.padding = '0.4em 0';
 
 				const ts = new Date(entry.timestamp).toLocaleString();
-				const label = this.resolveLabel(entry.deviceId ?? '');
+				const devId = entry.deviceId ? entry.deviceId.slice(0, 8) : '?';
 				const action = entry.action ?? '?';
 
 				row.createEl('div', {
-					text: `[${ts}] [${label}] ${action}`
+					text: `[${ts}] [${devId}] ${action}`
 				});
 
 				if (entry.details) {

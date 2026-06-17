@@ -12,17 +12,9 @@ export function resolveTaskConflict(
 ): ConflictResult {
 	if (!local) return { resolved: remote, conflictDetected: false, winner: "remote" };
 
-	if (local.updatedAt > remote.updatedAt) {
+	if (local.updatedAt >= remote.updatedAt) {
 		return { resolved: local, conflictDetected: true, winner: "local" };
 	}
 
-	if (remote.updatedAt > local.updatedAt) {
-		return { resolved: remote, conflictDetected: true, winner: "remote" };
-	}
-
-	// Tie-breaker: prefer local device
-	const winner = local.lastModifiedByDeviceId === remote.lastModifiedByDeviceId
-		? "local"
-		: "remote";
-	return { resolved: winner === "local" ? local : remote, conflictDetected: true, winner };
+	return { resolved: remote, conflictDetected: true, winner: "remote" };
 }

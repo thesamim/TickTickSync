@@ -58,6 +58,7 @@ describe('pullFromTickTick field mapping and echo detection', () => {
 		deviceId: 'test-device',
 		lastFullSync: 0,
 		lastDeltaSync: 0,
+		schemaVersion: 2,
 	};
 
 	beforeEach(() => {
@@ -89,7 +90,6 @@ describe('pullFromTickTick field mapping and echo detection', () => {
 
 		expect(db.tasks.bulkPut).toHaveBeenCalledWith([expect.objectContaining({
 			updatedAt: expectedTimestamp,
-			lastModifiedByDeviceId: 'ticktick'
 		})]);
 	});
 
@@ -111,7 +111,6 @@ describe('pullFromTickTick field mapping and echo detection', () => {
 			localId: 'local-uuid',
 			taskId: 'remote-task-id',
 			updatedAt: timestamp,
-			lastModifiedByDeviceId: 'test-device', // matches mockMeta.deviceId
 		};
 
 		const anyOfToArray = vi.fn().mockResolvedValue([localTask]);

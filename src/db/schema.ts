@@ -7,9 +7,8 @@ export type SyncMeta = {
 	lastDeltaSync: number;
 
 	deviceId: string;
-	deviceLabel?: string;
 
-	schemaVersion: 2;
+	schemaVersion: number;
 };
 
 export type LocalTask = {
@@ -19,7 +18,6 @@ export type LocalTask = {
 
 	updatedAt: number;
 	lastVaultSync?: number;
-	lastModifiedByDeviceId: string;
 
 	deleted?: boolean;
 	file: string;

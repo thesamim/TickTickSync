@@ -104,6 +104,9 @@ describe('TickTickService', () => {
 				fileHasTasks: vi.fn(),
 				getTasksInFile: vi.fn().mockResolvedValue([]),
 			},
+			fileOperation: {
+				checkForDuplicates: vi.fn().mockResolvedValue(undefined),
+			},
 			taskOperationsService: { updateTaskContentForFile: vi.fn() },
 			folderSyncService: { detectProjectGroupChange: vi.fn() },
 			taskRepository: { loadTaskById: vi.fn(), upsertTask: vi.fn() },
