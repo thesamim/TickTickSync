@@ -19,7 +19,6 @@ export async function upsertLocalTask(
 	options: {
 		file?: string;
 		source: "obsidian" | "ticktick";
-		deviceId: string;
 		lastVaultSync?: number;
 	}
 ) {
@@ -39,7 +38,6 @@ export async function upsertLocalTask(
 
 		updatedAt: modifiedTime  ?? now,
 		lastVaultSync: options.lastVaultSync ?? existing?.lastVaultSync,
-		lastModifiedByDeviceId: options.deviceId,
 
 		deleted: false,
 		file: options.file ?? existing?.file ?? "",
@@ -49,14 +47,13 @@ export async function upsertLocalTask(
 	await db.tasks.put(localTask);
 }
 
-export async function markTaskDeleted(taskId: string, deviceId: string) {
+export async function markTaskDeleted(taskId: string) {
 	const localId = `tt:${taskId}`;
 	const existing = await db.tasks.get(localId);
 	if (existing) {
 		await db.tasks.update(localId, {
 			deleted: true,
-			updatedAt: Date.now(),
-			lastModifiedByDeviceId: deviceId
+			updatedAt: Date.now()
 		});
 	}
 }

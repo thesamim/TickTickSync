@@ -183,8 +183,6 @@ export class TickTickRestAPI {
 		await this.initializeAPI();
 
 		try {
-			// @ts-ignore
-			let updatedTask: ITask | null | undefined = {};
 			log.error("taks title:",  taskToUpdate.title);
 			const saveDateHolder = taskToUpdate.dateHolder;
 			const saveLineHash = taskToUpdate.lineHash;
@@ -199,15 +197,18 @@ export class TickTickRestAPI {
 			if (JSON.stringify(updateResult.id2error) === '{}') {
 				// log.debug('it is fine');
 				//because of the due date BS, we need it back.
-				updatedTask = await this.getTaskById(taskToUpdate.id, taskToUpdate.projectId);
-				if (updatedTask) {
-					updatedTask.dateHolder = saveDateHolder;
-					updatedTask.lineHash = saveLineHash;
-				} else {
-					log.error('Didn\'t get back the updated Task');
+				const serverTask = await this.getTaskById(taskToUpdate.id, taskToUpdate.projectId);
+				if (serverTask) {
+					serverTask.dateHolder = saveDateHolder;
+					serverTask.lineHash = saveLineHash;
+					return serverTask;
 				}
+				log.error('Didn\'t get back the updated Task');
 			}
-			return updatedTask;
+			// Return original input when update failed so callers don't save a corrupt empty object
+			taskToUpdate.dateHolder = saveDateHolder;
+			taskToUpdate.lineHash = saveLineHash;
+			return taskToUpdate;
 		} catch (error) {
 			throw new Error(`Error updating task: ${error.message}`);
 		}

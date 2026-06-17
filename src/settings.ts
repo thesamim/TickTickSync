@@ -4,19 +4,11 @@ import type { IProjectGroup } from '@/api/types/ProjectGroup';
 import type { FileMetadata } from '@/repositories/FileMetadataService';
 import { settingsStore } from '@/ui/settings/settingsstore';
 
-export interface DeviceInfo {
-	deviceId: string;
-	deviceLabel: string;
-}
-
 export interface ITickTickSyncSettings {
 
 	baseURL: string;
 	token?: string;
 	version?: string;
-
-	// Track all known devices (synced across devices)
-	devices: DeviceInfo[];
 
 	automaticSynchronizationInterval: number;
 	enableFullVaultSync: boolean;
@@ -67,8 +59,6 @@ export const DEFAULT_SETTINGS: ITickTickSyncSettings = {
 	taskLinksInObsidian: 'taskLink',
 	bkupFolder: '/',
 
-	devices: [],
-
 	inboxID: '',
 	inboxName: 'Inbox',
 	checkPoint: 0,
@@ -96,17 +86,6 @@ export const updateSettings = (newSettings: Partial<ITickTickSyncSettings>): ITi
 	settingsStore.set(settings);
 	return getSettings();
 };
-
-/**
- * Merge two device lists, deduplicating by deviceId.
- * `override` entries take precedence for label when IDs match.
- */
-export function mergeDeviceLists(base: DeviceInfo[], override: DeviceInfo[]): DeviceInfo[] {
-	const map = new Map<string, DeviceInfo>();
-	for (const d of base) map.set(d.deviceId, d);
-	for (const d of override) map.set(d.deviceId, d);
-	return Array.from(map.values());
-}
 
 export const getDefaultFolder = (): string => {
 	let path = settings.TickTickTasksFilePath;

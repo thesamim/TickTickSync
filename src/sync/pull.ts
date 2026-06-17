@@ -39,17 +39,11 @@ export async function pullFromTickTick(
 			ticktickRestApi.plugin.dateMan?.addDateHolderToTask(rt, local.task);
 		}
 
-		// Ignore our own echoes
-		if (local && local.lastModifiedByDeviceId === meta.deviceId && remoteUpdatedAt <= local.updatedAt) {
-			continue;
-		}
-
 		const remoteLocalTask: LocalTask = {
 			localId: local?.localId ?? `tt:${remoteId}`,
 			taskId: remoteId,
 			task: rt,
 			updatedAt: remoteUpdatedAt,
-			lastModifiedByDeviceId: "ticktick",
 			file: local?.file ?? "",
 			source: "ticktick",
 			deleted: rt.deleted === 1,
@@ -91,7 +85,6 @@ export async function pullFromTickTick(
 			if (!local.deleted) {
 				local.deleted = true;
 				local.updatedAt = Date.now();
-				local.lastModifiedByDeviceId = "ticktick";
 				toUpdateDeletion.push(local);
 				applied++;
 			}

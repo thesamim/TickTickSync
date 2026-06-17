@@ -5,6 +5,8 @@
 	import './SettingsStyles.css';
 	import ResetTasksControl from '@/ui/settings/svelte/ResetTasksControl.svelte';
 
+	import { resetTasks } from '@/ui/settings/utils/ResetSynchronization'
+
 	export let plugin: TickTickSync;
 
 	let isWorking: boolean = false;
@@ -26,7 +28,9 @@
 	async function confirmKeepFoldersChange() {
 		modalWorking = true;
 		try {
-			await plugin.reorganizeFilesToFolders();
+			await plugin.tickTickService.reorganizeFilesToFolders();
+			//When moving folders, we will reset tasks. We don't ask users, because if we don't reset tasks there will be a lot of issues.
+			await  resetTasks(plugin, setIsWorking)
 		} catch (error) {
 			console.error('Error reorganizing files:', error);
 		} finally {

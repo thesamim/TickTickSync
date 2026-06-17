@@ -17,12 +17,6 @@ vi.mock('@/db/dexie', () => ({
 	},
 }));
 
-vi.mock('@/db/device', () => ({
-	getCurrentDeviceInfo: vi.fn(() => ({
-		deviceId: 'test-device-id',
-	})),
-}));
-
 vi.mock('@/settings', () => ({
 	getSettings: vi.fn(() => ({
 		deviceId: 'test-device-id',
@@ -54,7 +48,6 @@ describe('TaskRepository', () => {
 				taskId: 'task123',
 				task: mockTask,
 				updatedAt: Date.now(),
-				lastModifiedByDeviceId: 'test-device',
 				file: 'test.md',
 				source: 'obsidian',
 			};
@@ -103,7 +96,6 @@ describe('TaskRepository', () => {
 				taskId: 'task123',
 				task: { id: 'task123', title: 'Test' } as ITask,
 				updatedAt: Date.now(),
-				lastModifiedByDeviceId: 'test-device',
 				file: 'test.md',
 				source: 'obsidian',
 			};
@@ -128,7 +120,7 @@ describe('TaskRepository', () => {
 					taskId: 'task1',
 					task: { id: 'task1', title: 'Task 1' } as ITask,
 					updatedAt: Date.now(),
-					lastModifiedByDeviceId: 'test-device',
+					
 					file: 'test.md',
 					source: 'obsidian',
 				},
@@ -137,7 +129,7 @@ describe('TaskRepository', () => {
 					taskId: 'task2',
 					task: { id: 'task2', title: 'Task 2' } as ITask,
 					updatedAt: Date.now(),
-					lastModifiedByDeviceId: 'test-device',
+					
 					file: 'test.md',
 					source: 'obsidian',
 				},
@@ -169,7 +161,7 @@ describe('TaskRepository', () => {
 					taskId: 'task1',
 					task: { id: 'task1', title: 'Task 1' } as ITask,
 					updatedAt: Date.now(),
-					lastModifiedByDeviceId: 'test-device',
+					
 					file: 'test.md',
 					source: 'obsidian',
 				},
@@ -196,7 +188,6 @@ describe('TaskRepository', () => {
 				taskId: 'task123',
 				task: { id: 'task123', title: 'Old Title' } as ITask,
 				updatedAt: Date.now(),
-				lastModifiedByDeviceId: 'test-device',
 				file: 'test.md',
 				source: 'obsidian',
 			};
@@ -221,7 +212,6 @@ describe('TaskRepository', () => {
 				'local123',
 				expect.objectContaining({
 					task: updatedTask,
-					lastModifiedByDeviceId: 'test-device-id',
 				})
 			);
 		});
@@ -262,7 +252,6 @@ describe('TaskRepository', () => {
 				taskId: 'task123',
 				task: { id: 'task123', title: 'Task' } as ITask,
 				updatedAt: Date.now(),
-				lastModifiedByDeviceId: 'test-device',
 				file: 'test.md',
 				source: 'obsidian',
 			};
@@ -281,7 +270,6 @@ describe('TaskRepository', () => {
 				'local123',
 				expect.objectContaining({
 					deleted: true,
-					lastModifiedByDeviceId: 'test-device-id',
 				})
 			);
 		});
@@ -311,7 +299,6 @@ describe('TaskRepository', () => {
 				taskId: 'task123',
 				task: mockTask,
 				updatedAt: Date.now(),
-				lastModifiedByDeviceId: 'test-device',
 				file: 'test.md',
 				source: 'obsidian',
 			};
@@ -345,7 +332,6 @@ describe('TaskRepository', () => {
 				taskId: 'task123',
 				task: mockTask,
 				updatedAt: Date.now(),
-				lastModifiedByDeviceId: 'test-device',
 				file: 'test.md',
 				source: 'obsidian',
 			};

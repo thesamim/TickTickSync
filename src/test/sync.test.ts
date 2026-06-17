@@ -58,6 +58,7 @@ describe('pullFromTickTick', () => {
 		deviceId: 'test-device',
 		lastFullSync: 0,
 		lastDeltaSync: 0,
+		schemaVersion: 2,
 	};
 
 	beforeEach(() => {
@@ -126,7 +127,6 @@ describe('pullFromTickTick', () => {
 		expect(db.tasks.bulkPut).toHaveBeenCalledWith([expect.objectContaining({
 			localId: 'local-uuid',
 			deleted: true,
-			lastModifiedByDeviceId: 'ticktick'
 		})]);
 	});
 

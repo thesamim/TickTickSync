@@ -60,7 +60,6 @@ function makeLocalTask(overrides: Partial<LocalTask> = {}): LocalTask {
 		taskId: 'task-1',
 		task: { id: 'task-1', projectId: 'proj-1' } as ITask,
 		updatedAt: 1000,
-		lastModifiedByDeviceId: 'device-1',
 		file: '',
 		source: 'obsidian',
 		...overrides,

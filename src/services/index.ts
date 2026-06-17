@@ -131,7 +131,7 @@ export class TickTickService {
 						const lastSyncDate = lastSync ? new Date(lastSync) : null;
 						if (mostRecentModifiedTimeDate > lastSyncDate) {
 							log.debug(`TT Folder move detected. Moving all project files to new location.`)
-							await this.plugin.reorganizeFilesToFolders();
+							await this.reorganizeFilesToFolders();
 
 						}
 
@@ -643,6 +643,13 @@ export class TickTickService {
 
 	 */
 
+	async reorganizeFilesToFolders(): Promise<number> {
+		if (!this.plugin.folderMigrationService) {
+			throw new Error('FolderMigrationService is not initialized');
+		}
+		return await this.plugin.folderMigrationService.reorganizeFilesToFolders();
+	}
+
 	async closeTask(taskId: string) {
 		//NEW: Use TaskOperationsService
 		await this.plugin.taskOperationsService.closeTask(taskId);
@@ -676,17 +683,62 @@ export class TickTickService {
 
 		//Check for duplicates before we do anything
 		try {
-			const result = await this.plugin.fileMetadataService?.checkForDuplicates(newFilesToSync);
-			if (result?.duplicates && (JSON.stringify(result.duplicates) != '{}')) {
-				const modal = new FoundDuplicateTasksModal(this.plugin.app, this.plugin, result.duplicates, result.taskIds);
+			// Build task ID list from metadata for file-level duplicate scan
+			const taskList: Record<string, boolean> = {};
+			for (const [, metadata] of Object.entries(newFilesToSync)) {
+				if (!metadata.TickTickTasks) continue;
+				for (const taskDetail of metadata.TickTickTasks) {
+					taskList[taskDetail.taskId] = true;
+				}
+			}
+
+			const [dbResult, fileResult] = await Promise.all([
+				this.plugin.fileMetadataService?.checkForDuplicates(newFilesToSync),
+				this.plugin.fileOperation?.checkForDuplicates(newFilesToSync, taskList)
+			]);
+
+			// Merge both results into the format FoundDuplicateTasksModal expects
+			const duplicates: Record<string, string[]> = {};
+			const taskIds: Record<string, string> = {};
+
+			if (dbResult?.duplicates) {
+				for (const [taskId, files] of Object.entries(dbResult.duplicates)) {
+					duplicates[taskId] = files;
+					taskIds[taskId] = dbResult.taskIds[taskId];
+				}
+			}
+
+			if (fileResult) {
+				for (const [taskId, files] of Object.entries(fileResult)) {
+					const fileList = files as string[];
+					if (fileList.length > 1) {
+						const extraFiles = fileList.slice(1);
+						if (duplicates[taskId]) {
+							const existing = new Set(duplicates[taskId]);
+							for (const f of extraFiles) {
+								if (!existing.has(f)) {
+									duplicates[taskId].push(f);
+								}
+							}
+						} else {
+							duplicates[taskId] = extraFiles;
+							taskIds[taskId] = fileList[0];
+						}
+					}
+				}
+			}
+
+			const hasDuplicates = Object.keys(duplicates).length > 0;
+			if (hasDuplicates) {
+				const modal = new FoundDuplicateTasksModal(this.plugin.app, this.plugin, duplicates, taskIds);
 				const resolved = await modal.showModal();
-				
+
 				if (!resolved) {
 					log.warn('User cancelled duplicate resolution. Sync aborted.');
 					new Notice('Sync aborted. Please fix duplicates manually in MetaData to prevent data corruption.', 10000);
 					return;
 				}
-				
+
 				// Re-fetch metadata after deletions if user chose to proceed
 				newFilesToSync = await this.plugin.fileMetadataService?.getAllFileMetadata();
 			}

@@ -3,12 +3,9 @@
 	import LimitSyncSection from './LimitSyncSection.svelte';
 	import AutoSyncIntervalSection from './AutoSyncIntervalSection.svelte';
 	import FullVaultSyncSection from './FullVaultSyncSection.svelte';
-	import DeviceIdentitySection from './DeviceIdentitySection.svelte';
-
 	export let plugin;
 
 	const sections = [
-		{ key: 'identity', component: DeviceIdentitySection },
 		{ key: 'defaults', component: DefaultsSection },
 		{ key: 'limit', component: LimitSyncSection },
 		{ key: 'auto', component: AutoSyncIntervalSection },
