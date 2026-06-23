@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { settingsStore } from '@/ui/settings/settingsstore';
 	import type TickTickSync from '@/main';
-	import { LINK_BEHAVIOR } from '@/ui/settings/svelte/constants.svelte.js';
+	import { LINK_BEHAVIOR, LINK_VISIBILITY } from '@/ui/settings/svelte/constants.svelte.js';
 	import './SettingsStyles.css';
 	import ResetTasksControl from '@/ui/settings/svelte/ResetTasksControl.svelte';
 
@@ -18,6 +18,16 @@
 	let showKeepFoldersModal = false;
 	let modalWorking = false;
 
+	// Task display settings
+	let readingLink: string;
+	let readingId: boolean;
+	let readingTag: boolean;
+	let editingLink: string;
+	let editingId: boolean;
+	let editingTag: boolean;
+
+	let linkVisibilityOptions: Record<string, string> = LINK_VISIBILITY;
+
 	function setIsWorking(value: boolean) {
 		isWorking = value;
 	}
@@ -29,7 +39,6 @@
 		modalWorking = true;
 		try {
 			await plugin.tickTickService.reorganizeFilesToFolders();
-			//When moving folders, we will reset tasks. We don't ask users, because if we don't reset tasks there will be a lot of issues.
 			await  resetTasks(plugin, setIsWorking)
 		} catch (error) {
 			console.error('Error reorganizing files:', error);
@@ -48,6 +57,12 @@
 	$: taskLinksInObsidian = $settingsStore.taskLinksInObsidian;
 	$: syncNotes = $settingsStore.syncNotes;
 	$: keepProjectFolders = $settingsStore.keepProjectFolders;
+	$: readingLink = $settingsStore.taskDisplay?.reading?.link ?? 'show';
+	$: readingId = $settingsStore.taskDisplay?.reading?.id ?? false;
+	$: readingTag = $settingsStore.taskDisplay?.reading?.tag ?? true;
+	$: editingLink = $settingsStore.taskDisplay?.editing?.link ?? 'show';
+	$: editingId = $settingsStore.taskDisplay?.editing?.id ?? true;
+	$: editingTag = $settingsStore.taskDisplay?.editing?.tag ?? true;
 
 	// Remove noteLink from options if needed
 	$: if (!syncNotes) {
@@ -76,6 +91,24 @@
 		if (checked) {
 			showKeepFoldersModal = true;
 		}
+	}
+
+	async function handleTaskDisplayChange(field: string, value: any) {
+		settingsStore.update((s) => {
+			const taskDisplay = s.taskDisplay ?? { reading: { link: 'show', id: false, tag: true }, editing: { link: 'show', id: true, tag: true } };
+			const parts = field.split('.');
+			return {
+				...s,
+				taskDisplay: {
+					...taskDisplay,
+					[parts[0]]: {
+						...taskDisplay[parts[0] as 'reading' | 'editing'],
+						[parts[1]]: value
+					}
+				}
+			};
+		});
+		await plugin.saveSettings();
 	}
 </script>
 <div class="{isWorking ? 'wait-cursor' : 'default-cursor'}">
@@ -180,6 +213,90 @@
 						<option value={id}>{name}</option>
 					{/each}
 				</select>
+			</div>
+		</div>
+
+	</div>
+
+	<hr>
+
+	<div class="task-settings ">
+		<h3 class="setting-item-name" style="margin-bottom: 8px;">Task Display</h3>
+		<p class="setting-item-description" style="margin-bottom: 12px;">
+			Control which task elements are visible in Reading mode and Edit mode.
+		</p>
+
+		<div class="setting-item">
+			<div class="setting-item-info">
+				<div class="setting-item-name">TickTick Link</div>
+			</div>
+			<div class="setting-item-control" style="gap: 8px; flex-wrap: wrap;">
+				<label style="font-size: var(--font-small);">Reading:
+					<select
+						class="dropdown"
+						bind:value={readingLink}
+						on:change={(e: Event) => handleTaskDisplayChange('reading.link', (e.target as HTMLSelectElement).value)}
+					>
+						{#each Object.entries(linkVisibilityOptions) as [id, name]}
+							<option value={id}>{name}</option>
+						{/each}
+					</select>
+				</label>
+				<label style="font-size: var(--font-small);">Edit:
+					<select
+						class="dropdown"
+						bind:value={editingLink}
+						on:change={(e: Event) => handleTaskDisplayChange('editing.link', (e.target as HTMLSelectElement).value)}
+					>
+						{#each Object.entries(linkVisibilityOptions) as [id, name]}
+							<option value={id}>{name}</option>
+						{/each}
+					</select>
+				</label>
+			</div>
+		</div>
+
+		<div class="setting-item">
+			<div class="setting-item-info">
+				<div class="setting-item-name">TickTick ID</div>
+			</div>
+			<div class="setting-item-control" style="gap: 8px; flex-wrap: wrap;">
+				<label style="font-size: var(--font-small);">Reading:
+					<input
+						type="checkbox"
+						bind:checked={readingId}
+						on:change={(e: Event) => handleTaskDisplayChange('reading.id', (e.target as HTMLInputElement).checked)}
+					/>
+				</label>
+				<label style="font-size: var(--font-small);">Edit:
+					<input
+						type="checkbox"
+						bind:checked={editingId}
+						on:change={(e: Event) => handleTaskDisplayChange('editing.id', (e.target as HTMLInputElement).checked)}
+					/>
+				</label>
+			</div>
+		</div>
+
+		<div class="setting-item">
+			<div class="setting-item-info">
+				<div class="setting-item-name">#ticktick Tag</div>
+			</div>
+			<div class="setting-item-control" style="gap: 8px; flex-wrap: wrap;">
+				<label style="font-size: var(--font-small);">Reading:
+					<input
+						type="checkbox"
+						bind:checked={readingTag}
+						on:change={(e: Event) => handleTaskDisplayChange('reading.tag', (e.target as HTMLInputElement).checked)}
+					/>
+				</label>
+				<label style="font-size: var(--font-small);">Edit:
+					<input
+						type="checkbox"
+						bind:checked={editingTag}
+						on:change={(e: Event) => handleTaskDisplayChange('editing.tag', (e.target as HTMLInputElement).checked)}
+					/>
+				</label>
 			</div>
 		</div>
 

@@ -1,7 +1,7 @@
 import '@/static/index.css';
 import '@/static/styles.css';
 
-import { type Editor, type MarkdownFileInfo, type MarkdownPostProcessor, Platform } from 'obsidian';
+import { type Editor, type MarkdownFileInfo } from 'obsidian';
 import { MarkdownView, Notice, Plugin, TFolder } from 'obsidian';
 
 //settings
@@ -27,7 +27,7 @@ import { LatestChangesModal } from './modals/LatestChangesModal';
 //import utils
 import { isOlder } from './utils/version';
 import { TickTickSyncSettingTab } from './ui/settings';
-import { QueryInjector } from '@/query/injector';
+import { MarkdownProcessor } from '@/query/MarkdownProcessor';
 import store from '@/store';
 import { DateMan } from '@/dateMan';
 import { NewFileMap } from '@/services/NewFileMap';
@@ -95,7 +95,8 @@ export default class TickTickSync extends Plugin {
 	statusBar?: HTMLElement;
 	private syncIntervalId?: number;
 	private logger: any;
-	private codeBlockProcessor?: MarkdownPostProcessor;
+
+	private markdownProcessor?: MarkdownProcessor;
 
 	async onload() {
 		//We're doing too much at load time, and it's causing issues. Do it properly!
@@ -133,10 +134,6 @@ export default class TickTickSync extends Plugin {
 	// }
 
 	async onunload() {
-		if (this.codeBlockProcessor) {
-			MarkdownPostProcessor.unregisterPostProcessor(this.codeBlockProcessor);
-			this.codeBlockProcessor = undefined;
-		}
 		super.onunload();
 		if (this.syncIntervalId) {
 			window.clearInterval(this.syncIntervalId);
@@ -474,11 +471,8 @@ export default class TickTickSync extends Plugin {
 		}
 
 		store.service.set(this.service);
-		// const queryInjector = new QueryInjector(this);
-		// this.codeBlockProcessor = this.registerMarkdownCodeBlockProcessor(
-		// 	'ticktick',
-		// 	queryInjector.onNewBlock.bind(queryInjector)
-		// );
+		this.markdownProcessor = new MarkdownProcessor(this);
+		this.markdownProcessor.activate();
 
 
 		const ribbonIconEl = this.addRibbonIcon('sync', 'TickTickSync', async (evt: MouseEvent) => {
