@@ -4,6 +4,12 @@ import type { IProjectGroup } from '@/api/types/ProjectGroup';
 import type { FileMetadata } from '@/repositories/FileMetadataService';
 import { settingsStore } from '@/ui/settings/settingsstore';
 
+export interface TaskDisplayModeSettings {
+	link: 'show' | 'hide' | 'hover';
+	id: boolean;
+	tag: boolean;
+}
+
 export interface ITickTickSyncSettings {
 
 	baseURL: string;
@@ -37,6 +43,11 @@ export interface ITickTickSyncSettings {
 
 	vaultName: string;
 
+	taskDisplay: {
+		reading: TaskDisplayModeSettings;
+		editing: TaskDisplayModeSettings;
+	};
+
 	// statistics: any;
 }
 
@@ -65,6 +76,19 @@ export const DEFAULT_SETTINGS: ITickTickSyncSettings = {
 	skipBackup: false,
 
 	vaultName: '',
+
+	taskDisplay: {
+		reading: {
+			link: 'show',
+			id: false,
+			tag: true,
+		},
+		editing: {
+			link: 'show',
+			id: true,
+			tag: true,
+		},
+	},
 
 	//statistics: {}
 };

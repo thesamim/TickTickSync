@@ -64,6 +64,66 @@ button.ts_button[disabled]:hover {
 	padding: 10px;
 }
 
+/* --- TickTick task display controls --- */
+/* Applied by TaskDisplayProcessor via registerMarkdownPostProcessor */
+
+/* Hide TickTick link */
+.ticktick-task.tt-link-hide a[href*="//ticktick.com"],
+.ticktick-task.tt-link-hide a[href*="//dida365.com"] {
+	display: none;
+}
+
+/* Hover reveal for TickTick link */
+.ticktick-task.tt-link-hover a[href*="//ticktick.com"],
+.ticktick-task.tt-link-hover a[href*="//dida365.com"] {
+	opacity: 0;
+	pointer-events: none;
+	transition: opacity 0.15s ease;
+}
+.ticktick-task.tt-link-hover:hover a[href*="//ticktick.com"],
+.ticktick-task.tt-link-hover:hover a[href*="//dida365.com"] {
+	opacity: 1;
+	pointer-events: auto;
+}
+
+/* Hide #ticktick tag in rendered view */
+.ticktick-task.tt-tag-hide .tag[href="#ticktick"] {
+	display: none;
+}
+
+/* Hide injected TickTick ID span (shown in reading mode) */
+.ticktick-task.tt-id-hide .tt-id-visible {
+	display: none;
+}
+
+/* --- Editing mode (Live Preview) --- */
+/* Hide TickTick link in editing mode */
+.HyperMD-task-line.ticktick-task.tt-link-hide .cm-link {
+	display: none;
+}
+
+/* Hover reveal for link in editing mode */
+.HyperMD-task-line.ticktick-task.tt-link-hover .cm-link {
+	opacity: 0;
+	pointer-events: none;
+	transition: opacity 0.15s ease;
+}
+.HyperMD-task-line.ticktick-task.tt-link-hover:hover .cm-link {
+	opacity: 1;
+	pointer-events: auto;
+}
+
+/* Hide #ticktick tag in editing mode */
+.HyperMD-task-line.ticktick-task.tt-tag-hide .cm-tag-ticktick,
+.HyperMD-task-line.ticktick-task.tt-tag-hide .cm-formatting-hashtag-begin.cm-tag-ticktick {
+	display: none;
+}
+
+/* Hide ticktick_id in editing mode (overrides existing .cm-comment rules) */
+.HyperMD-task-line.ticktick-task.tt-id-hide span.cm-comment {
+	display: none !important;
+}
+
 /*changes below from @gsdtr*/
 .code {
 	width: 500px;

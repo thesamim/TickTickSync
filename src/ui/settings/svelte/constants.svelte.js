@@ -19,3 +19,9 @@ export const LINK_BEHAVIOR = {
 	'taskLink': 'Link in Task' ,
 	'noteLink': 'Link in Description'
 }
+
+export const LINK_VISIBILITY = {
+	'show': 'Show',
+	'hide': 'Hide',
+	'hover': 'Show on hover',
+}
