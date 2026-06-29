@@ -1,11 +1,20 @@
 import type { SyncMeta } from "./schema";
-import { generateDeviceId } from "./device";
+import { generateDeviceId, detectDeviceLabel } from "./device";
+import { getSettings } from '@/settings';
 
 export async function ensureSyncMeta(meta: SyncMeta, preferred?: Partial<SyncMeta>): Promise<SyncMeta> {
 	let changed = false;
 
 	if (!meta.deviceId) {
-		meta.deviceId = preferred?.deviceId || generateDeviceId();
+		const newLabel = preferred?.deviceLabel || await detectDeviceLabel();
+		meta.deviceLabel = newLabel;
+
+		if (preferred?.deviceId) {
+			meta.deviceId = preferred.deviceId;
+		} else {
+			const existing = getSettings().devices.find(d => d.deviceLabel === newLabel);
+			meta.deviceId = existing ? existing.deviceId : generateDeviceId();
+		}
 		changed = true;
 	}
 

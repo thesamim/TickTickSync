@@ -8,7 +8,8 @@ import { MarkdownView, Notice, Plugin, TFolder } from 'obsidian';
 import {
 	DEFAULT_SETTINGS,
 	getSettings,
-	updateSettings
+	updateSettings,
+	mergeDeviceLists
 } from './settings';
 
 import { TickTickService } from '@/services';
@@ -176,6 +177,23 @@ export default class TickTickSync extends Plugin {
 				delete (settingsToSave as any).fileMetadata;
 				delete (settingsToSave as any).TickTickTasksData;
 				delete (settingsToSave as any).__migratedDBData;
+
+				// Defensive merge: on-disk data.json may have been updated by
+				// another device via Obsidian Sync. Merge devices so that entries
+				// added by other instances are not lost.
+				try {
+					const onDiskData = await this.loadData();
+					if (onDiskData?.devices && Array.isArray(onDiskData.devices)) {
+						const merged = mergeDeviceLists(
+							onDiskData.devices,
+							settingsToSave.devices || []
+						);
+						settingsToSave.devices = merged;
+						getSettings().devices = merged;
+					}
+				} catch (e) {
+					log.warn('Could not read on-disk settings for device merge', e);
+				}
 
 				await this.saveData(settingsToSave);
 			} else {

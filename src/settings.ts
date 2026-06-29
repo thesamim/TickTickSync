@@ -2,6 +2,7 @@ import type { ITask } from '@/api/types/Task';
 import type { IProject } from '@/api/types/Project';
 import type { IProjectGroup } from '@/api/types/ProjectGroup';
 import type { FileMetadata } from '@/repositories/FileMetadataService';
+import type { DeviceInfo } from '@/db/schema';
 import { settingsStore } from '@/ui/settings/settingsstore';
 
 export interface TaskDisplayModeSettings {
@@ -34,6 +35,7 @@ export interface ITickTickSyncSettings {
 
 	debugMode: boolean;
 	logLevel: string;
+	journalRetentionDays: number;
 	skipBackup?: boolean;
 
 	//TODO look like one cache object
@@ -48,6 +50,8 @@ export interface ITickTickSyncSettings {
 		editing: TaskDisplayModeSettings;
 	};
 
+	devices: DeviceInfo[];
+
 	// statistics: any;
 }
 
@@ -58,6 +62,7 @@ export const DEFAULT_SETTINGS: ITickTickSyncSettings = {
 	tagAndOr: 1,
 	debugMode: false,
 	logLevel: 'info',
+	journalRetentionDays: 3,
 	SyncProject: '',
 	SyncTag: '',
 	defaultProjectId: '',
@@ -90,6 +95,8 @@ export const DEFAULT_SETTINGS: ITickTickSyncSettings = {
 		},
 	},
 
+	devices: [],
+
 	//statistics: {}
 };
 
@@ -110,6 +117,17 @@ export const updateSettings = (newSettings: Partial<ITickTickSyncSettings>): ITi
 	settingsStore.set(settings);
 	return getSettings();
 };
+
+/**
+ * Merge two device lists, deduplicating by deviceId.
+ * `override` entries take precedence for label when IDs match.
+ */
+export function mergeDeviceLists(base: DeviceInfo[], override: DeviceInfo[]): DeviceInfo[] {
+	const map = new Map<string, DeviceInfo>();
+	for (const d of base) map.set(d.deviceId, d);
+	for (const d of override) map.set(d.deviceId, d);
+	return Array.from(map.values());
+}
 
 export const getDefaultFolder = (): string => {
 	let path = settings.TickTickTasksFilePath;

@@ -2,11 +2,18 @@ import type { ITask } from "@/api/types/Task";
 import type { IProject } from "@/api/types/Project";
 import type { IProjectGroup } from "@/api/types/ProjectGroup";
 
+export interface DeviceInfo {
+	deviceId: string;
+	deviceLabel: string;
+}
+
 export type SyncMeta = {
 	lastFullSync: number;
 	lastDeltaSync: number;
 
 	deviceId: string;
+	deviceLabel?: string;
+	devices: DeviceInfo[];
 
 	schemaVersion: number;
 };
@@ -18,6 +25,7 @@ export type LocalTask = {
 
 	updatedAt: number;
 	lastVaultSync?: number;
+	lastModifiedByDeviceId?: string;
 
 	deleted?: boolean;
 	file: string;
@@ -75,6 +83,8 @@ export const defaultDBData: DBData = {
 		lastFullSync: 0,
 		lastDeltaSync: 0,
 		deviceId: "",
+		deviceLabel: undefined,
+		devices: [],
 		schemaVersion: 2,
 	}
 };

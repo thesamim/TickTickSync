@@ -1,4 +1,5 @@
 <script lang="ts">
+	import DeviceIdentitySection from './DeviceIdentitySection.svelte';
 	import DefaultsSection from './DefaultsSection.svelte';
 	import LimitSyncSection from './LimitSyncSection.svelte';
 	import AutoSyncIntervalSection from './AutoSyncIntervalSection.svelte';
@@ -6,6 +7,7 @@
 	export let plugin;
 
 	const sections = [
+		{ key: 'identity', component: DeviceIdentitySection },
 		{ key: 'defaults', component: DefaultsSection },
 		{ key: 'limit', component: LimitSyncSection },
 		{ key: 'auto', component: AutoSyncIntervalSection },

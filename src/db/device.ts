@@ -1,4 +1,15 @@
 import { Platform } from 'obsidian';
+import type { DeviceInfo } from './schema';
+
+let currentDeviceInfo: DeviceInfo | null = null;
+
+export function getCurrentDeviceInfo(): DeviceInfo | null {
+	return currentDeviceInfo;
+}
+
+export function setCurrentDeviceInfo(info: DeviceInfo): void {
+	currentDeviceInfo = info;
+}
 
 export function generateDeviceId(): string {
 	return crypto.randomUUID();

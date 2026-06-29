@@ -6,6 +6,7 @@
 import { db } from "@/db/dexie";
 import type { ITask } from "@/api/types/Task";
 import type { LocalTask } from "@/db/schema";
+import { getCurrentDeviceInfo } from "@/db/device";
 import log from "@/utils/logger";
 
 export class TaskRepository {
@@ -98,6 +99,7 @@ export class TaskRepository {
 		try {
 			const existingTask = await db.tasks.where("taskId").equals(task.id).first();
 			const now = timestamp || Date.now();
+			const currentDeviceId = getCurrentDeviceInfo()?.deviceId;
 
 			if (existingTask) {
 				// Preserve reminder fields from the existing task if the incoming task lacks them
@@ -119,6 +121,7 @@ export class TaskRepository {
 				await db.tasks.update(existingTask.localId, {
 					task: task,
 					updatedAt: now,
+					lastModifiedByDeviceId: currentDeviceId,
 					...(filepath && { file: filepath, lastVaultSync: now })
 				});
 			} else {
@@ -130,7 +133,8 @@ export class TaskRepository {
 					updatedAt: now,
 					file: filepath || "",
 					source: "obsidian",
-					lastVaultSync: filepath ? now : undefined
+					lastVaultSync: filepath ? now : undefined,
+					lastModifiedByDeviceId: currentDeviceId
 				};
 				await db.tasks.put(newLocalTask);
 			}
