@@ -28,7 +28,6 @@ export class MarkdownProcessor {
 
 	private onNewBlock(source: string, el: HTMLElement, ctx: MarkdownPostProcessorContext): void {
 		try {
-			log.debug("Got Source: ", source)
 			const [query, warnings] = parseQuery(source);
 			ctx.addChild(new QueryRender(el, QueryRoot, { query, warnings }));
 		} catch (e) {

@@ -117,9 +117,6 @@ export class NewFileMap {
 
 		const linesToReplaceCount = oldContentEndLine - oldLineIdx + 1;
 		const arTaskLines = taskLine.split('\n');
-		log.debug(`updateTask: task ${task.id} oldLineIdx=${oldLineIdx} oldContentEndLine=${oldContentEndLine} linesToReplaceCount=${linesToReplaceCount}`);
-		log.debug(`updateTask: task ${task.id} oldContent=[${this.fileLines.slice(oldLineIdx, oldLineIdx + linesToReplaceCount).join(' | ')}]`);
-		log.debug(`updateTask: task ${task.id} newContent=[${arTaskLines.join(' | ')}]`);
 		this.fileLines.splice(oldLineIdx, linesToReplaceCount, ...arTaskLines);
 
 		if (bParentUpdate) {
@@ -163,7 +160,7 @@ export class NewFileMap {
 		const finalTaskIdx = this.getTaskIndex(task.id);
 		if (finalTaskIdx >= 0) {
 			const finalEndLine = this.getTaskEndLineByIdx(finalTaskIdx);
-			log.debug(`updateTask: task ${task.id} FINAL lastLine=${finalEndLine} content=[${this.fileLines.slice(finalTaskIdx, finalEndLine + 1).join(' | ')}]`);
+			// log.debug(`updateTask: task ${task.id} FINAL lastLine=${finalEndLine} content=[${this.fileLines.slice(finalTaskIdx, finalEndLine + 1).join(' | ')}]`);
 		}
 		this.rebuildEntries();
 	}

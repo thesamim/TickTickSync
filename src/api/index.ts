@@ -384,7 +384,6 @@ export class Tick {
 				const url = `${this.apiUrl}/${allTasksEndPoint}` + this._checkpoint;
 				const response = await this.makeRequest('Get Tasks', url, 'GET', undefined);
 				if (response) {
-					log.debug('Got: ', response['syncTaskBean'].update.length);
 					return response['syncTaskBean'].update;
 				} else {
 					if (retry > 0) {

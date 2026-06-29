@@ -530,7 +530,6 @@ export class SyncMan {
 				}
 			}
 		}
-		log.debug("LFT ####. Title: ", parentTask.title)
 		const result = await this.plugin.tickTickRestAPI?.updateTask(parentTask);
 		const updateFailed = !result;
 		new Notice(`Task ${parentTask.title} modified.`);

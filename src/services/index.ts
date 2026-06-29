@@ -752,7 +752,6 @@ export class TickTickService {
 
 		//let's see if any files got killed while we weren't watching
 		//TODO: Files deleted while we weren't looking is not handled right.
-		log.debug('New Files: ', newFilesToSync);
 		for (const fileKey in newFilesToSync) {
 			const file = this.plugin.app.vault.getAbstractFileByPath(fileKey);
 			if (!file) {
@@ -768,10 +767,6 @@ export class TickTickService {
 			// This detects and handles task moves (updating the DB file field),
 			// so deletions in Phase 2 won't see moved tasks as "missing".
 			for (const fileKey in newFilesToSync) {
-				if (getSettings().debugMode) {
-					log.debug(fileKey);
-				}
-
 				if (bForceUpdate) {
 					try {
 						await this.tickTickSync?.forceUpdates(fileKey);

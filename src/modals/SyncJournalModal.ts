@@ -70,7 +70,7 @@ export class SyncJournalModal extends Modal {
 					detailsEl.style.color = 'var(--text-muted)';
 					detailsEl.style.whiteSpace = 'pre-wrap';
 					detailsEl.setText(JSON.stringify(entry.details, null, 2));
-					log.debug("Entry: ", entry.details)
+					// log.debug("Entry: ", entry.details)
 				}
 			}
 		}

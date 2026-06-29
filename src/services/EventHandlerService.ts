@@ -99,7 +99,6 @@ export class EventHandlerService {
 	private registerEditorChangeEvents(): void {
 		this.plugin.registerEvent(
 			this.app.workspace.on('editor-change', async (editor: Editor, info: MarkdownView | MarkdownFileInfo) => {
-				log.debug("EVENT: EDITOR Change");
 				if (this.processTimeout) {
 					clearTimeout(this.processTimeout);
 				}
@@ -182,7 +181,6 @@ export class EventHandlerService {
 		// Modify event
 		this.plugin.registerEvent(
 			this.app.vault.on('modify', async (file) => {
-				log.debug("EVENT: modify");
 				try {
 					if (!getSettings().token) {
 						return;
@@ -214,7 +212,6 @@ export class EventHandlerService {
 	private registerWorkspaceEvents(): void {
 		this.plugin.registerEvent(
 			this.app.workspace.on('active-leaf-change', async () => {
-				log.debug("EVENT: active leaf change");
 				await this.plugin.setStatusBarText();
 			})
 		);

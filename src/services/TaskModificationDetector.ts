@@ -240,7 +240,6 @@ export class TaskModificationDetector {
 				// Task hasn't changed, ensure sync timestamps are current
 				const localTask = await this.plugin.taskRepository.loadLocalTaskById(taskId);
 				if (localTask && (!localTask.lastVaultSync || localTask.lastVaultSync < localTask.updatedAt || !localTask.file)) {
-					log.debug(`Updating sync timestamps for task ${taskId}`);
 					await this.plugin.taskRepository.upsertTask(localTask.task, filepath, Date.now());
 				}
 				return false;
@@ -666,9 +665,6 @@ export class TaskModificationDetector {
 				modified = true;
 			}
 		} else {
-			if (getSettings().debugMode) {
-				log.debug('Parent task has no items array');
-			}
 			return false;
 		}
 

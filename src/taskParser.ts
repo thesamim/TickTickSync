@@ -241,7 +241,6 @@ export class TaskParser {
 				resultLine = resultLine + ' #' + tag;
 			}
 		});
-		log.debug('resultLine:', resultLine);
 		return resultLine;
 	}
 
@@ -276,7 +275,6 @@ export class TaskParser {
 		let content = null;
 
 		let { taskURL, noteURL } = this.getLinkLocation(filepath);
-		log.debug('LFT Line to Task -- taskURL ', taskURL, ' noteURL: ', noteURL);
 
 		//Detect parentID
 		if (taskRecord.parentId && taskRecord.parentId.length > 0) {
@@ -296,7 +294,6 @@ export class TaskParser {
 		let timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
 		const tags = this.getAllTagsFromLineText(textWithoutIndentation);
-		log.debug('tags', tags);
 
 		let projectId = await this.plugin.fileTaskQueries?.getDefaultProjectIdForFilepath(filepath as string);
 
@@ -335,8 +332,6 @@ export class TaskParser {
 			allDatesStruct?.dueDate ? //there are neither start date nor scheduled date.
 				allDatesStruct?.dueDate.isoDate : '';  //use the due date if there is one.
 
-		log.debug('LFT', title.trim(), '[', taskURL, ']', '[', (taskURL ? '' : ' ' + taskURL), ']');
-
 		const task: ITask = {
 			id: TickTick_id || '',
 			projectId: projectId,
@@ -359,7 +354,6 @@ export class TaskParser {
 			dateHolder: allDatesStruct //Assume that there's a dateStruct of some kind
 		};
 
-		log.debug('LFT Line To Task: Title: ', task.title);
 		return task;
 
 	}
@@ -922,7 +916,6 @@ export class TaskParser {
 		path = encodeURI(path);
 
 		const linkRegex = new RegExp(`\\[.*\\]\\(obsidian://open\\?vault=.*&file=${path}\\)`, 'giu');
-		log.debug("linkRegex:", linkRegex);
 		let noteLines: string[];
 
 		if (content.length > 0) {
@@ -965,8 +958,6 @@ export class TaskParser {
 
 
 		noteLines.forEach(item => {
-			log.debug("addnote noteLine:", item);
-			log.debug("result:", item.search(linkRegex))
 			if (item.search(linkRegex) < 0) {
 				resultLine = `${resultLine}${prefix}${item}`;
 			}
