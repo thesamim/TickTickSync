@@ -21,7 +21,6 @@ export class TaskCache {
 					.filter(lt => !!lt.taskId)
 					.map(lt => [lt.taskId, lt.task])
 			);
-			log.debug(`Task cache filled with ${this.cache.size} tasks`);
 		} catch (error) {
 			log.error("Error filling task cache:", error);
 			this.cache = new Map();
@@ -33,7 +32,6 @@ export class TaskCache {
 	 */
 	clear(): void {
 		this.cache = null;
-		log.debug("Task cache cleared");
 	}
 
 	/**

@@ -12,7 +12,7 @@ export function logSyncEvent(
 	action: string,
 	details?: unknown
 ) {
-	log.debug("[TickTickSync]", action, details ?? "");
+	// log.debug("[TickTickSync]", action, details ?? "");
 	persistEntry({ timestamp: Date.now(), deviceId, action, details });
 }
 

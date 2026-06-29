@@ -183,7 +183,6 @@ export class TickTickRestAPI {
 		await this.initializeAPI();
 
 		try {
-			log.error("taks title:",  taskToUpdate.title);
 			const saveDateHolder = taskToUpdate.dateHolder;
 			const saveLineHash = taskToUpdate.lineHash;
 			const updateResult = await this.api?.updateTask(taskToUpdate);
@@ -203,7 +202,6 @@ export class TickTickRestAPI {
 					serverTask.lineHash = saveLineHash;
 					return serverTask;
 				}
-				log.error('Didn\'t get back the updated Task');
 			}
 			// Return original input when update failed so callers don't save a corrupt empty object
 			taskToUpdate.dateHolder = saveDateHolder;

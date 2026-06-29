@@ -94,8 +94,6 @@ export class VaultSyncCoordinator {
 			}
 		}
 
-		log.debug("VaultSync: File groups prepared", { fileCount: fileGroups.size });
-
 		// Handle deletions with user confirmation
 		const proceedWithDeletions = await this.confirmDeletions(fileGroups, movedTaskIds);
 

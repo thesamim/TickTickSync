@@ -672,7 +672,7 @@ export default class TickTickSync extends Plugin {
 			a.click();
 
 			URL.revokeObjectURL(url);
-			console.log(`Exported ${storeNames.length} stores to ${dbName}_full_dump.json`);
+			log.debug(`Exported ${storeNames.length} stores to ${dbName}_full_dump.json`);
 			db.close();
 		};
 

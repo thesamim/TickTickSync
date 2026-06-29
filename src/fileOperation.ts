@@ -182,10 +182,10 @@ export class FileOperation {
 		}
 
 		//TODO: Debug only.
-		log.debug('Taskfile: ', taskFile);
-		log.debug('doit exist: ', this.app.vault.getAbstractFileByPath(taskFile));
-		log.debug('ProjectId', projectId);
-		log.debug('ProjectName', await getProjectById(projectId));
+		// log.debug('Taskfile: ', taskFile);
+		// log.debug('doit exist: ', this.app.vault.getAbstractFileByPath(taskFile));
+		// log.debug('ProjectId', projectId);
+		// log.debug('ProjectName', await getProjectById(projectId));
 
 		try {
 			//do we have one?
@@ -233,7 +233,7 @@ export class FileOperation {
 				}
 			} catch (error) {
 				if (error.message.includes('File already exists')) {
-					log.info('Attempting to find existing file', taskFile);
+					log.debug('Attempting to find existing file', taskFile);
 					file = this.app.vault.getAbstractFileByPath(taskFile);
 					if (projectId) {
 						await this.plugin.fileMetadataService.updateFileMetadata(taskFile, { defaultProjectId: projectId, TickTickTasks: [], TickTickCount: 0 });
