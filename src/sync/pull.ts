@@ -34,6 +34,13 @@ export async function pullFromTickTick(
 		const local = localMap.get(remoteId);
 		const remoteUpdatedAt = rt.modifiedTime ? new Date(rt.modifiedTime).getTime() : Date.now();
 
+		// Echo suppression: skip pulling tasks that this device last modified
+		// and that haven't been changed on TickTick since our push.
+		if (local && local.lastModifiedByDeviceId === meta.deviceId && local.task.modifiedTime === rt.modifiedTime) {
+			log.debug("[TickTickSync] Skipping echo update for task", remoteId);
+			continue;
+		}
+
 		// Ensure dateHolder is correctly merged with local task if available
 		if (local) {
 			ticktickRestApi.plugin.dateMan?.addDateHolderToTask(rt, local.task);

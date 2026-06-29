@@ -96,7 +96,6 @@ describe('pullFromTickTick field mapping and echo detection', () => {
 	it('should ignore echoes (when remote task was originally sent by us)', async () => {
 		const now = new Date();
 		const modifiedTimeString = now.toISOString();
-		const timestamp = now.getTime();
 
 		const remoteTask = {
 			id: 'remote-task-id',
@@ -106,11 +105,13 @@ describe('pullFromTickTick field mapping and echo detection', () => {
 
 		mockApi.getUpdatedTasks.mockResolvedValue({ update: [remoteTask], delete: [] });
 
-		// Local task says it was modified by us at the SAME time or newer
+		// Local task matches this device and the same modifiedTime — our own echo
 		const localTask = {
 			localId: 'local-uuid',
 			taskId: 'remote-task-id',
-			updatedAt: timestamp,
+			updatedAt: now.getTime(),
+			lastModifiedByDeviceId: 'test-device',
+			task: { modifiedTime: modifiedTimeString },
 		};
 
 		const anyOfToArray = vi.fn().mockResolvedValue([localTask]);

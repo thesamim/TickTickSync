@@ -405,8 +405,9 @@ export class Tick {
 		try {
 			let url = `${this.apiUrl}/${TaskEndPoint}/${taskID}`;//
 
-			const projectParam = `?projectID=${projectID}`;
+
 			if (projectID) {
+				const projectParam = `?projectID=${projectID}`;
 				url = url + projectParam;
 			}
 			const response = await this.makeRequest('Get Tasks', url, 'GET', undefined);

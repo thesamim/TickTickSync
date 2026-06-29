@@ -213,10 +213,18 @@ export class TaskModificationDetector {
 		// Get saved task from database
 		const savedTask = await this.plugin.taskRepository.loadTaskById(taskId);
 		if (!savedTask) {
-			//TODO: Erroneous task deletion might happen after a task move. If not handled before here, has to be handled here.
-			// Task in file but not in database - delete from file
-			log.error(`Task ${taskId} not in database. Deleting from file ${filepath}`);
-			new Notice(`Task not found in database. It will be removed from the file.`);
+			// Task not in local DB — check TickTick API before deleting.
+			// Handles the race where a file syncs to this device via external
+			// sync before the pull phase fetched the task from TickTick.
+			const remoteTask = await this.plugin.tickTickRestAPI?.getTaskById(taskId, null);
+			if (remoteTask) {
+				log.warn(`Task ${taskId} not in local DB but exists on TickTick. Importing.`);
+				await this.plugin.taskRepository.upsertTask(remoteTask, filepath, Date.now());
+				return false;
+			}
+
+			log.error(`Task ${taskId} not found on TickTick. Deleting from file ${filepath}`);
+			new Notice(`Task not found. It will be removed from the file.`);
 			const file = this.app.vault.getAbstractFileByPath(filepath);
 			const lineTask = await this.plugin.taskParser?.convertLineToTask(lineText, lineNumber, filepath, fileMap, taskRecord);
 			await this.plugin.fileOperation?.deleteTaskFromSpecificFile(file, lineTask, true);

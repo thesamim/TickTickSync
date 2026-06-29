@@ -161,6 +161,26 @@
 
 	<div class="setting-item">
 		<div class="setting-item-info">
+			<div class="setting-item-name">Journal Retention</div>
+			<div class="setting-item-description">Days to keep journal entries (1–7)</div>
+		</div>
+		<div class="TTS-setting-item-control">
+			<input
+				type="number"
+				min="1"
+				max="7"
+				value={getSettings().journalRetentionDays}
+				on:change={async (e) => {
+					const val = Math.min(7, Math.max(1, parseInt(e.target.value, 10) || 3));
+					updateSettings({ journalRetentionDays: val });
+					await plugin.saveSettings();
+				}}
+			/>
+		</div>
+	</div>
+
+	<div class="setting-item">
+		<div class="setting-item-info">
 			<div class="setting-item-name">View Sync Journal</div>
 			<div class="setting-item-description">Browse and export sync journal entries</div>
 		</div>
