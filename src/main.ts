@@ -100,15 +100,64 @@ export default class TickTickSync extends Plugin {
 	private markdownProcessor?: MarkdownProcessor;
 
 	async onload() {
-		//We're doing too much at load time, and it's causing issues. Do it properly!
-
 		this.app.workspace.onLayoutReady(async () => {
-			//todo: detect end of sync and/or make sure there's not conflict somehow.
-			// log.debug(`TickTickSync onload pausing for 60 seconds to allow for sync to complete!`);
-			// await waitFor(60000)
+			await this.waitForObsidianSync();
 			await this.pluginLoad();
 		});
+	}
 
+	/**
+	 * If Obsidian Sync is installed and enabled, wait until it finishes
+	 * syncing before proceeding with plugin initialization.
+	 */
+	private async waitForObsidianSync(): Promise<void> {
+		const internalPlugins = (this.app as any).internalPlugins;
+		if (!internalPlugins) return;
+
+		const syncPlugin = internalPlugins.getPluginById('sync');
+		if (!syncPlugin?.enabled) return;
+
+		const syncService = (this.app as any).sync ?? syncPlugin.instance;
+		if (!syncService) return;
+
+		log.debug('Obsidian Sync detected, waiting for sync to complete...');
+
+		return new Promise<void>((resolve) => {
+			const isSyncing = (): boolean => {
+				try {
+					return syncService.isSyncing?.() ?? syncService.isSyncing ?? syncService.syncing ?? false;
+				} catch {
+					return false;
+				}
+			};
+
+			if (!isSyncing()) {
+				log.debug('Obsidian Sync already idle, proceeding.');
+				resolve();
+				return;
+			}
+
+			const interval = setInterval(() => {
+				if (!isSyncing()) {
+					clearInterval(interval);
+					log.debug('Obsidian Sync finished, proceeding.');
+					resolve();
+				}
+			}, 500);
+
+			try {
+				if (typeof syncService.on === 'function') {
+					syncService.on('status-change', () => {
+						if (!isSyncing()) {
+							clearInterval(interval);
+							resolve();
+						}
+					});
+				}
+			} catch {
+				// event listener not available, polling alone is fine
+			}
+		});
 	}
 
 	reloadInterval() {
@@ -388,7 +437,7 @@ export default class TickTickSync extends Plugin {
 			return;
 		}
 
-
+		await this.waitForObsidianSync();
 
 		try {
 			await this.service.synchronization(fullSync);
@@ -396,8 +445,6 @@ export default class TickTickSync extends Plugin {
 			log.error('An error occurred: ', error);
 			new Notice(`An error occurred: ${error}`);
 		}
-
-
 	}
 
 
