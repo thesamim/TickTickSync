@@ -62,7 +62,6 @@ import { TaskOperationsService } from '@/services/TaskOperationsService';
 import { FolderSyncService } from '@/services/FolderSyncService';
 import { FolderMigrationService } from '@/services/FolderMigrationService';
 
-import {getTasksWithChildren} from '@/FuckAboutParse';
 import { generateDeviceId } from '@/db/device';
 
 
