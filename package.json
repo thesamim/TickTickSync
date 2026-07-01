@@ -39,6 +39,7 @@
 		"lodash-es": "^4.17.21",
 		"loglevel": "^1.9.2",
 		"obsidian": "latest",
+		"punycode": "^2.3.1",
 		"rrule": "^2.8.1",
 		"yaml": "^2.7.1"
 	},
