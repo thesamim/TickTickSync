@@ -1,3 +1,5 @@
+import { requestUrl } from 'obsidian';
+
 export class CookieUtils {
   static serializeCookies(cookies: any[]): string {
     return cookies.map(c => `${c.name}=${c.value}`).join('; ');
@@ -17,14 +19,16 @@ export class CookieUtils {
       const sessionCookie = this.findSessionCookie(cookies);
       if (!sessionCookie) return false;
 
-      const response = await fetch('https://api.ticktick.com/api/v2/user/status', {
+      const response = await requestUrl({
+        url: 'https://api.ticktick.com/api/v2/user/status',
+        method: 'GET',
         headers: {
           'Cookie': `${sessionCookie.name}=${sessionCookie.value}`,
           'User-Agent': 'Obsidian Plugin'
         }
       });
 
-      return response.ok;
+      return response.status === 200;
     } catch (error) {
       return false;
     }

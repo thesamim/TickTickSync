@@ -24,6 +24,8 @@ import { FileOperation } from './fileOperation';
 //import modals
 import { SetDefaultProjectForFileModal } from './modals/DefaultProjectModal';
 import { LatestChangesModal } from './modals/LatestChangesModal';
+import { CleanupDeletedTasksModal } from './modals/CleanupDeletedTasksModal';
+import { RecoverDeletedTasksModal } from './modals/RecoverDeletedTasksModal';
 
 //import utils
 import { isOlder } from './utils/version';
@@ -197,6 +199,10 @@ export default class TickTickSync extends Plugin {
 	async loadSettings() {
 		try {
 			let data = await this.loadData();
+			if (!data) {
+				data = { version: this.manifest.version };
+				await this.saveData(data);
+			}
 			try {
 				data = await this.migrateData(data);
 			} catch (error) {
@@ -301,6 +307,8 @@ export default class TickTickSync extends Plugin {
 		}
 		//And now load the DB and sync it.
 		await this.service.synchronization(true);
+
+		await this.autoCleanupDeletedTasks();
 
 		new Notice('TickTickSync loaded successfully.' + getSettings().skipBackup ? ' Skipping backup.' : 'TickTick data has been backed up.');
 		return true;
@@ -440,9 +448,22 @@ export default class TickTickSync extends Plugin {
 
 		try {
 			await this.service.synchronization(fullSync);
+			await this.autoCleanupDeletedTasks();
 		} catch (error) {
 			log.error('An error occurred: ', error);
 			new Notice(`An error occurred: ${error}`);
+		}
+	}
+
+	async autoCleanupDeletedTasks() {
+		try {
+			const days = getSettings().deletedTaskRetentionDays;
+			const purged = await this.taskRepository.purgeOldDeletedTasks(days);
+			if (purged > 0) {
+				log.info(`Auto-cleanup: purged ${purged} deleted task(s) older than ${days} day(s).`);
+			}
+		} catch (error) {
+			log.error('Auto-cleanup error:', error);
 		}
 	}
 
@@ -613,6 +634,37 @@ export default class TickTickSync extends Plugin {
 			}
 		});
 
+		this.addCommand({
+			id: 'tts-delete-permanent',
+			name: 'Permanently delete tasks',
+			callback: async () => {
+				const deletedTasks = await this.taskRepository.getDeletedTasks();
+				if (deletedTasks.length === 0) {
+					new Notice('No soft-deleted tasks found.');
+					return;
+				}
+				const modal = new CleanupDeletedTasksModal(this.app, deletedTasks);
+				const selected = await modal.showModal();
+				if (selected.length > 0) {
+					await this.taskRepository.hardDeleteTasks(selected);
+					new Notice(`Permanently deleted ${selected.length} task(s).`);
+				}
+			}
+		});
+
+		this.addCommand({
+			id: 'tts-recover-tasks',
+			name: 'View and recover deleted tasks',
+			callback: async () => {
+				const deletedTasks = await this.taskRepository.getDeletedTasks();
+				if (deletedTasks.length === 0) {
+					new Notice('No soft-deleted tasks found.');
+					return;
+				}
+				const modal = new RecoverDeletedTasksModal(this.app, this, deletedTasks);
+				await modal.showModal();
+			}
+		});
 
 		//display default project for the current file on status bar
 		// This adds a status bar item to the bottom of the app. Does not work on mobile apps.
@@ -634,11 +686,9 @@ export default class TickTickSync extends Plugin {
 		if (!data) return data;
 
 		const notableChanges: string [][] = [];
-		//TODO make more clean
+
 		//We're going to handle data structure conversions here.
-		// Legacy migration for old fileMetadata structure is no longer needed 
-		// as we have moved everything to Dexie.
-		
+		//NB: The version that goes in the literal is the current version.
 		if ((!data.version) || (isOlder(data.version, '1.0.10'))) {
 			//get rid of username and password. we don't need them no more.
 			//delete data.username;
@@ -675,15 +725,24 @@ export default class TickTickSync extends Plugin {
 		if ((!data.version) || (isOlder(data.version, '1.1.16'))) {
 			notableChanges.push(['Note handling improvements', 'Can now have checklist items and TickTick Task links in notes.', 'priorTo1.1.15']);
 		}
-		if ((!data.version) || (isOlder(data.version, '1.1.17'))) {
+		//BIG Change. BIG I tell you!
+		const isOlderResult = (!data.version) || isOlder(data.version, '2.0.0');
+		if (isOlderResult) {
+			log.debug('Entering 1.1.17 migration block');
 			// Migrate from legacy data.json repository to Dexie-based repository
 			const dbData = migrateFromDataJson(data);
 			(data as any).__migratedDBData = dbData;
+			log.debug('migrateFromDataJson completed, pushing notableChange');
 			notableChanges.push(['version 2.0', 'A complete re-architecture to allow better cross-device handling. General performance improvements..', 'priorTo1.1.17']);
+			log.debug('notableChanges.length after push =', notableChanges.length);
 		}
 
 		if (notableChanges.length > 0) {
+			log.debug('Calling LatestChangesModal with', notableChanges.length, 'items');
 			await this.LatestChangesModal(notableChanges);
+			log.debug('LatestChangesModal returned');
+		} else {
+			log.debug('Skipping LatestChangesModal - no notable changes');
 		}
 
 		//Update the version number. It will save me headaches later.

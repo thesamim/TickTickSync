@@ -37,7 +37,7 @@ export async function pullFromTickTick(
 		// Echo suppression: skip pulling tasks that this device last modified
 		// and that haven't been changed on TickTick since our push.
 		if (local && local.lastModifiedByDeviceId === meta.deviceId && local.task.modifiedTime === rt.modifiedTime) {
-			log.debug("[TickTickSync] Skipping echo update for task", remoteId);
+			// log.debug("[TickTickSync] Skipping echo update for task", remoteId);
 			continue;
 		}
 

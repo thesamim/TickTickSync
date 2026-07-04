@@ -299,4 +299,72 @@ export class TaskRepository {
 			return false;
 		}
 	}
+
+	/**
+	 * Get all soft-deleted tasks
+	 */
+	async getDeletedTasks(): Promise<LocalTask[]> {
+		try {
+			return await db.tasks.filter(t => t.deleted === true).toArray();
+		} catch (error) {
+			log.error("Error getting deleted tasks:", error);
+			return [];
+		}
+	}
+
+	/**
+	 * Permanently delete task records from the database
+	 */
+	async hardDeleteTasks(taskIds: string[]): Promise<void> {
+		if (taskIds.length === 0) return;
+		try {
+			const localIds = taskIds.map(id => `tt:${id}`);
+			await db.tasks.where("localId").anyOf(localIds).delete();
+			log.info(`Hard-deleted ${taskIds.length} task records`);
+		} catch (error) {
+			log.error("Error hard-deleting tasks:", error);
+			throw error;
+		}
+	}
+
+	/**
+	 * Recover a soft-deleted task back to active status
+	 */
+	async recoverTask(taskId: string, file?: string): Promise<void> {
+		try {
+			const localId = `tt:${taskId}`;
+			const existing = await db.tasks.get(localId);
+			if (existing) {
+				await db.tasks.update(localId, {
+					deleted: false,
+					updatedAt: Date.now(),
+					...(file !== undefined && { file, lastVaultSync: Date.now() })
+				});
+			}
+		} catch (error) {
+			log.error(`Error recovering task ${taskId}:`, error);
+			throw error;
+		}
+	}
+
+	/**
+	 * Permanently delete tasks that have been soft-deleted longer than the retention period
+	 */
+	async purgeOldDeletedTasks(retentionDays: number): Promise<number> {
+		try {
+			const cutoff = Date.now() - retentionDays * 24 * 60 * 60 * 1000;
+			const allDeleted = await db.tasks.filter(t => t.deleted === true).toArray();
+			const oldDeleted = allDeleted.filter(t => t.updatedAt < cutoff);
+
+			if (oldDeleted.length === 0) return 0;
+
+			const ids = oldDeleted.map(t => t.localId);
+			await db.tasks.where("localId").anyOf(ids).delete();
+			log.info(`Purged ${oldDeleted.length} old deleted task records`);
+			return oldDeleted.length;
+		} catch (error) {
+			log.error("Error purging old deleted tasks:", error);
+			return 0;
+		}
+	}
 }

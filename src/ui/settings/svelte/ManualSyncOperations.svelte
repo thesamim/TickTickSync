@@ -158,5 +158,71 @@
 			</div>
 
 		</div>
+
+		<div class="setting-item">
+			<div class="setting-item-info">
+				<div class="setting-item-name">Permanently delete soft-deleted tasks</div>
+				<div class="setting-item-description">View and permanently remove soft-deleted task records from the database</div>
+			</div>
+			<div class="setting-item-control">
+				<button class="mod-cta" on:click={async () => {
+					const { CleanupDeletedTasksModal } = await import('@/modals/CleanupDeletedTasksModal');
+					const deletedTasks = await plugin.taskRepository.getDeletedTasks();
+					if (deletedTasks.length === 0) {
+						new Notice('No soft-deleted tasks found.');
+						return;
+					}
+					const modal = new CleanupDeletedTasksModal(plugin.app, deletedTasks);
+					const selected = await modal.showModal();
+					if (selected.length > 0) {
+						await plugin.taskRepository.hardDeleteTasks(selected);
+						new Notice(`Permanently deleted ${selected.length} task(s).`);
+					}
+				}} disabled={isCheckingDatabase}>
+					Manage Deleted Tasks
+				</button>
+			</div>
+		</div>
+
+		<div class="setting-item">
+			<div class="setting-item-info">
+				<div class="setting-item-name">Recover soft-deleted tasks</div>
+				<div class="setting-item-description">View and restore soft-deleted tasks back to their original or a different file</div>
+			</div>
+			<div class="setting-item-control">
+				<button class="mod-cta" on:click={async () => {
+					const { RecoverDeletedTasksModal } = await import('@/modals/RecoverDeletedTasksModal');
+					const deletedTasks = await plugin.taskRepository.getDeletedTasks();
+					if (deletedTasks.length === 0) {
+						new Notice('No soft-deleted tasks found.');
+						return;
+					}
+					const modal = new RecoverDeletedTasksModal(plugin.app, plugin, deletedTasks);
+					await modal.showModal();
+				}} disabled={isCheckingDatabase}>
+					Recover Deleted Tasks
+				</button>
+			</div>
+		</div>
+
+		<div class="setting-item">
+			<div class="setting-item-info">
+				<div class="setting-item-name">Deleted Task Retention</div>
+				<div class="setting-item-description">Days to keep soft-deleted tasks before auto-purge (1–31)</div>
+			</div>
+			<div class="TTS-setting-item-control">
+				<input
+					type="number"
+					min="1"
+					max="31"
+					value={getSettings().deletedTaskRetentionDays}
+					on:change={async (e) => {
+						const val = Math.min(31, Math.max(1, parseInt(e.target.value, 10) || 7));
+						updateSettings({ deletedTaskRetentionDays: val });
+						await plugin.saveSettings();
+					}}
+				/>
+			</div>
+		</div>
 	{/if}
 </div>

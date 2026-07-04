@@ -276,7 +276,6 @@ export class TaskModificationDetector {
 			modifications.taskItemsModified ||
 			modifications.notesModified ||
 			modifications.projectMoved) {
-			log.warn('modifications: ', lineText, JSON.stringify(modifications, null, 2));
 		}
 
 		// Apply modifications

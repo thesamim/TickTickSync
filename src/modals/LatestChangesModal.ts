@@ -27,9 +27,12 @@ export class LatestChangesModal extends Modal {
 		let { titleEl, contentEl } = this;
 		titleEl.setText(this.title);
 
-		let changesText = contentEl.createEl('p');
-		changesText.innerHTML = `${this.intro}`;
-		changesText = contentEl.createEl('ol');
+		let p1 = contentEl.createEl('p');
+		p1.setText('The following are user experience affecting changes from prior versions of TickTickSync.');
+		let p2 = contentEl.createEl('p');
+		p2.createEl('strong', { text: 'Strongly' });
+		p2.appendText(' recommend that you take a backup ASAP.');
+		let changesText = contentEl.createEl('ol');
 		this.notableChanges.forEach(notableChange => {
 			let lineItem = changesText.createEl('li');
 			lineItem.createEl('a', { href: `${notableChangesURL}${notableChange[2]}`, text: `${notableChange[0]}` });

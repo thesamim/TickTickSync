@@ -38,7 +38,7 @@
 	async function confirmKeepFoldersChange() {
 		modalWorking = true;
 		try {
-			await plugin.tickTickService.reorganizeFilesToFolders();
+			await plugin.service.reorganizeFilesToFolders();
 			await  resetTasks(plugin, setIsWorking)
 		} catch (error) {
 			console.error('Error reorganizing files:', error);

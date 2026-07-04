@@ -36,6 +36,7 @@ export interface ITickTickSyncSettings {
 	debugMode: boolean;
 	logLevel: string;
 	journalRetentionDays: number;
+	deletedTaskRetentionDays: number;
 	skipBackup?: boolean;
 
 	//TODO look like one cache object
@@ -63,6 +64,7 @@ export const DEFAULT_SETTINGS: ITickTickSyncSettings = {
 	debugMode: false,
 	logLevel: 'info',
 	journalRetentionDays: 3,
+	deletedTaskRetentionDays: 7,
 	SyncProject: '',
 	SyncTag: '',
 	defaultProjectId: '',
