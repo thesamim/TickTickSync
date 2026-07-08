@@ -633,7 +633,7 @@ export default class TickTickSync extends Plugin {
 			callback: async () => {
 				const deletedTasks = await this.taskRepository.getDeletedTasks();
 				if (deletedTasks.length === 0) {
-					new Notice('No soft-deleted tasks found.');
+					new Notice('No deleted tasks found.');
 					return;
 				}
 				const modal = new CleanupDeletedTasksModal(this.app, deletedTasks);
@@ -651,7 +651,7 @@ export default class TickTickSync extends Plugin {
 			callback: async () => {
 				const deletedTasks = await this.taskRepository.getDeletedTasks();
 				if (deletedTasks.length === 0) {
-					new Notice('No soft-deleted tasks found.');
+					new Notice('No deleted tasks found.');
 					return;
 				}
 				const modal = new RecoverDeletedTasksModal(this.app, this, deletedTasks);

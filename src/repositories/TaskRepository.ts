@@ -301,7 +301,7 @@ export class TaskRepository {
 	}
 
 	/**
-	 * Get all soft-deleted tasks
+	 * Get all deleted tasks
 	 */
 	async getDeletedTasks(): Promise<LocalTask[]> {
 		try {
@@ -328,7 +328,7 @@ export class TaskRepository {
 	}
 
 	/**
-	 * Recover a soft-deleted task back to active status
+	 * Recover a deleted task back to active status
 	 */
 	async recoverTask(taskId: string, file?: string): Promise<void> {
 		try {
@@ -348,7 +348,7 @@ export class TaskRepository {
 	}
 
 	/**
-	 * Permanently delete tasks that have been soft-deleted longer than the retention period
+	 * Permanently delete tasks that have been deleted longer than the retention period
 	 */
 	async purgeOldDeletedTasks(retentionDays: number): Promise<number> {
 		try {

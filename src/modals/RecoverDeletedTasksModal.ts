@@ -17,12 +17,12 @@ export class RecoverDeletedTasksModal extends Modal {
 	onOpen() {
 		const { titleEl, contentEl } = this;
 
-		titleEl.setText('Recover soft-deleted tasks');
+		titleEl.setText('Recover deleted tasks');
 
 		contentEl.createEl('p', { text: 'Select tasks to recover. Default restores to original file.' });
 
 		if (this.items.length === 0) {
-			contentEl.createEl('p', { text: 'No soft-deleted tasks found.' });
+			contentEl.createEl('p', { text: 'No deleted tasks found.' });
 			new Setting(contentEl).addButton(btn => {
 				btn.setButtonText('Close');
 				btn.onClick(() => {

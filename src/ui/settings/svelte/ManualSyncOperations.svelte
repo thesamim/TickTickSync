@@ -161,15 +161,15 @@
 
 		<div class="setting-item">
 			<div class="setting-item-info">
-				<div class="setting-item-name">Permanently delete soft-deleted tasks</div>
-				<div class="setting-item-description">View and permanently remove soft-deleted task records from the database</div>
+				<div class="setting-item-name">Permanently delete deleted tasks</div>
+				<div class="setting-item-description">View and permanently remove deleted task records from the database</div>
 			</div>
 			<div class="setting-item-control">
 				<button class="mod-cta" on:click={async () => {
 					const { CleanupDeletedTasksModal } = await import('@/modals/CleanupDeletedTasksModal');
 					const deletedTasks = await plugin.taskRepository.getDeletedTasks();
 					if (deletedTasks.length === 0) {
-						new Notice('No soft-deleted tasks found.');
+						new Notice('No deleted tasks found.');
 						return;
 					}
 					const modal = new CleanupDeletedTasksModal(plugin.app, deletedTasks);
@@ -186,15 +186,15 @@
 
 		<div class="setting-item">
 			<div class="setting-item-info">
-				<div class="setting-item-name">Recover soft-deleted tasks</div>
-				<div class="setting-item-description">View and restore soft-deleted tasks back to their original or a different file</div>
+				<div class="setting-item-name">Recover deleted tasks</div>
+				<div class="setting-item-description">View and restore deleted tasks back to their original or a different file</div>
 			</div>
 			<div class="setting-item-control">
 				<button class="mod-cta" on:click={async () => {
 					const { RecoverDeletedTasksModal } = await import('@/modals/RecoverDeletedTasksModal');
 					const deletedTasks = await plugin.taskRepository.getDeletedTasks();
 					if (deletedTasks.length === 0) {
-						new Notice('No soft-deleted tasks found.');
+						new Notice('No deleted tasks found.');
 						return;
 					}
 					const modal = new RecoverDeletedTasksModal(plugin.app, plugin, deletedTasks);
@@ -208,7 +208,7 @@
 		<div class="setting-item">
 			<div class="setting-item-info">
 				<div class="setting-item-name">Deleted Task Retention</div>
-				<div class="setting-item-description">Days to keep soft-deleted tasks before auto-purge (1–31)</div>
+				<div class="setting-item-description">Days to keep deleted tasks before auto-purge (1–31)</div>
 			</div>
 			<div class="TTS-setting-item-control">
 				<input

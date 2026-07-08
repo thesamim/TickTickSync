@@ -13,12 +13,12 @@ export class CleanupDeletedTasksModal extends Modal {
 	onOpen() {
 		const { titleEl, contentEl } = this;
 
-		titleEl.setText('Permanently delete soft-deleted tasks');
+		titleEl.setText('Permanently delete deleted tasks');
 
 		contentEl.createEl('p', { text: 'Select tasks to permanently remove from the database:' });
 
 		if (this.items.length === 0) {
-			contentEl.createEl('p', { text: 'No soft-deleted tasks found.' });
+			contentEl.createEl('p', { text: 'No deleted tasks found.' });
 			new Setting(contentEl).addButton(btn => {
 				btn.setButtonText('Close');
 				btn.onClick(() => {
