@@ -4,21 +4,21 @@ export interface IProject {
 	isOwner: boolean;
 	color: string;
 	inAll: boolean;
-	sortOrder: any;
+	sortOrder: number;
 	sortType: string;
 	userCount: number;
 	etag: string;
 	modifiedTime: string;
-	closed: any;
+	closed: number;
 	muted: boolean;
-	transferred: any;
-	groupId: any;
+	transferred: number;
+	groupId: string;
 	viewMode: string;
-	notificationOptions: any;
-	teamId: any;
-	permission: any;
+	notificationOptions: unknown;
+	teamId: string;
+	permission: unknown;
 	kind: string;
-	timeline: any;
+	timeline: unknown;
 }
 
 export interface ISections {

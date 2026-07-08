@@ -14,7 +14,7 @@ export class OrphanTaskModal extends Modal {
 	message = 'The following tasks exist in TickTick but were not found in the local vault or database:';
 	items: OrphanItem[] = [];
 	action: OrphanAction = 'cancel';
-	resolvePromise: (value: OrphanAction) => void;
+	resolvePromise!: (value: OrphanAction) => void;
 
 	constructor(app: App, items: OrphanItem[]) {
 		super(app);
@@ -49,7 +49,7 @@ export class OrphanTaskModal extends Modal {
 
 		contentEl.createEl('hr');
 
-		const desc = contentEl.createEl('p', { text: 'What would you like to do with these tasks?', attr: { style: 'margin-bottom: 10px;' } });
+		contentEl.createEl('p', { text: 'What would you like to do with these tasks?', attr: { style: 'margin-bottom: 10px;' } });
 
 		new Setting(contentEl)
 			.addButton(cancelBtn => {
@@ -62,8 +62,8 @@ export class OrphanTaskModal extends Modal {
 			})
 			.addButton(deleteBtn => {
 				deleteBtn.setClass('ts_button');
-				deleteBtn.setWarning();
-				deleteBtn.setButtonText('Delete from TickTick');
+				deleteBtn.setDestructive();
+				deleteBtn.setButtonText('Delete from ticktick');
 				deleteBtn.onClick(() => {
 					this.action = 'delete';
 					this.close();
@@ -72,7 +72,7 @@ export class OrphanTaskModal extends Modal {
 			.addButton(addBtn => {
 				addBtn.setClass('ts_button');
 				addBtn.setCta();
-				addBtn.setButtonText('Add to File & DB');
+				addBtn.setButtonText('Add to file & db');
 				addBtn.onClick(() => {
 					this.action = 'add';
 					this.close();

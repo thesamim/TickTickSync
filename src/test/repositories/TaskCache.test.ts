@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
 import { TaskCache } from '@/repositories/TaskCache';
 import { db } from '@/db/dexie';
 import type { LocalTask } from '@/db/schema';
@@ -43,7 +43,7 @@ describe('TaskCache', () => {
 				},
 			];
 
-			(db.tasks.toArray as any).mockResolvedValue(mockTasks);
+			(db.tasks.toArray as unknown as Mock).mockResolvedValue(mockTasks);
 
 			await cache.fill();
 
@@ -71,7 +71,7 @@ describe('TaskCache', () => {
 				},
 			];
 
-			(db.tasks.toArray as any).mockResolvedValue(mockTasks);
+			(db.tasks.toArray as unknown as Mock).mockResolvedValue(mockTasks);
 
 			await cache.fill();
 
@@ -79,7 +79,7 @@ describe('TaskCache', () => {
 		});
 
 		it('should handle database errors gracefully', async () => {
-			(db.tasks.toArray as any).mockRejectedValue(new Error('DB error'));
+			(db.tasks.toArray as unknown as Mock).mockRejectedValue(new Error('DB error'));
 
 			await cache.fill();
 
@@ -101,7 +101,7 @@ describe('TaskCache', () => {
 				},
 			];
 
-			(db.tasks.toArray as any).mockResolvedValue(mockTasks);
+			(db.tasks.toArray as unknown as Mock).mockResolvedValue(mockTasks);
 
 			await cache.fill();
 			expect(cache.isFilled()).toBe(true);
@@ -125,7 +125,7 @@ describe('TaskCache', () => {
 				},
 			];
 
-			(db.tasks.toArray as any).mockResolvedValue(mockTasks);
+			(db.tasks.toArray as unknown as Mock).mockResolvedValue(mockTasks);
 
 			await cache.fill();
 			const result = await cache.get('task1');
@@ -134,7 +134,7 @@ describe('TaskCache', () => {
 		});
 
 		it('should return undefined for non-existent task when cached', async () => {
-			(db.tasks.toArray as any).mockResolvedValue([]);
+			(db.tasks.toArray as unknown as Mock).mockResolvedValue([]);
 
 			await cache.fill();
 			const result = await cache.get('nonexistent');
@@ -154,7 +154,7 @@ describe('TaskCache', () => {
 				source: 'obsidian',
 			};
 
-			(db.tasks.where as any).mockReturnValue({
+			(db.tasks.where as unknown as Mock).mockReturnValue({
 				equals: vi.fn().mockReturnValue({
 					first: vi.fn().mockResolvedValue(mockLocalTask),
 				}),
@@ -163,11 +163,11 @@ describe('TaskCache', () => {
 			const result = await cache.get('task1');
 
 			expect(result).toEqual(mockTask);
-			expect(db.tasks.where).toHaveBeenCalledWith('taskId');
+			expect((db.tasks as unknown as Record<string, Mock>).where).toHaveBeenCalledWith('taskId');
 		});
 
 		it('should handle database errors when falling back', async () => {
-			(db.tasks.where as any).mockReturnValue({
+			(db.tasks.where as unknown as Mock).mockReturnValue({
 				equals: vi.fn().mockReturnValue({
 					first: vi.fn().mockRejectedValue(new Error('DB error')),
 				}),
@@ -193,7 +193,7 @@ describe('TaskCache', () => {
 				},
 			];
 
-			(db.tasks.toArray as any).mockResolvedValue(mockTasks);
+			(db.tasks.toArray as unknown as Mock).mockResolvedValue(mockTasks);
 
 			await cache.fill();
 
@@ -223,7 +223,7 @@ describe('TaskCache', () => {
 				},
 			];
 
-			(db.tasks.toArray as any).mockResolvedValue(mockTasks);
+			(db.tasks.toArray as unknown as Mock).mockResolvedValue(mockTasks);
 
 			await cache.fill();
 			expect(cache.has('task1')).toBe(true);
@@ -250,14 +250,14 @@ describe('TaskCache', () => {
 				},
 			];
 
-			(db.tasks.toArray as any).mockResolvedValue(mockTasks);
+			(db.tasks.toArray as unknown as Mock).mockResolvedValue(mockTasks);
 
 			await cache.fill();
 			expect(cache.has('task1')).toBe(true);
 		});
 
 		it('should return false for non-existent task', async () => {
-			(db.tasks.toArray as any).mockResolvedValue([]);
+			(db.tasks.toArray as unknown as Mock).mockResolvedValue([]);
 
 			await cache.fill();
 			expect(cache.has('nonexistent')).toBe(false);
@@ -289,7 +289,7 @@ describe('TaskCache', () => {
 				},
 			];
 
-			(db.tasks.toArray as any).mockResolvedValue(mockTasks);
+			(db.tasks.toArray as unknown as Mock).mockResolvedValue(mockTasks);
 
 			await cache.fill();
 			const result = cache.getAll();
@@ -325,7 +325,7 @@ describe('TaskCache', () => {
 				},
 			];
 
-			(db.tasks.toArray as any).mockResolvedValue(mockTasks);
+			(db.tasks.toArray as unknown as Mock).mockResolvedValue(mockTasks);
 
 			await cache.fill();
 			expect(cache.size()).toBe(2);
@@ -342,14 +342,14 @@ describe('TaskCache', () => {
 		});
 
 		it('should return true after fill', async () => {
-			(db.tasks.toArray as any).mockResolvedValue([]);
+			(db.tasks.toArray as unknown as Mock).mockResolvedValue([]);
 
 			await cache.fill();
 			expect(cache.isFilled()).toBe(true);
 		});
 
 		it('should return false after clear', async () => {
-			(db.tasks.toArray as any).mockResolvedValue([]);
+			(db.tasks.toArray as unknown as Mock).mockResolvedValue([]);
 
 			await cache.fill();
 			cache.clear();

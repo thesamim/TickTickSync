@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
 import { FileTaskQueries } from '@/repositories/FileTaskQueries';
 import { db } from '@/db/dexie';
 import type { LocalTask } from '@/db/schema';
@@ -54,7 +54,7 @@ describe('FileTaskQueries', () => {
 				},
 			];
 
-			(db.tasks.where as any).mockReturnValue({
+			(db.tasks.where as unknown as Mock).mockReturnValue({
 				equals: vi.fn().mockReturnValue({
 					toArray: vi.fn().mockResolvedValue(mockTasks),
 				}),
@@ -63,7 +63,7 @@ describe('FileTaskQueries', () => {
 			const result = await queries.getTaskIdsInFile('test.md');
 
 			expect(result).toEqual(['task1', 'task2']);
-			expect(db.tasks.where).toHaveBeenCalledWith('file');
+			expect((db.tasks as unknown as Record<string, Mock>).where).toHaveBeenCalledWith('file');
 		});
 
 		it('should filter out tasks without taskId', async () => {
@@ -86,7 +86,7 @@ describe('FileTaskQueries', () => {
 				},
 			];
 
-			(db.tasks.where as any).mockReturnValue({
+			(db.tasks.where as unknown as Mock).mockReturnValue({
 				equals: vi.fn().mockReturnValue({
 					toArray: vi.fn().mockResolvedValue(mockTasks),
 				}),
@@ -98,7 +98,7 @@ describe('FileTaskQueries', () => {
 		});
 
 		it('should return empty array on error', async () => {
-			(db.tasks.where as any).mockReturnValue({
+			(db.tasks.where as unknown as Mock).mockReturnValue({
 				equals: vi.fn().mockReturnValue({
 					toArray: vi.fn().mockRejectedValue(new Error('DB error')),
 				}),
@@ -123,7 +123,7 @@ describe('FileTaskQueries', () => {
 				},
 			];
 
-			(db.tasks.where as any).mockReturnValue({
+			(db.tasks.where as unknown as Mock).mockReturnValue({
 				equals: vi.fn().mockReturnValue({
 					toArray: vi.fn().mockResolvedValue(mockTasks),
 				}),
@@ -137,7 +137,7 @@ describe('FileTaskQueries', () => {
 
 	describe('getTaskCountInFile', () => {
 		it('should return count of tasks in file', async () => {
-			(db.tasks.where as any).mockReturnValue({
+			(db.tasks.where as unknown as Mock).mockReturnValue({
 				equals: vi.fn().mockReturnValue({
 					count: vi.fn().mockResolvedValue(3),
 				}),
@@ -149,7 +149,7 @@ describe('FileTaskQueries', () => {
 		});
 
 		it('should return 0 on error', async () => {
-			(db.tasks.where as any).mockReturnValue({
+			(db.tasks.where as unknown as Mock).mockReturnValue({
 				equals: vi.fn().mockReturnValue({
 					count: vi.fn().mockRejectedValue(new Error('DB error')),
 				}),
@@ -163,7 +163,7 @@ describe('FileTaskQueries', () => {
 
 	describe('fileHasTasks', () => {
 		it('should return true if file has tasks', async () => {
-			(db.tasks.where as any).mockReturnValue({
+			(db.tasks.where as unknown as Mock).mockReturnValue({
 				equals: vi.fn().mockReturnValue({
 					count: vi.fn().mockResolvedValue(5),
 				}),
@@ -175,7 +175,7 @@ describe('FileTaskQueries', () => {
 		});
 
 		it('should return false if file has no tasks', async () => {
-			(db.tasks.where as any).mockReturnValue({
+			(db.tasks.where as unknown as Mock).mockReturnValue({
 				equals: vi.fn().mockReturnValue({
 					count: vi.fn().mockResolvedValue(0),
 				}),
@@ -195,7 +195,7 @@ describe('FileTaskQueries', () => {
 			};
 
 			const { getFile } = await import('@/db/files');
-			(getFile as any).mockResolvedValue(mockFile);
+			(getFile as unknown as Mock).mockResolvedValue(mockFile);
 
 			const result = await queries.getDefaultProjectForFile('test.md');
 
@@ -208,7 +208,7 @@ describe('FileTaskQueries', () => {
 			};
 
 			const { getFile } = await import('@/db/files');
-			(getFile as any).mockResolvedValue(mockFile);
+			(getFile as unknown as Mock).mockResolvedValue(mockFile);
 
 			const result = await queries.getDefaultProjectForFile('test.md');
 
@@ -217,7 +217,7 @@ describe('FileTaskQueries', () => {
 
 		it('should return undefined if file not found', async () => {
 			const { getFile } = await import('@/db/files');
-			(getFile as any).mockResolvedValue(undefined);
+			(getFile as unknown as Mock).mockResolvedValue(undefined);
 
 			const result = await queries.getDefaultProjectForFile('test.md');
 
@@ -254,7 +254,7 @@ describe('FileTaskQueries', () => {
 				},
 			];
 
-			(db.tasks.toArray as any).mockResolvedValue(mockTasks);
+			(db.tasks.toArray as unknown as Mock).mockResolvedValue(mockTasks);
 
 			const result = await queries.getFilesWithTasks();
 
@@ -282,7 +282,7 @@ describe('FileTaskQueries', () => {
 				},
 			];
 
-			(db.tasks.toArray as any).mockResolvedValue(mockTasks);
+			(db.tasks.toArray as unknown as Mock).mockResolvedValue(mockTasks);
 
 			const result = await queries.getFilesWithTasks();
 
@@ -319,7 +319,7 @@ describe('FileTaskQueries', () => {
 				},
 			];
 
-			(db.tasks.where as any).mockReturnValue({
+			(db.tasks.where as unknown as Mock).mockReturnValue({
 				equals: vi.fn().mockReturnValue({
 					toArray: vi.fn().mockResolvedValue(mockTasks),
 				}),
@@ -345,7 +345,7 @@ describe('FileTaskQueries', () => {
 				},
 			];
 
-			(db.tasks.where as any).mockReturnValue({
+			(db.tasks.where as unknown as Mock).mockReturnValue({
 				equals: vi.fn().mockReturnValue({
 					toArray: vi.fn().mockResolvedValue(mockTasks),
 				}),
@@ -388,7 +388,7 @@ describe('FileTaskQueries', () => {
 				},
 			];
 
-			(db.tasks.toArray as any).mockResolvedValue(mockTasks);
+			(db.tasks.toArray as unknown as Mock).mockResolvedValue(mockTasks);
 
 			const result = await queries.findDuplicateTasks();
 
@@ -409,7 +409,7 @@ describe('FileTaskQueries', () => {
 				},
 			];
 
-			(db.tasks.toArray as any).mockResolvedValue(mockTasks);
+			(db.tasks.toArray as unknown as Mock).mockResolvedValue(mockTasks);
 
 			const result = await queries.findDuplicateTasks();
 
@@ -429,7 +429,7 @@ describe('FileTaskQueries', () => {
 				source: 'obsidian',
 			};
 
-			(db.tasks.where as any).mockReturnValue({
+			(db.tasks.where as unknown as Mock).mockReturnValue({
 				equals: vi.fn().mockReturnValue({
 					first: vi.fn().mockResolvedValue(mockTask),
 				}),
@@ -441,7 +441,7 @@ describe('FileTaskQueries', () => {
 		});
 
 		it('should return undefined if task not found', async () => {
-			(db.tasks.where as any).mockReturnValue({
+			(db.tasks.where as unknown as Mock).mockReturnValue({
 				equals: vi.fn().mockReturnValue({
 					first: vi.fn().mockResolvedValue(undefined),
 				}),

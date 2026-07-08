@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest';
 import { getTasksByLabel } from '../db/tasks';
 import { db } from '../db/dexie';
 
@@ -46,13 +46,16 @@ describe('getTasksByLabel', () => {
 		];
 
 		// Mock filter behavior
-		const mockFilter = vi.fn().mockImplementation((callback) => {
+		(db.tasks.filter as unknown as Mock) = vi.fn().mockImplementation((callback: (value: {
+			localId: string;
+			deleted: boolean;
+			task: { tags?: string[] }
+		}) => boolean) => {
 			const filtered = mockTasks.filter(callback);
 			return {
 				toArray: () => Promise.resolve(filtered)
 			};
 		});
-		(db.tasks.filter as any) = mockFilter;
 
 		const results = await getTasksByLabel('#ohLook1');
 
@@ -70,13 +73,16 @@ describe('getTasksByLabel', () => {
 			}
 		];
 
-		const mockFilter = vi.fn().mockImplementation((callback) => {
+		(db.tasks.filter as unknown as Mock) = vi.fn().mockImplementation((callback: (value: {
+			localId: string;
+			deleted: boolean;
+			task: { tags?: string[] }
+		}) => boolean) => {
 			const filtered = mockTasks.filter(callback);
 			return {
 				toArray: () => Promise.resolve(filtered)
 			};
 		});
-		(db.tasks.filter as any) = mockFilter;
 
 		const results = await getTasksByLabel('ohLook1');
 
@@ -93,13 +99,16 @@ describe('getTasksByLabel', () => {
 			}
 		];
 
-		const mockFilter = vi.fn().mockImplementation((callback) => {
+		(db.tasks.filter as unknown as Mock) = vi.fn().mockImplementation((callback: (value: {
+			localId: string;
+			deleted: boolean;
+			task: { tags?: string[] }
+		}) => boolean) => {
 			const filtered = mockTasks.filter(callback);
 			return {
 				toArray: () => Promise.resolve(filtered)
 			};
 		});
-		(db.tasks.filter as any) = mockFilter;
 
 		const results = await getTasksByLabel('#ohlook1');
 

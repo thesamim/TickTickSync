@@ -7,6 +7,7 @@ import {
 	TFolder
 } from 'obsidian';
 import type { ITask } from '@/api/types/Task';
+import type { IProjectGroup } from '@/api/types/ProjectGroup';
 import ObjectID from 'bson-objectid';
 import { TaskDeletionModal } from '@/modals/TaskDeletionModal';
 import { getSettings } from '@/settings';
@@ -44,10 +45,14 @@ export class SyncMan {
 
 			if (allResources.projectGroups) {
 				await db.projectGroups.clear();
-				await db.projectGroups.bulkPut(allResources.projectGroups.map(g => ({ id: g.id, group: g })));
+				await db.projectGroups.bulkPut(
+					(allResources.projectGroups as Array<{ id: string; group: IProjectGroup }>).map(
+						g => ({ id: g.group.id, group: g.group })
+					)
+				);
 			}
 
-			const allTaskDetails = allResources['syncTaskBean'];
+			const allTaskDetails = allResources['syncTaskBean'] as { update: ITask[]; delete: Array<{ taskId: string }> };
 
 			let tasksFromTickTic = allTaskDetails.update;
 			let deletedTasks = allTaskDetails.delete;
@@ -100,7 +105,7 @@ export class SyncMan {
 							acc.push(current);
 						}
 						return acc;
-					}, []);
+					}, [] as ITask[]);
 				}
 			} else {
 				//Either tag or project is present
@@ -169,7 +174,7 @@ export class SyncMan {
 			if (newTickTickTasks.length > 0) {
 				//New Tasks, create their dateStruct
 				newTickTickTasks.forEach((newTickTickTask: ITask) => {
-					this.plugin.dateMan?.addDateHolderToTask(newTickTickTask);
+					this.plugin.dateMan?.addDateHolderToTask(newTickTickTask, undefined);
 				});
 				// Group by file
 				const tasksByFile = new Map<string, ITask[]>();
@@ -237,7 +242,7 @@ export class SyncMan {
 
 			// Check for new tasks in Obsidian
 			const newObsidianTasks = tasksInCache.filter(task => !tasksFromTickTic.some(t => t.id === task.id));
-			const reallyNewObsidianTasks = newObsidianTasks.filter(task => reallyDeletedTickTickTasks.some(t => t.taskId === task.id));
+			const reallyNewObsidianTasks = newObsidianTasks.filter(task => reallyDeletedTickTickTasks.some(t => (t as unknown as { taskId: string }).taskId === task.id));
 			//this.dumpArray('== Add to TickTick:', reallyNewObsidianTasks);
 			//upload local only tasks to TickTick
 
@@ -324,7 +329,8 @@ export class SyncMan {
 				bkupFolder += '/';
 			}
 			const now: Date = new Date();
-			const timeString: string = `${now.getFullYear()}${now.getMonth() + 1}${now.getDate()}${now.getHours()}${now.getMinutes()}${now.getSeconds()}`;
+			const month = now.getMonth() + 1;
+		const timeString: string = `${now.getFullYear()}${month}${now.getDate()}${now.getHours()}${now.getMinutes()}${now.getSeconds()}`;
 
 			const name = bkupFolder + 'ticktick-backup-' + timeString + '.csv';
 			log.debug('Creating Backup: ', name);
@@ -339,7 +345,7 @@ export class SyncMan {
 			}
 		} catch (error) {
 			log.error('An error occurred while creating TickTick backup', error);
-			new Notice('An error occurred while creating TickTick backup' + error, 5000);
+			new Notice('An error occurred while creating TickTick backup' + (error instanceof Error ? error.message : String(error)), 5000);
 		}
 
 	}
@@ -364,7 +370,10 @@ export class SyncMan {
 		} else {
 			throw new Error('No file path provided');
 		}
-		const fileMap = new NewFileMap(this.app, this.plugin, file as TFile);
+		if (!(file instanceof TFile)) {
+			return false;
+		}
+		const fileMap = new NewFileMap(this.app, this.plugin, file);
 		await fileMap.init();
 
 		const lines = fileMap.getFileLines().split('\n');
@@ -372,9 +381,9 @@ export class SyncMan {
 			const lineText = lines[line];
 			if (this.plugin.taskParser?.hasTickTickId(lineText) && this.plugin.taskParser?.hasTickTickTag(lineText)) {
 				const taskId = this.plugin.taskParser.getTickTickId(lineText);
-				const savedTask = await this.plugin.taskRepository.loadTaskById(taskId);
+				const savedTask = await this.plugin.taskRepository.loadTaskById(taskId ?? '');
 				if (taskId && savedTask) {
-					savedTask.modifiedTime = this.plugin.dateMan?.formatDateToISO(new Date());
+					savedTask.modifiedTime = this.plugin.dateMan?.formatDateToISO(new Date()) ?? '';
 					const taskRecord = fileMap.getTaskRecord(taskId)
 					//NB: lineNumber = 0 is only safe because we KNOW we have a task record.
 					const lineTask = await this.plugin.taskParser?.convertLineToTask(lineText, 0, fileMap.getFilePath(), fileMap, taskRecord);
@@ -384,15 +393,14 @@ export class SyncMan {
 					//let's go ahead and do the file while we're at it.
 					const updatedLineText = await this.plugin.taskParser.convertTaskToLine(updatedTask, this.plugin.taskParser.getNumTabs(lineText))
 					fileMap.updateTask(updatedTask, updatedLineText )
-					await this.plugin.taskRepository.upsertTask(updatedTask, null, Date.now());
+					await this.plugin.taskRepository.upsertTask(updatedTask, undefined, Date.now());
 				}
 			}
 		}
 		const fileLines = fileMap.getFileLines()
-		await this.app.vault.process(file as TFile, (data) => {
-			data = fileLines
-			return data;
-		});
+		if (file instanceof TFile) {
+			await this.app.vault.modify(file, fileLines);
+		}
 	}
 
 	private async confirmDeletion(taskIds: string[], reason: string) {
@@ -418,7 +426,7 @@ export class SyncMan {
 			//Nah Brah. Bail.
 			return false;
 		}
-		let currentObject: ITaskItemRecord;
+		let currentObject: ITaskItemRecord | undefined = undefined;
 		const lineItemId = this.plugin.taskParser.getLineItemId(lineText);
 		if (lineItemId) {
 			currentObject = fileMap.getTaskItemRecord(lineItemId);
@@ -462,10 +470,10 @@ export class SyncMan {
 			if (itemId) {
 				const oldItem = parentTask.items.find((item) => item.id == itemId);
 				if (oldItem) {
-					if (oldItem.title.trim() != newItem.description.trim() ||
+					if (oldItem.title.trim() != newItem!.description.trim() ||
 						oldItem.status != (newItem?.status ? 2 : 0)) {
-						oldItem.title = newItem?.description.trim();
-						oldItem.status = newItem?.status ? 2 : 0;
+						oldItem.title = newItem!.description.trim();
+						oldItem.status = newItem!.status ? 2 : 0;
 						modified = true;
 					}
 				} else {
@@ -473,8 +481,8 @@ export class SyncMan {
 					log.warn('', newItem, 'not found in parent items. Forcibly adding...');
 					parentTask.items.push({
 						id: itemId,
-						title: newItem?.description,
-						status: newItem?.status ? 2 : 0
+						title: newItem!.description,
+						status: newItem!.status ? 2 : 0
 					});
 					modified = true;
 				}
@@ -483,19 +491,17 @@ export class SyncMan {
 				const OidHexString = Oid.toHexString();
 				parentTask.items.push({
 					id: OidHexString,
-					title: newItem?.description,
-					status: newItem?.status ? 2 : 0
+					title: newItem!.description,
+					status: newItem!.status ? 2 : 0
 				});
 				const updatedItemContent = `${lineText} %%${OidHexString}%%`;
 				//Update the line in the file.
 				try {
 					const markDownView = this.app.workspace.getActiveViewOfType(MarkdownView);
 					const editor = markDownView?.app.workspace.activeEditor?.editor;
-					const from = { line: lineNumber, ch: 0 };
-					const to = { line: lineNumber, ch: updatedItemContent.length };
-					editor?.setLine(lineNumber, updatedItemContent);
+					editor?.setLine(lineNumber!, updatedItemContent);
 				} catch (error) {
-					log.error(`Error updating item: ${error}`);
+					log.error(`Error updating item: ${String(error)}`);
 				}
 				added = true;
 			}
@@ -518,7 +524,7 @@ export class SyncMan {
 	}
 
 	private async updateTask(parentTask: ITask, filepath: string) {
-		parentTask.modifiedTime = this.plugin.dateMan?.formatDateToISO(new Date());
+		parentTask.modifiedTime = this.plugin.dateMan?.formatDateToISO(new Date()) ?? '';
 		await this.plugin.taskRepository.upsertTask(parentTask, filepath, Date.now());
 		if (getSettings().fileLinksInTickTick !== 'noLink') {
 			let taskURL = this.plugin.taskParser?.getObsidianUrlFromFilepath(filepath);

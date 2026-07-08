@@ -1,16 +1,10 @@
 import '@/static/index.css';
 import '@/static/styles.css';
 
-import { type Editor, type MarkdownFileInfo } from 'obsidian';
-import { MarkdownView, Notice, Plugin, TFolder } from 'obsidian';
+import { type Editor, type MarkdownFileInfo, MarkdownView, Notice, Plugin } from 'obsidian';
 
 //settings
-import {
-	DEFAULT_SETTINGS,
-	getSettings,
-	updateSettings,
-	mergeDeviceLists
-} from './settings';
+import { DEFAULT_SETTINGS, getSettings, mergeDeviceLists, updateSettings } from './settings';
 
 import { TickTickService } from '@/services';
 //TickTick api
@@ -39,13 +33,9 @@ import { NewFileMap } from '@/services/NewFileMap';
 import log from '@/utils/logger';
 
 //database
-import { syncTickTickWithDexie } from '@/sync/sync';
 import { initDB } from '@/db/dexie';
 import { migrateFromDataJson } from '@/db/migrations';
-
-//tasks
-import type { ITask } from '@/api/types/Task';
-import { getTasksByLabel, upsertLocalTask } from '@/db/tasks';
+import type { DeviceInfo } from '@/db/schema';
 
 //NEW: Repository layer
 import { FileMetadataService } from '@/repositories/FileMetadataService';
@@ -72,7 +62,7 @@ export default class TickTickSync extends Plugin {
 	readonly service: TickTickService = new TickTickService(this);
 	readonly taskParser: TaskParser = new TaskParser(this.app, this);
 	readonly fileOperation: FileOperation = new FileOperation(this.app, this);
-	readonly fileMetadataService: FileMetadataService = new FileMetadataService(this.app, this);
+	readonly fileMetadataService: FileMetadataService = new FileMetadataService();
 	readonly dateMan: DateMan = new DateMan();
 
 	readonly lastLines: Map<string, number> = new Map(); //lastLine object {path:line} is saved in lastLines map
@@ -96,8 +86,6 @@ export default class TickTickSync extends Plugin {
 	tickTickRestAPI?: TickTickRestAPI;
 	statusBar?: HTMLElement;
 	private syncIntervalId?: number;
-	private logger: any;
-
 	private markdownProcessor?: MarkdownProcessor;
 
 	async onload() {
@@ -112,13 +100,17 @@ export default class TickTickSync extends Plugin {
 	 * syncing before proceeding with plugin initialization.
 	 */
 	private async waitForObsidianSync(): Promise<void> {
-		const internalPlugins = (this.app as any).internalPlugins;
+		const app = this.app as unknown as {
+			internalPlugins: { getPluginById(id: string): { enabled: boolean; instance?: unknown } | undefined };
+			sync?: { isSyncing?: () => boolean; on?: (event: string, handler: () => void) => void; syncing?: boolean };
+		};
+		const internalPlugins = app.internalPlugins;
 		if (!internalPlugins) return;
 
 		const syncPlugin = internalPlugins.getPluginById('sync');
 		if (!syncPlugin?.enabled) return;
 
-		const syncService = (this.app as any).sync ?? syncPlugin.instance;
+		const syncService = app.sync ?? syncPlugin.instance as { isSyncing?: () => boolean; on?: (event: string, handler: () => void) => void; syncing?: boolean };
 		if (!syncService) return;
 
 		log.debug('Obsidian Sync detected, waiting for sync to complete...');
@@ -126,7 +118,8 @@ export default class TickTickSync extends Plugin {
 		return new Promise<void>((resolve) => {
 			const isSyncing = (): boolean => {
 				try {
-					return syncService.isSyncing?.() ?? syncService.isSyncing ?? syncService.syncing ?? false;
+					const fn = syncService.isSyncing;
+					return typeof fn === 'function' ? fn() : (fn ?? syncService.syncing ?? false);
 				} catch {
 					return false;
 				}
@@ -138,19 +131,20 @@ export default class TickTickSync extends Plugin {
 				return;
 			}
 
-			const interval = setInterval(() => {
+			const poll = () => {
 				if (!isSyncing()) {
-					clearInterval(interval);
 					log.debug('Obsidian Sync finished, proceeding.');
 					resolve();
+					return;
 				}
-			}, 500);
+				window.setTimeout(poll, 500);
+			};
+			poll();
 
 			try {
 				if (typeof syncService.on === 'function') {
 					syncService.on('status-change', () => {
 						if (!isSyncing()) {
-							clearInterval(interval);
 							resolve();
 						}
 					});
@@ -170,7 +164,9 @@ export default class TickTickSync extends Plugin {
 		if (timeout === 0) {
 			return;
 		}
-		this.syncIntervalId = window.setInterval(this.scheduledSynchronization.bind(this), timeout);
+		this.syncIntervalId = this.registerInterval(
+			window.setInterval(() => { void this.scheduledSynchronization(); }, timeout)
+		);
 	}
 
 	// Configure logging.
@@ -184,11 +180,9 @@ export default class TickTickSync extends Plugin {
 	// 	logging.configure(options);
 	// }
 
-	async onunload() {
+	onunload() {
 		super.onunload();
-		if (this.syncIntervalId) {
-			window.clearInterval(this.syncIntervalId);
-		}
+		// registerInterval handles cleanup of syncIntervalId automatically
 		//NEW: Cleanup event handler
 		this.eventHandlerService?.cleanup();
 		//NEW: Clear cache
@@ -198,7 +192,7 @@ export default class TickTickSync extends Plugin {
 
 	async loadSettings() {
 		try {
-			let data = await this.loadData();
+			let data = await this.loadData() as Record<string, unknown> | null;
 			if (!data) {
 				data = { version: this.manifest.version };
 				await this.saveData(data);
@@ -215,7 +209,7 @@ export default class TickTickSync extends Plugin {
 			const settings = Object.assign({}, DEFAULT_SETTINGS, data);
 			updateSettings(settings);
 		} catch (error) {
-			log.error(`Failed to load data:( ${error})`);
+			log.error('Failed to load data:( ' + String(error) + ')');
 			return false; // Returning false indicates that the setting loading failed
 		}
 		return true; // Returning true indicates that the settings are loaded successfully
@@ -228,18 +222,19 @@ export default class TickTickSync extends Plugin {
 			if (inMemorySettings && Object.keys(inMemorySettings).length > 0) {
 				const settingsToSave = { ...inMemorySettings };
 				// Large data is now in Dexie only
-				delete (settingsToSave as any).fileMetadata;
-				delete (settingsToSave as any).TickTickTasksData;
-				delete (settingsToSave as any).__migratedDBData;
+				const saveData = settingsToSave as Record<string, unknown>;
+				delete saveData.fileMetadata;
+				delete saveData.TickTickTasksData;
+				delete saveData.__migratedDBData;
 
 				// Defensive merge: on-disk data.json may have been updated by
 				// another device via Obsidian Sync. Merge devices so that entries
 				// added by other instances are not lost.
 				try {
-					const onDiskData = await this.loadData();
+					const onDiskData = await this.loadData() as Record<string, unknown> | null;
 					if (onDiskData?.devices && Array.isArray(onDiskData.devices)) {
 						const merged = mergeDeviceLists(
-							onDiskData.devices,
+							onDiskData.devices as DeviceInfo[],
 							settingsToSave.devices || []
 						);
 						settingsToSave.devices = merged;
@@ -289,7 +284,7 @@ export default class TickTickSync extends Plugin {
 		const isProjectsSaved = await this.saveProjectsToCache();
 		if (!isProjectsSaved) {// invalid token or offline?
 			this.tickTickRestAPI = undefined;
-			new Notice(`TickTickSync plugin initialization failed, please check userID and password in settings.`);
+			new Notice(`TickTickSync plugin initialization failed, please check userid and password in settings.`);
 			return false;
 		}
 
@@ -302,7 +297,7 @@ export default class TickTickSync extends Plugin {
 			}
 		} catch (error) {
 			log.error('error creating user data folder: ', error);
-			new Notice(`error creating user data folder`);
+			new Notice(`Error creating user data folder`);
 			return false;
 		}
 		//And now load the DB and sync it.
@@ -332,8 +327,6 @@ export default class TickTickSync extends Plugin {
 		const cursor = markDownView?.editor.getCursor();
 		const line = cursor?.line;
 		//const lineText = view.editor.getLine(line)
-		const fileContent = markDownView.data;
-
 		//log.debug(line)
 		//const fileName = view.file?.name
 		const file = markDownView?.app.workspace.activeEditor?.file;
@@ -341,7 +334,7 @@ export default class TickTickSync extends Plugin {
 		const filepath = file?.path;
 
 		if (typeof this.lastLines === 'undefined' || typeof this.lastLines.get(fileName as string) === 'undefined') {
-			this.lastLines.set(fileName as string, line as number);
+			this.lastLines.set(fileName as string, line);
 			return false;
 		}
 
@@ -358,7 +351,7 @@ export default class TickTickSync extends Plugin {
 			if (!(this.checkModuleClass())) {
 				return false;
 			}
-			this.lastLines.set(fileName as string, line as number);
+			this.lastLines.set(fileName as string, line);
 
 			return await this.service.lineModifiedTaskCheck(filepath as string, lastLineText, lastLine as number);
 		} else {
@@ -376,7 +369,7 @@ export default class TickTickSync extends Plugin {
 		}
 
 		if (editor) {
-			const mouse = editor.posAtMouse(evt);
+			const mouse = (editor as unknown as { posAtMouse(evt: MouseEvent): { line: number; ch: number } }).posAtMouse(evt);
 			const line = mouse.line; // Line where the click occurred
 			const clickedText = editor.getLine(line); // Get the text at the clicked line
 			if (this.taskParser.isMarkdownTask(clickedText)) {
@@ -451,7 +444,7 @@ export default class TickTickSync extends Plugin {
 			await this.autoCleanupDeletedTasks();
 		} catch (error) {
 			log.error('An error occurred: ', error);
-			new Notice(`An error occurred: ${error}`);
+			new Notice(`An error occurred: ${String(error)}`);
 		}
 	}
 
@@ -524,10 +517,10 @@ export default class TickTickSync extends Plugin {
 		const startTime = performance.now();
 		log.debug(`TickTick saveProjectsToCache started at ${new Date().toLocaleString()}`);
 		try {
-			result = await this.service.saveProjectsToCache();
+			result = !!(await this.service.saveProjectsToCache());
 		} catch (error) {
-			log.error(`An error in saveProjectsToCache occurred:( ${error}`);
-			new Notice(`An error in saveProjectsToCache occurred: ${error}`);
+			log.error(`An error in saveProjectsToCache occurred:( ${String(error)}`);
+			new Notice(`An error in saveProjectsToCache occurred: ${String(error)}`);
 		}
 		const endTime = performance.now();
 		log.debug(`TickTick saveProjectsToCache completed at ${new Date().toLocaleString()}, took ${(endTime - startTime).toFixed(2)} ms`);
@@ -543,7 +536,7 @@ export default class TickTickSync extends Plugin {
 			new Notice('Settings failed to load. Please reload the TickTickSync plugin.');
 			return;
 		}
-		log.setLevel(getSettings().logLevel)
+		log.setLevel(getSettings().logLevel as 'trace' | 'debug' | 'info' | 'warn' | 'error' | 'silent')
 		log.info(`loading plugin "${this.manifest.name}" v${this.manifest.version}`);
 
 
@@ -552,7 +545,7 @@ export default class TickTickSync extends Plugin {
 			updateSettings({vaultName: this.app.vault.getName()});
 			await this.initializePlugin();
 		} catch (error) {
-			log.error(`API Initialization Failed.( ${error})`);
+			log.error('API Initialization Failed.( ' + String(error) + ')');
 		}
 
 		store.service.set(this.service);
@@ -560,13 +553,13 @@ export default class TickTickSync extends Plugin {
 		this.markdownProcessor.activate();
 
 
-		const ribbonIconEl = this.addRibbonIcon('sync', 'TickTickSync', async (evt: MouseEvent) => {
+		this.addRibbonIcon('sync', 'TickTickSync', async (evt: MouseEvent) => {
 			// Called when the user clicks the icon.
 			await this.synchronizeNow();
 		});
 
 		//Used for testing adhoc code.
-		const ribbonIconEl1 = this.addRibbonIcon('check', 'TTS Test', async (evt: MouseEvent) => {
+		this.addRibbonIcon('check', 'Tts test', async (evt: MouseEvent) => {
 			// Nothing to see here right now.
 			const vaultId = this.app.vault.getName();
 			log.debug(`Vault ID: ${vaultId}`);
@@ -574,7 +567,7 @@ export default class TickTickSync extends Plugin {
 		});
 
 		//Used for testing adhoc code.
-		const ribbonIconEl2 = this.addRibbonIcon('dice', 'TTS Test 2', async (evt: MouseEvent) => {
+		this.addRibbonIcon('dice', 'Tts test 2', async (evt: MouseEvent) => {
 			// Nothing to see here right now.
 			// for (const file of this.app.vault.getMarkdownFiles()) {
 			// 	if (file.path.includes("List 1")) {
@@ -616,7 +609,7 @@ export default class TickTickSync extends Plugin {
 		// This adds an editor command that can perform some operation on the current editor instance
 		this.addCommand({
 			id: 'tts-default-project-for-file',
-			name: 'Set default TickTick project for current file',
+			name: 'Set default ticktick project for current file',
 			editorCallback: (editor: Editor, view: MarkdownView | MarkdownFileInfo) => {
 				if (!view || !view.file) {
 					new Notice(`No active file.`);
@@ -682,56 +675,54 @@ export default class TickTickSync extends Plugin {
 		this.eventHandlerService.registerAll();
 	}
 
-	private async migrateData(data: any) {
+	private async migrateData(data: Record<string, unknown>): Promise<Record<string, unknown>> {
 		if (!data) return data;
 
 		const notableChanges: string [][] = [];
 
 		//We're going to handle data structure conversions here.
 		//NB: The version that goes in the literal is the current version.
-		if ((!data.version) || (isOlder(data.version, '1.0.10'))) {
+		if ((!data.version) || (isOlder(data.version as string, '1.0.10'))) {
 			//get rid of username and password. we don't need them no more.
 			//delete data.username;
-			// @ts-ignore
 			delete data.username;
 			delete data.password;
 		}
-		if ((!data.version) || (isOlder(data.version, '1.0.36'))) {
+		if ((!data.version) || (isOlder(data.version as string, '1.0.36'))) {
 			//default to AND because that's what we used to do:
 			data.tagAndOr = 1;
 			//warn about tag changes.
 			notableChanges.push(['New Task Limiting rules', 'Please update your preferences in settings as needed.', 'priorTo1.0.36']);
 		}
-		if ((!data.version) || (isOlder(data.version, '1.0.40'))) {
+		if ((!data.version) || (isOlder(data.version as string, '1.0.40'))) {
 			//warn about the date/time foo
 			notableChanges.push(['New Date/Time Handling', 'Old date formats will be converted on the next synchronization operation.', 'priorTo1.0.40']);
 		}
-		if ((!data.version) || (isOlder(data.version, '1.1.1'))) {
+		if ((!data.version) || (isOlder(data.version as string, '1.1.1'))) {
 			//warn about the date/time foo
 			notableChanges.push(['Note Synchronization', 'TickTickSync will now synchronize Notes.', 'priorTo1.1.1']);
 		}
-		if ((!data.version) || (isOlder(data.version, '1.1.7'))) {
+		if ((!data.version) || (isOlder(data.version as string, '1.1.7'))) {
 			notableChanges.push(['Note and Default Project Settings', 'Note and Default Project settings improvements.', 'priorTo1.1.7']);
 		}
-		if ((!data.version) || (isOlder(data.version, '1.1.8'))) {
+		if ((!data.version) || (isOlder(data.version as string, '1.1.8'))) {
 			notableChanges.push(['Link to Tasks now Configurable', 'Link to Tasks are now Configurable.', 'priorTo1.1.8']);
 		}
-		if ((!data.version) || (isOlder(data.version, '1.1.10'))) {
+		if ((!data.version) || (isOlder(data.version as string, '1.1.10'))) {
 			notableChanges.push(['Several Changes', 'Tasks stay where they are created.\nBackups now configurable.\nNote delimiter now configurable.', 'priorTo1.1.9']);
 		}
-		if ((!data.version) || (isOlder(data.version, '1.1.15'))) {
+		if ((!data.version) || (isOlder(data.version as string, '1.1.15'))) {
 			notableChanges.push(['Can now login with SSO/2FA enabled account on Desktop', 'Desktop SSO/2FA login enabled.', 'priorTo1.1.14']);
 		}
-		if ((!data.version) || (isOlder(data.version, '1.1.16'))) {
+		if ((!data.version) || (isOlder(data.version as string, '1.1.16'))) {
 			notableChanges.push(['Note handling improvements', 'Can now have checklist items and TickTick Task links in notes.', 'priorTo1.1.15']);
 		}
 		//BIG Change. BIG I tell you!
-		const isOlderResult = (!data.version) || isOlder(data.version, '2.0.0');
+		const isOlderResult = (!data.version) || isOlder(data.version as string, '2.0.0');
 		if (isOlderResult) {
 			log.debug('Entering 1.1.17 migration block');
 			// Migrate from legacy data.json repository to Dexie-based repository
-			const dbData = migrateFromDataJson(data);
-			(data as any).__migratedDBData = dbData;
+			data.__migratedDBData = migrateFromDataJson(data);
 			log.debug('migrateFromDataJson completed, pushing notableChange');
 			notableChanges.push(['version 2.0', 'A complete re-architecture to allow better cross-device handling. General performance improvements..', 'priorTo1.1.17']);
 			log.debug('notableChanges.length after push =', notableChanges.length);
@@ -747,7 +738,7 @@ export default class TickTickSync extends Plugin {
 
 		//Update the version number. It will save me headaches later.
 
-		if ((!data.version) || (isOlder(data.version, this.manifest.version))) {
+		if ((!data.version) || (isOlder(data.version as string, this.manifest.version))) {
 			log.debug('Updating version number to ', this.manifest.version);
 			data.version = this.manifest.version;
 			await this.saveSettings();
@@ -757,20 +748,22 @@ export default class TickTickSync extends Plugin {
 	}
 
 	private async LatestChangesModal(notableChanges: string[][]) {
-		const myModal = new LatestChangesModal(this.app, notableChanges, (result) => {
-			this.ret = result;
+		return await new Promise<boolean>(resolve => {
+			const myModal = new LatestChangesModal(this.app, notableChanges, (result) => {
+				resolve(result);
+			});
+			myModal.open();
 		});
-		return await myModal.showModal();
 
 	}
 	private dumpDB() {
-		let dbName = getSettings().vaultName  + "TickTickSync";
+		let dbName = (getSettings().vaultName || '')  + "TickTickSync";
 		const request = indexedDB.open(dbName);
 
 		request.onsuccess = async (event) => {
-			const db = event.target.result;
+			const db = (event.target as EventTarget & { result: IDBDatabase }).result;
 			const storeNames = Array.from(db.objectStoreNames);
-			const exportData = {};
+			const exportData: Record<string, unknown> = {};
 
 			// Process all stores
 			for (const storeName of storeNames) {
@@ -788,7 +781,7 @@ export default class TickTickSync extends Plugin {
 			const jsonString = JSON.stringify(exportData, null, 2);
 			const blob = new Blob([jsonString], { type: "application/json" });
 			const url = URL.createObjectURL(blob);
-			const a = document.createElement("a");
+			const a = createEl("a");
 
 			a.href = url;
 			a.download = `${dbName}_full_dump.json`;
@@ -799,7 +792,7 @@ export default class TickTickSync extends Plugin {
 			db.close();
 		};
 
-		request.onerror = (e) => console.error("Database failed to open:", e.target.error);
+		request.onerror = (e: Event) => console.error("Database failed to open:", (e.target as IDBRequest)?.error);
 
 	}
 

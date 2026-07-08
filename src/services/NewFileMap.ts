@@ -1,4 +1,4 @@
-import { App, TFile, type ListItemCache } from 'obsidian';
+import { App, type ListItemCache, TFile } from 'obsidian';
 import type { ITask } from '@/api/types/Task';
 import type TickTickSync from '@/main';
 import { getSettings } from '@/settings';
@@ -38,13 +38,13 @@ interface TaskEntry {
 
 export function getTitle(text: string): string {
 	if (text) {
-		const regex = /\](.*?)\[/;
+		const regex = /](.*?)\[/;
 		let match = text.match(regex);
 		if (!match) {
-			const itemRegex = /\](.*?)%%/;
+			const itemRegex = /](.*?)%%/;
 			match = text.match(itemRegex);
 			if (match) {
-				match[1] = '--' + match;
+				match[1] = '--' + String(match);
 			}
 		}
 		return match ? match[1] : 'N/A';
@@ -57,7 +57,8 @@ export class NewFileMap {
 	file: TFile;
 	private app: App;
 	private plugin: TickTickSync;
-	private headings: { heading: string; startLine: number; endLine: number; }[] | undefined;
+	// only used for debugging
+	// private headings: { heading: string; startLine: number; endLine: number; }[] | undefined;
 	private fileLines: string[] = [];
 	private entries: TaskEntry[] = [];
 
@@ -69,7 +70,7 @@ export class NewFileMap {
 
 	async init(inFileContent: string | null = null) {
 		let fileContent;
-		if (!!inFileContent) {
+		if (inFileContent) {
 			fileContent = inFileContent;
 		} else {
 			fileContent = await this.plugin.fileOperation.readFileContent(this.file);
@@ -81,7 +82,7 @@ export class NewFileMap {
 	}
 
 	addTask(task: ITask, taskLine: string, addLineNumber: number = -1): number {
-		let insertLine = this.fileLines.length;
+		let insertLine: number ;
 		if (addLineNumber >= 0) {
 			insertLine = addLineNumber;
 		} else {
@@ -157,11 +158,6 @@ export class NewFileMap {
 				this.applyTabDiff(childrenStart, childrenEnd, newTabs - oldTabs);
 			}
 		}
-		const finalTaskIdx = this.getTaskIndex(task.id);
-		if (finalTaskIdx >= 0) {
-			const finalEndLine = this.getTaskEndLineByIdx(finalTaskIdx);
-			// log.debug(`updateTask: task ${task.id} FINAL lastLine=${finalEndLine} content=[${this.fileLines.slice(finalTaskIdx, finalEndLine + 1).join(' | ')}]`);
-		}
 		this.rebuildEntries();
 	}
 
@@ -178,13 +174,9 @@ export class NewFileMap {
 				([, a], [, b]) => a.depth - b.depth
 			);
 
-			let currentTabs = '';
-			sortedEntries.forEach(([sid, data]) => {
-				if (data.depth == 0) {
-					currentTabs = data.tabs;
-				}
-				this.deleteTaskAndLines(sid);
-			});
+		sortedEntries.forEach(([sid]) => {
+			this.deleteTaskAndLines(sid);
+		});
 		}
 		this.rebuildEntries();
 		return this.entries.length;
@@ -242,7 +234,7 @@ export class NewFileMap {
 		return this.fileLines.findIndex(str => this.plugin.taskParser.isMarkdownTask(str) && str.includes(ID));
 	}
 
-	getTaskString(taskId: string): String {
+	getTaskString(taskId: string): string {
 		return this.fileLines[this.getTaskIndex(taskId)];
 	}
 
@@ -290,13 +282,12 @@ export class NewFileMap {
 			if (this.plugin.taskParser.isNoteLevel(line, parentTabs)) {
 				continue;
 			}
-			const isTwoSpaceChecklist = /^\s{2}- \[(x|X| )\]/.test(line);
+			const isTwoSpaceChecklist = /^\s{2}- \[([xX ])]/.test(line);
 			const hasItemId = !!this.plugin.taskParser?.getLineItemId(line);
-			const hasTickId = !!this.plugin.taskParser?.hasTickTickId(line);
-			const hasTag = !!this.plugin.taskParser?.hasTickTickTag(line);
+			const hasTickId = this.plugin.taskParser?.hasTickTickId(line);
+			const hasTag = this.plugin.taskParser?.hasTickTickTag(line);
 			if (!hasTickId && !hasTag && !hasItemId && !isTwoSpaceChecklist) {
-				let newLine = this.plugin.taskParser?.addTickTickTag(line);
-				lines[i] = newLine;
+				lines[i] = this.plugin.taskParser?.addTickTickTag(line);
 				modified = true;
 			}
 		}
@@ -493,10 +484,6 @@ export class NewFileMap {
 		const cfgDelim = getSettings().noteDelimiter as unknown;
 		const hasConfiguredDelimiter = (typeof cfgDelim === 'string') && (cfgDelim.length > 0);
 
-		const isDelimiterLine = (line: string, delimText: string) => {
-			return line.startsWith(notePrefix) && !this.plugin.taskParser.isMarkdownTask(line) && line.trim() === (notePrefix + delimText).trim();
-		};
-
 		let i = taskIdx + 1;
 
 		if (hasConfiguredDelimiter) {
@@ -528,7 +515,7 @@ export class NewFileMap {
 				if (endIdx !== -1) {
 					for (let k = startIdx; k <= endIdx; k++) {
 						if (k === startIdx || k === endIdx) {
-							taskLines.push(notePrefix + (cfgDelim as string));
+							taskLines.push(notePrefix + cfgDelim);
 						} else {
 							taskLines.push(this.fileLines[k]);
 						}
@@ -548,9 +535,9 @@ export class NewFileMap {
 				}
 			}
 			if (collected.length > 0) {
-				taskLines.push(notePrefix + (cfgDelim as string));
+				taskLines.push(notePrefix + cfgDelim);
 				taskLines.push(...collected);
-				taskLines.push(notePrefix + (cfgDelim as string));
+				taskLines.push(notePrefix + cfgDelim);
 			}
 		} else {
 			for (; i < this.fileLines.length; i++) {
@@ -567,6 +554,7 @@ export class NewFileMap {
 				const first = taskLines[0]?.slice(notePrefix.length).trim();
 				const last = taskLines[taskLines.length - 1]?.slice(notePrefix.length).trim();
 				if (first && last && first === last) {
+					// Delimiter lines match - silently continue
 				}
 			}
 		}

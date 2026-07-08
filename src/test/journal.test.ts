@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
 	mockAdd: vi.fn(),
@@ -42,7 +42,7 @@ describe('journal', () => {
 		mocks.mockAdd.mockResolvedValueOnce(1);
 		logSyncEvent('device-1', 'sync:start');
 		await vi.waitFor(() => expect(mocks.mockAdd).toHaveBeenCalledTimes(1));
-		const entry = mocks.mockAdd.mock.calls[0][0];
+		const entry = mocks.mockAdd.mock.calls[0][0] as Record<string, unknown>;
 		expect(entry.deviceId).toBe('device-1');
 		expect(entry.action).toBe('sync:start');
 		expect(entry.timestamp).toBeGreaterThan(0);
@@ -52,13 +52,13 @@ describe('journal', () => {
 		mocks.mockAdd.mockResolvedValueOnce(1);
 		logSyncEvent('device-1', 'pull:complete', { applied: 5 });
 		await vi.waitFor(() => expect(mocks.mockAdd).toHaveBeenCalledTimes(1));
-		expect(mocks.mockAdd.mock.calls[0][0].details).toEqual({ applied: 5 });
+		expect((mocks.mockAdd.mock.calls[0][0] as Record<string, unknown>).details).toEqual({ applied: 5 });
 	});
 
 	it('getSyncJournal returns entries ordered by id descending', async () => {
 		mocks.mockToArray.mockResolvedValueOnce([{ id: 2, action: 'sync:end' }]);
 		const result = await getSyncJournal();
-		expect(db.journal.orderBy).toHaveBeenCalledWith('id');
+		expect((db.journal as unknown as Record<string, Mock>).orderBy).toHaveBeenCalledWith('id');
 		expect(result).toEqual([{ id: 2, action: 'sync:end' }]);
 	});
 
@@ -76,14 +76,14 @@ describe('journal', () => {
 		await vi.waitFor(() => expect(mocks.mockDelete).toHaveBeenCalledTimes(1));
 
 		expect(mocks.mockWhereBelow).toHaveBeenCalled();
-		const cutoffArg = mocks.mockWhereBelow.mock.calls[0][0];
+		const cutoffArg = mocks.mockWhereBelow.mock.calls[0][0] as number;
 		const expectedCutoff = Date.now() - 3 * 24 * 60 * 60 * 1000;
 		expect(cutoffArg).toBeGreaterThan(expectedCutoff - 5000);
 		expect(cutoffArg).toBeLessThan(expectedCutoff + 5000);
 	});
 
 	it('handles db.journal being undefined gracefully', async () => {
-		(db as any).journal = undefined;
+		(db as unknown).journal = undefined;
 
 		logSyncEvent('device-1', 'sync:start');
 		await expect(getSyncJournal()).resolves.toEqual([]);

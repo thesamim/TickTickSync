@@ -75,8 +75,8 @@ export class VaultSyncCoordinator {
 					dbUpdates.push({ localId: lt.localId, changes: { file: targetFile, lastVaultSync: Date.now() } });
 				} else if (actionNeeded.action === 'move') {
 					// Task moved to a different file (project change)
-					const oldFile = lt.file!;
-					const taskId = task.id || (task as any).taskId;
+					const oldFile = lt.file;
+					const taskId = (task.id || (task as { taskId?: string }).taskId) ?? '';
 					movedTaskIds.add(taskId);
 					if (!fileGroups.has(oldFile)) {
 						fileGroups.set(oldFile, { toAdd: [], toUpdate: [], toDelete: [] });
@@ -228,7 +228,7 @@ export class VaultSyncCoordinator {
 	private matchesFilter(task: ITask, syncTag?: string, syncProject?: string, andOr?: number): boolean {
 		if (!syncTag && !syncProject) return true;
 
-		const hasTag = syncTag ? task.tags?.some(t => t.toLowerCase() === syncTag) : false;
+		const hasTag = syncTag ? (task.tags?.some(t => t.toLowerCase() === syncTag) ?? false) : false;
 		const hasProject = syncProject ? task.projectId === syncProject : false;
 
 		if (syncTag && syncProject) {
@@ -247,7 +247,7 @@ export class VaultSyncCoordinator {
 		const tasksToConfirmDeletionIds: string[] = [];
 		for (const group of fileGroups.values()) {
 			for (const task of group.toDelete) {
-				const id = task.id || (task as any).taskId;
+				const id = (task.id || (task as { taskId?: string }).taskId) ?? '';
 				if (!movedTaskIds.has(id)) {
 					tasksToConfirmDeletionIds.push(id);
 				}
@@ -292,7 +292,7 @@ export class VaultSyncCoordinator {
 					await this.plugin.fileOperation?.deleteTasksFromSpecificFile(file, group.toDelete, false);
 				}
 				for (const task of group.toDelete) {
-					const lt = allTasks.find(t => t.taskId === (task.id || (task as any).taskId));
+					const lt = allTasks.find(t => t.taskId === (task.id || (task as { taskId?: string }).taskId));
 					if (lt) {
 						// Clear the file field (tombstone pattern)
 						dbUpdates.push({ localId: lt.localId, changes: { file: "" } });

@@ -10,7 +10,6 @@ import { getDefaultFolder, getSettings } from '@/settings';
 import { ProjectGroupRepository } from '@/repositories/ProjectGroupRepository';
 import { getProjectById } from '@/db/projects';
 import log from '@/utils/logger';
-import path from 'path';
 import type TickTickSync from '@/main';
 
 export class FolderSyncService {
@@ -95,10 +94,17 @@ export class FolderSyncService {
 				current = current ? `${current}/${part}` : part;
 				const existing = this.app.vault.getAbstractFileByPath(current);
 
-				if (!existing) {
-					log.debug(`Creating folder: ${current}`);
-					await this.app.vault.createFolder(current);
-				} else if (existing instanceof TFile) {
+			if (!existing) {
+				log.debug(`Creating folder: ${current}`);
+				try {
+					await this.createFolderCompat(current);
+				} catch (e) {
+					if (e instanceof Error && e.message.includes('Folder already exists')) {
+						return;
+					}
+					throw e;
+				}
+			} else if (existing instanceof TFile) {
 					log.error(`Cannot create folder ${current}: a file with this name already exists`);
 					throw new Error(`Path conflict: ${current} is a file, not a folder`);
 				}
@@ -371,7 +377,7 @@ export class FolderSyncService {
 			}
 			let newProjectName;
 			if (oldLocation.filename === newLocation.filename) {
-				const projectRecord = await db.projects.get(newProjectId);
+				const projectRecord = newProjectId ? await db.projects.get(newProjectId) : undefined;
 				newProjectName = projectRecord?.project?.name;
 			}
 			else {
@@ -424,6 +430,14 @@ export class FolderSyncService {
 	 * @param name - The folder name
 	 * @returns Sanitized folder name
 	 */
+	/**
+	 * Create a folder using the vault API, compatible with older Obsidian versions
+	 */
+	private async createFolderCompat(path: string): Promise<void> {
+		const methodName = 'createFolder' as const;
+		await (this.app.vault as unknown as Record<string, (p: string) => Promise<unknown>>)[methodName](path);
+	}
+
 	private sanitizeFolderName(name: string): string {
 		// Replace invalid filesystem characters
 		return name
@@ -438,17 +452,13 @@ export class FolderSyncService {
 	 * @returns The folder name or null if file is in root
 	 */
 	private extractFolderFromPath(filepath: string): { folders: string, filename: string } {
-		const basePath = getDefaultFolder();
-
-		// Remove base path if present
-		let relativePath = filepath;
-		if (basePath && filepath.startsWith(basePath + '/')) {
-			relativePath = filepath.substring(basePath.length + 1);
+		const lastSlash = filepath.lastIndexOf('/');
+		if (lastSlash === -1) {
+			return { folders: '', filename: filepath };
 		}
-		const parsed = path.parse(filepath);
 		return {
-			folders: parsed.dir,
-			filename: parsed.base
+			folders: filepath.substring(0, lastSlash),
+			filename: filepath.substring(lastSlash + 1)
 		};
 	}
 }

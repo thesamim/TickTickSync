@@ -1,7 +1,5 @@
 import { RRule, rrulestr } from 'rrule';
 
-const RRULE_PREFIX = 'RRULE:';
-
 export interface RecurrenceParseResult {
 	repeatFlag: string;
 	repeatFrom?: string;

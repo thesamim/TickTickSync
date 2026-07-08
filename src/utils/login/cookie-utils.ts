@@ -1,11 +1,16 @@
 import { requestUrl } from 'obsidian';
 
+export interface CookieData {
+  name: string;
+  value: string;
+}
+
 export class CookieUtils {
-  static serializeCookies(cookies: any[]): string {
+  static serializeCookies(cookies: CookieData[]): string {
     return cookies.map(c => `${c.name}=${c.value}`).join('; ');
   }
 
-  static findSessionCookie(cookies: any[]): any {
+  static findSessionCookie(cookies: CookieData[]): CookieData | undefined {
     const sessionNames = ['t', 'session', 'sessionid', 'auth', 'jwt'];
     return cookies.find(c => 
       sessionNames.includes(c.name.toLowerCase()) ||
@@ -14,7 +19,7 @@ export class CookieUtils {
     );
   }
 
-  static async testCookies(cookies: any[]): Promise<boolean> {
+  static async testCookies(cookies: CookieData[]): Promise<boolean> {
     try {
       const sessionCookie = this.findSessionCookie(cookies);
       if (!sessionCookie) return false;
@@ -29,7 +34,7 @@ export class CookieUtils {
       });
 
       return response.status === 200;
-    } catch (error) {
+    } catch {
       return false;
     }
   }

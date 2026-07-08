@@ -8,9 +8,9 @@ import { getSettings } from '@/settings';
 describe('TaskParser.getNoteString', () => {
   it('returns all lines in no-delimiter mode (no trimming of first/last)', () => {
     // no delimiter configured
-    (getSettings as any)().noteDelimiter = '';
+    ((getSettings as unknown as () => Record<string, string>)()).noteDelimiter = '';
 
-    const parser = new TaskParser({} as any, {} as any);
+    const parser = new TaskParser({} as unknown, {} as unknown);
 
     const taskRecord: ITaskRecord = {
       task: '- [ ] example #ticktick  %%[ticktick_id:: abc]%%',
@@ -20,7 +20,7 @@ describe('TaskParser.getNoteString', () => {
         '  middle line',
         '  last line',
       ],
-    } as any;
+    };
 
     const res = parser.getNoteString(taskRecord, 'abc');
     // In no-delimiter mode, we do not drop first/last lines
@@ -29,9 +29,9 @@ describe('TaskParser.getNoteString', () => {
 
   it('strips configured delimiter lines and filters ticktick link by id', () => {
     // configure delimiter
-    (getSettings as any)().noteDelimiter = ':::';
+    ((getSettings as unknown as () => Record<string, string>)()).noteDelimiter = ':::';
 
-    const parser = new TaskParser({} as any, {} as any);
+    const parser = new TaskParser({} as unknown, {} as unknown);
 
     const id = 'abcdefabcdefabcdefabcdef';
     const taskRecord: ITaskRecord = {
@@ -44,7 +44,7 @@ describe('TaskParser.getNoteString', () => {
         '  beta',
         '  :::',
       ],
-    } as any;
+    };
 
     const res = parser.getNoteString(taskRecord, id);
     // Should remove first and last delimiter lines and also remove the [link](...) line with the task id

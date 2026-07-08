@@ -1,15 +1,43 @@
-import { App, PluginSettingTab } from 'obsidian';
+import { App, PluginSettingTab, type SettingPage, type SettingDefinitionItem } from 'obsidian';
 import TickTickSync from '@/main';
-import { getSettings } from '@/settings';
-import { mount, type SvelteComponent, unmount } from 'svelte';
+import { mount, unmount } from 'svelte';
 import SettingsTabs from '@/ui/settings/svelte/SettingsTabs.svelte';
 import { settingsLoad } from '@/ui/settings/settingsstore';
 
+class TickTickSyncSettingsPage implements SettingPage {
+	containerEl!: HTMLElement;
+	rootEl!: HTMLElement;
+	titlebarEl!: HTMLElement;
+	title = 'TickTickSync';
+	private plugin: TickTickSync;
+	private view: Record<string, unknown> | null = null;
+
+	constructor(plugin: TickTickSync) {
+		this.plugin = plugin;
+	}
+
+	display(): void {
+		this.containerEl.empty();
+		this.view = mount(SettingsTabs, {
+			target: this.containerEl,
+			props: {
+				app: this.plugin.app,
+				plugin: this.plugin,
+			},
+		}) as Record<string, unknown> | null;
+	}
+
+	hide(): void {
+		if (this.view) {
+			void unmount(this.view);
+			this.view = null;
+		}
+	}
+}
 
 export class TickTickSyncSettingTab extends PluginSettingTab {
 	private readonly plugin: TickTickSync;
-	private view: SvelteComponent;
-	private settingsComponent: any;
+	private view: Record<string, unknown> | null = null;
 
 	constructor(app: App, plugin: TickTickSync) {
 		super(app, plugin);
@@ -17,53 +45,33 @@ export class TickTickSyncSettingTab extends PluginSettingTab {
 		settingsLoad(plugin);
 	}
 
-	async display(): Promise<void> {
-		const { containerEl } = this;
-
-		containerEl.empty();
-		this.settingsComponent = mount(SettingsTabs, {
-			target: containerEl,
+	display(): void {
+		this.containerEl.empty();
+		this.view = mount(SettingsTabs, {
+			target: this.containerEl,
 			props: {
-				app: this.app,
-				plugin: this.plugin
-			}
-		});
+				app: this.plugin.app,
+				plugin: this.plugin,
+			},
+		}) as Record<string, unknown> | null;
 	}
 
-	async hide() {
-		super.hide();
-		await unmount(this.settingsComponent);
+	hide(): void {
+		if (this.view) {
+			void unmount(this.view);
+			this.view = null;
+		}
 	}
 
-	/*
-
-	 */
-
-
-	private getProjectTagText(myProjectsOptions: Record<string, string>) {
-		const project = myProjectsOptions[getSettings().SyncProject];
-		const tag = getSettings().SyncTag;
-		const taskAndOr = getSettings().tagAndOr;
-
-		if (!project && !tag) {
-			return 'No limitation.';
-		}
-		if (project && !tag) {
-			return `Only Tasks in <b>${project}</b> will be synchronized`;
-		}
-		if (!project && tag) {
-			return `Only Tasks tagged with <b>#${tag}</b> tag will be synchronized`;
-		}
-		if (taskAndOr == 1) {
-			return `Only tasks in <b>${project}</b> AND tagged with <b>#${tag}</b> tag will be synchronized`;
-		}
-		return `All tasks in <b>${project}</b> will be synchronized. All tasks tagged with <b>#${tag}</b> tag will be synchronized`;
-	}
-
-	private async confirmFullSync() {
-		const myModal = new ConfirmFullSyncModal(this.app, () => {
-		});
-		return await myModal.showModal();
+	getSettingDefinitions(): SettingDefinitionItem[] {
+		return [
+			{
+				type: 'page',
+				name: 'TickTickSync',
+				desc: 'Configure TickTick synchronization settings',
+				page: (): SettingPage => new TickTickSyncSettingsPage(this.plugin),
+			},
+		];
 	}
 
 }

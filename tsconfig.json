@@ -8,7 +8,9 @@
 		"./vitest-setup.ts"
 	],
 	"exclude": [
-		"node_modules/*"
+		"node_modules/*",
+		"src/test/**",
+		"src/**/*.svelte.js"
 	],
 	"compilerOptions": {
 		"verbatimModuleSyntax": true,
@@ -24,7 +26,7 @@
 		},
 		"inlineSources": true,
 		"module": "ESNext",
-		"target": "es2016",
+		"target": "es2018",
 		"allowJs": true,
 		"noImplicitAny": true,
 		"moduleResolution": "node",
@@ -35,7 +37,8 @@
 			"DOM",
 			"ES5",
 			"ES6",
-			"ES7"
+			"ES7",
+			"ES2018"
 		]
 	}
 }

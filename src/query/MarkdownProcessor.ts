@@ -40,10 +40,10 @@ export class MarkdownProcessor {
 
 export class QueryRender<T extends Record<string, unknown>> extends MarkdownRenderChild {
 	private readonly props: T;
-	private readonly component: Component;
+	private readonly component: Component<T>;
 	private root?: Record<string, never>;
 
-	constructor(container: HTMLElement, component: Component, props: T) {
+	constructor(container: HTMLElement, component: Component<T>, props: T) {
 		super(container);
 		this.component = component;
 		this.props = props;
@@ -58,7 +58,7 @@ export class QueryRender<T extends Record<string, unknown>> extends MarkdownRend
 
 	onunload(): void {
 		if (this.root) {
-			unmount(this.root);
+			void unmount(this.root);
 			this.root = undefined;
 		}
 	}

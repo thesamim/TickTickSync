@@ -38,7 +38,7 @@ describe('DateMan.addDateHolderToTask preservation', () => {
 				dueDate: null,
 				startDate: null
 			}
-		} as any;
+		} as unknown;
 
 		const newTask: ITask = {
 			id: '1',
@@ -46,7 +46,7 @@ describe('DateMan.addDateHolderToTask preservation', () => {
 			isAllDay: true,
 			dueDate: '2025-01-10T00:00:00.000+0000',
 			startDate: '2025-01-10T00:00:00.000+0000'
-		} as any;
+		} as unknown;
 
 		dateMan.addDateHolderToTask(newTask, oldTask);
 
@@ -67,14 +67,14 @@ describe('DateMan.addDateHolderToTask preservation', () => {
 				dueDate: null,
 				startDate: null
 			}
-		} as any;
+		} as unknown;
 
 		const newTask: ITask = {
 			id: '1',
 			isAllDay: true,
 			dueDate: '2025-01-10T00:00:00.000+0000',
 			startDate: '2025-01-10T00:00:00.000+0000'
-		} as any;
+		} as unknown;
 
 		dateMan.addDateHolderToTask(newTask, oldTask);
 
@@ -97,14 +97,14 @@ describe('DateMan.addDateHolderToTask preservation', () => {
 				dueDate: null,
 				startDate: null
 			}
-		} as any;
+		} as unknown;
 
 		const newTask: ITask = {
 			id: '1',
 			isAllDay: true,
 			dueDate: '2025-01-15T12:00:00.000+0000',
 			startDate: '2025-01-14T12:00:00.000+0000' // Use midday to avoid TZ shifts in tests
-		} as any;
+		} as unknown;
 
 		dateMan.addDateHolderToTask(newTask, oldTask);
 

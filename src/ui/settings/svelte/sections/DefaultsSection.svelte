@@ -6,11 +6,12 @@
 	import { FolderSuggest } from '@/utils/FolderSuggester';
 	import { validateNewFolder } from '@/utils/FolderUtils';
 	import log from 'loglevel';
-import { NewFileMap } from '@/services/NewFileMap'
-import { db } from '@/db/dexie'
- 
+	import { NewFileMap } from '@/services/NewFileMap';
+	import { db } from '@/db/dexie';
+	import type TickTickSync from '@/main';
+
 	export let open = false;
-	export let plugin;
+	export let plugin: TickTickSync;
 	let defaultProjectId = '';
 	let currentDefault: string;
 	let showUpdateWorldModal = false;
@@ -28,31 +29,46 @@ import { db } from '@/db/dexie'
 	let myProjectsOptions: Record<string, string> = {};
 
 	async function ensureCorrectDefaultPaths() {
+		const settings = getSettings();
 		const defaultProjectFolder = getDefaultFolder();
-		const defaultProject = getSettings().defaultProjectName;
+		const defaultProject = settings.defaultProjectName;
 		log.debug('Changing default Project or Project Folder \nNew default project folder: ', defaultProjectFolder, 'New default project', defaultProject);
 		if (defaultProject) {
-			const defaultProjectFileName = defaultProject + '.md';
-			const markdownFiles = app.vault.getMarkdownFiles();
+			const markdownFiles = plugin.app.vault.getMarkdownFiles();
 			for (const file of markdownFiles) {
-				if (isDefaultProjectFile(file.path)) {
-					if (file.path !== defaultProjectFolder + '/' + defaultProjectFileName) {
+				const isDefault = await isDefaultProjectFile(file.path);
+				if (isDefault) {
+					let newPath: string;
+					if (settings.keepProjectFolders) {
+						const projectId = settings.defaultProjectId;
+						if (projectId) {
+							const folderPath = await plugin.folderSyncService.getFolderPathForProject(projectId);
+							newPath = folderPath ? `${folderPath}/${file.name}` : file.name;
+						} else {
+							newPath = defaultProjectFolder ? `${defaultProjectFolder}/${file.name}` : file.name;
+						}
+					} else {
+						newPath = defaultProjectFolder ? `${defaultProjectFolder}/${file.name}` : file.name;
+					}
+
+					if (file.path !== newPath) {
 						try {
-							await app.vault.rename(file, defaultProjectFolder + '/' + defaultProjectFileName);
+							const folderPart = newPath.substring(0, newPath.lastIndexOf('/'));
+							if (folderPart) {
+								await plugin.folderSyncService.ensureFolderExists(folderPart);
+							}
+							await plugin.app.vault.rename(file, newPath);
 						} catch (error) {
 							log.error(`File rename failed. ${error}`);
 							alert(`File rename failed. ${error}`);
 						}
 					} else {
-						log.debug('default project file NOT renamed', await app.vault.getAbstractFileByPath(defaultProjectFolder + '/' + defaultProjectFileName));
+						log.debug('default project file already at correct path', newPath);
 					}
 				}
-				break;
-
 			}
-
 		}
-		currentDefault = getDefaultFolder() + '/' + getSettings().defaultProjectName;
+		currentDefault = getDefaultFolder() + '/' + settings.defaultProjectName;
 	}
 
 	function defaultFolder(element: HTMLElement) {
@@ -60,7 +76,6 @@ import { db } from '@/db/dexie'
 			.addSearch((search) => {
 				search.setPlaceholder('Select or Create folder')
 					.setValue(getDefaultFolder());
-				search.setValue(myProjectsOptions);
 				new FolderSuggest(search.inputEl, plugin.app);
 
 				// OnChange: Only update the UI, DO NOT create folder here
@@ -75,7 +90,7 @@ import { db } from '@/db/dexie'
 				search.inputEl.addEventListener('keydown', async (e: KeyboardEvent) => {
 					if (e.key === 'Enter') {
 						const value = search.inputEl.value;
-						const newFolder = await validateNewFolder(value, 'Default');
+						const newFolder = await validateNewFolder(plugin.app, value, 'Default');
 						if (newFolder) {
 							updateSettings({ TickTickTasksFilePath: newFolder });
 							await ensureCorrectDefaultPaths();
@@ -128,13 +143,27 @@ import { db } from '@/db/dexie'
 
 	async function confirmUpdateWorld() {
 		showUpdateWorldModal = false;
-		const defaultProjectFolder = getDefaultFolder();
+		const settings = getSettings();
 
 		for (const file of filesToMove) {
-			//The default project gets moved as soon as they select it.
 			try {
-				const newPath = defaultProjectFolder + '/' + file.name;
+				let targetFolder = getDefaultFolder();
+
+				if (settings.keepProjectFolders) {
+					const defaultProjectId = await plugin.fileTaskQueries.getDefaultProjectForFile(file.path);
+					if (defaultProjectId) {
+						const folderPath = await plugin.folderSyncService.getFolderPathForProject(defaultProjectId);
+						if (folderPath) {
+							targetFolder = folderPath;
+						}
+					}
+				}
+
+				const newPath = targetFolder ? `${targetFolder}/${file.name}` : file.name;
 				if (file.path !== newPath) {
+					if (targetFolder) {
+						await plugin.folderSyncService.ensureFolderExists(targetFolder);
+					}
 					await plugin.app.vault.rename(file, newPath);
 				}
 			} catch (error) {
@@ -146,35 +175,61 @@ import { db } from '@/db/dexie'
 	}
 
 	async function getMDWithTasks(): Promise<TFile[]> {
-		const markdownFiles = plugin.app.vault.getMarkdownFiles();
 		const files: TFile[] = [];
 		const settings = getSettings();
 
-		let countForDebug = 0;
-		for (const file of markdownFiles) {
-			if (isDefaultProjectFile(file.path)) {
+		// Find plugin-managed files from the database (covers files in the old
+		// default folder and any group subfolders)
+		const allFileRecords = await db.files.toArray();
+		const managedFiles = allFileRecords.filter(f => !!f.defaultProjectId);
+
+		for (const fileRecord of managedFiles) {
+			if (await isDefaultProjectFile(fileRecord.path)) {
 				continue;
 			}
+
+			const file = plugin.app.vault.getAbstractFileByPath(fileRecord.path);
+			if (!(file instanceof TFile)) {
+				continue;
+			}
+
 			try {
-				countForDebug++;
 				const fileMap = new NewFileMap(plugin.app, plugin, file);
 				await fileMap.init();
 
-				if (fileMap.hasTasks(settings.enableFullVaultSync, countForDebug)) {
+				if (fileMap.hasTasks(settings.enableFullVaultSync)) {
 					files.push(file);
 				}
 			} catch (e) {
-				log.error(`Failed to process file ${file.path}`, e);
+				log.error(`Failed to process file ${fileRecord.path}`, e);
 			}
 		}
 		return files;
 	}
 
-	export const isDefaultProjectFile = (path: string): boolean => {
+	export const isDefaultProjectFile = async (path: string): Promise<boolean> => {
+		const settings = getSettings();
 		const defaultFolder = getDefaultFolder();
-		const fileName = `${getSettings().defaultProjectName}.md`;
+		const fileName = `${settings.defaultProjectName}.md`;
 		const expectedPath = defaultFolder ? `${defaultFolder}/${fileName}` : fileName;
-		return path === expectedPath;
+
+		// Direct match at root of default folder
+		if (path === expectedPath) {
+			return true;
+		}
+
+		// When keepProjectFolders is enabled, the default project file may be
+		// in a group subfolder. Check by matching the default project ID.
+		if (settings.keepProjectFolders && settings.defaultProjectId) {
+			try {
+				const fileRecord = await db.files.get(path);
+				return fileRecord?.defaultProjectId === settings.defaultProjectId;
+			} catch {
+				return false;
+			}
+		}
+
+		return false;
 	};
 
 </script>
@@ -244,12 +299,12 @@ import { db } from '@/db/dexie'
 
 	<!-- MODAL DIALOG: simple conditional rendering -->
 	{#if showUpdateWorldModal}
-		<div class="local-modal-backdrop" on:click={closeModal}></div>
+		<div class="local-modal-backdrop" role="button" tabindex="0" on:click={closeModal} on:keydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); closeModal(); } }} aria-label="Close"></div>
 		<div class="local-modal-dialog">
 			<div class="local-modal-content">
 				<h2>Update the World</h2>
 				{#if filesToMove.length > 0}
-					<p>The following files contain tasks and will be moved to <strong>/{getDefaultFolder()}</strong>:
+					<p>The following files contain tasks and will be moved to <strong>/{getDefaultFolder()}</strong>{getSettings().keepProjectFolders ? ' (organized by project groups)' : ''}:
 					</p>
 					<ul class="file-list">
 						{#each filesToMove as file}

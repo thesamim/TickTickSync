@@ -10,7 +10,7 @@
  * - Backup operations
  */
 
-import { App, Notice } from 'obsidian';
+import { App, Notice, TFile } from 'obsidian';
 import type TickTickSync from '@/main';
 import type { ITask } from '@/api/types/Task';
 import { FileTaskQueries } from '@/repositories/FileTaskQueries';
@@ -34,6 +34,7 @@ export class TaskOperationsService {
 	async closeTask(taskId: string): Promise<void> {
 		try {
 			const projectId = await this.plugin.taskRepository.closeTask(taskId);
+			if (!projectId) { throw new Error('Project ID not found'); }
 			await this.plugin.tickTickRestAPI?.CloseTask(taskId, projectId);
 			await this.plugin.saveSettings();
 			new Notice(`Task ${taskId} is closed.`);
@@ -49,6 +50,7 @@ export class TaskOperationsService {
 	async reopenTask(taskId: string): Promise<void> {
 		try {
 			const projectId = await this.plugin.taskRepository.reopenTask(taskId);
+			if (!projectId) { throw new Error('Project ID not found'); }
 			await this.plugin.tickTickRestAPI?.OpenTask(taskId, projectId);
 			await this.plugin.fileOperation.uncompleteTaskInTheFile(taskId);
 			await this.plugin.saveSettings();
@@ -90,8 +92,11 @@ export class TaskOperationsService {
 
 				// Cache the title without the URL (for content comparison)
 				if (updatedTask) {
-					updatedTask.title = await this.plugin.taskParser?.stripOBSUrl(updatedTask.title);
-					await this.plugin.taskRepository.upsertTask(updatedTask, null, Date.now());
+					const stripped = this.plugin.taskParser?.stripOBSUrl(updatedTask.title);
+					if (stripped !== undefined) {
+						updatedTask.title = stripped;
+					}
+					await this.plugin.taskRepository.upsertTask(updatedTask, undefined, Date.now());
 				}
 			}
 
@@ -108,13 +113,16 @@ export class TaskOperationsService {
 	 */
 	async forceUpdateTasksInFile(filepath: string): Promise<void> {
 		try {
-			const file = this.app.vault.getAbstractFileByPath(filepath);
-			if (!file) {
+			const abstractFile = this.app.vault.getAbstractFileByPath(filepath);
+			if (!abstractFile) {
 				log.error(`File ${filepath} not found`);
 				return;
 			}
-
-			const content = await this.app.vault.read(file);
+			if (!(abstractFile instanceof TFile)) {
+				log.error(`${filepath} is not a valid file`);
+				return;
+			}
+			const content = await this.app.vault.read(abstractFile);
 			const lines = content.split('\n');
 
 			for (let lineNumber = 0; lineNumber < lines.length; lineNumber++) {
@@ -124,7 +132,7 @@ export class TaskOperationsService {
 				if (this.plugin.taskParser?.hasTickTickId(lineText) &&
 				    this.plugin.taskParser?.hasTickTickTag(lineText)) {
 
-					const taskId = this.plugin.taskParser.getTickTickId(lineText);
+					const taskId = this.plugin.taskParser.getTickTickId(lineText) ?? '';
 					const savedTask = await this.plugin.taskRepository.loadTaskById(taskId);
 
 					if (taskId && savedTask) {
@@ -148,7 +156,7 @@ export class TaskOperationsService {
 						const updatedTask = await this.plugin.tickTickRestAPI?.updateTask(lineTask) as ITask;
 
 						// Update in database
-						await this.plugin.taskRepository.upsertTask(updatedTask, null, Date.now());
+						await this.plugin.taskRepository.upsertTask(updatedTask, undefined, Date.now());
 					}
 				}
 			}
@@ -220,7 +228,7 @@ export class TaskOperationsService {
 			}
 		} catch (error) {
 			log.error('An error occurred while creating TickTick backup:', error);
-			new Notice('An error occurred while creating TickTick backup: ' + error, 5000);
+			new Notice('An error occurred while creating TickTick backup: ' + (error instanceof Error ? error.message : String(error)), 5000);
 			throw error;
 		}
 	}
@@ -235,7 +243,7 @@ export class TaskOperationsService {
 
 			// Update in database
 			task.projectId = newProjectId;
-			await this.plugin.taskRepository.upsertTask(task, foundInAnotherFile);
+			await this.plugin.taskRepository.upsertTask(task, foundInAnotherFile ?? undefined);
 			await this.plugin.tickTickRestAPI?.updateTask(task);
 
 			log.debug(`Moved task ${task.id} from project ${oldProjectId} to ${newProjectId}`);
@@ -256,11 +264,11 @@ export class TaskOperationsService {
 			}
 
 			const oldParentId = task.parentId;
-			await this.plugin.tickTickRestAPI?.moveTaskParent(taskId, oldParentId, newParentId, projectId);
+			await this.plugin.tickTickRestAPI?.moveTaskParent(taskId, oldParentId ?? '', newParentId ?? '', projectId);
 
 			// Update in database
-			task.parentId = newParentId;
-			await this.plugin.taskRepository.upsertTask(task, null, Date.now());
+			task.parentId = newParentId ?? '';
+			await this.plugin.taskRepository.upsertTask(task, undefined, Date.now());
 
 			log.debug(`Moved task ${taskId} from parent ${oldParentId} to ${newParentId}`);
 		} catch (error) {
@@ -301,7 +309,7 @@ export class TaskOperationsService {
 			const updatedTask = await this.plugin.tickTickRestAPI?.updateTask(task);
 
 			if (updatedTask) {
-				await this.plugin.taskRepository.upsertTask(updatedTask, null, Date.now());
+				await this.plugin.taskRepository.upsertTask(updatedTask, undefined, Date.now());
 			}
 
 			log.debug(`Updated priority for task ${taskId} to ${priority}`);
@@ -329,7 +337,7 @@ export class TaskOperationsService {
 			const updatedTask = await this.plugin.tickTickRestAPI?.updateTask(task);
 
 			if (updatedTask) {
-				await this.plugin.taskRepository.upsertTask(updatedTask, null, Date.now());
+				await this.plugin.taskRepository.upsertTask(updatedTask, undefined, Date.now());
 			}
 
 			log.debug(`Added tags to task ${taskId}:`, tags);
@@ -356,7 +364,7 @@ export class TaskOperationsService {
 			const updatedTask = await this.plugin.tickTickRestAPI?.updateTask(task);
 
 			if (updatedTask) {
-				await this.plugin.taskRepository.upsertTask(updatedTask, null, Date.now());
+				await this.plugin.taskRepository.upsertTask(updatedTask, undefined, Date.now());
 			}
 
 			log.debug(`Removed tags from task ${taskId}:`, tags);

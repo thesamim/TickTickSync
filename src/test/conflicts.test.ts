@@ -6,7 +6,7 @@ function makeTask(overrides: Partial<LocalTask> = {}): LocalTask {
 	return {
 		localId: 'test-local',
 		taskId: 'test-task',
-		task: { id: 'test-task', title: 'test', projectId: '' } as any,
+		task: { id: 'test-task', title: 'test', projectId: '' } as unknown,
 		updatedAt: 1000,
 		lastModifiedByDeviceId: 'device-a',
 		file: '',

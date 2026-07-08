@@ -5,6 +5,17 @@ import type { TickTickRestAPI } from '@/services/TicktickRestAPI';
 import type { LocalTask, SyncMeta } from "@/db/schema";
 import log from '@/utils/logger';
 
+/** Resolve a task identifier that may appear as `id` or `taskId`. */
+function resolveTaskId(task: { id?: string; taskId?: string }): string | undefined {
+	return task.id || task.taskId;
+}
+
+/** Resolve a deletion entry that may be a string or an object with `id`/`taskId`. */
+function resolveDeletionItem(item: string | { id?: string; taskId?: string }): string | null {
+	if (!item) return null;
+	return typeof item === 'string' ? item : item.taskId || item.id || null;
+}
+
 export async function pullFromTickTick(
 	ticktickRestApi: TickTickRestAPI,
 	meta: SyncMeta,
@@ -18,14 +29,14 @@ export async function pullFromTickTick(
 	let applied = 0;
 
 	// 1️⃣ Bulk fetch local tasks for all updates
-	const remoteIds = update.map(rt => rt.id || (rt as any).taskId).filter(Boolean);
+	const remoteIds = update.map(rt => resolveTaskId(rt as { id?: string; taskId?: string })).filter((id): id is string => !!id);
 	const localTasks = await db.tasks.where("taskId").anyOf(remoteIds).toArray();
 	const localMap = new Map(localTasks.map(lt => [lt.taskId, lt]));
 
 	const toPut: LocalTask[] = [];
 
 	for (const rt of update) {
-		const remoteId = rt.id || (rt as any).taskId;
+		const remoteId = resolveTaskId(rt);
 		if (!remoteId) {
 			log.warn("[TickTickSync] Invalid task in update", rt);
 			continue;
@@ -79,10 +90,7 @@ export async function pullFromTickTick(
 	}
 
 	// 2️⃣ Handle deletions
-	const deletionIds = deletedIds.map(taskIdOrObj => {
-		if (!taskIdOrObj) return null;
-		return typeof taskIdOrObj === 'string' ? taskIdOrObj : (taskIdOrObj as any).taskId || (taskIdOrObj as any).id;
-	}).filter((id): id is string => !!id && typeof id === 'string');
+	const deletionIds = deletedIds.map(taskIdOrObj => resolveDeletionItem(taskIdOrObj as string | { id?: string; taskId?: string })).filter((id): id is string => !!id && typeof id === 'string');
 
 	if (deletionIds.length > 0) {
 		const localToDelete = await db.tasks.where("taskId").anyOf(deletionIds).toArray();

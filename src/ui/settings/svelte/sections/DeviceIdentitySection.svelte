@@ -83,6 +83,10 @@
 		await plugin.saveSettings();
 	}
 
+	function focus(node: HTMLElement) {
+		node.focus();
+	}
+
 	function handleKeydown(event: KeyboardEvent) {
 		if (event.key === 'Enter') {
 			saveDeviceLabel();
@@ -116,7 +120,7 @@
 							bind:value={editedLabel}
 							on:keydown={handleKeydown}
 							style="flex: 1; padding: 0.25em 0.5em;"
-							autofocus
+							use:focus
 						/>
 						<button
 							class="mod-cta"

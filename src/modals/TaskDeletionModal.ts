@@ -13,10 +13,10 @@ export class TaskDeletionModal extends Modal {
 	cancelLabel = 'Cancel';
 	confirmLabel = 'Confirm Deletion';
 	items: DeletionItem [] = [];
-	result: boolean;
+	result!: boolean;
 	reason: string;
 	onSubmit: (result: boolean) => void;
-	resolvePromise: (value: (PromiseLike<boolean> | boolean)) => void;
+	resolvePromise!: (value: (PromiseLike<boolean> | boolean)) => void;
 
 	constructor(app: App, items: DeletionItem[], reason: string, onSubmit: (result: boolean) => void) {
 		super(app);
@@ -68,7 +68,7 @@ export class TaskDeletionModal extends Modal {
 		})
 			.addButton(confirmBtn => {
 				confirmBtn.setClass('ts_button');
-				confirmBtn.setWarning();
+				confirmBtn.setDestructive();
 				confirmBtn.setButtonText(this.confirmLabel);
 				confirmBtn.onClick(() => {
 					this.result = true;

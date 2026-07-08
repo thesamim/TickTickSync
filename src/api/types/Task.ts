@@ -1,11 +1,11 @@
-import { date_holder_type } from '../../dateMan';
+import type { date_holder_type } from '@/dateMan';
 
 export interface ITask {
 	id: string;
 	projectId: string;
 	childIds: string[];
 	parentId: string;
-	sortOrder: any;
+	sortOrder: number;
 	title: string;
 	//New to the game: The Task Description. It's not the content, the title or the items!
 	desc: string;
@@ -16,12 +16,12 @@ export interface ITask {
 	isFloating?: boolean;
 	isAllDay: boolean;
 	reminder: string; // we only get a set
-	reminders: any[];
+	reminders: string[];
 	repeatFirstDate?: string;
 	repeatFlag: string;
-	exDate?: any[];
+	exDate?: string[];
 	completedTime?: string;
-	completedUserId?: any;
+	completedUserId?: string;
 	repeatTaskId?: string;
 	priority: number;
 	status: number;
@@ -31,16 +31,16 @@ export interface ITask {
 	etag?: string;
 	deleted: number;
 	createdTime?: string;
-	creator?: any;
+	creator?: string;
 	repeatFrom?: string;
-	focusSummaries?: any[];
+	focusSummaries?: unknown[];
 	columnId?: string;
 	kind?: string;
-	assignee?: any;
+	assignee?: unknown;
 	isDirty?: boolean;
 	local?: boolean;
-	remindTime?: any;
-	tags?: any[];
+	remindTime?: string;
+	tags?: string[];
 	//This is not a TickTick data element. It must be managed separately.
 	dateHolder: date_holder_type;
 	lineHash: string;

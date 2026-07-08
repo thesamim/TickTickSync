@@ -16,10 +16,10 @@ export function generateDeviceId(): string {
 }
 
 export async function detectDeviceLabel(): Promise<string> {
-	if (Platform.isDesktopApp) {
+	if (Platform.isDesktop) {
+		const os = await import("os");
 		return (
-			// eslint-disable-next-line @typescript-eslint/no-var-requires
-			require("os").hostname() ||
+			os.hostname() ||
 			(Platform.isMacOS
 				? "Mac"
 				: Platform.isWin
@@ -30,7 +30,7 @@ export async function detectDeviceLabel(): Promise<string> {
 		);
 	} else {
 		try {
-			const devicePlugin = (window as any).Capacitor?.Plugins?.Device;
+			const devicePlugin = (window as { Capacitor?: { Plugins?: { Device: { getInfo(): Promise<{ name?: string }> } } } }).Capacitor?.Plugins?.Device;
 			if (devicePlugin) {
 				const info = await devicePlugin.getInfo();
 				return info?.name || 'Mobile Device';

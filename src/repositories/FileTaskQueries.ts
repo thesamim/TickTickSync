@@ -9,7 +9,6 @@
 import { db } from "@/db/dexie";
 import { getAllFiles, getFile } from "@/db/files";
 import type { LocalTask } from "@/db/schema";
-import type { ITask } from "@/api/types/Task";
 import log from "@/utils/logger";
 import { getSettings } from '@/settings';
 

@@ -1,6 +1,6 @@
-export function isValid(variable: any) {
+export function isValid(variable: unknown) {
 	// log.debug(`${variable} is ${typeof variable}`)
-	let retValue = false;
+	let retValue: boolean;
 	if (variable != null && variable !== 'undefined') {
 		if (Array.isArray(variable) && variable.length > 0) {
 			retValue = true;

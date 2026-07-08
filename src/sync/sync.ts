@@ -45,7 +45,7 @@ log.debug("[TickTickSync] pulled", pulled);
 	} catch (err) {
 		log.error("[TickTickSync] sync failed", err);
 		logSyncEvent("unknown", "sync:error", {
-			message: err.message
+			message: (err as Error).message
 		});
 	} finally {
 		syncing = false;

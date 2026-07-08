@@ -64,7 +64,7 @@ export class TickTickService {
 	}
 
 	backup() {
-		this.tickTickSync?.backupTickTickAllResources();
+		void this.tickTickSync?.backupTickTickAllResources();
 	}
 
 	//MB can be static
@@ -82,7 +82,7 @@ export class TickTickService {
 			const result = await api.login();
 			let error: { operation: string, statusCode: string, errorMessage: string };
 			if (!result) {
-				error = api.lastError;
+				error = api.lastError as { operation: string; statusCode: string; errorMessage: string; };
 				const errorString = 'Login Failed. ' + JSON.stringify(error.errorMessage, null, 4);
 				new Notice(errorString, 5000);
 				log.error("Login Fail!: ", errorString);
@@ -125,11 +125,11 @@ export class TickTickService {
 						const mostRecentModifiedTimeDate = new Date(mostRecentModifiedTime);
 						log.debug(`Most recent modified time: ${mostRecentModifiedTime}`);
 						const meta = await db.meta.get("sync");
-						const lastFullSync = meta?.lastFullSync;
-						const lastDeltaSync = meta?.lastDeltaSync;
+						const lastFullSync = meta?.lastFullSync ?? 0;
+						const lastDeltaSync = meta?.lastDeltaSync ?? 0;
 						const lastSync = lastFullSync > lastDeltaSync ? lastFullSync : lastDeltaSync;
 						const lastSyncDate = lastSync ? new Date(lastSync) : null;
-						if (mostRecentModifiedTimeDate > lastSyncDate) {
+						if (lastSyncDate && mostRecentModifiedTimeDate > lastSyncDate) {
 							log.debug(`TT Folder move detected. Moving all project files to new location.`)
 							await this.reorganizeFilesToFolders();
 
@@ -246,15 +246,15 @@ export class TickTickService {
 				//TODO: IS this the right place to do this?
 				if (groupChange.newGroupId) {
 					log.debug("group move ", groupChange)
-					const project = await getProjectById(groupChange.newProjectId);
+					const project = await getProjectById(groupChange.newProjectId!);
 					if (!project) {
 						log.error("No project found for ID: ", groupChange.newProjectId)
 						return false;
 					}
 					if (project) {
 						project.groupId = groupChange.newGroupId
-						project.name = groupChange.newProjectName
-						const response = await this.plugin.tickTickRestAPI?.updateProject(project)
+						project.name = groupChange.newProjectName ?? ''
+						await this.plugin.tickTickRestAPI?.updateProject(project)
 						const aProjects: IProject[] = [];
 						aProjects.push(project);
 						await upsertProjects(aProjects)
@@ -268,22 +268,23 @@ export class TickTickService {
 				for (const currentTask of tasks) {
 					try {
 						const task = await this.plugin.taskRepository.loadTaskById(currentTask.taskId);
-						if (task && task.projectId !== groupChange.newProjectId) {
+						const newProjectId = groupChange.newProjectId;
+						if (task && newProjectId && task.projectId !== newProjectId) {
 							// Update project in TickTick
 							await this.plugin.tickTickRestAPI?.moveTaskProject(
 								task,
 								task.projectId,
-								groupChange.newProjectId
+								newProjectId
 							);
 
 							// Update local cache
-							task.projectId = groupChange.newProjectId;
+							task.projectId = newProjectId;
 							await this.plugin.taskRepository.upsertTask(task, filePath, Date.now());
 
-							log.debug(`Moved task ${task} to project ${groupChange.newProjectId}`);
+							log.debug(`Moved task ${task.id} to project ${groupChange.newProjectId}`);
 						}
 					} catch (error) {
-						log.error(`Error moving task ${currentTask} to new project:`, error);
+						log.error(`Error moving task ${currentTask.taskId} to new project:`, error);
 					}
 				}
 
@@ -313,8 +314,9 @@ export class TickTickService {
 
 	async lineModifiedTaskCheck(filepath: string, lastLineText: string, lastLine: number): Promise<boolean> {
 		return await doWithLock(LOCK_TASKS, async () => {
-			const file = this.plugin.app.vault.getAbstractFileByPath(filepath) as TFile;
-				const fileMap = new NewFileMap(this.plugin.app, this.plugin, file);
+			const file = this.plugin.app.vault.getAbstractFileByPath(filepath);
+			if (!(file instanceof TFile)) { return false; }
+			const fileMap = new NewFileMap(this.plugin.app, this.plugin, file);
 			await fileMap.init();
 			//NEW: Use TaskModificationDetector
 			return await this.plugin.taskModificationDetector.checkLineForModifications(filepath, lastLineText, lastLine, fileMap);
@@ -404,7 +406,7 @@ export class TickTickService {
 				const physicalTaskIds = fileMap.getTasks();
 				log.debug(`[checkDB] File ${filepath}: dbTaskIds=${dbTaskIds.length}, physicalTaskIds=${physicalTaskIds.length}, allTaskIds=${Array.from(new Set([...dbTaskIds, ...physicalTaskIds])).length}`);
 				//NEW: Use FileTaskQueries for duplicate detection
-				const duplicates = await this.plugin.fileTaskQueries.findDuplicateTasks(filepath);
+				const duplicates = await this.plugin.fileTaskQueries.findDuplicateTasks() as unknown as Array<{ taskId: string }>;
 				if (duplicates.length > 0) {
 					log.warn(`Found ${duplicates.length} duplicate tasks in ${filepath}:`, duplicates.map(d => d.taskId));
 				}
@@ -460,7 +462,7 @@ export class TickTickService {
 						// tickTickTask was null/undefined — can't confirm with API
 						log.debug(`[checkDB] NULL/UNDEFINED from TickTick API for ${taskId} — falling through to local-state check`);
 					} catch (error) {
-						if (error.message?.includes('404')) {
+						if (error instanceof Error && error.message?.includes('404')) {
 							log.debug(`[checkDB] DELETE task ${taskId} — 404 from TickTick API (task not found)`);
 							tasksToDelete.push({ filepath, taskId: taskId, title: taskId });
 							continue;
@@ -519,8 +521,8 @@ export class TickTickService {
 
 		// Scan TickTick for tasks that have no local reference at all
 		try {
-			const allTickTickData = await this.plugin.tickTickRestAPI?.getAllTasks() || {};
-			const allTickTickTasks: any[] = allTickTickData.update || [];
+			const allTickTickData = (await this.plugin.tickTickRestAPI?.getAllTasks()) as unknown as { update: ITask[] } | undefined;
+			const allTickTickTasks = (allTickTickData?.update || []) as Array<ITask & { taskId?: string }>;
 			log.debug(`[checkDB] TickTick-wide scan: got ${allTickTickTasks.length} live tasks from API`);
 			if (allTickTickTasks.length > 0) {
 				const resolveIds = new Set(tasksToResolve.map(t => t.taskId));
@@ -660,9 +662,9 @@ export class TickTickService {
 		await this.plugin.taskOperationsService.reopenTask(taskId);
 	}
 
-	private async syncTickTickToObsidian(): Promise<boolean> {
-		return this.tickTickSync.syncTickTickToObsidian();
-	}
+	// private async syncTickTickToObsidian(): Promise<boolean> {
+	// 	return this.tickTickSync.syncTickTickToObsidian();
+	// }
 
 	/**
 	 * @param bForceUpdate
@@ -684,11 +686,11 @@ export class TickTickService {
 		//Check for duplicates before we do anything
 		try {
 			// Build task ID list from metadata for file-level duplicate scan
-			const taskList: Record<string, boolean> = {};
+			const taskList: Record<string, string> = {};
 			for (const [, metadata] of Object.entries(newFilesToSync)) {
 				if (!metadata.TickTickTasks) continue;
 				for (const taskDetail of metadata.TickTickTasks) {
-					taskList[taskDetail.taskId] = true;
+					taskList[taskDetail.taskId] = taskDetail.taskId;
 				}
 			}
 
@@ -710,7 +712,7 @@ export class TickTickService {
 
 			if (fileResult) {
 				for (const [taskId, files] of Object.entries(fileResult)) {
-					const fileList = files as string[];
+					const fileList = files;
 					if (fileList.length > 1) {
 						const extraFiles = fileList.slice(1);
 						if (duplicates[taskId]) {
@@ -735,17 +737,18 @@ export class TickTickService {
 
 				if (!resolved) {
 					log.warn('User cancelled duplicate resolution. Sync aborted.');
-					new Notice('Sync aborted. Please fix duplicates manually in MetaData to prevent data corruption.', 10000);
+					new Notice('Sync aborted. Please fix duplicates manually in metadata to prevent data corruption.', 10000);
 					return;
 				}
 
 				// Re-fetch metadata after deletions if user chose to proceed
 				newFilesToSync = await this.plugin.fileMetadataService?.getAllFileMetadata();
+				if (!newFilesToSync) return;
 			}
 
 		} catch (error) {
 			log.error(error);
-			new Notice(`Duplicate check failed:  ${Error}`, 5000);
+			new Notice(`Duplicate check failed: ${error instanceof Error ? error.message : String(error)}`, 5000);
 			return;
 		}
 

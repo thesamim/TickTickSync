@@ -9,4 +9,4 @@ export class MarkdownRenderChild {}
 export class Modal {}
 export class Editor {}
 export class MarkdownView {}
-export type MarkdownFileInfo = any;
+export type MarkdownFileInfo = unknown;

@@ -1,7 +1,6 @@
 import TickTickSync from '@/main';
 import { type MarkdownPostProcessorContext } from 'obsidian';
 import { getSettings } from '@/settings';
-import log from '@/utils/logger';
 
 export class TaskDisplayProcessor {
 	private readonly plugin: TickTickSync;
@@ -50,16 +49,16 @@ export class TaskDisplayProcessor {
 		let tries = 0;
 		const scan = () => {
 			this.scanAll();
-			if (++tries < 10) requestAnimationFrame(scan);
+			if (++tries < 10) window.requestAnimationFrame(scan);
 		};
-		requestAnimationFrame(scan);
+		window.requestAnimationFrame(scan);
 	}
 
 	private scanAll(): void {
-		for (const el of document.querySelectorAll<HTMLElement>(
+		for (const el of Array.from(activeDocument.querySelectorAll(
 			'li, div.HyperMD-task-line'
-		)) {
-			this.applyToElement(el);
+		))) {
+			this.applyToElement(el as HTMLElement);
 		}
 	}
 
@@ -73,8 +72,9 @@ export class TaskDisplayProcessor {
 				if (el.matches('li') || el.matches('div.HyperMD-task-line')) {
 					this.applyToElement(el);
 				} else {
-					for (const child of el.querySelectorAll<HTMLElement>('li, div.HyperMD-task-line')) {
-						this.applyToElement(child);
+					const children = el.querySelectorAll('li, div.HyperMD-task-line');
+					for (let i = 0; i < children.length; i++) {
+						this.applyToElement(children[i] as HTMLElement);
 					}
 				}
 			}
@@ -83,17 +83,17 @@ export class TaskDisplayProcessor {
 
 		this.observer = new MutationObserver((mutations) => {
 			for (const mutation of mutations) {
-				for (const node of mutation.addedNodes) {
-					if (!(node instanceof HTMLElement)) continue;
+				for (const node of Array.from(mutation.addedNodes)) {
+					if (!(node.instanceOf(HTMLElement))) continue;
 					candidates.add(node);
 				}
 			}
 			if (!pending) {
 				pending = true;
-				requestAnimationFrame(flush);
+				window.requestAnimationFrame(flush);
 			}
 		});
-		this.observer.observe(document.body, { childList: true, subtree: true });
+		this.observer.observe(activeDocument.body, { childList: true, subtree: true });
 	}
 
 	private processContainer(el: HTMLElement): void {

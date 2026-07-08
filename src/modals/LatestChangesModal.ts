@@ -6,11 +6,10 @@ export class LatestChangesModal extends Modal {
 	cancelLabel = 'Cancel';
 	confirmLabel = 'Got it.';
 	message = '';
-	result: boolean;
-	intro = '<p>The following are user experience affecting changes from prior versions of TickTickSync.</p><p><strong>Strongly</strong> recommend that you take a backup ASAP.</p>';
+	result = false;
 	notableChanges: string[][];
 	onSubmit: (result: boolean) => void;
-	resolvePromise: (value: (PromiseLike<boolean> | boolean)) => void;
+	resolvePromise!: (value: (PromiseLike<boolean> | boolean)) => void;
 
 
 	constructor(app: App, notableChanges: string[][], onSubmit: (result: boolean) => void) {
@@ -38,13 +37,13 @@ export class LatestChangesModal extends Modal {
 			lineItem.createEl('a', { href: `${notableChangesURL}${notableChange[2]}`, text: `${notableChange[0]}` });
 			let holder = lineItem.createEl('ol');
 			const changeLines = notableChange[1].split('\n');
-			changeLines.forEach(line => {holder.createEl('div', { text: `${line}` });})
+			changeLines.forEach(line => {holder.createDiv({ text: `${line}` });})
 		});
 
 		new Setting(contentEl)
 			.addButton(confirmBtn => {
 				confirmBtn.setClass('ts_button');
-				confirmBtn.setWarning();
+				confirmBtn.setDestructive();
 				confirmBtn.setButtonText(this.confirmLabel);
 				confirmBtn.onClick(() => {
 					this.result = true;

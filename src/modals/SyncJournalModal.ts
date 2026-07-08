@@ -1,9 +1,10 @@
 import { App, Modal, Setting } from 'obsidian';
 import { getSyncJournal, clearJournal } from '@/sync/journal';
+import type { JournalEntry } from '@/db/schema';
 import { getSettings } from '@/settings';
 
 export class SyncJournalModal extends Modal {
-	entries: any[] = [];
+	entries: JournalEntry[] = [];
 	loading = true;
 	deviceMap: Record<string, string> = {};
 
@@ -13,7 +14,7 @@ export class SyncJournalModal extends Modal {
 
 	async onOpen() {
 		const { titleEl, contentEl } = this;
-		titleEl.setText('Sync Journal');
+		titleEl.setText('Sync journal');
 
 		const settings = getSettings();
 		for (const d of settings.devices) {
@@ -41,53 +42,39 @@ export class SyncJournalModal extends Modal {
 	render(contentEl: HTMLElement) {
 		contentEl.empty();
 
-		const count = contentEl.createEl('div', {
+		const count = contentEl.createDiv({
 			text: `${this.entries.length} journal entr${this.entries.length === 1 ? 'y' : 'ies'}`
 		});
-		count.style.marginBottom = '0.5em';
-		count.style.fontWeight = 'bold';
+		count.addClass('sync-journal-count');
 
-		const container = contentEl.createEl('div');
-		container.style.maxHeight = '400px';
-		container.style.overflowY = 'auto';
-		container.style.border = '1px solid var(--background-modifier-border)';
-		container.style.borderRadius = '4px';
-		container.style.padding = '0.5em';
-		container.style.marginBottom = '1em';
-		container.style.fontSize = '12px';
-		container.style.fontFamily = 'monospace';
+		const container = contentEl.createDiv();
+		container.addClass('sync-journal-container');
 
 		if (this.entries.length === 0) {
-			container.createEl('div', { text: 'No journal entries found.' });
+			container.createDiv({ text: 'No journal entries found.' });
 		} else {
 			for (const entry of this.entries) {
-				const row = container.createEl('div');
-				row.style.borderBottom = '1px solid var(--background-modifier-border)';
-				row.style.padding = '0.4em 0';
+				const row = container.createDiv();
+				row.addClass('sync-journal-row');
 
 				const ts = new Date(entry.timestamp).toLocaleString();
 				const label = this.resolveLabel(entry.deviceId ?? '');
 				const action = entry.action ?? '?';
 
-				row.createEl('div', {
+				row.createDiv({
 					text: `[${ts}] [${label}] ${action}`
 				});
 
 				if (entry.details) {
 					const detailsEl = row.createEl('pre');
-					detailsEl.style.margin = '0.2em 0 0 1em';
-					detailsEl.style.fontSize = '11px';
-					detailsEl.style.color = 'var(--text-muted)';
-					detailsEl.style.whiteSpace = 'pre-wrap';
+					detailsEl.addClass('sync-journal-details');
 					detailsEl.setText(JSON.stringify(entry.details, null, 2));
 				}
 			}
 		}
 
-		const buttonGroup = contentEl.createEl('div');
-		buttonGroup.style.display = 'flex';
-		buttonGroup.style.gap = '0.5em';
-		buttonGroup.style.justifyContent = 'flex-end';
+		const buttonGroup = contentEl.createDiv();
+		buttonGroup.addClass('sync-journal-btn-group');
 
 		new Setting(buttonGroup)
 			.addButton(btn => {
@@ -96,7 +83,7 @@ export class SyncJournalModal extends Modal {
 				btn.onClick(() => this.saveToJson());
 			})
 			.addButton(btn => {
-				btn.setButtonText('Clear Journal');
+				btn.setButtonText('Clear journal');
 				btn.onClick(async () => {
 					await clearJournal();
 					this.entries = [];
@@ -113,10 +100,9 @@ export class SyncJournalModal extends Modal {
 		const jsonString = JSON.stringify(this.entries, null, 2);
 		const blob = new Blob([jsonString], { type: 'application/json' });
 		const url = URL.createObjectURL(blob);
-		const a = document.createElement('a');
-		a.href = url;
-		a.download = `sync_journal_${Date.now()}.json`;
+		const a = this.contentEl.createEl('a', { href: url, attr: { download: `sync_journal_${Date.now()}.json` } });
 		a.click();
+		a.remove();
 		URL.revokeObjectURL(url);
 	}
 

@@ -17,7 +17,7 @@ export class RecoverDeletedTasksModal extends Modal {
 	onOpen() {
 		const { titleEl, contentEl } = this;
 
-		titleEl.setText('Recover Soft-Deleted Tasks');
+		titleEl.setText('Recover soft-deleted tasks');
 
 		contentEl.createEl('p', { text: 'Select tasks to recover. Default restores to original file.' });
 
@@ -33,40 +33,36 @@ export class RecoverDeletedTasksModal extends Modal {
 			return;
 		}
 
-		const listEl = contentEl.createEl('div', { attr: { style: 'max-height: 450px; overflow-y: auto; margin-bottom: 10px;' } });
+		const listEl = contentEl.createDiv({ attr: { style: 'max-height: 450px; overflow-y: auto; margin-bottom: 10px;' } });
 
-		this.items.forEach((localTask, index) => {
+		this.items.forEach((localTask) => {
 			const task = localTask;
 			const title = task.task.title || 'Untitled';
 			const originalFile = task.file || 'No file';
 			const deletedAt = new Date(task.updatedAt).toLocaleDateString();
 
-			const section = listEl.createEl('div', { attr: { style: 'border: 1px solid var(--background-modifier-border); border-radius: 6px; padding: 8px; margin-bottom: 8px;' } });
+			const section = listEl.createDiv({ attr: { style: 'border: 1px solid var(--background-modifier-border); border-radius: 6px; padding: 8px; margin-bottom: 8px;' } });
 
 			section.createEl('strong', { text: title.length > 80 ? title.substring(0, 80) + '...' : title });
 
-			const meta = section.createEl('div', { attr: { style: 'font-size: 0.85em; color: var(--text-muted); margin: 4px 0;' } });
+			const meta = section.createDiv({ attr: { style: 'font-size: 0.85em; color: var(--text-muted); margin: 4px 0;' } });
 			meta.setText(`Original file: ${originalFile} | Deleted: ${deletedAt}`);
 
-			const btnDiv = section.createEl('div', { attr: { style: 'display: flex; gap: 6px; margin-top: 6px;' } });
+			const btnDiv = section.createDiv({ attr: { style: 'display: flex; gap: 6px; margin-top: 6px;' } });
 
 			const recoverBtn = btnDiv.createEl('button', {
-				text: 'Recover to Original File',
+				text: 'Recover to original file',
 				attr: { style: 'padding: 4px 8px; cursor: pointer;' }
 			});
 			recoverBtn.className = 'ts_button';
-			recoverBtn.addEventListener('click', async () => {
-				try {
-					await this.recoverTask(task, task.file || undefined);
-				} catch (e: any) {
-					new Notice(`Recovery failed: ${e.message}`);
-					return;
-				}
-				this.removeItem(task, section);
+			recoverBtn.addEventListener('click', () => {
+				this.recoverTask(task, task.file || undefined)
+					.then(() => this.removeItem(task, section))
+					.catch((e: unknown) => new Notice(`Recovery failed: ${(e as Error).message}`));
 			});
 
 			const customBtn = btnDiv.createEl('button', {
-				text: 'Recover to Different File...',
+				text: 'Recover to different file...',
 				attr: { style: 'padding: 4px 8px; cursor: pointer;' }
 			});
 			customBtn.className = 'ts_button';
@@ -74,30 +70,26 @@ export class RecoverDeletedTasksModal extends Modal {
 				const fileInput = section.createEl('input', {
 					attr: {
 						type: 'text',
-						placeholder: 'Enter file path (e.g. folder/task.md)',
+						placeholder: 'Enter file path (e.g. Folder/task.md)',
 						style: 'width: 100%; margin-top: 6px; padding: 4px; box-sizing: border-box;'
 					}
 				});
 				fileInput.value = task.file || '';
 
 				const confirmCustom = section.createEl('button', {
-					text: 'Confirm Recovery',
+					text: 'Confirm recovery',
 					attr: { style: 'padding: 4px 8px; margin-top: 4px; cursor: pointer;' }
 				});
 				confirmCustom.className = 'ts_button';
-				confirmCustom.addEventListener('click', async () => {
+				confirmCustom.addEventListener('click', () => {
 					const targetPath = fileInput.value.trim();
 					if (!targetPath) {
 						new Notice('Please enter a valid file path.');
 						return;
 					}
-					try {
-						await this.recoverTask(task, targetPath);
-					} catch (e: any) {
-						new Notice(`Recovery failed: ${e.message}`);
-						return;
-					}
-					this.removeItem(task, section);
+					this.recoverTask(task, targetPath)
+						.then(() => this.removeItem(task, section))
+						.catch((e: unknown) => new Notice(`Recovery failed: ${(e as Error).message}`));
 				});
 
 				customBtn.remove();

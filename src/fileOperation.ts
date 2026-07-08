@@ -2,7 +2,7 @@ import { App, Notice, TFile, TFolder } from 'obsidian';
 import TickTickSync from '@/main';
 import type { ITask } from './api/types/Task';
 import { getSettings } from '@/settings';
-import { NewFileMap, type ITaskRecord } from '@/services/NewFileMap';
+import { NewFileMap } from '@/services/NewFileMap';
 import log from '@/utils/logger';
 import type { DeletionItem } from './modals/TaskDeletionModal';
 import { TaskDeletionModal } from './modals/TaskDeletionModal';
@@ -41,11 +41,12 @@ export class FileOperation {
 	//Complete a task and mark it as completed
 	async completeTaskInTheFile(taskId: string) {
 		// Get the task file path
-		const currentTask = await this.plugin.taskRepository.loadTaskById(taskId);
 		const filepath = await this.plugin.fileMetadataService?.getFilepathForTask(taskId);
+		if (!filepath) return;
 
 		// Get the file object and update the content
 		const file = this.app.vault.getAbstractFileByPath(filepath);
+		if (!(file instanceof TFile)) return;
 		const content = await this.app.vault.read(file);
 
 		const lines = content.split('\n');
@@ -70,11 +71,12 @@ export class FileOperation {
 	// uncheck completed tasks,
 	async uncompleteTaskInTheFile(taskId: string) {
 		// Get the task file path
-		const currentTask = await this.plugin.taskRepository.loadTaskById(taskId);
 		const filepath = await this.plugin.fileMetadataService?.getFilepathForTask(taskId);
+		if (!filepath) return;
 
 		// Get the file object and update the content
 		const file = this.app.vault.getAbstractFileByPath(filepath);
+		if (!(file instanceof TFile)) return;
 		const content = await this.app.vault.read(file);
 
 		const lines = content.split('\n');
@@ -83,7 +85,7 @@ export class FileOperation {
 		for (let i = 0; i < lines.length; i++) {
 			const line = lines[i];
 			if (line.includes(taskId) && this.plugin.taskParser?.hasTickTickTag(line)) {
-				lines[i] = line.replace(/- \[(x|X)\]/g, '- [ ]');
+				lines[i] = line.replace(/- \[([xX])]/g, '- [ ]');
 				modified = true;
 				break;
 			}
@@ -103,7 +105,7 @@ export class FileOperation {
 		if (fileMap.markAllTasks()) {
 			const newContent = fileMap.getFileLines();
 			await this.app.vault.modify(fileMap.file, newContent);
-			new Notice('New Tasks will be added to TickTick on next Sync.');
+			new Notice('New tasks will be added to ticktick on next sync.');
 			// log.error("Modified: ", file?.path, new Date().toISOString());
 		}
 	}
@@ -113,10 +115,7 @@ export class FileOperation {
 	async addTickTickLinkToFile(filepath: string) {
 		// Get the file object and update the content
 		const file = this.app.vault.getAbstractFileByPath(filepath);
-		if ((file) && (file instanceof TFolder)) {
-			//leave folders alone.
-			return;
-		}
+		if (!(file instanceof TFile)) return;
 		const content = await this.app.vault.read(file);
 
 		const lines = content.split('\n');
@@ -128,13 +127,12 @@ export class FileOperation {
 				if (this.plugin.taskParser?.hasTickTickLink(line)) {
 					return;
 				}
-				const taskID = this.plugin.taskParser?.getTickTickId(line);
+				const taskID = this.plugin.taskParser?.getTickTickId(line) ?? '';
 				const taskObject = await this.plugin.taskRepository.loadTaskById(taskID);
+				if (!taskObject) continue;
 				const newLine = this.plugin.taskParser?.addTickTickLink(line, taskObject.id, taskObject.projectId);
-				lines[i] = newLine;
+				lines[i] = newLine ?? line;
 				modified = true;
-			} else {
-				continue;
 			}
 		}
 
@@ -164,7 +162,7 @@ export class FileOperation {
 
 		// Sleep for 1 second if successful to allow vault to settle
 		if (result) {
-			await new Promise(resolve => setTimeout(resolve, 1000));
+			await new Promise(resolve => window.setTimeout(resolve, 1000));
 		}
 
 		if (getSettings().debugMode) {
@@ -232,7 +230,7 @@ export class FileOperation {
 					await this.plugin.fileMetadataService.updateFileMetadata(taskFile, { defaultProjectId: projectId, TickTickTasks: [], TickTickCount: 0 });
 				}
 			} catch (error) {
-				if (error.message.includes('File already exists')) {
+				if ((error as Error).message.includes('File already exists')) {
 					log.debug('Attempting to find existing file', taskFile);
 					file = this.app.vault.getAbstractFileByPath(taskFile);
 					if (projectId) {
@@ -262,14 +260,14 @@ export class FileOperation {
 			return file;
 		} catch (error) {
 			log.error('Error on create file: ', error);
-			throw new Error(error);
+			throw new Error(String(error));
 		}
 	}
 
 	// update task content to file
-	async checkForDuplicates(fileMetadata, taskList: {} | undefined) {
-		let taskIds = {};
-		let duplicates = {};
+	async checkForDuplicates(fileMetadata: Record<string, unknown>, taskList: Record<string, string> | undefined) {
+		const taskIds: Record<string, string> = {};
+		const duplicates: Record<string, string[]> = {};
 
 		if (!fileMetadata) {
 			return;
@@ -285,10 +283,11 @@ export class FileOperation {
 					log.debug('Duplicate check Skipping ', file, ' because it\'s not found.');
 					continue;
 				}
-				if ((currentFile) && (currentFile instanceof TFolder)) {
+				if (currentFile instanceof TFolder) {
 					log.debug('Duplicate check Skipping ', file, ' because it\'s a folder.');
 					continue;
 				}
+				if (!(currentFile instanceof TFile)) { continue; }
 				try {
 					const content = await this.readFileContent(currentFile);
 					for (let taskListKey in taskList) {
@@ -309,7 +308,6 @@ export class FileOperation {
 					}
 				} catch {
 					log.error('Duplicate check Skipping ', file, ' because it\'s not readable.');
-					continue;
 				}
 
 			}
@@ -345,7 +343,7 @@ export class FileOperation {
 		await fileMap.init();
 
 		const oldContent = fileMap.getFileLines();
-		const deletedIds = fileMap.deleteTasks(tasks.map(t => (t.id || (t as any).taskId)));
+		const deletedIds = fileMap.deleteTasks(tasks.map(t => (t.id ?? '')));
 		const newContent = fileMap.getFileLines();
 
 		if (oldContent !== newContent) {
@@ -363,18 +361,21 @@ export class FileOperation {
 		// Get the task file path
 
 		const filepath = await this.plugin.fileMetadataService?.getFilepathForTask(taskId);
-		const file = this.app.vault.getAbstractFileByPath(filepath);
-		if (filepath) {
-			await this.deleteTaskFromSpecificFile(file, task, false);
-		} else {
+		if (!filepath) {
 			throw new Error(`File not found for ${task.title}. File path found is ${filepath}`);
 		}
+		const file = this.app.vault.getAbstractFileByPath(filepath);
+		if (!(file instanceof TFile)) {
+			throw new Error(`File not found for ${task.title}. File path found is ${filepath}`);
+		}
+		await this.deleteTaskFromSpecificFile(file, task, false);
 
 	}
 
 	//search TickTick_id by content
 	async searchTickTickIdFromFilePath(filepath: string, searchTerm: string): Promise<string | null> {
 		const file = this.app.vault.getAbstractFileByPath(filepath);
+		if (!(file instanceof TFile)) return null;
 		const fileContent = await this.readFileContent(file);
 		const fileLines = fileContent.split('\n');
 		let TickTickId: string | null = null;
@@ -383,7 +384,7 @@ export class FileOperation {
 			const line = fileLines[i];
 
 			if (line.includes(searchTerm)) {
-				const regexResult = /\[ticktick_id::\s*([a-zA-Z0-9]+)\]/.exec(line);
+				const regexResult = /\[ticktick_id::\s*([a-zA-Z0-9]+)]/.exec(line);
 
 				if (regexResult) {
 					TickTickId = regexResult[1];
@@ -423,18 +424,8 @@ export class FileOperation {
 	//search filepath by taskid in vault
 
 	isMarkdownFile(filename: string) {
-		// Get the extension of the file name
-		let extension = filename.split('.').pop();
-
-		//Convert the extension to lowercase (the extension of Markdown files is usually .md)
-		extension = extension.toLowerCase();
-
-		// Determine whether the extension is .md
-		if (extension === 'md') {
-			return true;
-		} else {
-			return false;
-		}
+		const extension = filename.split('.').pop() ?? '';
+		return extension.toLowerCase() === 'md';
 	}
 
 	private async synchronizeToFile(taskFile: string, projectTasks: ITask[], bUpdating: boolean) {
@@ -477,7 +468,7 @@ export class FileOperation {
 		return result;
 	}
 
-	private async syncTasks(file: TFile, tasks: ITask[], bUpdating): Promise<boolean> {
+	private async syncTasks(file: TFile, tasks: ITask[], bUpdating: boolean): Promise<boolean> {
 		try {
 			const newData = await this.persistToFile(tasks, file, bUpdating);
 			await this.app.vault.process(file, (data) => {
@@ -486,7 +477,7 @@ export class FileOperation {
 			});
 			return true;
 		} catch (error) {
-			log.error(`Could not ${bUpdating ? 'update' : 'add'} Tasks to file ${file.path} \n Error: ${error}`);
+			log.error(`Could not ${bUpdating ? 'update' : 'add'} Tasks to file ${file.path} \n Error: ${String(error)}`);
 			return false;
 		}
 	}
@@ -532,13 +523,13 @@ export class FileOperation {
 				}
 			} else {
 				//For updates doing the dateHolder mambo here because we need to make sure we get old dates....
-				const oldTask: ITask = await this.plugin.taskRepository.loadTaskById(task.id);
+				const oldTask = await this.plugin.taskRepository.loadTaskById(task.id);
 				this.plugin.dateMan?.addDateHolderToTask(task, oldTask);
 				if (oldTask) {
 					// Compare incoming task (from DB/TickTick) with current vault state
 					const vaultProjectId = await this.plugin.fileTaskQueries?.getDefaultProjectIdForFilepath(file.path);
 					const vaultParentId = fileMap.getParentId(task.id);
-					const vaultTask: ITask = { ...task, projectId: vaultProjectId, parentId: vaultParentId };
+					const vaultTask: ITask = { ...task, projectId: vaultProjectId ?? '', parentId: vaultParentId ?? '' };
 
 					//Only check for Project/Parent change if task is in cache.
 					if ((await this.plugin.taskParser?.isProjectIdChanged(vaultTask, task))) {
@@ -564,9 +555,9 @@ export class FileOperation {
 
 			// Calculate hash for change detection
 			//TODO:consider getting the taskRecord from getTaskPayload and be done....
-			let taskRecord:ITaskRecord = fileMap.getTaskRecord(task.id);
-			const taskString = taskRecord.task;
-			const stringToHash = taskString + this.plugin.taskParser.getNoteString(taskRecord, task.id);
+			let taskRecord = fileMap.getTaskRecord(task.id);
+			const taskString = taskRecord?.task ?? '';
+			const stringToHash = taskString + (taskRecord ? this.plugin.taskParser.getNoteString(taskRecord, task.id) : '');
 			let lineHash = await this.plugin.taskParser?.getLineHash(stringToHash);
 			if (!lineHash) {
 				lineHash = '';
@@ -590,7 +581,7 @@ export class FileOperation {
 
 			if (!bUpdating) {
 				//we're updating the task to get the right OBS URL in there.
-				let addedTask = await this.plugin.tickTickRestAPI?.updateTask(task);
+				let addedTask = (await this.plugin.tickTickRestAPI?.updateTask(task))!;
 				addedTask.lineHash = lineHash;
 				await this.plugin.taskRepository.upsertTask(addedTask, file.path, Date.now());
 			} else {
@@ -599,8 +590,8 @@ export class FileOperation {
 					await this.plugin.taskRepository.upsertTask(task, file.path, Date.now());
 				} else {
 					task.lineHash = lineHash;
-					let addedTask = await this.plugin.tickTickRestAPI?.updateTask(task);
-					await this.plugin.taskRepository.upsertTask(addedTask, filePathForNewProject, Date.now());
+					let addedTask = (await this.plugin.tickTickRestAPI?.updateTask(task))!;
+					await this.plugin.taskRepository.upsertTask(addedTask, filePath, Date.now());
 				}
 
 			}
@@ -624,9 +615,7 @@ export class FileOperation {
 		const reason: string = 'task not found in local cache.';
 		const myModal = new TaskDeletionModal(this.app, items, reason, (result) => {
 		});
-		const bConfirmation = await myModal.showModal();
-
-		return bConfirmation;
+		return await myModal.showModal();
 	}
 
 
@@ -677,7 +666,7 @@ export class FileOperation {
 			message = 'Task Moved.\nTask: ' + cleanTitle + '\nwas moved from\n ' + oldProjectName + '\nto\n' + newProjectName;
 		} else {
 			if (newTask.parentId) {
-				const parentTask = await this.plugin.taskRepository.loadTaskById(newTask.parentId);
+				const parentTask = (await this.plugin.taskRepository.loadTaskById(newTask.parentId))!;
 				const cleanParentTaskTitle = this.plugin.taskParser?.stripOBSUrl(parentTask.title);
 				message = 'Task has new Parent.\nTask: ' + cleanTitle + '\nis now a child of\n ' + cleanParentTaskTitle;
 			} else {
@@ -720,7 +709,7 @@ export class FileOperation {
 				await this.moveTask(filepath, currentChild, numChildTaskItems, currentChild.id, currentChild.projectId);
 				const currentChildHasChildren = this.hasChildren(currentChild);
 				if (currentChildHasChildren) {
-					const currentChild = await this.plugin.taskRepository.loadTaskById(childId);
+					const currentChild = (await this.plugin.taskRepository.loadTaskById(childId))!;
 					await this.moveChildTasks(currentChild, toBeProcessed, filepath);
 				}
 			} else {
@@ -734,6 +723,7 @@ export class FileOperation {
 	//TODO: Possibly not needed any longer.
 	private async moveTask(filepath: string, task: ITask, oldtaskItemNum: number, oldTaskId: string, oldProjectId: string) {
 		const tFilePath = this.app.vault.getAbstractFileByPath(filepath);
+		if (!(tFilePath instanceof TFile)) return;
 		await this.deleteTaskFromSpecificFile(tFilePath, task, false);
 		await this.plugin.taskRepository.deleteTask(oldTaskId);
 
@@ -748,7 +738,7 @@ export class FileOperation {
 			message = 'Task Moved.\nTask: ' + cleanTitle + '\nwas moved from\n ' + oldProjectName + '\nto\n' + newProjectName;
 		} else {
 			if (task.parentId) {
-				const parentTask = await this.plugin.taskRepository.loadTaskById(task.parentId);
+				const parentTask = (await this.plugin.taskRepository.loadTaskById(task.parentId))!;
 				const cleanParentTaskTitle = this.plugin.taskParser?.stripOBSUrl(parentTask.title);
 				message = 'Task has new Parent.\nTask: ' + cleanTitle + '\nis now a child of\n ' + cleanParentTaskTitle;
 			} else {
@@ -760,7 +750,7 @@ export class FileOperation {
 	}
 
 	//TODO: Get rid of extraneous sorts!
-	private compareTasks(a, b) {
+	private compareTasks(a: ITask, b: ITask) {
 		// Check for tasks with no parentId (parent tasks)
 		if (!a.parentId && b.parentId) {
 			return -1; // Parent task comes first
@@ -812,7 +802,7 @@ export class FileOperation {
 	// 	}
 	// }
 
-	private getParent(taskId, tasks) {
+	private getParent(taskId: string, tasks: ITask[]) {
 		return tasks.find(task => task.id === taskId);
 	}
 
@@ -850,25 +840,27 @@ export class FileOperation {
 		return sorted;
 	}
 
-	private sortTasks(tasks) {
-		const taskMap = new Map();
+	private sortTasks(tasks: ITask[]) {
+		type TaskNode = ITask & { children: TaskNode[] };
+		const taskMap = new Map<string, TaskNode>();
 
 		// Populate the map
 		tasks.forEach(task => taskMap.set(task.id, { ...task, children: [] }));
 
-		let rootTasks = [];
+		const rootTasks: TaskNode[] = [];
 
 		// Build the hierarchy
 		tasks.forEach(task => {
+			const node = taskMap.get(task.id)!;
 			if (task.parentId && taskMap.has(task.parentId)) {
-				taskMap.get(task.parentId).children.push(taskMap.get(task.id));
+				taskMap.get(task.parentId)!.children.push(node);
 			} else {
-				rootTasks.push(taskMap.get(task.id));
+				rootTasks.push(node);
 			}
 		});
 
 		// Function to flatten the hierarchy with depth-first traversal
-		function flattenHierarchy(taskList, sortedArray = []) {
+		function flattenHierarchy(taskList: TaskNode[], sortedArray: TaskNode[] = []): TaskNode[] {
 			for (const task of taskList) {
 				sortedArray.push(task);
 				if (task.children.length) {
@@ -884,7 +876,7 @@ export class FileOperation {
 
 	private doTheSortMambo(tasks: ITask[]) {
 		// Example usage with the provided tasks
-		const jsonStringifiedTasks = JSON.parse(JSON.stringify(tasks)); // Deep copy the tasks
+		const jsonStringifiedTasks = JSON.parse(JSON.stringify(tasks)) as ITask[]; // Deep copy the tasks
 		const sortedTasks = this.sortTasksByLevel(jsonStringifiedTasks);
 
 		// // Format the result to show the hierarchy
@@ -903,33 +895,35 @@ export class FileOperation {
 
 	private sortTasksByLevel(tasks: ITask[]) {
 		// Create a map of tasks by ID for easy reference
-		const taskMap = {};
+		type TaskWithLevel = ITask & { level: number };
+		const taskMap: Record<string, TaskWithLevel> = {};
 		tasks.forEach(task => {
 			taskMap[task.id] = { ...task, level: 0 };
 		});
 
 		// Calculate the level of each task
 		tasks.forEach(task => {
-			if (!('parentId' in task) || (!task.parentId)) {
+			const entry = taskMap[task.id];
+			if (!entry.parentId) {
 				// This is a top-level task
-				taskMap[task.id].level = 1;
+				entry.level = 1;
 			} else {
 				// Child task - we need to calculate its level
 				let currentId = task.id;
 				let level = 1;
 
-				while (taskMap[currentId] && ('parentId' in taskMap[currentId]) && taskMap[currentId].parentId) {
+				while (taskMap[currentId] && taskMap[currentId].parentId) {
 					level++;
 					//This happened once. It caused an infinite loop. Throw an error.
 					if (level > 6) {
 						log.debug('this is the issue: ', currentId, ' ', taskMap[currentId].parentId, '');
-						new Notice('A circular Parent-Child dependency was found. Please fix in TickTick by checking parent-child relationships.');
-						throw new Error('Circular Parent-Child dependency was found.');
+						new Notice('A circular parent-child dependency was found. Please fix in ticktick by checking parent-child relationships.');
+						throw new Error('Circular parent-child dependency was found.');
 					}
 					currentId = taskMap[currentId].parentId;
 				}
 
-				taskMap[task.id].level = level;
+				entry.level = level;
 			}
 		});
 

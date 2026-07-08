@@ -1,4 +1,4 @@
-import { App, Modal, Setting } from 'obsidian';
+import { App, ButtonComponent, Modal, Setting } from 'obsidian';
 import type { LocalTask } from '@/db/schema';
 
 export class CleanupDeletedTasksModal extends Modal {
@@ -13,7 +13,7 @@ export class CleanupDeletedTasksModal extends Modal {
 	onOpen() {
 		const { titleEl, contentEl } = this;
 
-		titleEl.setText('Permanently Delete Soft-Deleted Tasks');
+		titleEl.setText('Permanently delete soft-deleted tasks');
 
 		contentEl.createEl('p', { text: 'Select tasks to permanently remove from the database:' });
 
@@ -30,7 +30,7 @@ export class CleanupDeletedTasksModal extends Modal {
 		}
 
 		new Setting(contentEl)
-			.setName('Select All')
+			.setName('Select all')
 			.addToggle(toggle => {
 				toggle.setValue(false);
 				toggle.onChange(value => {
@@ -39,7 +39,7 @@ export class CleanupDeletedTasksModal extends Modal {
 				});
 			});
 
-		const listEl = contentEl.createEl('div', { attr: { style: 'max-height: 400px; overflow-y: auto; margin-bottom: 10px;' } });
+		const listEl = contentEl.createDiv({ attr: { style: 'max-height: 400px; overflow-y: auto; margin-bottom: 10px;' } });
 
 		this.items.forEach(item => {
 			const task = item.task;
@@ -59,12 +59,12 @@ export class CleanupDeletedTasksModal extends Modal {
 				});
 		});
 
-		let deleteComponent: any;
+		let deleteComponent: ButtonComponent | undefined;
 
 		const buttonSetting = new Setting(contentEl);
 		buttonSetting.addButton(btn => {
-			btn.setButtonText('Delete Permanently');
-			btn.setWarning();
+			btn.setButtonText('Delete permanently');
+			btn.setDestructive();
 			btn.setDisabled(true);
 			deleteComponent = btn;
 			btn.onClick(() => {
@@ -87,10 +87,8 @@ export class CleanupDeletedTasksModal extends Modal {
 
 		this.updateButtonText = () => {
 			const count = this.items.filter(i => i.selected).length;
-			if (deleteComponent) {
-				deleteComponent.setButtonText(`Delete Permanently (${count})`);
-				deleteComponent.setDisabled(count === 0);
-			}
+			deleteComponent?.setButtonText(`Delete permanently (${count})`);
+			deleteComponent?.setDisabled(count === 0);
 		};
 	}
 

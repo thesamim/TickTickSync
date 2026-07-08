@@ -1,21 +1,29 @@
 import type { DBData, LocalTask, LocalProject, LocalProjectGroup, LocalFile } from "./schema";
 
-/**
- * Transform the old data.json structure (settings with TickTickTasksData
- * and fileMetadata) into a structured DBData object ready for Dexie.
- * Returns DBData with schemaVersion = 1 (pre‑migration state).
- */
-export function migrateFromDataJson(data: any): DBData {
-	const settings = data;
-	const oldTasks: any[] = settings.TickTickTasksData?.tasks ?? [];
-	const oldProjects: any[] = settings.TickTickTasksData?.projects ?? [];
-	const oldGroups: any[] = settings.TickTickTasksData?.projectGroups ?? [];
-	const fileMetadata: Record<string, any> = settings.fileMetadata ?? {};
+interface OldFileEntry {
+	TickTickTasks?: Array<{ taskId: string }>;
+	defaultProjectId?: string;
+}
 
-		const tasks: LocalTask[] = oldTasks.map((t: any) => {
+interface OldDataJson {
+	TickTickTasksData?: {
+		tasks?: Array<{ id: string; modifiedTime?: string; deleted?: number }>;
+		projects?: Array<{ id: string }>;
+		projectGroups?: Array<{ id: string }>;
+	};
+	fileMetadata?: Record<string, OldFileEntry>;
+}
+
+export function migrateFromDataJson(data: OldDataJson): DBData {
+	const oldTasks: Array<{ id: string; modifiedTime?: string; deleted?: number }> = data.TickTickTasksData?.tasks ?? [];
+	const oldProjects: Array<{ id: string }> = data.TickTickTasksData?.projects ?? [];
+	const oldGroups: Array<{ id: string }> = data.TickTickTasksData?.projectGroups ?? [];
+	const fileMetadata: Record<string, OldFileEntry> = data.fileMetadata ?? {};
+
+	const tasks: LocalTask[] = oldTasks.map((t) => {
 		let filePath = "";
 		for (const [path, detail] of Object.entries(fileMetadata)) {
-			if ((detail as any).TickTickTasks?.some((dt: any) => dt.taskId === t.id)) {
+			if (detail.TickTickTasks?.some((dt) => dt.taskId === t.id)) {
 				filePath = path;
 				break;
 			}
@@ -23,25 +31,25 @@ export function migrateFromDataJson(data: any): DBData {
 		return {
 			localId: `tt:${t.id}`,
 			taskId: t.id,
-			task: t,
+			task: t as unknown as LocalTask["task"],
 			updatedAt: t.modifiedTime ? new Date(t.modifiedTime).getTime() : Date.now(),
 			deleted: t.deleted === 1,
 			file: filePath,
 			source: "ticktick",
-		} as LocalTask;
+		};
 	});
 
-	const projects: LocalProject[] = oldProjects.map((p: any) => ({
+	const projects: LocalProject[] = oldProjects.map((p) => ({
 		id: p.id,
-		project: p,
+		project: p as unknown as LocalProject["project"],
 	}));
 
-	const projectGroups: LocalProjectGroup[] = oldGroups.map((g: any) => ({
+	const projectGroups: LocalProjectGroup[] = oldGroups.map((g) => ({
 		id: g.id,
-		group: g,
+		group: g as unknown as LocalProjectGroup["group"],
 	}));
 
-	const files: LocalFile[] = Object.entries(fileMetadata).map(([path, detail]: [string, any]) => ({
+	const files: LocalFile[] = Object.entries(fileMetadata).map(([path, detail]) => ({
 		path,
 		defaultProjectId: detail.defaultProjectId,
 	}));
@@ -51,6 +59,7 @@ export function migrateFromDataJson(data: any): DBData {
 			lastFullSync: 0,
 			lastDeltaSync: 0,
 			deviceId: "",
+			devices: [],
 			schemaVersion: 1,
 		},
 		tasks,
@@ -60,6 +69,6 @@ export function migrateFromDataJson(data: any): DBData {
 	};
 }
 
-export function migrateDB(data: any): DBData {
-	return data as DBData;
+export function migrateDB(data: Pick<DBData, "meta" | "tasks">): DBData {
+	return data as unknown as DBData;
 }

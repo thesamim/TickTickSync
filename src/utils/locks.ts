@@ -8,7 +8,7 @@
  */
 export function waitFor(milliseconds: number): Promise<void> {
 	return new Promise((resolve) => {
-		setTimeout(resolve, milliseconds);
+		window.setTimeout(resolve, milliseconds);
 	});
 }
 
@@ -66,11 +66,9 @@ export async function doWithLock<T>(lockName: string, task: () => Promise<T>): P
 	// the lock so the next task can start, even if our task throws an error.
 	try {
 		return await task();
-	} catch (error) {
-		throw error;
 	} finally {
 		// Ensure that our lock is removed from the stack.
-		locks.splice(0, 1);
+		void locks.splice(0, 1);
 
 		// Invoke unlock to signal to the next waiting task to start.
 		unlock();

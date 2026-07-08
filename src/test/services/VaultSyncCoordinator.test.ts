@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
 import { VaultSyncCoordinator } from '@/services/VaultSyncCoordinator';
 import type { LocalTask } from '@/db/schema';
 import type { ITask } from '@/api/types/Task';
@@ -6,6 +6,9 @@ import type { ITask } from '@/api/types/Task';
 // Mock Obsidian dependencies
 vi.mock('obsidian', () => ({
 	App: vi.fn(),
+	AbstractInputSuggest: class AbstractInputSuggest {
+		constructor() {}
+	},
 	Modal: vi.fn(),
 	Notice: vi.fn(),
 	Plugin: vi.fn(),
@@ -25,7 +28,7 @@ vi.mock('@/db/dexie', () => ({
 		meta: {
 			update: vi.fn(),
 		},
-		transaction: vi.fn((_mode, _table, callback) => callback()),
+		transaction: vi.fn((_mode: string, _table: string, callback: () => void) => callback()),
 	},
 }));
 
@@ -72,17 +75,17 @@ describe('VaultSyncCoordinator', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 		coordinator = new VaultSyncCoordinator(
-			{} as any,
-			{} as any,
+			{} as unknown,
+			{} as unknown,
 			undefined
 		);
 	});
 
 	describe('determineActionNeeded', () => {
-		let fn: Function;
+		let fn: (...args: unknown[]) => { action: string };
 
 		beforeEach(() => {
-			fn = (coordinator as any).determineActionNeeded.bind(coordinator);
+			fn = (coordinator as unknown as { determineActionNeeded(...args: unknown[]): { action: string } }).determineActionNeeded.bind(coordinator);
 		});
 
 		it('should return add for a task with no file', () => {
@@ -143,10 +146,10 @@ describe('VaultSyncCoordinator', () => {
 	});
 
 	describe('matchesFilter', () => {
-		let fn: Function;
+		let fn: (...args: unknown[]) => boolean;
 
 		beforeEach(() => {
-			fn = (coordinator as any).matchesFilter.bind(coordinator);
+			fn = (coordinator as unknown as { matchesFilter(...args: unknown[]): boolean }).matchesFilter.bind(coordinator);
 		});
 
 		it('should return true when no filter is set', () => {
@@ -196,6 +199,14 @@ describe('VaultSyncCoordinator', () => {
 	});
 
 	describe('confirmDeletions', () => {
+		const coordinatorPrivates = (): {
+			confirmDeletions(fileGroups: Map<string, unknown>, movedTaskIds?: Set<string>): Promise<boolean>;
+			plugin: { fileMetadataService: { getDeletionItems: Mock } };
+		} => coordinator as unknown as {
+			confirmDeletions(fileGroups: Map<string, unknown>, movedTaskIds?: Set<string>): Promise<boolean>;
+			plugin: { fileMetadataService: { getDeletionItems: Mock } };
+		};
+
 		it('should exclude moved task IDs from confirmation', async () => {
 			const movedTask = { id: 'moved-1' } as ITask;
 			const deletedTask = { id: 'deleted-1' } as ITask;
@@ -210,7 +221,7 @@ describe('VaultSyncCoordinator', () => {
 
 			const movedTaskIds = new Set(['moved-1']);
 
-			(coordinator as any).plugin = {
+			coordinatorPrivates().plugin = {
 				fileMetadataService: {
 					getDeletionItems: vi.fn().mockResolvedValue([
 						{ title: 'Deleted task', filePath: 'OldFile.md' },
@@ -218,12 +229,12 @@ describe('VaultSyncCoordinator', () => {
 				},
 			};
 
-			const result = await (coordinator as any).confirmDeletions(fileGroups, movedTaskIds);
+			const result = await coordinatorPrivates().confirmDeletions(fileGroups as Map<string, unknown>, movedTaskIds);
 
 			expect(result).toBe(true);
 
 			// Verify only the deleted task (not the moved one) was passed to getDeletionItems
-			const getDeletionItems = (coordinator as any).plugin.fileMetadataService.getDeletionItems;
+			const getDeletionItems = coordinatorPrivates().plugin.fileMetadataService.getDeletionItems;
 			expect(getDeletionItems).toHaveBeenCalledWith(['deleted-1']);
 		});
 
@@ -240,23 +251,23 @@ describe('VaultSyncCoordinator', () => {
 
 			const movedTaskIds = new Set(['moved-1']);
 
-			(coordinator as any).plugin = {
+			coordinatorPrivates().plugin = {
 				fileMetadataService: {
 					getDeletionItems: vi.fn(),
 				},
 			};
 
-			const result = await (coordinator as any).confirmDeletions(fileGroups, movedTaskIds);
+			const result = await coordinatorPrivates().confirmDeletions(fileGroups as Map<string, unknown>, movedTaskIds);
 
 			// Should return true immediately without calling getDeletionItems
 			expect(result).toBe(true);
-			expect((coordinator as any).plugin.fileMetadataService.getDeletionItems).not.toHaveBeenCalled();
+			expect(coordinatorPrivates().plugin.fileMetadataService.getDeletionItems).not.toHaveBeenCalled();
 		});
 
 		it('should treat missing movedTaskIds as empty set', async () => {
 			const deletedTask = { id: 'deleted-1' } as ITask;
 
-			const fileGroups = new Map();
+			const fileGroups = new Map<string, unknown>();
 			fileGroups.set('File.md', {
 				toAdd: [],
 				toUpdate: [],
@@ -264,7 +275,7 @@ describe('VaultSyncCoordinator', () => {
 				toRemoveForMove: [],
 			});
 
-			(coordinator as any).plugin = {
+			coordinatorPrivates().plugin = {
 				fileMetadataService: {
 					getDeletionItems: vi.fn().mockResolvedValue([
 						{ title: 'Deleted task', filePath: 'File.md' },
@@ -272,10 +283,10 @@ describe('VaultSyncCoordinator', () => {
 				},
 			};
 
-			const result = await (coordinator as any).confirmDeletions(fileGroups);
+			const result = await coordinatorPrivates().confirmDeletions(fileGroups);
 
 			expect(result).toBe(true);
-			expect((coordinator as any).plugin.fileMetadataService.getDeletionItems).toHaveBeenCalledWith(['deleted-1']);
+			expect(coordinatorPrivates().plugin.fileMetadataService.getDeletionItems).toHaveBeenCalledWith(['deleted-1']);
 		});
 	});
 });

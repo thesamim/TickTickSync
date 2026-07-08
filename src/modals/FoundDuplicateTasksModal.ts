@@ -13,11 +13,11 @@ export interface DuplicateSelection {
 }
 
 export class FoundDuplicateTasksModal extends Modal {
-    private resolvePromise: (value: boolean) => void;
+    private resolvePromise!: (value: boolean) => void;
     private selections: DuplicateSelection[] = [];
     private sortColumn: 'title' | 'file' | null = null;
     private sortDirection: 'asc' | 'desc' = 'asc';
-    private tableBody: HTMLTableSectionElement;
+    private tableBody!: HTMLTableSectionElement;
 
     constructor(
         app: App,
@@ -26,7 +26,7 @@ export class FoundDuplicateTasksModal extends Modal {
         private taskIds: Record<string, string>
     ) {
         super(app);
-        this.titleEl.setText('Duplicate Tasks Found');
+        this.titleEl.setText('Duplicate tasks found');
 
         // Initialize selections: for each taskId, we have the original file and the duplicate files
         for (const taskId in duplicates) {
@@ -43,14 +43,14 @@ export class FoundDuplicateTasksModal extends Modal {
     async onOpen() {
         const { contentEl, titleEl } = this;
 
-        titleEl.setText('Duplicate Tasks Found');
+        titleEl.setText('Duplicate tasks found');
 
         // Fetch task titles for all unique task IDs
         const uniqueTaskIds = [...new Set(this.selections.map(s => s.taskId))];
         const taskMap = new Map<string, string>();
         await Promise.all(uniqueTaskIds.map(async (id) => {
             const task = await this.plugin.taskRepository.loadTaskById(id);
-            taskMap.set(id, task?.title);
+            taskMap.set(id, task?.title ?? '');
         }));
 
         this.selections.forEach((item) => {
@@ -58,7 +58,7 @@ export class FoundDuplicateTasksModal extends Modal {
         });
 
         contentEl.createEl('p', { 
-            text: 'The following tasks were found in multiple files in your metadata. This causes unpredictable sync results. Select which instances to REMOVE from your files and metadata, or cancel to handle it manually.' 
+            text: 'The following tasks were found in multiple files in your metadata. This causes unpredictable sync results. Select which instances to remove from your files and metadata, or cancel to handle it manually.' 
         });
 
         const table = contentEl.createEl('table', { cls: 'projects-table' });
@@ -67,15 +67,13 @@ export class FoundDuplicateTasksModal extends Modal {
         headerRow.createEl('th', { text: 'Remove?' });
 
         const titleHeader = headerRow.createEl('th', { cls: 'sortable-header' });
-        titleHeader.style.cursor = 'pointer';
-        titleHeader.style.userSelect = 'none';
-        titleHeader.setText('Task Title ⇅');
+        titleHeader.addClass('sortable-header');
+        titleHeader.setText('Task title ⇅');
         titleHeader.addEventListener('click', () => this.sortBy('title', titleHeader));
 
         const fileHeader = headerRow.createEl('th', { cls: 'sortable-header' });
-        fileHeader.style.cursor = 'pointer';
-        fileHeader.style.userSelect = 'none';
-        fileHeader.setText('File Path ⇅');
+        fileHeader.addClass('sortable-header');
+        fileHeader.setText('File path ⇅');
         fileHeader.addEventListener('click', () => this.sortBy('file', fileHeader));
 
         this.tableBody = table.createEl('tbody');
@@ -83,13 +81,13 @@ export class FoundDuplicateTasksModal extends Modal {
 
         new Setting(contentEl)
             .addButton(btn => btn
-                .setButtonText('Cancel & Abort Sync')
+                .setButtonText('Cancel & abort sync')
                 .onClick(() => {
                     this.close();
                     this.resolvePromise(false);
                 }))
             .addButton(btn => btn
-                .setButtonText('Apply & Continue Sync')
+                .setButtonText('Apply & continue sync')
                 .setCta()
                 .onClick(async () => {
                     await this.performDeletions();
@@ -144,7 +142,7 @@ export class FoundDuplicateTasksModal extends Modal {
 
         // Update header text with sort indicator
         const arrow = this.sortDirection === 'asc' ? '↑' : '↓';
-        const label = column === 'title' ? 'Task Title' : 'File Path';
+        const label = column === 'title' ? 'Task title' : 'File path';
         headerEl.setText(`${label} ${arrow}`);
 
         this.renderTableRows();

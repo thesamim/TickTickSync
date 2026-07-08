@@ -14,7 +14,7 @@
 </script>
 
 <div class="collapsible-section">
-	<div class="collapsible-header" on:click={toggle}>
+	<div class="collapsible-header" role="button" tabindex="0" on:click={toggle} on:keydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } }}>
 		<span>{open ? '▼' : '▶'}</span>{title}
 	</div>
 	{#if open}

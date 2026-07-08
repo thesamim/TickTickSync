@@ -1,16 +1,21 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { TickTickSync } from '@/main';
+import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
 import { TickTickService } from '@/services/index';
 
 // Mock dependencies
 vi.mock('obsidian', () => ({
 	App: vi.fn(),
+	AbstractInputSuggest: class AbstractInputSuggest {
+		constructor() {}
+	},
 	MarkdownRenderChild: vi.fn(),
 	MarkdownView: vi.fn(),
 	Modal: vi.fn(),
 	Notice: vi.fn(),
 	Plugin: vi.fn(),
 	PluginSettingTab: vi.fn(),
+	SettingPage: class SettingPage {
+		constructor() {}
+	},
 	TFile: vi.fn(),
 	TFolder: vi.fn(),
 }));
@@ -39,7 +44,7 @@ vi.mock('@/utils/logger', () => ({
 }));
 
 vi.mock('@/utils/locks', () => ({
-	doWithLock: vi.fn((_name, fn) => fn()),
+	doWithLock: vi.fn((_name: string, fn: () => void) => fn()),
 }));
 
 vi.mock('@/db/dexie', () => ({
@@ -51,7 +56,7 @@ vi.mock('@/db/dexie', () => ({
 			bulkPut: vi.fn(),
 		},
 		files: { toArray: vi.fn().mockResolvedValue([]) },
-		transaction: vi.fn((_mode, _table, cb) => cb()),
+		transaction: vi.fn((_mode: string, _table: string, cb: () => void) => cb()),
 	},
 }));
 
@@ -77,7 +82,7 @@ vi.mock('@/api/tick_singleton_factory', () => ({
 
 describe('TickTickService', () => {
 	let service: TickTickService;
-	let mockPlugin: any;
+	let mockPlugin: unknown;
 
 	beforeEach(() => {
 		vi.clearAllMocks();
@@ -113,15 +118,15 @@ describe('TickTickService', () => {
 		};
 
 		service = new TickTickService(mockPlugin);
-		service.api = {} as any;
+		service.api = {} as unknown;
 	});
 
 	describe('syncFiles - two-phase ordering', () => {
 		it('should run modifications before deletions for the same file', async () => {
-			const filesToSync: Record<string, any> = {
+			const filesToSync: Record<string, unknown> = {
 				'Projects/ProjectA.md': { defaultProjectId: 'proj-a' },
 			};
-			mockPlugin.fileMetadataService = {
+			(mockPlugin as Record<string, unknown>).fileMetadataService = {
 				getAllFileMetadata: vi.fn().mockResolvedValue(filesToSync),
 				checkForDuplicates: vi.fn().mockResolvedValue({ duplicates: {} }),
 				deleteFileMetadata: vi.fn(),
@@ -129,8 +134,8 @@ describe('TickTickService', () => {
 
 			await service.syncFiles(false);
 
-			const modDetector = mockPlugin.taskModificationDetector;
-			const deletionHandler = mockPlugin.taskDeletionHandler;
+			const modDetector = (mockPlugin as { taskModificationDetector: { checkFileForModifications: Mock; checkFileForNewTasks: Mock } }).taskModificationDetector;
+			const deletionHandler = (mockPlugin as { taskDeletionHandler: { checkFileForDeletedTasks: Mock } }).taskDeletionHandler;
 
 			// Verify modifications ran
 			expect(modDetector.checkFileForModifications).toHaveBeenCalledWith('Projects/ProjectA.md');
@@ -139,12 +144,12 @@ describe('TickTickService', () => {
 		});
 
 		it('should run modifications on all files before deletions on any file', async () => {
-			const filesToSync: Record<string, any> = {
+			const filesToSync: Record<string, unknown> = {
 				'Projects/ProjectA.md': { defaultProjectId: 'proj-a' },
 				'Projects/ProjectB.md': { defaultProjectId: 'proj-b' },
 				'Projects/ProjectC.md': { defaultProjectId: 'proj-c' },
 			};
-			mockPlugin.fileMetadataService = {
+			(mockPlugin as Record<string, unknown>).fileMetadataService = {
 				getAllFileMetadata: vi.fn().mockResolvedValue(filesToSync),
 				checkForDuplicates: vi.fn().mockResolvedValue({ duplicates: {} }),
 				deleteFileMetadata: vi.fn(),
@@ -152,10 +157,10 @@ describe('TickTickService', () => {
 
 			// Track call order
 			const callOrder: string[] = [];
-			mockPlugin.taskModificationDetector.checkFileForModifications = vi.fn((fileKey: string) => {
+			(mockPlugin as { taskModificationDetector: { checkFileForModifications: Mock } }).taskModificationDetector.checkFileForModifications = vi.fn((fileKey: string) => {
 				callOrder.push(`mod:${fileKey}`);
 			});
-			mockPlugin.taskDeletionHandler.checkFileForDeletedTasks = vi.fn((fileKey: string) => {
+			(mockPlugin as { taskDeletionHandler: { checkFileForDeletedTasks: Mock } }).taskDeletionHandler.checkFileForDeletedTasks = vi.fn((fileKey: string) => {
 				callOrder.push(`del:${fileKey}`);
 			});
 
@@ -171,7 +176,7 @@ describe('TickTickService', () => {
 		});
 
 		it('should not call deletions if there are no files to sync', async () => {
-			mockPlugin.fileMetadataService = {
+			(mockPlugin as Record<string, unknown>).fileMetadataService = {
 				getAllFileMetadata: vi.fn().mockResolvedValue({}),
 				checkForDuplicates: vi.fn().mockResolvedValue({ duplicates: {} }),
 				deleteFileMetadata: vi.fn(),
@@ -179,26 +184,26 @@ describe('TickTickService', () => {
 
 			await service.syncFiles(false);
 
-			expect(mockPlugin.taskDeletionHandler.checkFileForDeletedTasks).not.toHaveBeenCalled();
+			expect((mockPlugin as { taskDeletionHandler: { checkFileForDeletedTasks: Mock } }).taskDeletionHandler.checkFileForDeletedTasks).not.toHaveBeenCalled();
 		});
 
 		it('should not skip deletions when modifications fail', async () => {
-			const filesToSync: Record<string, any> = {
+			const filesToSync: Record<string, unknown> = {
 				'Projects/ProjectA.md': { defaultProjectId: 'proj-a' },
 			};
-			mockPlugin.fileMetadataService = {
+			(mockPlugin as Record<string, unknown>).fileMetadataService = {
 				getAllFileMetadata: vi.fn().mockResolvedValue(filesToSync),
 				checkForDuplicates: vi.fn().mockResolvedValue({ duplicates: {} }),
 				deleteFileMetadata: vi.fn(),
 			};
 
 			// Make modifications throw
-			mockPlugin.taskModificationDetector.checkFileForModifications = vi.fn().mockRejectedValue(new Error('mod error'));
+			(mockPlugin as { taskModificationDetector: { checkFileForModifications: Mock } }).taskModificationDetector.checkFileForModifications = vi.fn().mockRejectedValue(new Error('mod error'));
 
 			// Should not throw, and deletions should still run
 			await expect(service.syncFiles(false)).resolves.not.toThrow();
 
-			expect(mockPlugin.taskDeletionHandler.checkFileForDeletedTasks).toHaveBeenCalledWith('Projects/ProjectA.md');
+			expect((mockPlugin as { taskDeletionHandler: { checkFileForDeletedTasks: Mock } }).taskDeletionHandler.checkFileForDeletedTasks).toHaveBeenCalledWith('Projects/ProjectA.md');
 		});
 	});
 });

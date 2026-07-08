@@ -9,7 +9,7 @@ export async function loadTasksFromCache() {
 		const lts = await db.tasks.toArray();
 		return lts.map(lt => lt.task);
 	} catch (error) {
-		log.error(`Error loading tasks from Cache: ${error}`);
+		log.error(`Error loading tasks from Cache: ${String(error)}`);
 		return [];
 	}
 }

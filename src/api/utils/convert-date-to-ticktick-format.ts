@@ -1,16 +1,15 @@
 export { convertDateToTickTickFormat };
 
-function convertDateToTickTickFormat(date: any) {
+function convertDateToTickTickFormat(date: Date | string | undefined): string | undefined {
 	if (date === undefined) {
 		return date;
 	}
 
-	let dateString = date;
 	if (date instanceof Date) {
-		dateString = date.toISOString();
-	} else if (typeof dateString !== 'string') {
-		throw new Error(`The provided date "${date}" is invalid`);
+		return date.toISOString().replace('Z', '+0000');
+	} else if (typeof date === 'string') {
+		return date.replace('Z', '+0000');
 	}
 
-	return dateString.replace('Z', '+0000');
+	throw new Error(`The provided date "${String(date)}" is invalid`);
 }

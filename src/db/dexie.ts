@@ -5,7 +5,7 @@ import type { TaskFileMapping, LocalProject, LocalProjectGroup, LocalFile, Journ
 
 import { defaultDBData } from "./schema";
 import { ensureSyncMeta } from "./meta";
-import { migrateDB, migrateFromDataJson } from "./migrations";
+import { migrateDB } from "./migrations";
 import { getSettings, updateSettings } from '@/settings';
 import { setCurrentDeviceInfo } from './device';
 
@@ -92,7 +92,16 @@ export async function initDB() {
 	const settings = getSettings();
 
 	if (!rawMeta) {
-		const preMigrated = (settings as any).__migratedDBData as DBData | undefined;
+		const legacySettings = settings as unknown as {
+			__migratedDBData?: DBData;
+			TickTickTasksData?: {
+				tasks?: Array<{ id: string; modifiedTime?: string; deleted?: number }>;
+				projects?: Array<{ id: string }>;
+				projectGroups?: Array<{ id: string }>;
+			};
+			fileMetadata?: Record<string, { TickTickTasks?: Array<{ taskId: string }>; defaultProjectId?: string }>;
+		};
+		const preMigrated = legacySettings.__migratedDBData;
 
 		if (preMigrated) {
 			// Use data already transformed by migrateFromDataJson (called from migrateData)
@@ -114,14 +123,14 @@ export async function initDB() {
 			await trackDeviceInSettings(meta.deviceId, meta.deviceLabel || '');
 			
 			// Fallback: inline migration from old settings-based data
-			const oldTasks = (settings as any).TickTickTasksData?.tasks;
-			const fileMetadata = (settings as any).fileMetadata;
+			const oldTasks = legacySettings.TickTickTasksData?.tasks;
+			const fileMetadata = legacySettings.fileMetadata;
 			
 			if (oldTasks && oldTasks.length > 0) {
-				const tasksToPut: LocalTask[] = oldTasks.map(t => {
+				const tasksToPut: LocalTask[] = oldTasks.map((t) => {
 					let filePath = "";
 					for (const [path, detail] of Object.entries(fileMetadata || {})) {
-						if (detail.TickTickTasks?.some((dt: any) => dt.taskId === t.id)) {
+						if (detail.TickTickTasks?.some((dt) => dt.taskId === t.id)) {
 							filePath = path;
 							break;
 						}
@@ -130,7 +139,7 @@ export async function initDB() {
 					return {
 						localId: `tt:${t.id}`,
 						taskId: t.id,
-						task: t,
+						task: t as unknown as LocalTask["task"],
 						updatedAt: t.modifiedTime ? new Date(t.modifiedTime).getTime() : Date.now(),
 						deleted: t.deleted === 1,
 						file: filePath,
@@ -142,18 +151,18 @@ export async function initDB() {
 			}
 
 			// Migration for version 4 (Projects, ProjectGroups, Files)
-			const oldProjects = (settings as any).TickTickTasksData?.projects;
+			const oldProjects = legacySettings.TickTickTasksData?.projects;
 			if (oldProjects && oldProjects.length > 0) {
-				await db.projects.bulkPut(oldProjects.map((p: any) => ({ id: p.id, project: p })));
+				await db.projects.bulkPut(oldProjects.map((p) => ({ id: p.id, project: p as unknown as LocalProject["project"] })));
 			}
 
-			const oldGroups = (settings as any).TickTickTasksData?.projectGroups;
+			const oldGroups = legacySettings.TickTickTasksData?.projectGroups;
 			if (oldGroups && oldGroups.length > 0) {
-				await db.projectGroups.bulkPut(oldGroups.map((g: any) => ({ id: g.id, group: g })));
+				await db.projectGroups.bulkPut(oldGroups.map((g) => ({ id: g.id, group: g as unknown as LocalProjectGroup["group"] })));
 			}
 
 			if (fileMetadata) {
-				const filesToPut: LocalFile[] = Object.entries(fileMetadata).map(([path, detail]: [string, any]) => ({
+				const filesToPut: LocalFile[] = Object.entries(fileMetadata).map(([path, detail]) => ({
 					path: path,
 					defaultProjectId: detail.defaultProjectId
 				}));

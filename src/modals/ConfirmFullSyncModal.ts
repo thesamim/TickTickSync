@@ -13,7 +13,7 @@ export class ConfirmFullSyncModal extends Modal {
 	confirmLabel = 'Confirm Full Vault Task Sync';
 	result: boolean = false;
 	onSubmit: (result: boolean) => void;
-	resolvePromise: (value: (PromiseLike<boolean> | boolean)) => void;
+	resolvePromise!: (value: (PromiseLike<boolean> | boolean)) => void;
 
 	constructor(app: App, onSubmit: (result: boolean) => void) {
 		super(app);
@@ -43,7 +43,7 @@ export class ConfirmFullSyncModal extends Modal {
 		})
 			.addButton(confirmBtn => {
 				confirmBtn.setClass('ts_button');
-				confirmBtn.setWarning();
+				confirmBtn.setDestructive();
 				confirmBtn.setButtonText(this.confirmLabel);
 				confirmBtn.onClick(() => {
 					this.result = true;

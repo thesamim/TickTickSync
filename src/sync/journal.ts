@@ -12,7 +12,7 @@ export function logSyncEvent(
 	action: string,
 	details?: unknown
 ) {
-	persistEntry({ timestamp: Date.now(), deviceId, action, details });
+	void persistEntry({ timestamp: Date.now(), deviceId, action, details });
 }
 
 async function persistEntry(entry: Omit<JournalEntry, "id">) {

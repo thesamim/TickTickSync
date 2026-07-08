@@ -62,6 +62,7 @@ export type TaskFileMapping = {
 	localId: string;
 	taskId?: string;
 	file: string;
+	section?: string;
 	createdAt: number;
 };
 

@@ -33,17 +33,17 @@ export function getTick(options: TickInitOptions = {}): Tick {
     tickInstance.checkpoint = options.checkPoint;
   }
   if (typeof options.username === 'string') {
-    (tickInstance as any).username = options.username;
+    tickInstance.username = options.username;
   }
   if (typeof options.password === 'string') {
-    (tickInstance as any).password = options.password;
+    tickInstance.password = options.password;
   }
   // If baseUrl changes, recompute URLs similarly to constructor
   if (typeof options.baseUrl === 'string' && options.baseUrl.length > 0) {
     const baseUrl = options.baseUrl;
     tickInstance.apiUrl = `${tickInstance.apiProtocol}${baseUrl}${tickInstance.apiVersion}`;
-    (tickInstance as any).loginUrl = `${tickInstance.protocol}${baseUrl}${tickInstance.apiVersion}`;
-    (tickInstance as any).originUrl = `${tickInstance.protocol}${baseUrl}`;
+    tickInstance.loginUrl = `${tickInstance.protocol}${baseUrl}${tickInstance.apiVersion}`;
+    (tickInstance as unknown as { originUrl: string }).originUrl = `${tickInstance.protocol}${baseUrl}`;
   }
 
   return tickInstance;

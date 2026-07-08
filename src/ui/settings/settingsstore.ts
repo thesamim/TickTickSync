@@ -1,6 +1,6 @@
 import type TickTickSync from '@/main';
 import { type Writable, writable } from 'svelte/store';
-import { type ITickTickSyncSettings, setSettings, settings, updateSettings } from '@/settings';
+import { type ITickTickSyncSettings, setSettings, settings } from '@/settings';
 
 // New: keep a reference to the plugin instance
 let currentPlugin: TickTickSync | null = null;
@@ -35,10 +35,10 @@ export function settingsLoad(plugin: TickTickSync) {
 				return updated;
 			});
 		},
-		set: async (value: ITickTickSyncSettings) => {
+		set: (value: ITickTickSyncSettings) => {
 			svelteSet(value);
 			syncAll(value);
-			await currentPlugin?.saveSettings();
+			void currentPlugin?.saveSettings();
 		},
 	};
 }

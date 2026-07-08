@@ -30,11 +30,8 @@ interface date_time_type {
 	emoji: string | null
 }
 
-interface date_struct_type {
-	[key: string]: date_time_type;
-}
-
 export interface date_holder_type {
+	[key: string]: date_time_type | boolean | null;
 	isAllDay: boolean,
 	createdTime: date_time_type | null,
 	scheduled_date: date_time_type | null,
@@ -110,7 +107,6 @@ export class DateMan {
 				if (dateItem.hasATime) {
 					myDateHolder.isAllDay = !dateItem.hasATime;
 				}
-				// @ts-ignore
 				myDateHolder[key] = dateItem;
 			}
 		}
@@ -147,10 +143,10 @@ export class DateMan {
 				if (thisKey == 'isAllDay') {
 					continue;
 				}
-				const thisDate = task.dateHolder[thisKey];
+				const thisDate = task.dateHolder[thisKey] as date_time_type | null;
 				if (thisDate && thisDate.isoDate) {
 
-					const thisTimeString = this.buildDateLineComponent(thisDate.isoDate, thisDate.emoji, dateStrings);
+					const thisTimeString = this.buildDateLineComponent(thisDate.isoDate, thisDate.emoji ?? '', dateStrings);
 					switch (thisKey) {
 						case 'scheduled_date':
 						case 'startDate':
@@ -214,8 +210,7 @@ export class DateMan {
 		let dates = this.getEmptydateHolder();
 		if (!('isAllDay' in task)) {
 			//Just a task with no dates.
-			// @ts-ignore //we're relatively sure we're always going to get task.
-			task.dateHolder = dates;
+			(task as { dateHolder: date_holder_type }).dateHolder = dates;
 		} else {
 			if ('dueDate' in task) {
 				dates.dueDate = this.getDateAndTime(task.dueDate, task.isAllDay, date_emoji.dueDate);
@@ -261,7 +256,6 @@ export class DateMan {
 						if (thisKey == 'isAllDay') {
 							continue;
 						}
-						// @ts-ignore
 						if (cachedTaskDates[thisKey]) {
 							//There was a date, they removed it.
 							return true;
@@ -279,38 +273,35 @@ export class DateMan {
 		}
 		const dateKeys = Object.keys(editedTaskDates);
 
-		if (dateKeys) {
+			if (dateKeys) {
 
 			for (let i = 0; i < dateKeys.length; i++) {
 				const thisKey = dateKeys[i];
 				if (thisKey == 'isAllDay') {
 					continue;
 				}
-				// @ts-ignore
-				if ((editedTaskDates[thisKey]) && !(cachedTaskDates[thisKey])) {
-					//they've added a date.
+				const editedDate = editedTaskDates[thisKey] as date_time_type | null;
+				const cachedDate = cachedTaskDates[thisKey] as date_time_type | null;
+				if (editedDate && !cachedDate) {
 					return true;
 				}
-				// @ts-ignore
-				if (editedTaskDates[thisKey]) {
+				if (editedDate) {
 					let bChanged = false;
-					if (editedTaskDates[thisKey].hasATime) {
-						bChanged = this.areDatesDifferent(editedTaskDates[thisKey].isoDate, cachedTaskDates[thisKey].isoDate);
+					if (editedDate.hasATime) {
+						bChanged = this.areDatesDifferent(editedDate.isoDate ?? '', cachedDate!.isoDate ?? '');
 					} else {
-						//just look at the date components
-						bChanged = !(editedTaskDates[thisKey]?.date == cachedTaskDates[thisKey]?.date);
+						bChanged = !(editedDate.date == cachedDate?.date);
 					}
 					if (bChanged) {
 						log.debug('dateChanged', {
 							key: thisKey,
-							newDate: editedTaskDates[thisKey].isoDate,
-							oldDate: cachedTaskDates[thisKey].isoDate
+							newDate: editedDate.isoDate,
+							oldDate: cachedDate!.isoDate
 						});
 						return true;
 					}
 				}
-				if (!editedTaskDates[thisKey] && cachedTaskDates[thisKey]) {
-					//they had a date. They removed it. Force change.
+				if (!editedDate && cachedDate) {
 					return true;
 				}
 			}
@@ -427,9 +418,8 @@ export class DateMan {
 	}
 
 	private extractDates(key: string, inString: string, dateEmoji: date_emoji) {
-		// @ts-ignore
 
-		let dateItem: date_time_type | null = {};
+		let dateItem: date_time_type | null = null;
 		const date_regex = `(${dateEmoji})\\s(\\d{4}-\\d{2}-\\d{2})\\s*(\\d{1,}:\\d{2})*`;
 
 		let dateData = inString.match(date_regex);

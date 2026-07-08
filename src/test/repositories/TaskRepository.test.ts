@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from 'vitest';
 import { TaskRepository } from '@/repositories/TaskRepository';
 import { db } from '@/db/dexie';
 import type { ITask } from '@/api/types/Task';
@@ -52,7 +52,8 @@ describe('TaskRepository', () => {
 				source: 'obsidian',
 			};
 
-			(db.tasks.where as any).mockReturnValue({
+			(db.tasks.where as unknown as Mock).mockReturnValue({
+
 				equals: vi.fn().mockReturnValue({
 					first: vi.fn().mockResolvedValue(mockLocalTask),
 				}),
@@ -61,11 +62,12 @@ describe('TaskRepository', () => {
 			const result = await repository.loadTaskById('task123');
 
 			expect(result).toEqual(mockTask);
-			expect(db.tasks.where).toHaveBeenCalledWith('taskId');
+			expect((db.tasks as unknown as Record<string, Mock>).where).toHaveBeenCalledWith('taskId');
 		});
 
 		it('should return undefined if task not found', async () => {
-			(db.tasks.where as any).mockReturnValue({
+			(db.tasks.where as unknown as Mock).mockReturnValue({
+
 				equals: vi.fn().mockReturnValue({
 					first: vi.fn().mockResolvedValue(undefined),
 				}),
@@ -77,7 +79,8 @@ describe('TaskRepository', () => {
 		});
 
 		it('should handle errors gracefully', async () => {
-			(db.tasks.where as any).mockReturnValue({
+			(db.tasks.where as unknown as Mock).mockReturnValue({
+
 				equals: vi.fn().mockReturnValue({
 					first: vi.fn().mockRejectedValue(new Error('DB error')),
 				}),
@@ -100,7 +103,8 @@ describe('TaskRepository', () => {
 				source: 'obsidian',
 			};
 
-			(db.tasks.where as any).mockReturnValue({
+			(db.tasks.where as unknown as Mock).mockReturnValue({
+
 				equals: vi.fn().mockReturnValue({
 					first: vi.fn().mockResolvedValue(mockLocalTask),
 				}),
@@ -135,7 +139,7 @@ describe('TaskRepository', () => {
 				},
 			];
 
-			(db.tasks.toArray as any).mockResolvedValue(mockTasks);
+			(db.tasks.toArray as unknown as Mock).mockResolvedValue(mockTasks);
 
 			const result = await repository.loadAllTasks();
 
@@ -145,7 +149,7 @@ describe('TaskRepository', () => {
 		});
 
 		it('should return empty array on error', async () => {
-			(db.tasks.toArray as any).mockRejectedValue(new Error('DB error'));
+			(db.tasks.toArray as unknown as Mock).mockRejectedValue(new Error('DB error'));
 
 			const result = await repository.loadAllTasks();
 
@@ -167,7 +171,7 @@ describe('TaskRepository', () => {
 				},
 			];
 
-			(db.tasks.where as any).mockReturnValue({
+			(db.tasks.where as unknown as Mock).mockReturnValue({
 				equals: vi.fn().mockReturnValue({
 					toArray: vi.fn().mockResolvedValue(mockTasks),
 				}),
@@ -177,7 +181,7 @@ describe('TaskRepository', () => {
 
 			expect(result).toHaveLength(1);
 			expect(result[0].title).toBe('Task 1');
-			expect(db.tasks.where).toHaveBeenCalledWith('file');
+			expect((db.tasks as unknown as Record<string, Mock>).where).toHaveBeenCalledWith('file');
 		});
 	});
 
@@ -198,17 +202,17 @@ describe('TaskRepository', () => {
 				projectId: 'project1',
 			} as ITask;
 
-			(db.tasks.where as any).mockReturnValue({
+			(db.tasks.where as unknown as Mock).mockReturnValue({
 				equals: vi.fn().mockReturnValue({
 					first: vi.fn().mockResolvedValue(existingTask),
 				}),
 			});
 
-			(db.tasks.update as any).mockResolvedValue(1);
+			(db.tasks.update as unknown as Mock).mockResolvedValue(1);
 
 			await repository.upsertTask(updatedTask, 'test.md', Date.now());
 
-			expect(db.tasks.update).toHaveBeenCalledWith(
+			expect((db.tasks as unknown as Record<string, Mock>).update).toHaveBeenCalledWith(
 				'local123',
 				expect.objectContaining({
 					task: updatedTask,
@@ -223,17 +227,17 @@ describe('TaskRepository', () => {
 				projectId: 'project1',
 			} as ITask;
 
-			(db.tasks.where as any).mockReturnValue({
+			(db.tasks.where as unknown as Mock).mockReturnValue({
 				equals: vi.fn().mockReturnValue({
 					first: vi.fn().mockResolvedValue(undefined),
 				}),
 			});
 
-			(db.tasks.put as any).mockResolvedValue('local123');
+			(db.tasks.put as unknown as Mock).mockResolvedValue('local123');
 
 			await repository.upsertTask(newTask, 'test.md', Date.now());
 
-			expect(db.tasks.put).toHaveBeenCalledWith(
+			expect((db.tasks as unknown as Record<string, Mock>).put).toHaveBeenCalledWith(
 				expect.objectContaining({
 					localId: 'tt:task123',
 					taskId: 'task123',
@@ -256,17 +260,17 @@ describe('TaskRepository', () => {
 				source: 'obsidian',
 			};
 
-			(db.tasks.where as any).mockReturnValue({
+			(db.tasks.where as unknown as Mock).mockReturnValue({
 				equals: vi.fn().mockReturnValue({
 					first: vi.fn().mockResolvedValue(existingTask),
 				}),
 			});
 
-			(db.tasks.update as any).mockResolvedValue(1);
+			(db.tasks.update as unknown as Mock).mockResolvedValue(1);
 
 			await repository.deleteTask('task123');
 
-			expect(db.tasks.update).toHaveBeenCalledWith(
+			expect((db.tasks as unknown as Record<string, Mock>).update).toHaveBeenCalledWith(
 				'local123',
 				expect.objectContaining({
 					deleted: true,
@@ -275,7 +279,7 @@ describe('TaskRepository', () => {
 		});
 
 		it('should not throw if task not found', async () => {
-			(db.tasks.where as any).mockReturnValue({
+			(db.tasks.where as unknown as Mock).mockReturnValue({
 				equals: vi.fn().mockReturnValue({
 					first: vi.fn().mockResolvedValue(undefined),
 				}),
@@ -303,13 +307,13 @@ describe('TaskRepository', () => {
 				source: 'obsidian',
 			};
 
-			(db.tasks.where as any).mockReturnValue({
+			(db.tasks.where as unknown as Mock).mockReturnValue({
 				equals: vi.fn().mockReturnValue({
 					first: vi.fn().mockResolvedValue(mockLocalTask),
 				}),
 			});
 
-			(db.tasks.update as any).mockResolvedValue(1);
+			(db.tasks.update as unknown as Mock).mockResolvedValue(1);
 
 			const result = await repository.closeTask('task123');
 
@@ -336,13 +340,13 @@ describe('TaskRepository', () => {
 				source: 'obsidian',
 			};
 
-			(db.tasks.where as any).mockReturnValue({
+			(db.tasks.where as unknown as Mock).mockReturnValue({
 				equals: vi.fn().mockReturnValue({
 					first: vi.fn().mockResolvedValue(mockLocalTask),
 				}),
 			});
 
-			(db.tasks.update as any).mockResolvedValue(1);
+			(db.tasks.update as unknown as Mock).mockResolvedValue(1);
 
 			const result = await repository.reopenTask('task123');
 
@@ -353,7 +357,7 @@ describe('TaskRepository', () => {
 
 	describe('taskExists', () => {
 		it('should return true if task exists', async () => {
-			(db.tasks.where as any).mockReturnValue({
+			(db.tasks.where as unknown as Mock).mockReturnValue({
 				equals: vi.fn().mockReturnValue({
 					first: vi.fn().mockResolvedValue({ taskId: 'task123' }),
 				}),
@@ -365,7 +369,7 @@ describe('TaskRepository', () => {
 		});
 
 		it('should return false if task does not exist', async () => {
-			(db.tasks.where as any).mockReturnValue({
+			(db.tasks.where as unknown as Mock).mockReturnValue({
 				equals: vi.fn().mockReturnValue({
 					first: vi.fn().mockResolvedValue(undefined),
 				}),
@@ -379,7 +383,7 @@ describe('TaskRepository', () => {
 
 	describe('getTaskCount', () => {
 		it('should return task count', async () => {
-			(db.tasks.count as any).mockResolvedValue(42);
+			(db.tasks.count as unknown as Mock).mockResolvedValue(42);
 
 			const result = await repository.getTaskCount();
 
@@ -387,7 +391,7 @@ describe('TaskRepository', () => {
 		});
 
 		it('should return 0 on error', async () => {
-			(db.tasks.count as any).mockRejectedValue(new Error('DB error'));
+			(db.tasks.count as unknown as Mock).mockRejectedValue(new Error('DB error'));
 
 			const result = await repository.getTaskCount();
 

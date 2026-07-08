@@ -1,19 +1,13 @@
 import { App, Modal, Setting } from 'obsidian';
 import TickTickSync from '@/main';
-import { getSettings } from '@/settings';
 import { getAllProjects } from "@/db/projects";
 import { getAllFiles } from "@/db/files";
 import { db } from "@/db/dexie";
 
 
-interface MyProject {
-	id: string;
-	name: string;
-}
-
 export class SetDefaultProjectForFileModal extends Modal {
-	defaultProjectId: string;
-	defaultProjectName: string;
+	defaultProjectId!: string;
+	defaultProjectName!: string;
 	filepath: string;
 	plugin: TickTickSync;
 
@@ -28,9 +22,9 @@ export class SetDefaultProjectForFileModal extends Modal {
 	async onOpen() {
 		const { contentEl } = this;
 		contentEl.empty();
-		contentEl.createEl('h5', { text: 'Set default project for TickTick tasks in the current file' });
+		contentEl.createEl('h5', { text: 'Set default project for ticktick tasks in the current file' });
 
-		this.defaultProjectId = await this.plugin.fileTaskQueries.getDefaultProjectIdForFilepath(this.filepath);
+		this.defaultProjectId = await this.plugin.fileTaskQueries.getDefaultProjectIdForFilepath(this.filepath) ?? '';
 		const projectRecord = this.defaultProjectId ? await db.projects.get(this.defaultProjectId) : undefined;
 		this.defaultProjectName = projectRecord?.project?.name || this.defaultProjectId;
 		// log.debug(this.defaultProjectId)
@@ -39,8 +33,7 @@ export class SetDefaultProjectForFileModal extends Modal {
 		const defaultProjectIds = allFiles.map(f => f.defaultProjectId).filter(id => !!id);
 		const allProjects = await getAllProjects();
 		const allowableProjects = allProjects.filter(project => !defaultProjectIds.includes(project.id));
-		const myProjectsOptions: MyProject | undefined = allowableProjects.reduce((obj, item) => {
-				// log.debug(obj, item.id, item.name)
+		const myProjectsOptions: Record<string, string> = allowableProjects.reduce<Record<string, string>>((obj, item) => {
 				obj[item.id] = item.name;
 				return obj;
 			}, {}

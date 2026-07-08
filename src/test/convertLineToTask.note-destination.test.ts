@@ -22,7 +22,7 @@ function makePlugin(parser: TaskParser) {
       formatDateToISO: (_: Date) => '2025-01-01T00:00:00.000Z',
     },
     app: { vault: { getName: () => 'TestVault' } },
-  } as any;
+  } as unknown;
 }
 
 describe('convertLineToTask note destination', () => {
@@ -31,12 +31,11 @@ describe('convertLineToTask note destination', () => {
   const filepath = 'Folder/File.md';
 
   it('puts note into desc when task has child items', async () => {
-    (getSettings as any)().noteDelimiter = '';
-    (getSettings as any)().fileLinksInTickTick = 'noLink';
+    ((getSettings as unknown as () => Record<string, string>)()).noteDelimiter = '';
+    ((getSettings as unknown as () => Record<string, string>)()).fileLinksInTickTick = 'noLink';
 
-    const parser = new TaskParser({} as any, {} as any);
-    const plugin = makePlugin(parser);
-    parser.plugin = plugin;
+    const parser = new TaskParser({} as unknown, {} as unknown);
+	  parser.plugin = makePlugin(parser);
 
     const fileMap = {
       getTaskItems: (_: string) => ['\t- [ ] child %%111111111111111111111111%%'],
@@ -45,7 +44,7 @@ describe('convertLineToTask note destination', () => {
         parentId: '',
         taskLines: ['  first', '  second'],
       } satisfies Partial<ITaskRecord>)
-    } as any;
+    } as unknown;
 
     const task = await parser.convertLineToTask(line, 0, filepath, fileMap, null);
 
@@ -54,12 +53,11 @@ describe('convertLineToTask note destination', () => {
   });
 
   it('puts note into content when task has no child items', async () => {
-    (getSettings as any)().noteDelimiter = '';
-    (getSettings as any)().fileLinksInTickTick = 'noLink';
+    ((getSettings as unknown as () => Record<string, string>)()).noteDelimiter = '';
+    ((getSettings as unknown as () => Record<string, string>)()).fileLinksInTickTick = 'noLink';
 
-    const parser = new TaskParser({} as any, {} as any);
-    const plugin = makePlugin(parser);
-    parser.plugin = plugin;
+    const parser = new TaskParser({} as unknown, {} as unknown);
+	  parser.plugin = makePlugin(parser);
 
     const fileMap = {
       getTaskItems: (_: string) => [],
@@ -68,7 +66,7 @@ describe('convertLineToTask note destination', () => {
         parentId: '',
         taskLines: ['  alpha', '  beta'],
       } satisfies Partial<ITaskRecord>)
-    } as any;
+    } as unknown;
 
     const task = await parser.convertLineToTask(line, 0, filepath, fileMap, null);
 

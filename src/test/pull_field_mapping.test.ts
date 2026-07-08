@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest';
 import { pullFromTickTick } from '../sync/pull';
 import { db } from '../db/dexie';
 
@@ -20,7 +20,7 @@ vi.mock('../db/dexie', () => ({
 		meta: {
 			update: vi.fn(),
 		},
-		transaction: vi.fn((_mode, _table, callback) => callback()),
+		transaction: vi.fn((_mode: string, _table: string, callback: () => void) => callback()),
 	},
 }));
 
@@ -38,7 +38,7 @@ vi.mock('../utils/logger', () => ({
 }));
 
 vi.mock('../sync/conflicts', () => ({
-	resolveTaskConflict: vi.fn((local, remote) => ({
+	resolveTaskConflict: vi.fn((local: unknown, remote: unknown) => ({
 		resolved: remote,
 		conflictDetected: false,
 		winner: "remote" as const,
@@ -52,7 +52,7 @@ describe('pullFromTickTick field mapping and echo detection', () => {
 		plugin: {
 			dateMan: { addDateHolderToTask: vi.fn() },
 		},
-	} as any;
+	};
 
 	const mockMeta = {
 		deviceId: 'test-device',
@@ -74,7 +74,7 @@ describe('pullFromTickTick field mapping and echo detection', () => {
 			id: 'remote-task-id',
 			modifiedTime: modifiedTimeString,
 			deleted: 0,
-		} as any;
+		};
 
 		mockApi.getUpdatedTasks.mockResolvedValue({ update: [remoteTask], delete: [] });
 
@@ -83,12 +83,11 @@ describe('pullFromTickTick field mapping and echo detection', () => {
 		const anyOf = vi.fn(() => ({ toArray: anyOfToArray }));
 		const first = vi.fn().mockResolvedValue(undefined);
 		const equals = vi.fn(() => ({ first }));
-		const mockWhere = vi.fn(() => ({ anyOf, equals, first: vi.fn(), toArray: vi.fn() }));
-		(db.tasks.where as any) = mockWhere;
+		(db.tasks.where as unknown as Mock) = vi.fn(() => ({ anyOf, equals, first: vi.fn(), toArray: vi.fn() }));
 
 		await pullFromTickTick(mockApi, mockMeta, false);
 
-		expect(db.tasks.bulkPut).toHaveBeenCalledWith([expect.objectContaining({
+		expect((db.tasks as unknown as Record<string, Mock>).bulkPut).toHaveBeenCalledWith([expect.objectContaining({
 			updatedAt: expectedTimestamp,
 		})]);
 	});
@@ -101,7 +100,7 @@ describe('pullFromTickTick field mapping and echo detection', () => {
 			id: 'remote-task-id',
 			modifiedTime: modifiedTimeString,
 			deleted: 0,
-		} as any;
+		};
 
 		mockApi.getUpdatedTasks.mockResolvedValue({ update: [remoteTask], delete: [] });
 
@@ -118,12 +117,11 @@ describe('pullFromTickTick field mapping and echo detection', () => {
 		const anyOf = vi.fn(() => ({ toArray: anyOfToArray }));
 		const first = vi.fn().mockResolvedValue(localTask);
 		const equals = vi.fn(() => ({ first }));
-		const mockWhere = vi.fn(() => ({ anyOf, equals, first: vi.fn(), toArray: vi.fn() }));
-		(db.tasks.where as any) = mockWhere;
+		(db.tasks.where as unknown as Mock) = vi.fn(() => ({ anyOf, equals, first: vi.fn(), toArray: vi.fn() }));
 
 		const applied = await pullFromTickTick(mockApi, mockMeta, false);
 
 		expect(applied).toBe(0);
-		expect(db.tasks.bulkPut).not.toHaveBeenCalled();
+		expect((db.tasks as unknown as Record<string, Mock>).bulkPut).not.toHaveBeenCalled();
 	});
 });

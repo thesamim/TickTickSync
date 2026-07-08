@@ -2,7 +2,7 @@
 	import { getSettings, updateSettings } from '@/settings';
 	import { settingsStore } from '@/ui/settings/settingsstore';
 	import type TickTickSync from '@/main';
-	import { Notice, Setting, TFolder } from 'obsidian';
+	import { Notice, Setting } from 'obsidian';
 	import { FolderSuggest } from '@/utils/FolderSuggester';
 	import { onMount } from 'svelte';
 	import { validateNewFolder } from '@/utils/FolderUtils';
@@ -38,7 +38,7 @@
 					if (debounceTimeout) clearTimeout(debounceTimeout);
 
 					debounceTimeout = setTimeout(async () => {
-						const newFolder = await validateNewFolder(value, "Backup");
+						const newFolder = await validateNewFolder(plugin.app, value, "Backup");
 						if (newFolder) {
 							updateSettings({ bkupFolder: newFolder });
 							await plugin.saveSettings();
@@ -137,7 +137,7 @@
 						type="checkbox"
 						checked={$settingsStore.skipBackup}
 						on:change={async (e) => {
-							updateSettings({ skipBackup: e.target.checked });
+							updateSettings({ skipBackup: (e.target as HTMLInputElement).checked });
 							await plugin.saveSettings();
 						}}
 					/>
@@ -217,7 +217,7 @@
 					max="31"
 					value={getSettings().deletedTaskRetentionDays}
 					on:change={async (e) => {
-						const val = Math.min(31, Math.max(1, parseInt(e.target.value, 10) || 7));
+						const val = Math.min(31, Math.max(1, parseInt((e.target as HTMLInputElement).value, 10) || 7));
 						updateSettings({ deletedTaskRetentionDays: val });
 						await plugin.saveSettings();
 					}}

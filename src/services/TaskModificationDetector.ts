@@ -22,7 +22,7 @@ import {
 import type TickTickSync from '@/main';
 import type { ITask } from '@/api/types/Task';
 import type { LocalTask } from '@/db/schema';
-import { NewFileMap } from '@/services/NewFileMap';
+import { NewFileMap, type ITaskItemRecord, type ITaskRecord } from '@/services/NewFileMap';
 import { FolderSyncService } from '@/services/FolderSyncService';
 import { getSettings } from '@/settings';
 import log from '@/utils/logger';
@@ -57,18 +57,17 @@ export class TaskModificationDetector {
 	 * Check for new task content in the current editor line
 	 */
 	async checkLineForNewTask(editor: Editor, view: MarkdownView | MarkdownFileInfo): Promise<boolean> {
-		const filepath = view.file?.path;
-		const fileContent = view?.data;
+		const fileContent: string | undefined = (view as MarkdownView)?.data;
 		const cursor = editor.getCursor();
 		const line = cursor.line;
 		const linetxt = editor.getLine(line);
-		const beforeLength = fileContent?.length;
+		const beforeLength: number | undefined = fileContent?.length;
 
-		const fileMap = new NewFileMap(this.app, this.plugin, view.file);
+		const fileMap = new NewFileMap(this.app, this.plugin, (view as MarkdownView).file!);
 		await fileMap.init(fileContent);
 		await this.addNewTask(linetxt, line, editor, cursor, fileMap);
 
-		const afterLength = fileContent?.length;
+		const afterLength: number | undefined = fileContent?.length;
 		return (beforeLength != afterLength);
 	}
 
@@ -103,10 +102,12 @@ export class TaskModificationDetector {
 
 				// Handle parent-child relationship
 				if (currentTask.parentId) {
-					let parentTask = await this.plugin.taskRepository.loadTaskById(currentTask.parentId);
-					parentTask = this.plugin.taskParser.addChildToParent(parentTask, currentTask.parentId);
-					parentTask = await this.plugin.tickTickRestAPI?.updateTask(parentTask);
-					await this.plugin.taskRepository.upsertTask(parentTask, null, Date.now());
+					const parentTask2 = await this.plugin.taskRepository.loadTaskById(currentTask.parentId);
+					if (parentTask2) {
+						this.plugin.taskParser.addChildToParent(parentTask2, currentTask.parentId);
+						const updatedParent = await this.plugin.tickTickRestAPI?.updateTask(parentTask2) as ITask;
+						await this.plugin.taskRepository.upsertTask(updatedParent, undefined, Date.now());
+					}
 				}
 
 				new Notice(`New task created: ${newTask.title} (ID: ${newTask.id})`);
@@ -127,7 +128,7 @@ export class TaskModificationDetector {
 				const taskRecord = fileMap.getTaskRecord(newTask.id);
 				const taskString = taskRecord.task;
 				const stringToHash = taskString + this.plugin.taskParser.getNoteString(taskRecord, newTask.id);
-				newTask.lineHash = await this.plugin.taskParser?.getLineHash(stringToHash);
+				newTask.lineHash = (await this.plugin.taskParser?.getLineHash(stringToHash))!;
 
 				// Save to database
 				await this.plugin.taskRepository.upsertTask(newTask, fileMap.getFilePath());
@@ -153,6 +154,7 @@ export class TaskModificationDetector {
 		// Ensure file is registered in metadata before scanning
 		await this.plugin.fileMetadataService?.getFileMetadata(file_path);
 
+		if (!(file instanceof TFile)) { return false; }
 		const fileMap = new NewFileMap(this.app, this.plugin, file);
 		await fileMap.init();
 
@@ -187,7 +189,6 @@ export class TaskModificationDetector {
 			// Not a full task — check if it's a genuine task item.
 			if (lineNumber !== undefined) {
 				const fileLines = fileMap.getFileLines().split('\n');
-				const lineTabs = this.plugin.taskParser.getNumTabs(lineText);
 				for (let i = lineNumber - 1; i >= 0; i--) {
 					const ancestorLine = fileLines[i];
 					if (this.plugin.taskParser.isMarkdownTask(ancestorLine) && this.plugin.taskParser.hasTickTickId(ancestorLine)) {
@@ -202,7 +203,7 @@ export class TaskModificationDetector {
 			return false;
 		}
 
-		const taskId = this.plugin.taskParser.getTickTickId(lineText);
+		const taskId = this.plugin.taskParser.getTickTickId(lineText) ?? '';
 		const taskRecord = fileMap.getTaskRecord(taskId);
 
 		if (!taskRecord || !taskRecord.task) {
@@ -216,7 +217,7 @@ export class TaskModificationDetector {
 			// Task not in local DB — check TickTick API before deleting.
 			// Handles the race where a file syncs to this device via external
 			// sync before the pull phase fetched the task from TickTick.
-			const remoteTask = await this.plugin.tickTickRestAPI?.getTaskById(taskId, null);
+			const remoteTask = await this.plugin.tickTickRestAPI?.getTaskById(taskId, undefined);
 			if (remoteTask) {
 				log.warn(`Task ${taskId} not in local DB but exists on TickTick. Importing.`);
 				await this.plugin.taskRepository.upsertTask(remoteTask, filepath, Date.now());
@@ -225,8 +226,9 @@ export class TaskModificationDetector {
 
 			log.error(`Task ${taskId} not found on TickTick. Deleting from file ${filepath}`);
 			new Notice(`Task not found. It will be removed from the file.`);
-			const file = this.app.vault.getAbstractFileByPath(filepath);
-			const lineTask = await this.plugin.taskParser?.convertLineToTask(lineText, lineNumber, filepath, fileMap, taskRecord);
+			const file = this.app.vault.getAbstractFileByPath(filepath!);
+			if (!(file instanceof TFile)) { return false; }
+			const lineTask = (await this.plugin.taskParser?.convertLineToTask(lineText, lineNumber!, filepath!, fileMap, taskRecord));
 			await this.plugin.fileOperation?.deleteTaskFromSpecificFile(file, lineTask, true);
 			return false;
 		}
@@ -241,7 +243,7 @@ export class TaskModificationDetector {
 		// Check if hash matches (no changes)
 		if (savedTask.lineHash && newHash === savedTask.lineHash) {
 			// Check for moves
-			const moveCheck = await this.checkForTaskMove(taskId, filepath);
+			const moveCheck = await this.checkForTaskMove(taskId, filepath!);
 			const parentChanged = (taskRecord.parentId || '') !== (savedTask.parentId || '');
 
 			if (!moveCheck.moved && !parentChanged) {
@@ -255,31 +257,21 @@ export class TaskModificationDetector {
 		}
 
 		// Convert line to task object
-		const lineTask = await this.plugin.taskParser?.convertLineToTask(lineText, lineNumber, filepath, fileMap, taskRecord);
+		const lineTask = (await this.plugin.taskParser?.convertLineToTask(lineText, lineNumber!, filepath!, fileMap, taskRecord));
 
 		// Ensure task has required fields
 		if (!savedTask.dateHolder) {
 			this.plugin.dateMan?.addDateHolderToTask(savedTask, undefined);
-			await this.plugin.taskRepository.upsertTask(savedTask, null, Date.now());
+			await this.plugin.taskRepository.upsertTask(savedTask, undefined, Date.now());
 		}
 		if (!savedTask.lineHash) {
-			savedTask.lineHash = newHash;
+			savedTask.lineHash = newHash!;
 		}
 
 		// Detect what changed
 		const modifications = this.detectModifications(lineTask, savedTask, taskRecord);
-		if (modifications.statusModified ||
-			modifications.tagsModified ||
-			modifications.datesModified ||
-			modifications.parentIdModified ||
-			modifications.priorityModified ||
-			modifications.taskItemsModified ||
-			modifications.notesModified ||
-			modifications.projectMoved) {
-		}
 
-		// Apply modifications
-		return await this.applyModifications(lineTask, savedTask, modifications, filepath, taskId, newHash);
+		return await this.applyModifications(lineTask, savedTask, modifications, filepath!, taskId, newHash ?? '');
 	}
 
 	/**
@@ -291,7 +283,7 @@ export class TaskModificationDetector {
 		}
 
 		const file = this.app.vault.getAbstractFileByPath(filepath);
-		if (!file || file instanceof TFolder) {
+		if (!(file instanceof TFile)) {
 			return;
 		}
 
@@ -329,7 +321,7 @@ export class TaskModificationDetector {
 			return;
 		}
 
-		const shouldManage = await this.folderSyncService.shouldManageFile(localTask.file);
+		const shouldManage = await this.folderSyncService.shouldManageFile(localTask.file ?? undefined);
 		if (!shouldManage) {
 			log.debug(`File ${localTask.file} is user-managed, skipping project group change check`);
 			return;
@@ -354,11 +346,11 @@ export class TaskModificationDetector {
 	/**
 	 * Detect all modifications between line task and saved task
 	 */
-	private detectModifications(lineTask: ITask, savedTask: ITask, taskRecord: any): TaskModifications {
+	private detectModifications(lineTask: ITask, savedTask: ITask, taskRecord: ITaskRecord): TaskModifications {
 		return {
 			titleModified: this.plugin.taskParser?.isTitleChanged(lineTask, savedTask) || false,
 			tagsModified: this.plugin.taskParser?.isTagsChanged(lineTask, savedTask) || false,
-			statusModified: this.plugin.taskParser?.isStatusChanged(lineTask, savedTask) || false,
+			statusModified: this.plugin.taskParser?.isStatusChanged(lineTask as unknown as Record<string, unknown>, savedTask as unknown as Record<string, unknown>) || false,
 			datesModified: this.plugin.dateMan?.areDatesChanged(lineTask, savedTask) || false,
 			parentIdModified: this.plugin.taskParser?.isParentIdChanged(lineTask, savedTask) || false,
 			priorityModified: lineTask.priority !== savedTask.priority,
@@ -448,7 +440,7 @@ export class TaskModificationDetector {
 			updatedTask.dateHolder = saveDateHolder;
 			updatedTask.lineHash = newHash;
 
-			const targetPath = modifications.projectMoved ? filepath : null;
+			const targetPath: string | undefined = modifications.projectMoved ? filepath : undefined;
 			await this.plugin.taskRepository.upsertTask(updatedTask, targetPath, Date.now());
 			modified = true;
 
@@ -458,7 +450,7 @@ export class TaskModificationDetector {
 		// Update hash even if no API call was made
 		if (!modified && newHash !== savedTask.lineHash) {
 			lineTask.lineHash = newHash;
-			await this.plugin.taskRepository.upsertTask(lineTask, null, Date.now());
+			await this.plugin.taskRepository.upsertTask(lineTask, undefined, Date.now());
 		}
 
 		return modified;
@@ -515,6 +507,7 @@ export class TaskModificationDetector {
 
 		try {
 			const oldPath = localTask.file;
+			if (!oldPath) { return; }
 
 			// Get the new folder path based on task's new project
 			const newFolderPath = await this.folderSyncService.getFolderPathForTask(task);
@@ -599,7 +592,7 @@ export class TaskModificationDetector {
 		}
 
 		const lineItemId = this.plugin.taskParser.getLineItemId(lineText);
-		let currentObject: any;
+		let currentObject: ITaskItemRecord | undefined;
 
 		if (lineItemId) {
 			currentObject = fileMap.getTaskItemRecord(lineItemId);
@@ -628,10 +621,10 @@ export class TaskModificationDetector {
 				// Existing item - check for modifications
 				const oldItem = parentTask.items.find((item) => item.id == itemId);
 				if (oldItem) {
-					if (oldItem.title.trim() != newItem.description.trim() ||
-						oldItem.status != (newItem?.status ? 2 : 0)) {
-						oldItem.title = newItem?.description.trim();
-						oldItem.status = newItem?.status ? 2 : 0;
+					if (oldItem.title.trim() != newItem!.description.trim() ||
+						oldItem.status != (newItem!.status ? 2 : 0)) {
+						oldItem.title = newItem!.description.trim();
+						oldItem.status = newItem!.status ? 2 : 0;
 						modified = true;
 					}
 				} else {
@@ -639,8 +632,8 @@ export class TaskModificationDetector {
 					log.warn('Item', newItem, 'not found in parent items. Forcibly adding...');
 					parentTask.items.push({
 						id: itemId,
-						title: newItem?.description,
-						status: newItem?.status ? 2 : 0
+						title: newItem!.description,
+						status: newItem!.status ? 2 : 0
 					});
 					modified = true;
 				}
@@ -650,13 +643,14 @@ export class TaskModificationDetector {
 				const OidHexString = Oid.toHexString();
 				parentTask.items.push({
 					id: OidHexString,
-					title: newItem?.description,
-					status: newItem?.status ? 2 : 0
+					title: newItem!.description,
+					status: newItem!.status ? 2 : 0
 				});
 
 				// CRITICAL: Get the file from fileMap, not from active workspace
 				const filepath = fileMap.getFilePath();
-				const file = this.app.vault.getAbstractFileByPath(filepath) as TFile;
+				const file = this.app.vault.getAbstractFileByPath(filepath);
+			if (!(file instanceof TFile)) { return false; }
 
 				if (file && lineNumber !== undefined) {
 					try {
@@ -680,7 +674,7 @@ export class TaskModificationDetector {
 			try {
 				const updatedTask = await this.plugin.tickTickRestAPI?.updateTask(parentTask);
 				if (updatedTask) {
-					await this.plugin.taskRepository.upsertTask(updatedTask, null, Date.now());
+					await this.plugin.taskRepository.upsertTask(updatedTask, undefined, Date.now());
 				}
 			} catch (error) {
 				log.error('Error updating parent task:', error);
@@ -706,7 +700,7 @@ export class TaskModificationDetector {
 
 		const numTabs = this.plugin.taskParser.getNumTabs(lineTxt);
 		const decoratedText = await this.plugin.taskParser?.convertTaskToLine(newTaskCopy, numTabs);
-		log.warn('updateTaskLineInFile:', decoratedText);
+
 
 		try {
 			const taskLine = line ?? cursor?.line ?? 0;

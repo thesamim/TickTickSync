@@ -3,16 +3,15 @@
  * Extracts event handling logic from main.ts
  */
 
-import { App, Editor, type MarkdownFileInfo, MarkdownView, TFile, TFolder } from 'obsidian';
+import { App, Editor, type MarkdownFileInfo, MarkdownView, TFolder } from 'obsidian';
 import type TickTickSync from '@/main';
 import { getSettings } from '@/settings';
 import log from '@/utils/logger';
-import { FileOperation } from '@/fileOperation';
 
 export class EventHandlerService {
 	private app: App;
 	private plugin: TickTickSync;
-	private processTimeout?: ReturnType<typeof setTimeout>;
+	private processTimeout?: number;
 
 	constructor(app: App, plugin: TickTickSync) {
 		this.app = app;
@@ -61,7 +60,7 @@ export class EventHandlerService {
 					await this.plugin.service.deletedTaskCheck(null);
 					await this.plugin.saveSettings();
 				} catch (error) {
-					log.warn(`An error occurred while deleting tasks: ${error}`);
+					log.warn(`An error occurred while deleting tasks: ${String(error)}`);
 				}
 			}
 		});
@@ -88,7 +87,7 @@ export class EventHandlerService {
 
 			// Handle checkbox clicks
 			if (target && (target as HTMLInputElement).type === 'checkbox') {
-				await this.plugin.checkboxEventhandler(evt, editor);
+				await this.plugin.checkboxEventhandler(evt, editor!);
 			}
 		});
 	}
@@ -98,33 +97,34 @@ export class EventHandlerService {
 	 */
 	private registerEditorChangeEvents(): void {
 		this.plugin.registerEvent(
-			this.app.workspace.on('editor-change', async (editor: Editor, info: MarkdownView | MarkdownFileInfo) => {
+			this.app.workspace.on('editor-change', (editor: Editor, info: MarkdownView | MarkdownFileInfo) => {
 				if (this.processTimeout) {
-					clearTimeout(this.processTimeout);
+					window.clearTimeout(this.processTimeout);
 				}
 
-				this.processTimeout = setTimeout(async () => {
-					try {
-						if (!getSettings().token) {
-							return;
+				this.processTimeout = window.setTimeout(() => {
+					void (async () => {
+						try {
+							if (!getSettings().token) {
+								return;
+							}
+
+							if (getSettings().enableFullVaultSync) {
+								return;
+							}
+
+							await this.plugin.lineNumberCheck();
+
+							if (!this.plugin.checkModuleClass()) {
+								return;
+							}
+
+							await this.plugin.service.lineNewContentTaskCheck(editor, info);
+							await this.plugin.saveSettings();
+						} catch (error) {
+							log.error('An error occurred while check new task in line: ', error);
 						}
-
-						if (getSettings().enableFullVaultSync) {
-							// We'll deal with modifications on full sync
-							return;
-						}
-
-						await this.plugin.lineNumberCheck();
-
-						if (!this.plugin.checkModuleClass()) {
-							return;
-						}
-
-						await this.plugin.service.lineNewContentTaskCheck(editor, info);
-						await this.plugin.saveSettings();
-					} catch (error) {
-						log.error('An error occurred while check new task in line: ', error);
-					}
+					})();
 				}, 1000);
 			})
 		);
@@ -222,7 +222,7 @@ export class EventHandlerService {
 	 */
 	cleanup(): void {
 		if (this.processTimeout) {
-			clearTimeout(this.processTimeout);
+			window.clearTimeout(this.processTimeout);
 		}
 	}
 }

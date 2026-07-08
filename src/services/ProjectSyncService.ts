@@ -5,7 +5,7 @@ import { FoundDuplicateListsModal } from '@/modals/FoundDuplicateListsModal';
 import { getDefaultFolder, getSettings } from '@/settings';
 import log from '@/utils/logger';
 import { db } from '@/db/dexie';
-import { getAllProjects, getProjectById } from '@/db/projects';
+import { getAllProjects } from '@/db/projects';
 import { upsertFile, getAllFiles } from '@/db/files';
 
 export class ProjectSyncService {
@@ -50,7 +50,7 @@ export class ProjectSyncService {
 			return true;
 		} catch (error) {
 			log.error('Error on save projects: ', error);
-			new Notice(`error on save projects: ${error}`);
+			new Notice(`error on save projects: ${error instanceof Error ? error.message : String(error)}`);
 		}
 		return false;
 	}
@@ -151,9 +151,7 @@ export class ProjectSyncService {
 	}
 
 	private async showFoundDuplicatesModal(app: App, plugin: TickTickSync, projects: IProject[]) {
-		const myModal = new FoundDuplicateListsModal(app, plugin, projects, (result) => {
-			const ret = result;
-		});
+		const myModal = new FoundDuplicateListsModal(app, plugin, projects, () => {});
 		return await myModal.showModal();
 	}
 }

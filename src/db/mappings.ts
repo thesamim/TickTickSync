@@ -1,5 +1,4 @@
 import { db } from "./dexie";
-import type { TaskFileMapping } from "./schema";
 
 function mappingId(taskId: string, file: string) {
 	return `${taskId}:${file}`;
@@ -17,6 +16,7 @@ export async function linkTaskToFile(
 
 	await db.mappings.put({
 		id,
+		localId: taskId,
 		taskId,
 		file,
 		section,

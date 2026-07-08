@@ -39,7 +39,7 @@ describe('rruleToTasksText', () => {
 	});
 
 	it('returns null for null input', () => {
-		expect(rruleToTasksText(null as any)).toBeNull();
+		expect(rruleToTasksText(null as unknown)).toBeNull();
 	});
 
 	it('returns null for empty string input', () => {
@@ -106,7 +106,7 @@ describe('tasksTextToRRule', () => {
 	});
 
 	it('returns null for null input', () => {
-		expect(tasksTextToRRule(null as any)).toBeNull();
+		expect(tasksTextToRRule(null as unknown)).toBeNull();
 	});
 
 	it('returns null for empty string input', () => {
@@ -124,7 +124,7 @@ describe('tasksTextToRRule', () => {
 
 describe('normalizeRepeatFlag', () => {
 	it('returns empty string for null input', () => {
-		expect(normalizeRepeatFlag(null as any)).toBe('');
+		expect(normalizeRepeatFlag(null as unknown)).toBe('');
 	});
 
 	it('returns empty string for empty input', () => {

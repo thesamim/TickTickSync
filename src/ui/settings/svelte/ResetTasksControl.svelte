@@ -50,7 +50,11 @@
 {#if showResetModal}
 	<div
 		class="local-modal-backdrop"
+		role="button"
+		tabindex="0"
 		on:click={modalWorking ? undefined : closeModal}
+		on:keydown={(e) => { if (!modalWorking && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); closeModal(); } }}
+		aria-label="Close"
 		style={modalWorking ? 'cursor: wait;' : ''}
 	></div>
 	<div

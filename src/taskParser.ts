@@ -4,18 +4,16 @@ import type { ITask, ITaskItem } from '@/api/types/Task';
 import { getSettings } from '@/settings';
 import { sha256 } from 'crypto-hash';
 import type { NewFileMap, ITaskRecord } from '@/services/NewFileMap';
-import { db } from '@/db/dexie';
 import { getAllProjects } from '@/db/projects';
 import { tasksTextToRRule, rruleToTasksText } from '@/utils/RecurrenceConverter';
 import log from '@/utils/logger';
 
-const priorityEmojis = ['⏬', '🔽', '🔼', '⏫', '🔺'];
 const prioritySymbols = {
 	Highest: '🔺', High: '⏫', Medium: '🔼', Low: '🔽', Lowest: '⏬', None: ''
 } as const;
 
 enum Priority {
-	Highest = '5', High = '5', Medium = '3', None = '0', Low = '1', Lowest = '0',
+	Highest = '5', Medium = '3', Low = '1', None = '0',
 }
 
 //From https://publish.obsidian.md/tasks/Reference/Task+Formats/Tasks+Emoji+Format
@@ -49,7 +47,7 @@ const priorityMapping = [{ ticktick: 0, obsidian: null }, { ticktick: 0, obsidia
 const tag_regex = /(^|\s)#[\p{L}\p{N}_/-]+/gu;
 // const due_date_regex = `(${keywords.DUE_DATE})\\s(\\d{4}-\\d{2}-\\d{2})(\\s\\d{1,}:\\d{2})?`
 const due_date_regex = `(${keywords.DUE_DATE})\\s(\\d{4}-\\d{2}-\\d{2})\\s*(\\d{1,}:\\d{2})*`;
-const due_date_strip_regex = `[${keywords.DUE_DATE}]\\s\\d{4}-\\d{2}-\\d{2}(\\s\\d{1,}:\\d{2}|)`;
+const due_date_strip_regex = `(?:${keywords.DUE_DATE})\\s\\d{4}-\\d{2}-\\d{2}(\\s\\d{1,}:\\d{2}|)`;
 const completion_date_regex = `(${keywords.TASK_COMPLETE})\\s(\\d{4}-\\d{2}-\\d{2})\\s*(\\d{1,}:\\d{2})*`;
 const completion_date_strip_regex = `${keywords.TASK_COMPLETE}\\s\\d{4}-\\d{2}-\\d{2}(\\s*\\d{1,}:\\d{2}|)`;
 
@@ -99,7 +97,7 @@ export const REGEX = {
 		REMOVE_PRIORITY: /[🔺⏫🔼🔽⏬]/ug, //accommodate UTF-16 languages.
 		REMOVE_TAGS: tag_regex,
 		REMOVE_SPACE: /^\s+|\s+$/g,
-		REMOVE_DATE: new RegExp(due_date_strip_regex, 'gmu'),
+		REMOVE_DATE: new RegExp(due_date_strip_regex, 'gum'),
 		REMOVE_COMPLETION_DATE: new RegExp(completion_date_strip_regex, 'gmu'),
 		REMOVE_INLINE_METADATA: /%%\[\w+::\s*\w+\]%%/g,
 		REMOVE_RECURRENCE: /🔁\s+[^🔁➕⏳🛫📅✅❌\n]+/gu,
@@ -111,7 +109,7 @@ export const REGEX = {
 	TASK_CHECKBOX_CHECKED: /- \[(x|X)\] /,
 	TASK_INDENTATION: /^(\s{2,}|\t)(-|\*)\s+\[(x|X| )\]/,
 	TAB_INDENTATION: /^(\t+)/, // TASK_PRIORITY: /\s!!([1-4])\s/,
-	TASK_PRIORITY: new RegExp(keywords.priority),
+	TASK_PRIORITY: new RegExp(keywords.priority, 'u'),
 	priorityRegex: /^.*([🔺⏫🔼🔽⏬]).*$/u,
 	BLANK_LINE: /^\s*$/,
 	RECURRENCE_RULE: /🔁\s+([^🔁➕⏳🛫📅✅❌]+?)(?=\s*[➕⏳🛫📅✅❌]|\s*$)/u,
@@ -220,7 +218,7 @@ export class TaskParser {
 			.replace(REGEX.TASK_CONTENT.REMOVE_SPACE, '');
 
 		taskContent = this.stripOBSUrl(taskContent);
-		taskContent = this.plugin.dateMan?.stripDatesFromLine(taskContent);
+		taskContent = this.plugin.dateMan?.stripDatesFromLine(taskContent) ?? taskContent;
 		return (taskContent);
 	}
 
@@ -229,7 +227,7 @@ export class TaskParser {
 		return line;
 	}
 
-	addTagsToLine(resultLine: string, tags: ITask.tags) {
+	addTagsToLine(resultLine: string, tags: string[]) {
 		//we're looking for the ticktick tag without the #
 		const regEx = new RegExp(keywords.TickTick_TAG.substring(1), 'i');
 		tags.forEach((tag: string) => {
@@ -247,13 +245,12 @@ export class TaskParser {
 	//convert line text to a task object
 	async convertLineToTask(lineText: string, lineNumber: number, filepath: string, fileMap: NewFileMap | null, inTaskRecord: ITaskRecord | null) {
 		let hasParent = false;
-		let parentId = null;
-		let parentTaskObject = null;
-		let taskItems = [];
-		const lineTextTabIndentation = this.getNumTabs(lineText);
+		let parentId: string | null = null;
+		let parentTaskObject: ITask | null = null;
+		let taskItems: ITaskItem[] = [];
 		let textWithoutIndentation = this.removeTaskIndentation(lineText);
 
-		const TickTick_id = this.getTickTickId(textWithoutIndentation);
+		const TickTick_id = this.getTickTickId(textWithoutIndentation) ?? '';
 
 		const allDatesStruct = this.plugin.dateMan?.parseDates(textWithoutIndentation);
 
@@ -266,9 +263,9 @@ export class TaskParser {
 			taskRecord = inTaskRecord;
 		} else {
 			if (TickTick_id) {
-				taskRecord = fileMap.getTaskRecord(TickTick_id);
+				taskRecord = fileMap!.getTaskRecord(TickTick_id);
 			} else {
-				taskRecord = await fileMap.getTaskRecordByLine(lineNumber);
+				taskRecord = await fileMap!.getTaskRecordByLine(lineNumber);
 			}
 		}
 		let description = null;
@@ -281,7 +278,7 @@ export class TaskParser {
 			parentId = taskRecord.parentId;
 			hasParent = true;
 			// log.debug(`parent id is ${parentId}`)
-			parentTaskObject = await this.plugin.taskRepository.loadTaskById(parentId);
+			parentTaskObject = (await this.plugin.taskRepository.loadTaskById(parentId)) ?? null;
 		}
 
 
@@ -295,7 +292,7 @@ export class TaskParser {
 
 		const tags = this.getAllTagsFromLineText(textWithoutIndentation);
 
-		let projectId = await this.plugin.fileTaskQueries?.getDefaultProjectIdForFilepath(filepath as string);
+		let projectId = await this.plugin.fileTaskQueries?.getDefaultProjectIdForFilepath(filepath);
 
 		if (hasParent) {
 			if (parentTaskObject) {
@@ -334,12 +331,19 @@ export class TaskParser {
 
 		const task: ITask = {
 			id: TickTick_id || '',
-			projectId: projectId,
+			projectId: projectId ?? '',
 			title: title.trim() + (taskURL ? ' ' + taskURL : ''),
 			content: content ? content : '',
 			desc: description ? description : '',
 			items: taskItems || [],
 			parentId: parentId || '',
+			childIds: [],
+			sortOrder: 0,
+			reminder: '',
+			reminders: [],
+			progress: 0,
+			deleted: 0,
+			lineHash: '',
 			dueDate: allDatesStruct?.dueDate?.isoDate || '',
 			startDate: actualStartDate || '',
 			completedTime: allDatesStruct?.completedTime?.isoDate || '',
@@ -375,8 +379,8 @@ export class TaskParser {
 		//find task items
 		const taskLineItems = fileMap.getTaskItems(TickTick_id);
 		if (taskLineItems && taskLineItems.length > 0) {
-			for (const taskLineItem in taskLineItems) {
-				taskItems.push(this.getItemFromLine(taskLineItems[taskLineItem]));
+			for (const taskLineItem of taskLineItems) {
+				taskItems.push(this.getItemFromLine(taskLineItem));
 			}
 		}
 
@@ -425,7 +429,7 @@ export class TaskParser {
 		return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 	}
 
-	getNoteString(taskRecord: ITaskRecord, id?: string | undefined) {
+	getNoteString(taskRecord: ITaskRecord, id?: string) {
 		let textContent = '';
 		if (taskRecord.taskLines) {
 			let descriptionStrings = [...taskRecord.taskLines];
@@ -591,7 +595,7 @@ export class TaskParser {
 	}
 
 	//task status compare
-	isStatusChanged(lineTask: Object, TickTickTask: Object) {
+	isStatusChanged(lineTask: Record<string, unknown>, TickTickTask: Record<string, unknown>) {
 		//Whether status is modified?
 		const statusModified = (lineTask.status === TickTickTask.status);
 		//log.debug(lineTask)
@@ -721,7 +725,7 @@ export class TaskParser {
 	//log.debug(getNumTabs("\t\t- [x] This is a task with two tabs")); // 2
 
 	//remove task indentation
-	removeTaskIndentation(text) {
+	removeTaskIndentation(text: string): string {
 		const regex = /^([ \t]*)?- \[(x| )\] /;
 		return text.replace(regex, '- [$2] ');
 	}
@@ -781,7 +785,7 @@ export class TaskParser {
 		return mapping ? mapping.obsidian : null;
 	}
 
-	translateObsidianToTickTick(obsidianPriority: number) {
+	translateObsidianToTickTick(obsidianPriority: string | null): number | null {
 		const mapping = priorityMapping.find((item) => item.obsidian === obsidianPriority);
 		return mapping ? mapping.ticktick : null;
 	}
@@ -871,6 +875,7 @@ export class TaskParser {
 				return true;  // Arrays are different
 			}
 		}
+		return false;
 
 	}
 
@@ -878,13 +883,12 @@ export class TaskParser {
 		// const { prioritySymbols } = prioritySymbols;
 		switch (p) {
 			case prioritySymbols.Lowest:
-				return Priority.Lowest;
+				return Priority.None;
 			case prioritySymbols.Low:
 				return Priority.Low;
 			case prioritySymbols.Medium:
 				return Priority.Medium;
 			case prioritySymbols.High:
-				return Priority.High;
 			case prioritySymbols.Highest:
 				return Priority.Highest;
 			default:
@@ -892,7 +896,7 @@ export class TaskParser {
 		}
 	}
 
-	private addItems(resultLine: string, items: any[], numTabs: number): string {
+	private addItems(resultLine: string, items: ITaskItem[], numTabs: number): string {
 		//TODO count indentations?
 		items.forEach(item => {
 			let completion = item.status > 0 ? '- [x]' : '- [ ]';
@@ -911,9 +915,8 @@ export class TaskParser {
 		//TODO figure out Note presentation
 		//admonitions just don't work in indented tasks. Until I sort out the presentation, keep it simple until I
 		//get all the functionality sorted out,
-		let path =  await this.plugin.fileMetadataService.getFilepathForProjectId(projectId);
-		//we want the encoded version of the path name
-		path = encodeURI(path);
+		const rawPath = await this.plugin.fileMetadataService.getFilepathForProjectId(projectId) ?? '';
+		const path = encodeURI(rawPath);
 
 		const linkRegex = new RegExp(`\\[.*\\]\\(obsidian://open\\?vault=.*&file=${path}\\)`, 'giu');
 		let noteLines: string[];
@@ -970,20 +973,20 @@ export class TaskParser {
 	}
 
 	//Returns the Item with task ID and all. taskFromLine returns the description WITHOUT the ID.
-	private getItemFromLine(itemLine: string) {
+	private getItemFromLine(itemLine: string): ITaskItem {
 
 		const matches = REGEX.ITEM_LINE.exec(itemLine);
-		let item: ITaskItem = {};
+		let item: ITaskItem = { id: '', title: '', status: 0 };
 		if (matches) {
 
-			const status = matches[1];
-			const text = matches[2];
-			const id = matches[3];
+			const status = matches[1] ?? '';
+			const text = matches[2] ?? '';
+			const id = matches[3] ?? '';
 
-			const itemStatus = status ? 0 : 2;
+			const itemStatus = status === 'x' ? 2 : 0;
 
 			item = {
-				id: id, title: text, status: itemStatus
+				id, title: text, status: itemStatus
 			};
 		}
 		return item;

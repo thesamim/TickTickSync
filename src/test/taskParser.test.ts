@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, test } from 'vitest';
 //TODO: task parser tests are failing because it imports obsidian, which is not available in vitest
 import { REGEX, TaskParser } from '../taskParser';
 import { NewFileMap } from '@/services/NewFileMap';
@@ -47,24 +47,22 @@ it('collects note lines including checklist items without IDs in no-delimiter mo
 			'\t- [ ] child item %%aaaaaaaaaaaaaaaaaaaaaaaa%%'
 		];
 		// minimal fakes for FileMap usage
-		const app = {} as any;
 		const plugin = {
-			taskParser: new TaskParser({} as any, {} as any),
-		} as any;
+			taskParser: new TaskParser({} as unknown, {} as unknown),
+		};
+		(plugin.taskParser.plugin as Record<string, unknown>) = plugin;
 
 		// Fake FileMap instance with minimal API used by getTaskLinesByIdx
-		const fm = new (class extends (NewFileMap as any) {
+		const fm = new (class extends (NewFileMap as unknown as new (...args: unknown[]) => { fileLines: string[]; getParentIDByIdx(): string; getTaskIndex(): number }) {
 			constructor() { super({}, plugin, {}); this.fileLines = lines; }
 			getParentIDByIdx() { return ''; }
 			getTaskIndex() { return 0; }
 		})();
-		plugin.taskParser.plugin = plugin;
 
 		// Force no delimiter setting
-		(getSettings as any)().noteDelimiter = '';
+		((getSettings as unknown as () => Record<string, string>)()).noteDelimiter = '';
 
-		const rec = (fm as any).getTaskLinesByIdx(0, {} as any);
-		console.log("Rec: " , rec);
+		const rec = (fm as unknown as { getTaskLinesByIdx(idx: number, opts: unknown): { taskLines: string[] } }).getTaskLinesByIdx(0, {});
 		expect(rec.taskLines.length).toBe(5);
 		expect(rec.taskLines[0].trim()).toBe('Ya, you didn\'t count on that');
 		expect(rec.taskLines[3].trim()).toBe('- [ ] checklist in note');
@@ -81,21 +79,20 @@ it('collects note lines including checklist items without IDs in no-delimiter mo
 			'  last',
 			'  ' + legacyDelim
 		];
-		const app = {} as any;
 		const plugin = {
-			taskParser: new TaskParser({} as any, {} as any),
-		} as any;
+			taskParser: new TaskParser({} as unknown, {} as unknown),
+		};
+		(plugin.taskParser.plugin as Record<string, unknown>) = plugin;
 
-		const fm = new (class extends (NewFileMap as any) {
+		const fm = new (class extends (NewFileMap as unknown as new (...args: unknown[]) => { fileLines: string[]; getParentIDByIdx(): string; getTaskIndex(): number }) {
 			constructor() { super({}, plugin, {}); this.fileLines = lines; }
 			getParentIDByIdx() { return ''; }
 			getTaskIndex() { return 0; }
 		})();
-		plugin.taskParser.plugin = plugin;
 
-		(getSettings as any)().noteDelimiter = currentDelim;
+		((getSettings as unknown as () => Record<string, string>)()).noteDelimiter = currentDelim;
 
-		const rec = (fm as any).getTaskLinesByIdx(0, {} as any);
+		const rec = (fm as unknown as { getTaskLinesByIdx(idx: number, opts: unknown): { taskLines: string[] } }).getTaskLinesByIdx(0, {});
 		expect(rec.taskLines[0]).toBe('  ' + currentDelim);
 		expect(rec.taskLines[rec.taskLines.length - 1]).toBe('  ' + currentDelim);
 	});
