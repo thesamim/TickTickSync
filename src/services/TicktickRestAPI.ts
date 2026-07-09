@@ -1,4 +1,5 @@
 import type { ITask } from '@/api/types/Task';
+import type { ITag } from '@/api/types/Tag';
 import { type IBatch, Tick } from '@/api';
 import { App, Notice } from 'obsidian';
 import TickTickSync from '@/main';
@@ -327,6 +328,33 @@ export class TickTickRestAPI {
 		} catch (error) {
 			log.error('Error get project groups', error);
 			new Notice('Unable to get project groups: ' + (error instanceof Error ? error.message : String(error)), 5000);
+			return false;
+		}
+	}
+
+	async GetTags(): Promise<ITag[]> {
+		await this.initializeAPI();
+		try {
+			const result = await this.api?.getTags();
+			if (!result) {
+				log.warn('GetTags: no tags returned');
+				return [];
+			}
+			return result;
+		} catch (error) {
+			log.error('Error get tags', error);
+			return [];
+		}
+	}
+
+	async CreateTags(tags: { label: string; name: string; parent: string | null }[]): Promise<boolean> {
+		await this.initializeAPI();
+		try {
+			const payload = tags.map(t => ({ label: t.label, name: t.name, parent: t.parent }));
+			const result = await this.api?.createTags(payload);
+			return result !== null;
+		} catch (error) {
+			log.error('Error creating tags', error);
 			return false;
 		}
 	}

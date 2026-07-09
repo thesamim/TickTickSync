@@ -53,6 +53,7 @@ import { TaskDeletionHandler } from '@/services/TaskDeletionHandler';
 import { TaskOperationsService } from '@/services/TaskOperationsService';
 import { FolderSyncService } from '@/services/FolderSyncService';
 import { FolderMigrationService } from '@/services/FolderMigrationService';
+import { TagService } from '@/services/TagService';
 
 import { generateDeviceId } from '@/db/device';
 
@@ -64,6 +65,7 @@ export default class TickTickSync extends Plugin {
 	readonly fileOperation: FileOperation = new FileOperation(this.app, this);
 	readonly fileMetadataService: FileMetadataService = new FileMetadataService();
 	readonly dateMan: DateMan = new DateMan();
+	readonly tagService: TagService = new TagService();
 
 	readonly lastLines: Map<string, number> = new Map(); //lastLine object {path:line} is saved in lastLines map
 
@@ -281,6 +283,7 @@ export default class TickTickSync extends Plugin {
 
 		// Device ID and Label are now managed in the DB and loaded into memory during initDB
 		// They are no longer stored in settings to prevent sync conflicts
+		await this.tagService.loadFromDb();
 		const isProjectsSaved = await this.saveProjectsToCache();
 		if (!isProjectsSaved) {// invalid token or offline?
 			this.tickTickRestAPI = undefined;

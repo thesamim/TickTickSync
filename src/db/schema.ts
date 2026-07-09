@@ -1,6 +1,7 @@
 import type { ITask } from "@/api/types/Task";
 import type { IProject } from "@/api/types/Project";
 import type { IProjectGroup } from "@/api/types/ProjectGroup";
+import type { ITag } from "@/api/types/Tag";
 
 export interface DeviceInfo {
 	deviceId: string;
@@ -47,6 +48,11 @@ export type LocalFile = {
 	path: string;
 	defaultProjectId?: string;
 	managedByPlugin?: boolean; // true = plugin manages location, false/undefined = user manages
+};
+
+export type LocalTag = {
+	name: string;
+	tag: ITag;
 };
 
 export type JournalEntry = {

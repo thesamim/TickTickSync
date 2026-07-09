@@ -4,6 +4,7 @@ import ObjectID from 'bson-objectid';
 import type { IProjectGroup } from './types/ProjectGroup';
 import type { IProject, ISections } from './types/Project';
 import type { ITask, ITaskItem } from './types/Task';
+import type { ITag } from './types/Tag';
 import { API_ENDPOINTS } from './utils/get-api-endpoints';
 import log from '@/utils/logger';
 import { getSettings, updateSettings } from '@/settings';
@@ -17,6 +18,8 @@ const {
 	allProjectsEndPoint,
 	updateProjectEndPoint,
 	allTasksEndPoint,
+	allTagsEndPoint,
+	batchTagEndPoint,
 	signInEndPoint,
 	userPreferencesEndPoint,
 	getSections,
@@ -220,7 +223,32 @@ export class Tick {
 
 	// TAGS ======================================================================
 
-	// TODO: if Tags required, they come from allTagsEndPoint
+	async getTags(): Promise<ITag[]> {
+		try {
+			const url = `${this.apiUrl}/${allTagsEndPoint}`;
+			const response = await this.makeRequest('Get Tags', url, 'GET', undefined);
+			if (response) {
+				return response as ITag[];
+			}
+		} catch (e) {
+			log.error('Get Tags failed: ', e);
+			this.setError('Get Tags', null, e);
+		}
+		return [];
+	}
+
+	async createTags(tags: { label: string; name: string; parent: string | null }[]): Promise<unknown> {
+		try {
+			const url = `${this.apiUrl}/${batchTagEndPoint}`;
+			const payload = { add: tags };
+			const response = await this.makeRequest('Create Tags', url, 'POST', payload);
+			return response;
+		} catch (e) {
+			log.error('Create Tags failed: ', e);
+			this.setError('Create Tags', null, e);
+			return null;
+		}
+	}
 
 	// HABITS ====================================================================
 

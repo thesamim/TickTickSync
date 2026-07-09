@@ -64,7 +64,7 @@ export class CleanupDeletedTasksModal extends Modal {
 		const buttonSetting = new Setting(contentEl);
 		buttonSetting.addButton(btn => {
 			btn.setButtonText('Delete permanently');
-			btn.setDestructive();
+			btn.buttonEl.addClass('mod-destructive');
 			btn.setDisabled(true);
 			deleteComponent = btn;
 			btn.onClick(() => {

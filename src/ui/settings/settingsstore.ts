@@ -38,7 +38,9 @@ export function settingsLoad(plugin: TickTickSync) {
 		set: (value: ITickTickSyncSettings) => {
 			svelteSet(value);
 			syncAll(value);
-			void currentPlugin?.saveSettings();
+			currentPlugin?.saveSettings()?.catch((e) => {
+				console.error('settingsStore.set: saveSettings failed', e);
+			});
 		},
 	};
 }

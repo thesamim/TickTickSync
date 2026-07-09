@@ -9,6 +9,7 @@ const API_ENDPOINTS = {
 	updateProjectEndPoint: 'batch/project',
 	allHabitsEndPoint: 'habits',
 	allTagsEndPoint: 'tags',
+	batchTagEndPoint: 'batch/tag',
 	allTasksEndPoint: 'batch/check/',
 	TaskEndPoint: 'task',
 	updateTaskEndPoint: 'batch/task',

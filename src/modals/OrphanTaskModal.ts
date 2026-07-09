@@ -62,7 +62,7 @@ export class OrphanTaskModal extends Modal {
 			})
 			.addButton(deleteBtn => {
 				deleteBtn.setClass('ts_button');
-				deleteBtn.setDestructive();
+				deleteBtn.buttonEl.addClass('mod-destructive');
 				deleteBtn.setButtonText('Delete from ticktick');
 				deleteBtn.onClick(() => {
 					this.action = 'delete';

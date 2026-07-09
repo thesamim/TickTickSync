@@ -230,13 +230,30 @@ export class TaskParser {
 	addTagsToLine(resultLine: string, tags: string[]) {
 		//we're looking for the ticktick tag without the #
 		const regEx = new RegExp(keywords.TickTick_TAG.substring(1), 'i');
+		const tagSvc = this.plugin?.tagService;
 		tags.forEach((tag: string) => {
 			//TickTick tag, if present, will be added at the end.
 			if (!tag.match(regEx)) {
-				if (tag.includes('-')) {
-					tag = tag.replace(/-/g, '/');
+				let display: string;
+				if (tagSvc) {
+					// Try hierarchical display (parent/child) first
+					const hierarchical = tagSvc.resolveHierarchicalLabel(tag);
+					if (hierarchical) {
+						display = hierarchical.trim();
+					} else {
+						// Fallback: old -→/ conversion for backward compat
+						display = (tagSvc.getLabel(tag) ?? tag).trim();
+						if (display.includes('-')) {
+							display = display.replace(/-/g, '/');
+						}
+					}
+				} else {
+					display = tag.trim();
+					if (display.includes('-')) {
+						display = display.replace(/-/g, '/');
+					}
 				}
-				resultLine = resultLine + ' #' + tag;
+				resultLine = resultLine + ' #' + display;
 			}
 		});
 		return resultLine;
@@ -290,7 +307,70 @@ export class TaskParser {
 
 		let timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
-		const tags = this.getAllTagsFromLineText(textWithoutIndentation);
+		const rawTags = this.getAllTagsFromLineText(textWithoutIndentation);
+
+		// Resolve tags: handle hierarchy and create unknown tags in TickTick
+		const tagSvc = this.plugin?.tagService;
+		const api = this.plugin?.tickTickRestAPI;
+		const tagsToCreate: { label: string; name: string; parent: string | null }[] = [];
+
+		if (tagSvc) {
+			for (const raw of rawTags) {
+				const parts = raw.split('/');
+				if (parts.length === 1) {
+					// Simple tag (no hierarchy)
+					if (!tagSvc.isKnownTag(raw)) {
+						const name = raw.toLowerCase().replace(/[/\s]+/g, '-').replace(/-+/g, '-');
+						tagsToCreate.push({ label: raw, name, parent: null });
+					}
+				} else if (parts.length === 2) {
+					// Two-level hierarchy: ensure parent and child tags exist
+					const parentLabel = parts[0];
+					const childLabel = parts[1];
+					const parentName = parentLabel.toLowerCase().replace(/[/\s]+/g, '-').replace(/-+/g, '-');
+					const childName = childLabel.toLowerCase().replace(/[/\s]+/g, '-').replace(/-+/g, '-');
+					if (!tagSvc.isKnownTag(parentLabel)) {
+						tagsToCreate.push({ label: parentLabel, name: parentName, parent: null });
+					}
+					if (!tagSvc.isKnownTag(childLabel)) {
+						tagsToCreate.push({ label: childLabel, name: childName, parent: parentName });
+					}
+				} else {
+					// More than 2 levels: preserve hierarchy in label, flatten name for TickTick
+					const parentLabel = parts[0];
+					const childLabel = parts.slice(1).join('/');
+					const parentName = parentLabel.toLowerCase().replace(/[/\s]+/g, '-').replace(/-+/g, '-');
+					const childName = parts.slice(1).join('-').toLowerCase().replace(/[/\s]+/g, '-').replace(/-+/g, '-');
+					if (!tagSvc.isKnownTag(parentLabel)) {
+						tagsToCreate.push({ label: parentLabel, name: parentName, parent: null });
+					}
+					if (!tagSvc.isKnownTag(childLabel)) {
+						tagsToCreate.push({ label: childLabel, name: childName, parent: parentName });
+					}
+				}
+			}
+		}
+
+		if (tagsToCreate.length > 0 && api) {
+			const created = await api.CreateTags(tagsToCreate);
+			if (created) {
+				for (const t of tagsToCreate) {
+					await tagSvc.addTag(t.name, t.label, t.parent);
+				}
+			}
+		}
+
+		let tags: string[];
+		if (tagSvc) {
+			tags = rawTags.map(raw => {
+				const parts = raw.split('/');
+				if (parts.length === 1) return tagSvc.resolveToName(raw);
+				if (parts.length === 2) return tagSvc.resolveToName(parts[1]);
+				return tagSvc.resolveToName(parts.slice(1).join('-'));
+			});
+		} else {
+			tags = rawTags.map(raw => raw.toLowerCase().replace(/[/\s]+/g, '-').replace(/-+/g, '-'));
+		}
 
 		let projectId = await this.plugin.fileTaskQueries?.getDefaultProjectIdForFilepath(filepath);
 
@@ -543,21 +623,10 @@ export class TaskParser {
 	}
 
 
-	//get all tags from task text
-	getAllTagsFromLineText(lineText: string) {
-		// log.debug("Line Text: ", lineText);
-		// let tags = lineText.matchAll(REGEX.ALL_TAGS);
-
-		// if (tags) {
-		//     // Remove '#' from each tag
-		//     tags = tags.map(tag => tag.replace('#', ''));
-		// }
+	//get all tags from task text, preserving original casing and slashes
+	getAllTagsFromLineText(lineText: string): string[] {
 		const tags = [...lineText.matchAll(REGEX.ALL_TAGS)];
-		let tagArray = tags.map(tag => tag[0].replace(' #', ''));
-		tagArray = tagArray.map(tag => tag.replace(/\//g, '-'));
-		// tagArray.forEach(tag => log.debug("#### get all tags", tag))
-
-		return tagArray;
+		return tags.map(tag => tag[0].replace(/^[\s]*#/, ''));
 	}
 
 	//get checkbox status

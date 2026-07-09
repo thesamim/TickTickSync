@@ -144,33 +144,51 @@
 	async function confirmUpdateWorld() {
 		showUpdateWorldModal = false;
 		const settings = getSettings();
+		log.debug(`[moveFiles] confirmUpdateWorld: keepProjectFolders=${settings.keepProjectFolders}, defaultFolder=${getDefaultFolder()}, filesToMove=${filesToMove.length}`);
 
 		for (const file of filesToMove) {
 			try {
 				let targetFolder = getDefaultFolder();
+				log.debug(`[moveFiles] Processing file: path=${file.path}, name=${file.name}`);
 
 				if (settings.keepProjectFolders) {
 					const defaultProjectId = await plugin.fileTaskQueries.getDefaultProjectForFile(file.path);
+					log.debug(`[moveFiles] getDefaultProjectForFile('${file.path}') => ${defaultProjectId}`);
 					if (defaultProjectId) {
 						const folderPath = await plugin.folderSyncService.getFolderPathForProject(defaultProjectId);
+						log.debug(`[moveFiles] getFolderPathForProject('${defaultProjectId}') => '${folderPath}'`);
 						if (folderPath) {
 							targetFolder = folderPath;
+							log.debug(`[moveFiles] Using group folder: ${targetFolder}`);
+						} else {
+							log.debug(`[moveFiles] folderPath is falsy, keeping base targetFolder`);
 						}
+					} else {
+						log.debug(`[moveFiles] No defaultProjectId, keeping base targetFolder`);
 					}
+				} else {
+					log.debug(`[moveFiles] keepProjectFolders is false, using base targetFolder`);
 				}
 
 				const newPath = targetFolder ? `${targetFolder}/${file.name}` : file.name;
+				log.debug(`[moveFiles] newPath=${newPath}, file.path=${file.path}, willRename=${file.path !== newPath}`);
 				if (file.path !== newPath) {
+					log.debug(`[moveFiles] Creating folder ${targetFolder}`);
 					if (targetFolder) {
 						await plugin.folderSyncService.ensureFolderExists(targetFolder);
 					}
+					log.debug(`[moveFiles] Renaming ${file.path} -> ${newPath}`);
 					await plugin.app.vault.rename(file, newPath);
+					log.debug(`[moveFiles] Rename complete`);
+				} else {
+					log.debug(`[moveFiles] File already at target, skipping`);
 				}
 			} catch (error) {
-				log.error(`File rename failed. ${error}`);
+				log.error(`[moveFiles] File rename failed. ${error}`);
 				alert(`File rename failed. ${error}`);
 			}
 		}
+		log.debug(`[moveFiles] Done moving ${filesToMove.length} files`);
 		filesToMove = [];
 	}
 
@@ -182,14 +200,19 @@
 		// default folder and any group subfolders)
 		const allFileRecords = await db.files.toArray();
 		const managedFiles = allFileRecords.filter(f => !!f.defaultProjectId);
+		log.debug(`[moveFiles] getMDWithTasks: ${allFileRecords.length} total DB records, ${managedFiles.length} with defaultProjectId`);
 
 		for (const fileRecord of managedFiles) {
+			log.debug(`[moveFiles] Checking fileRecord: path=${fileRecord.path}, defaultProjectId=${fileRecord.defaultProjectId}`);
+
 			if (await isDefaultProjectFile(fileRecord.path)) {
+				log.debug(`[moveFiles] Skipping default project file: ${fileRecord.path}`);
 				continue;
 			}
 
 			const file = plugin.app.vault.getAbstractFileByPath(fileRecord.path);
 			if (!(file instanceof TFile)) {
+				log.debug(`[moveFiles] File not found in vault: ${fileRecord.path}`);
 				continue;
 			}
 
@@ -199,11 +222,15 @@
 
 				if (fileMap.hasTasks(settings.enableFullVaultSync)) {
 					files.push(file);
+					log.debug(`[moveFiles] Added to move list: ${file.path}`);
+				} else {
+					log.debug(`[moveFiles] No tasks in file: ${file.path}`);
 				}
 			} catch (e) {
 				log.error(`Failed to process file ${fileRecord.path}`, e);
 			}
 		}
+		log.debug(`[moveFiles] getMDWithTasks returning ${files.length} files to move`);
 		return files;
 	}
 

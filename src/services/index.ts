@@ -190,6 +190,11 @@ export class TickTickService {
 				await db.projectGroups.clear();
 				await db.projectGroups.bulkPut(groups.map(g => ({ id: g.id, group: g })));
 			}
+			// Also fetch tags and cache them
+			const tags = await this.api?.getTags();
+			if (tags) {
+				await this.plugin.tagService.saveTags(tags);
+			}
 			if (!await this.plugin.projectSyncService.saveProjectsToCache(projects)) {
 				projects = undefined;
 			}
@@ -413,6 +418,9 @@ export class TickTickService {
 				const allTaskIds = Array.from(new Set([...dbTaskIds, ...physicalTaskIds]));
 				for (const id of allTaskIds) allLocalIds.add(id);
 
+				// Track whether any task in this file needs an Obsidian URL update
+				let needsUrlUpdate = false;
+
 			for (const taskId of allTaskIds) {
 				log.debug(`[checkDB] Processing task ${taskId} in file ${filepath} (inDB=${dbTaskIds.includes(taskId)}, inFile=${physicalTaskIds.includes(taskId)})`);
 
@@ -486,20 +494,25 @@ export class TickTickService {
 						await this.plugin.taskRepository.upsertTask(localTask.task, filepath, Date.now());
 					}
 
-					// Verify Obsidian URL in TickTick
+					// Check if Obsidian URL needs updating in TickTick (defer the actual call to after the loop)
 					if (taskObject) {
 						const title = taskObject.title || '';
 						if (!title.includes(obsidianURL)) {
-							try {
-								await this.plugin.taskOperationsService.updateTaskContentForFile(filepath);
-							} catch (error) {
-								log.warn(`Error updating task content for ${filepath}:`, error);
-							}
+							needsUrlUpdate = true;
 						}
 					}
 				}
 
-				// 4. Scan for missed/unsynced tasks in the file
+				// 3b. Update Obsidian URLs in TickTick — do ONCE per file, not once per task
+				if (needsUrlUpdate) {
+					try {
+						await this.plugin.taskOperationsService.updateTaskContentForFile(filepath);
+					} catch (error) {
+						log.warn(`Error updating task content for ${filepath}:`, error);
+					}
+				}
+
+				// 4. Scan for missed/unsynced tasks in the file — do ONCE per file
 				try {
 					log.debug(`Scanning file ${filepath}`);
 					if (getSettings().taskLinksInObsidian === "taskLink") {

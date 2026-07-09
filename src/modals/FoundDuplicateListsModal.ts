@@ -57,7 +57,7 @@ export class FoundDuplicateListsModal extends Modal {
 
 		new Setting(contentEl).addButton(confirmBtn => {
 			confirmBtn.setClass('ts_button');
-			confirmBtn.setDestructive();
+			confirmBtn.buttonEl.addClass('mod-destructive');
 			confirmBtn.setButtonText(this.confirmLabel);
 			confirmBtn.onClick(() => {
 				this.result = true;

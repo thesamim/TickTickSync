@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { settingsStore } from '@/ui/settings/settingsstore';
+	import { updateSettings } from '@/settings';
 	import type TickTickSync from '@/main';
 	import { LINK_BEHAVIOR, LINK_VISIBILITY } from '@/ui/settings/svelte/constants.svelte.js';
 	import './SettingsStyles.css';
@@ -85,9 +86,9 @@
 
 	async function handleKeepProjectFoldersChange(event: Event) {
 		const checked = (event.target as HTMLInputElement).checked;
-		settingsStore.update((s) => ({ ...s, keepProjectFolders: checked }));
+		updateSettings({ keepProjectFolders: checked });
 		await plugin.saveSettings();
-		
+
 		if (checked) {
 			showKeepFoldersModal = true;
 		}
