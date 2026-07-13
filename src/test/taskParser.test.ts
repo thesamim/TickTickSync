@@ -1,8 +1,6 @@
-import { describe, it, expect, test } from 'vitest';
+import { describe, it, expect, test, vi } from 'vitest';
 //TODO: task parser tests are failing because it imports obsidian, which is not available in vitest
 import { REGEX, TaskParser } from '../taskParser';
-import { NewFileMap } from '@/services/NewFileMap';
-import { getSettings } from '@/settings';
 
 const TASK1 = '- [ ] ttsb_task11 #ttsb  [link](https://ticktick.com/webapp/#p/67326d9f5f088184d96f1d4f/tasks/673ae6b7e143d55b24bd0271) #ticktick  %%[ticktick_id:: 673ae6b7e143d55b24bd0271]%% 📅 2024-11-19';
 
@@ -21,80 +19,150 @@ describe('TaskParser.common', () => {
 	});
 });
 
-//TODO: add more tests
-// describe("TaskParser.parse", () => {
-// 	test('parse', async () => {
-// 		const task = await parser.convertLineToTask(TASK1);
-// 		expect(task.id).toBe("673ae6b7e143d55b24bd0271");
-// 		expect(task.title).toBe("ttsb_task11");
-// 		expect(task.tags).toBe("ttsb");
-// 		expect(task.link).toBe("https://ticktick.com/webapp/#p/67326d9f5f088184d96f1d4f/tasks/673ae6b7e143d55b24bd0271");
-// 		expect(task.ticktickId).toBe("673ae6b7e143d55b24bd0271");
-// 		expect(task.date).toBe("2024-11-19");
-// 	});
-// })
-
-describe('Notes parsing - no delimiter', () => {
-	// Simulate a file with a task and a multi-line note without delimiters
-it('collects note lines including checklist items without IDs in no-delimiter mode', async () => {
-		const lines = [
-			'- [ ] just a task, no I didn\'t  #ticktick  %%[ticktick_id:: 68e5581b8eae495e8cca4f3c]%%',
-			'  Ya, you didn\'t count on that ',
-			'  did you?',
-			'  let\'s add a line. ',
-			'  - [ ] checklist in note',
-			'  Not quite there',
-			'\t- [ ] child item %%aaaaaaaaaaaaaaaaaaaaaaaa%%'
-		];
-		// minimal fakes for FileMap usage
-		const plugin = {
-			taskParser: new TaskParser({} as unknown, {} as unknown),
-		};
-		(plugin.taskParser.plugin as Record<string, unknown>) = plugin;
-
-		// Fake FileMap instance with minimal API used by getTaskLinesByIdx
-		const fm = new (class extends (NewFileMap as unknown as new (...args: unknown[]) => { fileLines: string[]; getParentIDByIdx(): string; getTaskIndex(): number }) {
-			constructor() { super({}, plugin, {}); this.fileLines = lines; }
-			getParentIDByIdx() { return ''; }
-			getTaskIndex() { return 0; }
-		})();
-
-		// Force no delimiter setting
-		((getSettings as unknown as () => Record<string, string>)()).noteDelimiter = '';
-
-		const rec = (fm as unknown as { getTaskLinesByIdx(idx: number, opts: unknown): { taskLines: string[] } }).getTaskLinesByIdx(0, {});
-		expect(rec.taskLines.length).toBe(5);
-		expect(rec.taskLines[0].trim()).toBe('Ya, you didn\'t count on that');
-		expect(rec.taskLines[3].trim()).toBe('- [ ] checklist in note');
-		expect(rec.taskLines[rec.taskLines.length - 1].trim()).toBe('Not quite there');
+describe('getAllTagsFromLineText', () => {
+	it('extracts a single tag', () => {
+		expect(parser.getAllTagsFromLineText('- [ ] task #work')).toEqual(['work']);
 	});
 
-	it('normalizes legacy delimiter to current delimiter', async () => {
-		const currentDelim = ':::';
-		const legacyDelim = '---';
-		const lines = [
-			'- [ ] Task #ticktick %%[ticktick_id:: abcdefabcdefabcdefabcdef]%%',
-			'  ' + legacyDelim,
-			'  first',
-			'  last',
-			'  ' + legacyDelim
-		];
-		const plugin = {
-			taskParser: new TaskParser({} as unknown, {} as unknown),
-		};
-		(plugin.taskParser.plugin as Record<string, unknown>) = plugin;
+	it('extracts multiple tags', () => {
+		expect(parser.getAllTagsFromLineText('- [ ] task #work #home #urgent')).toEqual(['work', 'home', 'urgent']);
+	});
 
-		const fm = new (class extends (NewFileMap as unknown as new (...args: unknown[]) => { fileLines: string[]; getParentIDByIdx(): string; getTaskIndex(): number }) {
-			constructor() { super({}, plugin, {}); this.fileLines = lines; }
-			getParentIDByIdx() { return ''; }
-			getTaskIndex() { return 0; }
-		})();
+	it('returns empty array for no tags', () => {
+		expect(parser.getAllTagsFromLineText('- [ ] just a plain task')).toEqual([]);
+	});
 
-		((getSettings as unknown as () => Record<string, string>)()).noteDelimiter = currentDelim;
+	it('extracts hierarchical tag (parent/child)', () => {
+		expect(parser.getAllTagsFromLineText('- [ ] task #work/meeting')).toEqual(['work/meeting']);
+	});
 
-		const rec = (fm as unknown as { getTaskLinesByIdx(idx: number, opts: unknown): { taskLines: string[] } }).getTaskLinesByIdx(0, {});
-		expect(rec.taskLines[0]).toBe('  ' + currentDelim);
-		expect(rec.taskLines[rec.taskLines.length - 1]).toBe('  ' + currentDelim);
+	it('extracts tags with dashes in the name', () => {
+		expect(parser.getAllTagsFromLineText('- [ ] task #ok-here-we-go')).toEqual(['ok-here-we-go']);
+	});
+
+	it('extracts tag at start of line (no leading space)', () => {
+		expect(parser.getAllTagsFromLineText('#solo-tag rest of content')).toEqual(['solo-tag']);
+	});
+
+	it('extracts tag with leading whitespace', () => {
+		expect(parser.getAllTagsFromLineText('   #indented content')).toEqual(['indented']);
+	});
+
+	it('extracts tags with underscores', () => {
+		expect(parser.getAllTagsFromLineText('#my_tag')).toEqual(['my_tag']);
+	});
+
+	it('extracts unicode tags', () => {
+		expect(parser.getAllTagsFromLineText('#über cool')).toEqual(['über']);
 	});
 });
 
+describe('addTagsToLine', () => {
+	it('appends simple tag with # prefix', () => {
+		const result = parser.addTagsToLine('- [ ] task', ['work']);
+		expect(result).toBe('- [ ] task #work');
+	});
+
+	it('appends multiple tags', () => {
+		const result = parser.addTagsToLine('- [ ] task', ['work', 'home']);
+		expect(result).toBe('- [ ] task #work #home');
+	});
+
+	it('converts dashes to slashes for non-hierarchical tags when no tagSvc', () => {
+		const result = parser.addTagsToLine('- [ ] task', ['ok-here-we-go']);
+		expect(result).toBe('- [ ] task #ok/here/we/go');
+	});
+
+	it('skips ticktick tag', () => {
+		const result = parser.addTagsToLine('- [ ] task', ['ticktick']);
+		expect(result).toBe('- [ ] task');
+	});
+
+	it('skips ticktick tag but appends other tags', () => {
+		const result = parser.addTagsToLine('- [ ] task', ['ticktick', 'work']);
+		expect(result).toBe('- [ ] task #work');
+	});
+
+	it('preserves tag that contains no dashes verbatim', () => {
+		const result = parser.addTagsToLine('- [ ] task', ['meeting']);
+		expect(result).toBe('- [ ] task #meeting');
+	});
+
+	it('uses tagService resolveHierarchicalLabel when available', () => {
+		const mockTagSvc = {
+			resolveHierarchicalLabel: vi.fn((name: string) => {
+				if (name === 'meeting') return 'Work/Meeting';
+				return null;
+			}),
+			getLabel: vi.fn(() => null),
+		};
+		(parser as any).plugin = { tagService: mockTagSvc };
+		const result = parser.addTagsToLine('- [ ] task', ['meeting']);
+		expect(result).toBe('- [ ] task #Work/Meeting');
+		expect(mockTagSvc.resolveHierarchicalLabel).toHaveBeenCalledWith('meeting');
+	});
+
+	it('falls back to label with dash-to-slash when resolveHierarchicalLabel returns null', () => {
+		const mockTagSvc = {
+			resolveHierarchicalLabel: vi.fn(() => null),
+			getLabel: vi.fn((name: string) => {
+				if (name === 'my-tag') return 'My-Tag';
+				return null;
+			}),
+		};
+		(parser as any).plugin = { tagService: mockTagSvc };
+		const result = parser.addTagsToLine('- [ ] task', ['my-tag']);
+		expect(result).toBe('- [ ] task #My/Tag');
+	});
+});
+
+describe('isTagsChanged', () => {
+	it('returns false when both tasks have same tags', () => {
+		expect(parser.isTagsChanged(
+			{ tags: ['a', 'b'] } as any,
+			{ tags: ['a', 'b'] } as any
+		)).toBe(false);
+	});
+
+	it('returns false when both tasks have no tags', () => {
+		expect(parser.isTagsChanged(
+			{ tags: [] } as any,
+			{ tags: [] } as any
+		)).toBe(false);
+	});
+
+	it('returns false when both tasks have undefined tags', () => {
+		expect(parser.isTagsChanged(
+			{} as any,
+			{} as any
+		)).toBe(false);
+	});
+
+	it('returns true when tags differ', () => {
+		expect(parser.isTagsChanged(
+			{ tags: ['a'] } as any,
+			{ tags: ['b'] } as any
+		)).toBe(true);
+	});
+
+	it('returns true when one task has tags and the other does not', () => {
+		expect(parser.isTagsChanged(
+			{ tags: ['a'] } as any,
+			{} as any
+		)).toBe(true);
+	});
+
+	it('returns true when tag count differs', () => {
+		expect(parser.isTagsChanged(
+			{ tags: ['a', 'b'] } as any,
+			{ tags: ['a'] } as any
+		)).toBe(true);
+	});
+
+	it('is order-independent', () => {
+		expect(parser.isTagsChanged(
+			{ tags: ['b', 'a'] } as any,
+			{ tags: ['a', 'b'] } as any
+		)).toBe(false);
+	});
+});

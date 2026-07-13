@@ -275,6 +275,7 @@ export default class TickTickSync extends Plugin {
 		//NEW: Initialize services
 		this.projectSyncService = new ProjectSyncService(this.app, this);
 		this.folderSyncService = new FolderSyncService(this.app, this, this.projectGroupRepository);
+		this.projectSyncService.setFolderSyncService(this.folderSyncService);
 		this.folderMigrationService = new FolderMigrationService(this.app, this.folderSyncService);
 		this.vaultSyncCoordinator = new VaultSyncCoordinator(this.app, this, this.folderSyncService);
 		this.taskModificationDetector = new TaskModificationDetector(this.app, this, this.folderSyncService);

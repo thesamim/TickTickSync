@@ -67,21 +67,34 @@ button.ts_button[disabled]:hover {
 /* --- TickTick task display controls --- */
 /* Applied by TaskDisplayProcessor via registerMarkdownPostProcessor */
 
-/* Hide TickTick link */
-.ticktick-task.tt-link-hide a[href*="//ticktick.com"],
-.ticktick-task.tt-link-hide a[href*="//dida365.com"] {
+/* Hide TickTick link text in reading mode (<a> tag - text wrapped in .tt-link-text) */
+.ticktick-task.tt-link-hide a.tt-tickticklink .tt-link-text {
 	display: none;
 }
 
-/* Hover reveal for TickTick link */
-.ticktick-task.tt-link-hover a[href*="//ticktick.com"],
-.ticktick-task.tt-link-hover a[href*="//dida365.com"] {
+/* Hide TickTick link text (CM6 spans) */
+.ticktick-task.tt-link-hide .tt-tickticklink .cm-underline {
+	display: none;
+}
+
+/* Hover reveal for TickTick link text in reading mode */
+.ticktick-task.tt-link-hover a.tt-tickticklink .tt-link-text {
 	opacity: 0;
 	pointer-events: none;
 	transition: opacity 0.15s ease;
 }
-.ticktick-task.tt-link-hover:hover a[href*="//ticktick.com"],
-.ticktick-task.tt-link-hover:hover a[href*="//dida365.com"] {
+.ticktick-task.tt-link-hover:hover a.tt-tickticklink .tt-link-text {
+	opacity: 1;
+	pointer-events: auto;
+}
+
+/* Hover reveal for TickTick link text (CM6 spans) */
+.ticktick-task.tt-link-hover .tt-tickticklink .cm-underline {
+	opacity: 0;
+	pointer-events: none;
+	transition: opacity 0.15s ease;
+}
+.ticktick-task.tt-link-hover:hover .tt-tickticklink .cm-underline {
 	opacity: 1;
 	pointer-events: auto;
 }
@@ -97,18 +110,34 @@ button.ts_button[disabled]:hover {
 }
 
 /* --- Editing mode (Live Preview) --- */
-/* Hide TickTick link in editing mode */
-.HyperMD-task-line.ticktick-task.tt-link-hide .cm-link {
+/* Hide TickTick link text in editing mode (<a> tag) */
+.HyperMD-task-line.ticktick-task.tt-link-hide a.tt-tickticklink .tt-link-text {
 	display: none;
 }
 
-/* Hover reveal for link in editing mode */
-.HyperMD-task-line.ticktick-task.tt-link-hover .cm-link {
+/* Hide TickTick link text in editing mode (CM6 spans) */
+.HyperMD-task-line.ticktick-task.tt-link-hide .tt-tickticklink .cm-underline {
+	display: none;
+}
+
+/* Hover reveal for link text in editing mode (<a> tag) */
+.HyperMD-task-line.ticktick-task.tt-link-hover a.tt-tickticklink .tt-link-text {
 	opacity: 0;
 	pointer-events: none;
 	transition: opacity 0.15s ease;
 }
-.HyperMD-task-line.ticktick-task.tt-link-hover:hover .cm-link {
+.HyperMD-task-line.ticktick-task.tt-link-hover:hover a.tt-tickticklink .tt-link-text {
+	opacity: 1;
+	pointer-events: auto;
+}
+
+/* Hover reveal for link text in editing mode (CM6 spans) */
+.HyperMD-task-line.ticktick-task.tt-link-hover .tt-tickticklink .cm-underline {
+	opacity: 0;
+	pointer-events: none;
+	transition: opacity 0.15s ease;
+}
+.HyperMD-task-line.ticktick-task.tt-link-hover:hover .tt-tickticklink .cm-underline {
 	opacity: 1;
 	pointer-events: auto;
 }

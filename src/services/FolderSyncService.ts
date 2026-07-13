@@ -29,7 +29,7 @@ export class FolderSyncService {
 	 * @param projectId - The project ID
 	 * @returns Folder path (without trailing slash)
 	 */
-	async getFolderPathForProject(projectId: string): Promise<string> {
+	async getFolderPathForProject(projectId: string, groupIdOverride?: string): Promise<string> {
 		const settings = getSettings();
 		const basePath = getDefaultFolder();
 
@@ -39,23 +39,26 @@ export class FolderSyncService {
 		}
 
 		try {
-			// Get the project
-			const project = await getProjectById(projectId);
-			if (!project) {
-				log.warn(`Project ${projectId} not found, using base path`);
-				return basePath;
+			// Use override groupId if provided (fresh TickTick data), otherwise read from DB cache
+			let groupId = groupIdOverride;
+			if (!groupId) {
+				const project = await getProjectById(projectId);
+				if (!project) {
+					log.warn(`Project ${projectId} not found, using base path`);
+					return basePath;
+				}
+				groupId = project.groupId;
 			}
 
-			// If project has no groupId, use base path
-			if (!project.groupId) {
+			if (!groupId) {
 				log.debug(`Project ${projectId} has no groupId, using base path`);
 				return basePath;
 			}
 
 			// Get the project group
-			const projectGroup = await this.projectGroupRepo.getProjectGroupById(project.groupId);
+			const projectGroup = await this.projectGroupRepo.getProjectGroupById(groupId);
 			if (!projectGroup) {
-				log.warn(`ProjectGroup ${project.groupId} not found, using base path`);
+				log.warn(`ProjectGroup ${groupId} not found, using base path`);
 				return basePath;
 			}
 
@@ -224,11 +227,23 @@ export class FolderSyncService {
 	 * @returns Complete file path
 	 */
 	async getFilePathForTask(task: ITask, projectName: string): Promise<string> {
-		const folderPath = await this.getFolderPathForTask(task);
+		return this.getFilePathForProject(task.projectId, projectName);
+	}
+
+	/**
+	 * Get the complete file path for a project (folder + filename)
+	 * Centralizes path construction so all callers (rename detection, sync, etc.)
+	 * produce the same path for the same project.
+	 * @param projectId - The project ID
+	 * @param projectName - The project name (used as filename)
+	 * @returns Complete file path
+	 */
+	async getFilePathForProject(projectId: string, projectName: string, groupIdOverride?: string): Promise<string> {
+		const folderPath = await this.getFolderPathForProject(projectId, groupIdOverride);
 		const sanitizedProjectName = this.sanitizeFolderName(projectName);
 
 		if (folderPath) {
-			return `${folderPath}/${sanitizedProjectName}.md`;
+			return `${folderPath}/${ sanitizedProjectName}.md`;
 		}
 		return `${sanitizedProjectName}.md`;
 	}

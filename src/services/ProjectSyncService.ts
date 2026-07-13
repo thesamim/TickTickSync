@@ -1,6 +1,7 @@
 import { App, Notice, TFile } from 'obsidian';
 import type TickTickSync from '@/main';
 import type { IProject } from '@/api/types/Project';
+import type { FolderSyncService } from '@/services/FolderSyncService';
 import { FoundDuplicateListsModal } from '@/modals/FoundDuplicateListsModal';
 import { getDefaultFolder, getSettings } from '@/settings';
 import log from '@/utils/logger';
@@ -11,10 +12,15 @@ import { upsertFile, getAllFiles } from '@/db/files';
 export class ProjectSyncService {
 	app: App;
 	plugin: TickTickSync;
+	folderSyncService?: FolderSyncService;
 
 	constructor(app: App, plugin: TickTickSync) {
 		this.app = app;
 		this.plugin = plugin;
+	}
+
+	setFolderSyncService(service: FolderSyncService): void {
+		this.folderSyncService = service;
 	}
 
 	async saveProjectsToCache(projects: IProject[]): Promise<boolean> {
@@ -72,7 +78,6 @@ export class ProjectSyncService {
 			if (getSettings().keepProjectFolders && ttProject?.groupId) {
 				const group = await db.projectGroups.get(ttProject.groupId);
 				const groupName = group?.group?.name;
-
 				if (groupName && groupName.trim().length > 0) {
 					const safeGroupName = sanitize(groupName);
 					const base = (folder ? folder + "/" : "");
@@ -104,32 +109,16 @@ export class ProjectSyncService {
 					log.debug(`No file found for project ${ttProjectId} and no default file found`);
 					return
 				}
-				if (!currentFilePath) {
-					log.debug(`No file found for project ${ttProjectId} and no default file found`);
-					return
-				}
 			} else {
 				currentFilePath = currentFile.path;
 			}
 
-			const folder = getDefaultFolder();
-			const sanitize = (name: string): string =>
-				name.replace(/[\\/:*?"<>|]/g, '-').replace(/\s+/g, ' ').trim();
-			const safeProjectName = sanitize(ttProjectName);
-
 			let newFilePath: string;
-			if (getSettings().keepProjectFolders && ttProject?.groupId) {
-				const group = await db.projectGroups.get(ttProject.groupId);
-				const groupName = group?.group?.name;
-
-				if (groupName && groupName.trim().length > 0) {
-					const safeGroupName = sanitize(groupName);
-					const base = (folder ? folder + "/" : "");
-					newFilePath = `${base}${safeGroupName}/${safeProjectName}.md`;
-				} else {
-					newFilePath = (folder ? folder + "/" : "") + safeProjectName + '.md';
-				}
+			if (this.folderSyncService) {
+				newFilePath = await this.folderSyncService.getFilePathForProject(ttProjectId, ttProjectName, ttProject?.groupId);
 			} else {
+				const folder = getDefaultFolder();
+				const safeProjectName = ttProjectName.replace(/[\\/:*?"<>|]/g, '-').replace(/\s+/g, ' ').trim();
 				newFilePath = (folder ? folder + "/" : "") + safeProjectName + '.md';
 			}
 

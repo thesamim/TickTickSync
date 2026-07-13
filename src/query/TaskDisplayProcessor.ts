@@ -5,6 +5,7 @@ import { getSettings } from '@/settings';
 export class TaskDisplayProcessor {
 	private readonly plugin: TickTickSync;
 	private observer: MutationObserver | null = null;
+	private scanning = false;
 
 	constructor(plugin: TickTickSync) {
 		this.plugin = plugin;
@@ -20,7 +21,7 @@ export class TaskDisplayProcessor {
 		this.plugin.register(() => this.deactivate());
 
 		const layoutRef = this.plugin.app.workspace.on('layout-change', () => {
-			this.scanAll();
+			this.scheduleScan();
 		});
 		this.plugin.registerEvent(layoutRef);
 
@@ -55,10 +56,16 @@ export class TaskDisplayProcessor {
 	}
 
 	private scanAll(): void {
-		for (const el of Array.from(activeDocument.querySelectorAll(
-			'li, div.HyperMD-task-line'
-		))) {
-			this.applyToElement(el as HTMLElement);
+		if (this.scanning) return;
+		this.scanning = true;
+		try {
+			for (const el of Array.from(activeDocument.querySelectorAll(
+				'li, div.HyperMD-task-line'
+			))) {
+				this.applyToElement(el as HTMLElement);
+			}
+		} finally {
+			this.scanning = false;
 		}
 	}
 
@@ -105,12 +112,16 @@ export class TaskDisplayProcessor {
 	}
 
 	private applyToElement(el: HTMLElement): void {
-		if (el.classList.contains('ticktick-task')) return;
 		if (!this.isTickTickTask(el)) return;
 
 		const settings = getSettings().taskDisplay;
 		const isReading = el.closest('.markdown-preview-view') !== null;
 		const mode = isReading ? settings.reading : settings.editing;
+
+		// Always re-check link marking (CM6 spans may appear after first scan)
+		this.markTickTickLinks(el);
+
+		if (el.classList.contains('ticktick-task')) return;
 
 		el.classList.add('ticktick-task');
 
@@ -126,6 +137,57 @@ export class TaskDisplayProcessor {
 
 		if (!mode.id) {
 			el.classList.add('tt-id-hide');
+		}
+	}
+
+	private markTickTickLinks(el: HTMLElement): void {
+		// Case 1: Reading mode produces <a> tags with href
+		const anchors = el.querySelectorAll('a');
+		for (const a of Array.from(anchors)) {
+			if (a.classList.contains('tt-tickticklink')) continue;
+			const href = a.getAttribute('href') ?? '';
+			if (href.includes('//ticktick.com') || href.includes('//dida365.com')) {
+				a.classList.add('tt-tickticklink');
+				if (!a.querySelector('.tt-link-text')) {
+					for (const node of Array.from(a.childNodes)) {
+						if (node.nodeType === Node.TEXT_NODE && node.textContent) {
+							const span = document.createElement('span');
+							span.className = 'tt-link-text';
+							span.textContent = node.textContent;
+							a.replaceChild(span, node);
+						}
+					}
+				}
+			}
+		}
+
+		// Case 2: CM6 spans — use TreeWalker for guaranteed document-order traversal
+		// Find the last .cm-link before #ticktick
+		const ticktickTag = el.querySelector('.cm-tag-ticktick');
+		if (ticktickTag && !el.querySelector('.tt-tickticklink:not(a)')) {
+			let lastBefore: HTMLElement | null = null;
+			const walker = document.createTreeWalker(
+				el,
+				NodeFilter.SHOW_ELEMENT,
+				{
+					acceptNode: (node: Node) => {
+						if (!(node instanceof HTMLElement)) return NodeFilter.FILTER_SKIP;
+						if (node === ticktickTag) return NodeFilter.FILTER_STOP;
+						if (node.classList.contains('cm-link') &&
+							!node.classList.contains('cm-comment') &&
+							!node.classList.contains('tt-tickticklink')) {
+							return NodeFilter.FILTER_ACCEPT;
+						}
+						return NodeFilter.FILTER_SKIP;
+					}
+				}
+			);
+			while (walker.nextNode()) {
+				lastBefore = walker.currentNode as HTMLElement;
+			}
+			if (lastBefore) {
+				lastBefore.classList.add('tt-tickticklink');
+			}
 		}
 	}
 

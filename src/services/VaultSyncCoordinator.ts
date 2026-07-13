@@ -48,9 +48,24 @@ export class VaultSyncCoordinator {
 			const task = lt.task;
 			const matchesFilter = this.matchesFilter(task, syncTag, syncProject, andOr);
 
-			let targetFile = matchesFilter && !lt.deleted
-				? await this.determineTargetFile(task, projectIdToFilepathCache)
-				: lt.file;
+			let targetFile: string | undefined;
+
+			if (matchesFilter && !lt.deleted) {
+				// If the task already lives in a vault file, keep it there.
+				// This preserves user-intended placement (e.g. via project-override tags)
+				// even when the task's ticktick projectId maps to a different file.
+				if (lt.file) {
+					const existingFile = this.app.vault.getAbstractFileByPath(lt.file);
+					if (existingFile instanceof TFile) {
+						targetFile = lt.file;
+					}
+				}
+				if (!targetFile) {
+					targetFile = await this.determineTargetFile(task, projectIdToFilepathCache);
+				}
+			} else {
+				targetFile = lt.file;
+			}
 
 			if (!targetFile) continue;
 

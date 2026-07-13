@@ -262,10 +262,15 @@ export class Tick {
 			const url = `${this.apiUrl}/${allProjectGroupsEndPoint}/0`;
 			const response = await this.makeRequest('Get Project Groups', url, 'GET', undefined);
 			if (response) {
-				return (response as { projectGroups: IProjectGroup[] }).projectGroups;
+				// API returns wrapped format: { projectGroups: [{ id, group: IProjectGroup }, ...] }
+				// We need to unwrap to get the actual IProjectGroup objects
+				const raw = (response as { projectGroups: unknown[] }).projectGroups;
+				if (Array.isArray(raw)) {
+					return raw.map(g => ((g as Record<string, unknown>)?.group ?? g)) as IProjectGroup[];
+				}
 			}
 		} catch (e) {
-			log.error('Get Project Groups failed: ', e);
+			log.error('Get ProjectF Groups failed: ', e);
 			this.setError('Get Project Groups', null, e);
 		}
 		return [];

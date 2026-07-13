@@ -316,36 +316,47 @@ export class TaskParser {
 
 		if (tagSvc) {
 			for (const raw of rawTags) {
-				const parts = raw.split('/');
-				if (parts.length === 1) {
-					// Simple tag (no hierarchy)
+				// Before hierarchy splitting, check if this tag matches a project name
+				const projectCheckName = raw.replace(/[/_-]/g, ' ');
+				const isProjectTag = (await getAllProjects()).some(obj => obj.name.toLowerCase() === projectCheckName.toLowerCase());
+				if (isProjectTag) {
+					// Treat as simple tag — don't create hierarchy
 					if (!tagSvc.isKnownTag(raw)) {
 						const name = raw.toLowerCase().replace(/[/\s]+/g, '-').replace(/-+/g, '-');
 						tagsToCreate.push({ label: raw, name, parent: null });
 					}
-				} else if (parts.length === 2) {
-					// Two-level hierarchy: ensure parent and child tags exist
-					const parentLabel = parts[0];
-					const childLabel = parts[1];
-					const parentName = parentLabel.toLowerCase().replace(/[/\s]+/g, '-').replace(/-+/g, '-');
-					const childName = childLabel.toLowerCase().replace(/[/\s]+/g, '-').replace(/-+/g, '-');
-					if (!tagSvc.isKnownTag(parentLabel)) {
-						tagsToCreate.push({ label: parentLabel, name: parentName, parent: null });
-					}
-					if (!tagSvc.isKnownTag(childLabel)) {
-						tagsToCreate.push({ label: childLabel, name: childName, parent: parentName });
-					}
 				} else {
-					// More than 2 levels: preserve hierarchy in label, flatten name for TickTick
-					const parentLabel = parts[0];
-					const childLabel = parts.slice(1).join('/');
-					const parentName = parentLabel.toLowerCase().replace(/[/\s]+/g, '-').replace(/-+/g, '-');
-					const childName = parts.slice(1).join('-').toLowerCase().replace(/[/\s]+/g, '-').replace(/-+/g, '-');
-					if (!tagSvc.isKnownTag(parentLabel)) {
-						tagsToCreate.push({ label: parentLabel, name: parentName, parent: null });
-					}
-					if (!tagSvc.isKnownTag(childLabel)) {
-						tagsToCreate.push({ label: childLabel, name: childName, parent: parentName });
+					const parts = raw.split('/');
+					if (parts.length === 1) {
+						// Simple tag (no hierarchy)
+						if (!tagSvc.isKnownTag(raw)) {
+							const name = raw.toLowerCase().replace(/[/\s]+/g, '-').replace(/-+/g, '-');
+							tagsToCreate.push({ label: raw, name, parent: null });
+						}
+					} else if (parts.length === 2) {
+						// Two-level hierarchy: ensure parent and child tags exist
+						const parentLabel = parts[0];
+						const childLabel = parts[1];
+						const parentName = parentLabel.toLowerCase().replace(/[/\s]+/g, '-').replace(/-+/g, '-');
+						const childName = childLabel.toLowerCase().replace(/[/\s]+/g, '-').replace(/-+/g, '-');
+						if (!tagSvc.isKnownTag(parentLabel)) {
+							tagsToCreate.push({ label: parentLabel, name: parentName, parent: null });
+						}
+						if (!tagSvc.isKnownTag(childLabel)) {
+							tagsToCreate.push({ label: childLabel, name: childName, parent: parentName });
+						}
+					} else {
+						// More than 2 levels: preserve hierarchy in label, flatten name for TickTick
+						const parentLabel = parts[0];
+						const childLabel = parts.slice(1).join('/');
+						const parentName = parentLabel.toLowerCase().replace(/[/\s]+/g, '-').replace(/-+/g, '-');
+						const childName = parts.slice(1).join('-').toLowerCase().replace(/[/\s]+/g, '-').replace(/-+/g, '-');
+						if (!tagSvc.isKnownTag(parentLabel)) {
+							tagsToCreate.push({ label: parentLabel, name: parentName, parent: null });
+						}
+						if (!tagSvc.isKnownTag(childLabel)) {
+							tagsToCreate.push({ label: childLabel, name: childName, parent: parentName });
+						}
 					}
 				}
 			}
@@ -383,7 +394,7 @@ export class TaskParser {
 			if (tags) {
 				for (const tag of tags) {
 					let labelName = tag.replace(/#/g, '');
-					labelName = labelName.replace(/_/g, ' ');
+					labelName = labelName.replace(/[_]/g, ' ').replace(/-/g, ' ');
 
 					const hasProjectId = (await getAllProjects()).find(obj => obj.name.toLowerCase() === labelName.toLowerCase())?.id;
 					if (!hasProjectId) {

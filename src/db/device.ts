@@ -17,17 +17,17 @@ export function generateDeviceId(): string {
 
 export async function detectDeviceLabel(): Promise<string> {
 	if (Platform.isDesktop) {
-		const os = await import("os");
-		return (
-			os.hostname() ||
-			(Platform.isMacOS
-				? "Mac"
-				: Platform.isWin
-					? "Windows"
-					: Platform.isLinux
-						? "Linux"
-						: "Desktop")
-		);
+		try {
+			const nodeRequire = (window as unknown as { require?: (mod: string) => { hostname?: () => string } }).require;
+			const hostname = nodeRequire?.('os')?.hostname?.();
+			if (hostname) return hostname;
+		} catch {
+			// Fallback: require not available
+		}
+		if (Platform.isMacOS) return "Mac";
+		if (Platform.isWin) return "Windows";
+		if (Platform.isLinux) return "Linux";
+		return "Desktop";
 	} else {
 		try {
 			const devicePlugin = (window as { Capacitor?: { Plugins?: { Device: { getInfo(): Promise<{ name?: string }> } } } }).Capacitor?.Plugins?.Device;

@@ -1,6 +1,6 @@
 import TickTickSync from '@/main';
 import { Tick } from '@/api';
-import { getSettings, updateSettings } from '@/settings';
+import { getDefaultFolder, getSettings, updateSettings } from '@/settings';
 import { doWithLock } from '@/utils/locks';
 import { SyncMan } from '@/services/syncModule';
 import { Editor, type MarkdownFileInfo, type MarkdownView, Notice, TFile } from 'obsidian';
@@ -14,7 +14,7 @@ import { OrphanTaskModal, type OrphanItem } from '@/modals/OrphanTaskModal';
 import type { ITask } from '@/api/types/Task';
 import { getTick } from '@/api/tick_singleton_factory'
 import { syncTickTickWithDexie } from '@/sync/sync';
-import { db } from "@/db/dexie";
+import { db, initDB } from "@/db/dexie";
 import { getAllProjects, getProjectById, upsertProjects } from '@/db/projects';
 import { loadTasksFromCache } from "@/db/tasks";
 import { getAllFiles, getFile, upsertFile } from "@/db/files";
@@ -110,7 +110,7 @@ export class TickTickService {
 
 			log.debug(`TickTick scheduled synchronization task started at ${new Date().toLocaleString()}`);
 			// NEW: Use TaskCache
-			await this.plugin.taskCache.fill();
+			await this.plugin.taskCache?.fill();
 
 			await doWithLock(LOCK_TASKS, async () => {
 				if (this.plugin.tickTickRestAPI) {
@@ -153,7 +153,7 @@ export class TickTickService {
 			log.error('Error on synchronization: ', error);
 		} finally {
 			// NEW: Clear TaskCache
-			this.plugin.taskCache.clear();
+			this.plugin.taskCache?.clear();
 			const endTime = performance.now();
 			log.debug(`TickTick scheduled synchronization task completed at ${new Date().toLocaleString()}, took ${(endTime - startTime).toFixed(2)} ms`);
 		}
@@ -182,11 +182,12 @@ export class TickTickService {
 	}
 
 	async saveProjectsToCache(): Promise<IProject[] | undefined> {
+		await initDB();
 		let projects = await this.api?.getProjects();
 		if (projects) {
 			// Also get project groups
 			const groups = await this.api?.getProjectGroups();
-			if (groups) {
+			if (groups && groups.length > 0) {
 				await db.projectGroups.clear();
 				await db.projectGroups.bulkPut(groups.map(g => ({ id: g.id, group: g })));
 			}
@@ -346,6 +347,50 @@ export class TickTickService {
 		const allLocalIds = new Set<string>();
 
 		await doWithLock(LOCK_TASKS, async () => {
+			// 0. Fetch fresh project groups and verify file locations against projects/groups
+			{
+				const freshGroups = await this.api?.getProjectGroups();
+				if (freshGroups && freshGroups.length > 0) {
+					await db.projectGroups.clear();
+					await db.projectGroups.bulkPut(freshGroups.map(g => ({ id: g.id, group: g })));
+					log.debug(`Cached ${freshGroups.length} project groups from API`);
+				}
+			}
+			if (getSettings().keepProjectFolders && this.plugin.folderSyncService) {
+				const basePath = getDefaultFolder();
+				let movedCount = 0;
+				for (const file of markdownFiles) {
+					const dbFile = await getFile(file.path);
+					if (!dbFile?.defaultProjectId) continue;
+					if (dbFile.managedByPlugin === false) continue;
+
+					const project = allProjects.find(p => p.id === dbFile.defaultProjectId);
+					if (!project) continue;
+
+					const expectedFolderPath = await this.plugin.folderSyncService.getFolderPathForProject(project.id);
+					const expectedPath = await this.plugin.folderSyncService.getFilePathForProject(project.id, project.name);
+
+					// If group lookup failed (expected == base path) and file is in a subfolder,
+					// we can't determine the correct location — skip to avoid pulling files to root
+					const fileFolder = file.path.contains('/') ? file.path.substring(0, file.path.lastIndexOf('/')) : '';
+					if (expectedFolderPath === basePath && fileFolder !== basePath) {
+						log.debug(`[checkDB] Skipping ${file.path}: cannot determine project group for ${project.id}`);
+						continue;
+					}
+
+					if (file.path !== expectedPath) {
+						log.debug(`[checkDB] Moving file ${file.path} to ${expectedPath}`);
+						const result = await this.plugin.folderSyncService.moveFileToProjectFolder(
+							file.path, expectedFolderPath, file.name
+						);
+						if (result) movedCount++;
+					}
+				}
+				if (movedCount > 0) {
+					log.info(`[checkDB] Reorganized ${movedCount} file(s) to match project group structure`);
+				}
+			}
+
 			// 1. Handle files that were moved/renamed (have tasks but wrong path in DB)
 			for (const dbFile of dbFiles) {
 				const vaultFile = vault.getAbstractFileByPath(dbFile.path);
