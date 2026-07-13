@@ -407,6 +407,14 @@ export class TaskModificationDetector {
 			await this.plugin.taskRepository.upsertTask(lineTask, filepath, Date.now());
 		}
 
+		// Handle project change from tag modification
+		if (modifications.tagsModified && !modifications.projectMoved) {
+			if (lineTask.projectId && savedTask.projectId && lineTask.projectId !== savedTask.projectId) {
+				await this.plugin.tickTickRestAPI?.moveTaskProject(lineTask, savedTask.projectId, lineTask.projectId);
+				modified = true;
+			}
+		}
+
 		// Handle parent change
 		if (modifications.parentIdModified) {
 			await this.handleParentChange(lineTask, savedTask, taskId);

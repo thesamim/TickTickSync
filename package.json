@@ -59,6 +59,7 @@
 		"esbuild-svelte": "^0.9.3",
 		"eslint": "^10.6.0",
 		"eslint-plugin-obsidianmd": "^0.4.1",
+		"fake-indexeddb": "^6.2.5",
 		"jsdom": "^24.0.0",
 		"svelte": "^5.33.9",
 		"svelte-check": "^4.2.1",

@@ -172,7 +172,7 @@ export class TaskDisplayProcessor {
 				{
 					acceptNode: (node: Node) => {
 						if (!(node instanceof HTMLElement)) return NodeFilter.FILTER_SKIP;
-						if (node === ticktickTag) return NodeFilter.FILTER_STOP;
+						if (node === ticktickTag) return NodeFilter.FILTER_SKIP;
 						if (node.classList.contains('cm-link') &&
 							!node.classList.contains('cm-comment') &&
 							!node.classList.contains('tt-tickticklink')) {

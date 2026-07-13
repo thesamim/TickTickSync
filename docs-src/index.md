@@ -18,34 +18,28 @@
 - [Getting Started](getting-started.md) — install and set up the plugin
 - [Configuration](configuration/index.md) — customize sync behavior, defaults, and limits
 - [Task Format](task-format.md) — syntax reference for dates, priorities, and projects
-- [Notes](notes.md) — how notes are synchronized
+- [Notes](configuration/notes.md) — how notes are synchronized
 - [Changelog](changelog.md) — version history and notable changes
 
 ## Installation
 
-=== "From Obsidian"
+###  From Obsidian
 
     1. Open Obsidian **Settings** → **Community plugins**
     2. Make sure **Restricted mode** is off
     3. Click **Browse** and search for "TickTickSync"
     4. Click **Install**, then **Enable**
 
-=== "Via BRAT"
+###  Via BRAT
 
     1. Install [Obsidian42 - BRAT](https://obsidian.md/plugins?id=obsidian42-brat) from Community Plugins
     2. Add `https://github.com/thesamim/TickTickSync` via BRAT
 
-=== "Manual"
+###  Manual
 
     1. Download the [latest release](https://github.com/thesamim/TickTickSync/releases)
     2. Extract the zip to your vault's `.obsidian/plugins/tickticksync/` folder
     3. Enable the plugin in Obsidian settings
-
-## Acknowledgments
-
-This plugin is based on [Ultimate Todoist Sync for Obsidian](https://github.com/HeroBlackInk/ultimate-todoist-sync-for-obsidian) by [HeroBlackInk](https://github.com/HeroBlackInk).
-
-The [TickTick API wrapper](https://github.com/thesamim/ticktick-api-lvt) is forked from [lucasvtiradentes/ticktick-api-lvt](https://github.com/lucasvtiradentes/ticktick-api-lvt).
 
 ## License
 

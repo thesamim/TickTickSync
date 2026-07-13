@@ -4,7 +4,18 @@ The **Debug Options** tab provides tools for diagnosing sync issues.
 
 ## Debug Mode
 
-Enable verbose logging to capture detailed plugin activity. Configure the log level to control verbosity. Optionally skip backups on reload during debugging sessions.
+Enable verbose logging to capture detailed plugin activity. Configure the log level to control verbosity.
+
+## Generate Debug Info
+
+Click **Generate** to create a snapshot of the current plugin state as a formatted JSON block. This includes:
+
+- Plugin version, server URL, and feature toggles
+- File metadata and project counts
+- Sync control settings (limiting project/tag, AND/OR mode)
+- Note settings
+
+Use the copy button to copy the output to your clipboard. Include this information when [reporting a problem](https://github.com/thesamim/TickTickSync/issues) to help diagnose the issue.
 
 ## Sync Journal
 

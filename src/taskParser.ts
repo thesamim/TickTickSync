@@ -317,8 +317,10 @@ export class TaskParser {
 		if (tagSvc) {
 			for (const raw of rawTags) {
 				// Before hierarchy splitting, check if this tag matches a project name
-				const projectCheckName = raw.replace(/[/_-]/g, ' ');
+				const projectCheckName = raw.replace(/[/_]/g, ' ');
+				log.debug("projectcheckname", projectCheckName);
 				const isProjectTag = (await getAllProjects()).some(obj => obj.name.toLowerCase() === projectCheckName.toLowerCase());
+				log.debug("isprojecttag", isProjectTag)
 				if (isProjectTag) {
 					// Treat as simple tag — don't create hierarchy
 					if (!tagSvc.isKnownTag(raw)) {
@@ -391,10 +393,10 @@ export class TaskParser {
 			}
 		} else {
 			//Check if we need to add this to a specific project by tag.
-			if (tags) {
-				for (const tag of tags) {
-					let labelName = tag.replace(/#/g, '');
-					labelName = labelName.replace(/[_]/g, ' ').replace(/-/g, ' ');
+			// Use rawTags (pre-resolution) so underscores are preserved for matching
+			if (rawTags) {
+				for (const rawTag of rawTags) {
+					const labelName = rawTag.replace(/[/_]/g, ' ');
 
 					const hasProjectId = (await getAllProjects()).find(obj => obj.name.toLowerCase() === labelName.toLowerCase())?.id;
 					if (!hasProjectId) {

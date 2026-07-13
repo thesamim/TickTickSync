@@ -28,11 +28,12 @@ nav:
     - Maintenance: configuration/maintenance.md
     - Debug Options: configuration/debug-options.md
     - Task Settings: configuration/task-settings.md
-    - Notes: notes.md
+    - Notes: configuration/notes.md
   - Task Format: task-format.md
   - Moving Tasks: moving-tasks.md
   - Changelog: changelog.md
   - Troubleshooting: troubleshooting/index.md
+  - Acknowledgments: acknowledgments.md
 
 docs_dir: docs-src
 site_dir: site
