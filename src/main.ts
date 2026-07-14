@@ -562,48 +562,48 @@ export default class TickTickSync extends Plugin {
 			await this.synchronizeNow();
 		});
 
-		//Used for testing adhoc code.
-		this.addRibbonIcon('check', 'Tts test', async (evt: MouseEvent) => {
-			// Nothing to see here right now.
-			const vaultId = this.app.vault.getName();
-			log.debug(`Vault ID: ${vaultId}`);
-			this.dumpDB();
-		});
+		// //Used for testing adhoc code.
+		// this.addRibbonIcon('check', 'Tts test', async (evt: MouseEvent) => {
+		// 	// Nothing to see here right now.
+		// 	const vaultId = this.app.vault.getName();
+		// 	log.debug(`Vault ID: ${vaultId}`);
+		// 	this.dumpDB();
+		// });
 
 		//Used for testing adhoc code.
-		this.addRibbonIcon('dice', 'Tts test 2', async (evt: MouseEvent) => {
-			// Nothing to see here right now.
-			// for (const file of this.app.vault.getMarkdownFiles()) {
-			// 	if (file.path.includes("List 1")) {
-			// 		const fileMap = new NewFileMap(this.app, this, file);
-			// 		await fileMap.init();
-			// 		const taskRecord = fileMap.getTaskRecord("6a08733c9086963234d145a5")
-			// 		const taskItems = fileMap.getTaskItems("6a08733c9086963234d145a5")
-			// 		log.debug("record", taskRecord)
-			// 		log.debug("items", taskItems)
-			// 	}
-			// }
-			// Example Usage inside a command or event:
-			// const targetFolder = 'Folder 1';
-			//
-			// // Get every file in the vault and filter by path prefix
-			// const allFilesInFolder = this.app.vault.getFiles().filter(file =>
-			// 	file.path.startsWith(targetFolder + '/')
-			// );
-			//
-			// for (const file of allFilesInFolder) {
-			// 	const activeFile = this.app.vault.getFileByPath(file)
-			// 	const tasks = await getTasksWithChildren(activeFile, this.app);
-			// 	// const fm = new NewFileMap(this.app, this, activeFile);
-			// 	// await fm.init();
-			// 	// const tasks = fm.getTasks();
-			//
-			// 	log.debug("In File: ", file.name, "\nStructured Tasks:\n", JSON.stringify(tasks,null, 4));
-			// }
-			generateDeviceId();
-
-
-		});
+		// this.addRibbonIcon('dice', 'Tts test 2', async (evt: MouseEvent) => {
+		// 	// Nothing to see here right now.
+		// 	// for (const file of this.app.vault.getMarkdownFiles()) {
+		// 	// 	if (file.path.includes("List 1")) {
+		// 	// 		const fileMap = new NewFileMap(this.app, this, file);
+		// 	// 		await fileMap.init();
+		// 	// 		const taskRecord = fileMap.getTaskRecord("6a08733c9086963234d145a5")
+		// 	// 		const taskItems = fileMap.getTaskItems("6a08733c9086963234d145a5")
+		// 	// 		log.debug("record", taskRecord)
+		// 	// 		log.debug("items", taskItems)
+		// 	// 	}
+		// 	// }
+		// 	// Example Usage inside a command or event:
+		// 	// const targetFolder = 'Folder 1';
+		// 	//
+		// 	// // Get every file in the vault and filter by path prefix
+		// 	// const allFilesInFolder = this.app.vault.getFiles().filter(file =>
+		// 	// 	file.path.startsWith(targetFolder + '/')
+		// 	// );
+		// 	//
+		// 	// for (const file of allFilesInFolder) {
+		// 	// 	const activeFile = this.app.vault.getFileByPath(file)
+		// 	// 	const tasks = await getTasksWithChildren(activeFile, this.app);
+		// 	// 	// const fm = new NewFileMap(this.app, this, activeFile);
+		// 	// 	// await fm.init();
+		// 	// 	// const tasks = fm.getTasks();
+		// 	//
+		// 	// 	log.debug("In File: ", file.name, "\nStructured Tasks:\n", JSON.stringify(tasks,null, 4));
+		// 	// }
+		// 	generateDeviceId();
+		//
+		//
+		// });
 
 
 		this.registerEvents();

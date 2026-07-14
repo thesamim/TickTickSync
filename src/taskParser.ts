@@ -318,9 +318,9 @@ export class TaskParser {
 			for (const raw of rawTags) {
 				// Before hierarchy splitting, check if this tag matches a project name
 				const projectCheckName = raw.replace(/[/_]/g, ' ');
-				log.debug("projectcheckname", projectCheckName);
+
 				const isProjectTag = (await getAllProjects()).some(obj => obj.name.toLowerCase() === projectCheckName.toLowerCase());
-				log.debug("isprojecttag", isProjectTag)
+
 				if (isProjectTag) {
 					// Treat as simple tag — don't create hierarchy
 					if (!tagSvc.isKnownTag(raw)) {

@@ -187,7 +187,6 @@ export class NewFileMap {
 			.filter(t => t.index !== -1)
 			.sort((a, b) => b.index - a.index);
 
-		log.debug(`FileMap: Found ${tasksWithIndices.length} out of ${ids.length} tasks for deletion in file ${this.file.path}`);
 		for (const t of tasksWithIndices) {
 			this.deleteTaskAndLinesAtIndex(t.index, t.id);
 		}
@@ -595,7 +594,6 @@ export class NewFileMap {
 	private deleteTaskAndLinesAtIndex(taskIdx: number, id: string) {
 		const endLine = this.getTaskEndLineByIdx(taskIdx);
 		const linesToDelete = endLine - taskIdx + 1;
-		log.debug(`FileMap: Deleting ${linesToDelete} lines at index ${taskIdx} for task ${id} in ${this.file.path}`);
 		this.fileLines.splice(taskIdx, linesToDelete);
 	}
 
