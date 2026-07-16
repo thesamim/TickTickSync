@@ -9,3 +9,5 @@ TickTickSync settings are organized into tabs in the plugin settings panel.
 | [Maintenance](maintenance.md) | Manual sync, check database, debug mode, backup |
 | [Task Settings](task-settings.md) | Link display and task-level preferences |
 | [Notes](notes.md) | Note synchronization and separator config |
+
+![Tabbed Settings](../images/settings.png)

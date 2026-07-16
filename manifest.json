@@ -6,5 +6,6 @@
 	"description": "Sync TickTick tasks to Obsidian, and Obsidian tasks to TickTick",
 	"author": "thesamim",
 	"authorUrl": "https://github.com/thesamim",
-	"isDesktopOnly": false
+	"isDesktopOnly": false,
+	"fundingUrl": "https://ko-fi.com/thesamim"
 }

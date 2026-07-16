@@ -37,3 +37,5 @@ After the sync interval elapses (or you trigger manual sync), this task will app
 - TickTick only has four priority levels (High, Medium, Low, None). See [Task Format](task-format.md) for the mapping.
 - Deleting a task file in Obsidian while the plugin is active will delete those tasks from TickTick (with confirmation).
 - The plugin automatically creates `.md` files for each TickTick project/list.
+!!! tip "Don't panic if you see a delete warning"
+    Moving tasks between devices can sometimes make TickTickSync think they were deleted. **If you didn't delete them yourself, just say no.** The plugin will figure it out on the next sync.

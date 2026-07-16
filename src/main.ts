@@ -23,6 +23,7 @@ import { RecoverDeletedTasksModal } from './modals/RecoverDeletedTasksModal';
 
 //import utils
 import { isOlder } from './utils/version';
+import { NOTABLE_CHANGES } from './notable-changes';
 import { TickTickSyncSettingTab } from './ui/settings';
 import { MarkdownProcessor } from '@/query/MarkdownProcessor';
 import store from '@/store';
@@ -682,54 +683,34 @@ export default class TickTickSync extends Plugin {
 	private async migrateData(data: Record<string, unknown>): Promise<Record<string, unknown>> {
 		if (!data) return data;
 
-		const notableChanges: string [][] = [];
-
 		//We're going to handle data structure conversions here.
 		//NB: The version that goes in the literal is the current version.
 		if ((!data.version) || (isOlder(data.version as string, '1.0.10'))) {
 			//get rid of username and password. we don't need them no more.
-			//delete data.username;
 			delete data.username;
 			delete data.password;
 		}
 		if ((!data.version) || (isOlder(data.version as string, '1.0.36'))) {
 			//default to AND because that's what we used to do:
 			data.tagAndOr = 1;
-			//warn about tag changes.
-			notableChanges.push(['New Task Limiting rules', 'Please update your preferences in settings as needed.', 'priorTo1.0.36']);
 		}
-		if ((!data.version) || (isOlder(data.version as string, '1.0.40'))) {
-			//warn about the date/time foo
-			notableChanges.push(['New Date/Time Handling', 'Old date formats will be converted on the next synchronization operation.', 'priorTo1.0.40']);
-		}
-		if ((!data.version) || (isOlder(data.version as string, '1.1.1'))) {
-			//warn about the date/time foo
-			notableChanges.push(['Note Synchronization', 'TickTickSync will now synchronize Notes.', 'priorTo1.1.1']);
-		}
-		if ((!data.version) || (isOlder(data.version as string, '1.1.7'))) {
-			notableChanges.push(['Note and Default Project Settings', 'Note and Default Project settings improvements.', 'priorTo1.1.7']);
-		}
-		if ((!data.version) || (isOlder(data.version as string, '1.1.8'))) {
-			notableChanges.push(['Link to Tasks now Configurable', 'Link to Tasks are now Configurable.', 'priorTo1.1.8']);
-		}
-		if ((!data.version) || (isOlder(data.version as string, '1.1.10'))) {
-			notableChanges.push(['Several Changes', 'Tasks stay where they are created.\nBackups now configurable.\nNote delimiter now configurable.', 'priorTo1.1.9']);
-		}
-		if ((!data.version) || (isOlder(data.version as string, '1.1.15'))) {
-			notableChanges.push(['Can now login with SSO/2FA enabled account on Desktop', 'Desktop SSO/2FA login enabled.', 'priorTo1.1.14']);
-		}
-		if ((!data.version) || (isOlder(data.version as string, '1.1.16'))) {
-			notableChanges.push(['Note handling improvements', 'Can now have checklist items and TickTick Task links in notes.', 'priorTo1.1.15']);
-		}
+
 		//BIG Change. BIG I tell you!
 		const isOlderResult = (!data.version) || isOlder(data.version as string, '2.0.0');
 		if (isOlderResult) {
 			log.debug('Entering 1.1.17 migration block');
 			// Migrate from legacy data.json repository to Dexie-based repository
 			data.__migratedDBData = migrateFromDataJson(data);
-			log.debug('migrateFromDataJson completed, pushing notableChange');
-			notableChanges.push(['version 2.0', 'A complete re-architecture to allow better cross-device handling. General performance improvements..', 'priorTo1.1.17']);
-			log.debug('notableChanges.length after push =', notableChanges.length);
+			log.debug('migrateFromDataJson completed');
+		}
+
+		//Build notable changes from the single source of truth
+		const notableChanges: string[][] = [];
+		const currentVersion = (data.version as string) || '0.0.0';
+		for (const change of NOTABLE_CHANGES) {
+			if (!data.version || isOlder(currentVersion, change.version)) {
+				notableChanges.push([change.title, change.description, change.anchor]);
+			}
 		}
 
 		if (notableChanges.length > 0) {

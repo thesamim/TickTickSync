@@ -4,6 +4,11 @@ The TickTickSync plugin automatically creates tasks in TickTick and synchronizes
 
 **TickTickSync is Mobile Compatible!**
 
+If TickTickSync provides value:
+
+<a href='https://ko-fi.com/O0C12398ZK' target='_blank'><img height='36' style='border:0px;height:36px;' src='https://storage.ko-fi.com/cdn/kofi6.png?v=6' border='0' alt='Buy Me a Coffee at ko-fi.com' /></a>
+
+
 The plugin works best when the [Tasks](https://github.com/obsidian-tasks-group/obsidian-tasks) plugin is installed.
 
 ## Features
@@ -23,8 +28,8 @@ See [Getting Started](https://thesamim.github.io/TickTickSync/getting-started/) 
 
 ## Known Issues
 
-1. The plugin only works with the [Tasks emoji formats](https://publish.obsidian.md/tasks/Reference/Task+Formats/About+Task+Formats). 
-2. Because Tags can't have spaces, at this time it is not possible to add a task to a project with a name that contains spaces. As a workaround `#folder_with_a_space` will be converted to `folder with a space` in TickTick
+The plugin only works with the [Tasks emoji formats](https://publish.obsidian.md/tasks/Reference/Task+Formats/About+Task+Formats). 
+
 
 ## Disclaimer
 

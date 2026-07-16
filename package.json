@@ -9,6 +9,7 @@
 		"dev": " vite build --mode development --watch",
 		"build": "vite build --mode production",
 		"test": "vitest",
+		"sync-changelog": "node sync-notable-changes.mjs",
 		"version": "node version-bump.mjs && git add manifest.json versions.json"
 	},
 	"keywords": [

@@ -2,6 +2,9 @@
 
 **TickTickSync** is an Obsidian plugin that provides bidirectional synchronization between Obsidian and TickTick. Create, edit, complete, and delete tasks in either app — changes are reflected in both.
 
+!!! tip "If TickTickSync provides value."
+    <a href='https://ko-fi.com/O0C12398ZK' target='_blank'><img height='36' style='border:0px;height:36px;' src='https://storage.ko-fi.com/cdn/kofi6.png?v=6' border='0' alt='Buy Me a Coffee at ko-fi.com' /></a>
+
 <div class="grid cards" markdown>
 
 -   :material-sync: **Bidirectional Sync** — Tasks and notes sync both ways automatically

@@ -22,9 +22,20 @@ export class LatestChangesModal extends Modal {
 	 * Called automatically by the Modal class when modal is opened.
 	 */
 	onOpen() {
-		const notableChangesURL = 'https://github.com/thesamim/TickTickSync/wiki/Notable-Changes#';
+		const notableChangesURL = 'https://thesamim.github.io/TickTickSync/changelog/#';
 		let { titleEl, contentEl } = this;
 		titleEl.setText(this.title);
+
+		let tipEl = contentEl.createDiv({ cls: 'callout', attr: { 'data-callout': 'tip' } });
+		tipEl.innerHTML = `
+			<div class="callout-title">
+				<div class="callout-icon"></div>
+				<div class="callout-title-inner">If TickTickSync provides value.</div>
+			</div>
+			<div class="callout-content">
+				<p><a href='https://ko-fi.com/O0C12398ZK' target='_blank'><img height='36' style='border:0px;height:36px;' src='https://storage.ko-fi.com/cdn/kofi6.png?v=6' border='0' alt='Buy Me a Coffee at ko-fi.com' /></a></p>
+			</div>
+		`;
 
 		let p1 = contentEl.createEl('p');
 		p1.setText('The following are user experience affecting changes from prior versions of TickTickSync.');
@@ -34,10 +45,14 @@ export class LatestChangesModal extends Modal {
 		let changesText = contentEl.createEl('ol');
 		this.notableChanges.forEach(notableChange => {
 			let lineItem = changesText.createEl('li');
-			lineItem.createEl('a', { href: `${notableChangesURL}${notableChange[2]}`, text: `${notableChange[0]}` });
+			const link = lineItem.createEl('a', { href: `${notableChangesURL}${notableChange[2]}` });
+			link.innerHTML = notableChange[0];
 			let holder = lineItem.createEl('ol');
 			const changeLines = notableChange[1].split('\n');
-			changeLines.forEach(line => {holder.createDiv({ text: `${line}` });})
+			changeLines.forEach(line => {
+				const div = holder.createDiv();
+				div.innerHTML = line;
+			})
 		});
 
 		new Setting(contentEl)
@@ -61,7 +76,9 @@ export class LatestChangesModal extends Modal {
 		this.titleEl.empty();
 		this.contentEl.empty();
 		super.onClose();
-		this.resolvePromise(this.result);
+		if (this.resolvePromise) {
+			this.resolvePromise(this.result);
+		}
 	}
 
 	public showModal(): Promise<boolean> {
