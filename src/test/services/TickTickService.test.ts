@@ -13,9 +13,7 @@ vi.mock('obsidian', () => ({
 	Notice: vi.fn(),
 	Plugin: vi.fn(),
 	PluginSettingTab: vi.fn(),
-	SettingPage: class SettingPage {
-		constructor() {}
-	},
+	// SettingPage -- requires Obsidian 1.13.0+, commented out for 1.12.7 compat
 	TFile: vi.fn(),
 	TFolder: vi.fn(),
 }));

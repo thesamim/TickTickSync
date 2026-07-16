@@ -33,7 +33,7 @@
 		if (plugin.tickTickRestAPI && plugin.tickTickRestAPI.api) plugin.tickTickRestAPI.api = api;
 		if (plugin.service) plugin.service.api = api;
 
-		await plugin.saveProjectsToCache();
+		await plugin.initializePlugin();
 		await plugin.saveSettings(true);
 	}
 
