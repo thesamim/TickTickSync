@@ -2,7 +2,7 @@
 	"id": "tickticksync",
 	"name": "TickTickSync",
 	"version": "2.0.1",
-	"minAppVersion": "1.13.0",
+	"minAppVersion": "1.0.0",
 	"description": "Sync TickTick tasks to Obsidian, and Obsidian tasks to TickTick",
 	"author": "thesamim",
 	"authorUrl": "https://github.com/thesamim",
