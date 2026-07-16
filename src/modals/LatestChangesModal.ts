@@ -27,15 +27,19 @@ export class LatestChangesModal extends Modal {
 		titleEl.setText(this.title);
 
 		let tipEl = contentEl.createDiv({ cls: 'callout', attr: { 'data-callout': 'tip' } });
-		tipEl.innerHTML = `
-			<div class="callout-title">
-				<div class="callout-icon"></div>
-				<div class="callout-title-inner">If TickTickSync provides value.</div>
-			</div>
-			<div class="callout-content">
-				<p><a href='https://ko-fi.com/O0C12398ZK' target='_blank'><img height='36' style='border:0px;height:36px;' src='https://storage.ko-fi.com/cdn/kofi6.png?v=6' border='0' alt='Buy Me a Coffee at ko-fi.com' /></a></p>
-			</div>
-		`;
+		let calloutTitle = tipEl.createDiv({ cls: 'callout-title' });
+		calloutTitle.createDiv({ cls: 'callout-icon' });
+		calloutTitle.createDiv({ cls: 'callout-title-inner', text: 'If TickTickSync provides value.' });
+		let calloutContent = tipEl.createDiv({ cls: 'callout-content' });
+		let p = calloutContent.createEl('p');
+		let a = p.createEl('a', { href: 'https://ko-fi.com/O0C12398ZK', attr: { target: '_blank' } });
+		a.createEl('img', { attr: {
+			height: '36',
+			style: 'border:0px;height:36px;',
+			src: 'https://storage.ko-fi.com/cdn/kofi6.png?v=6',
+			border: '0',
+			alt: 'Buy Me a Coffee at ko-fi.com',
+		}});
 
 		let p1 = contentEl.createEl('p');
 		p1.setText('The following are user experience affecting changes from prior versions of TickTickSync.');
@@ -46,11 +50,13 @@ export class LatestChangesModal extends Modal {
 		this.notableChanges.forEach(notableChange => {
 			let lineItem = changesText.createEl('li');
 			const link = lineItem.createEl('a', { href: `${notableChangesURL}${notableChange[2]}` });
+			// eslint-disable-next-line no-unsanitized/property -- trusted static content
 			link.innerHTML = notableChange[0];
 			let holder = lineItem.createEl('ol');
 			const changeLines = notableChange[1].split('\n');
 			changeLines.forEach(line => {
 				const div = holder.createDiv();
+				// eslint-disable-next-line no-unsanitized/property -- trusted static content
 				div.innerHTML = line;
 			})
 		});
