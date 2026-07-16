@@ -1,26 +1,25 @@
 'use strict';
 import { Platform, requestUrl, type RequestUrlParam, type RequestUrlResponse } from 'obsidian';
-import { UAParser } from 'ua-parser-js';
 import ObjectID from 'bson-objectid';
 import type { IProjectGroup } from './types/ProjectGroup';
 import type { IProject, ISections } from './types/Project';
-// import { ITag } from './types/Tag';
-// import { ITag } from './types/Tag';
-import type { ITask } from './types/Task';
-// import { IFilter } from './types/Filter';
-// import { IHabit } from './types/Habit';
+import type { ITask, ITaskItem } from './types/Task';
+import type { ITag } from './types/Tag';
 import { API_ENDPOINTS } from './utils/get-api-endpoints';
-import log from 'loglevel';
+import log from '@/utils/logger';
 import { getSettings, updateSettings } from '@/settings';
+
+const _userAgent = window['navigator']['userAgent'];
 
 const {
 	TaskEndPoint,
 	updateTaskEndPoint,
-	allTagsEndPoint,
-	allHabitsEndPoint,
 	allProjectGroupsEndPoint,
 	allProjectsEndPoint,
+	updateProjectEndPoint,
 	allTasksEndPoint,
+	allTagsEndPoint,
+	batchTagEndPoint,
 	signInEndPoint,
 	userPreferencesEndPoint,
 	getSections,
@@ -30,7 +29,6 @@ const {
 	parentMove,
 	userStatus
 } = API_ENDPOINTS;
-
 
 
 interface IoptionsProps {
@@ -44,10 +42,19 @@ interface IoptionsProps {
 export interface IBatch {
 	checkPoint: number;
 	inboxId: string;
-	projectGroups: any[];
-	projectProfiles: any[];
-	syncTaskBean: any;
-	tags: any[];
+	projectGroups: unknown[];
+	projectProfiles: unknown[];
+	syncTaskBean: unknown;
+	tags: unknown[];
+}
+
+interface UpdatePayload {
+	add: unknown[];
+	addAttachments: unknown[];
+	delete: unknown[];
+	deleteAttachments: unknown[];
+	updateAttachments: unknown[];
+	update: unknown[];
 }
 
 export class Tick {
@@ -59,16 +66,13 @@ export class Tick {
 	token: string;
 	apiUrl: string;
 	loginUrl: string;
-	cookies: string[];
-	cookieHeader: string;
-	private originUrl: string;
-
+	cookies: string[] = [];
+	cookieHeader: string = '';
 	ticktickServer: string = 'ticktick.com';
 	protocol: string = 'https://';
 	apiProtocol: string = 'https://api.';
 	apiVersion: string = '/api/v2';
-
-
+	private originUrl: string;
 	private userAgent: string;
 	private deviceAgent: string;
 
@@ -83,25 +87,24 @@ export class Tick {
 		this.deviceAgent = this.getXDevice();
 
 		if (baseUrl) {
-			this.apiUrl = `${(this.apiProtocol)}${baseUrl}${(this.apiVersion)}`;
-			this.loginUrl = `${(this.protocol)}${baseUrl}${(this.apiVersion)}`;
-			this.originUrl = `${(this.protocol)}${baseUrl}`;
+			this.apiUrl = `${this.apiProtocol}${baseUrl}${this.apiVersion}`;
+			this.loginUrl = `${this.protocol}${baseUrl}${this.apiVersion}`;
+			this.originUrl = `${this.protocol}${baseUrl}`;
 		} else {
-			this.apiUrl = `${(this.apiProtocol)}${(this.ticktickServer)}${(this.apiVersion)}`;
-			this.loginUrl = `${(this.protocol)}${(this.ticktickServer)}${(this.apiVersion)}`;
-			this.originUrl = `${(this.protocol)}${(this.ticktickServer)}`;
+			this.apiUrl = `${this.apiProtocol}${this.ticktickServer}${this.apiVersion}`;
+			this.loginUrl = `${this.protocol}${this.ticktickServer}${this.apiVersion}`;
+			this.originUrl = `${this.protocol}${this.ticktickServer}`;
 		}
 
 		if (checkPoint != undefined) {
 			this._checkpoint = checkPoint;
 		} else {
-			//Checkpoint back end processing has changed again. Let's get a new one.
 			this.getPreviousCheckPoint();
 		}
 
 	}
 
-	private _checkpoint: number;
+	private _checkpoint: number = 0;
 
 	get checkpoint(): number {
 		return this._checkpoint;
@@ -115,13 +118,13 @@ export class Tick {
 		return this.inboxProperties.id;
 	}
 
-	private _lastError: any;
+	private _lastError: unknown;
 
-	get lastError(): any {
+	get lastError(): unknown {
 		return this._lastError;
 	}
 
-	set lastError(value: any) {
+	set lastError(value: unknown) {
 		this._lastError = value;
 	}
 
@@ -135,13 +138,12 @@ export class Tick {
 			};
 			const response = await this.makeRequest('Login', url, 'POST', body);
 			log.debug('Signed in Response: ', response);
-			if (response && response.token) {
-				//Force reset checkpoint so they'll get ALL tasks.
+			if (response) {
+				const r = response as { token: string; inboxId: string };
 				this._checkpoint = 0;
-				//token userId userCode username teamPro proEndDate needSubscribe inboxId teamUser activeTeamUser freeTrial pro ds
 				return {
-					token: response.token,
-					inboxId: response.inboxId
+					token: r.token,
+					inboxId: r.inboxId
 				};
 			}
 		} catch (error) {
@@ -151,14 +153,14 @@ export class Tick {
 		return null;
 	}
 
-	async getUserSettings(): Promise<any[] | null> {
+	async getUserSettings(): Promise<Record<string, unknown>[] | null> {
 		try {
 
 			const url = `${this.apiUrl}/${userPreferencesEndPoint}`;
 
 			const response = await this.makeRequest('Get User Settings', url, 'GET', undefined);
 			if (response) {
-				return response;
+				return response as Record<string, unknown>[];
 			} else {
 				return null;
 			}
@@ -169,16 +171,17 @@ export class Tick {
 		}
 	}
 
-	async getUserStatus(): Promise<RequestUrlResponse | null> {
+	async getUserStatus(): Promise<{ token: string; inboxId: string; userID: string } | null> {
 		try {
 
 			const url = `${this.apiUrl}/${userStatus}`;
 			const response = await this.makeRequest('Get User status', url, 'GET', undefined);
 			if (response) {
+				const r = response as { inboxId: string; username: string };
 				return {
 					token: this.token,
-					inboxId: response.inboxId,
-					userID: response.username
+					inboxId: r.inboxId,
+					userID: r.username
 				};
 			} else {
 				return null;
@@ -190,16 +193,16 @@ export class Tick {
 		}
 	}
 
-	async  	getInboxProperties(): Promise<boolean> {
+	async getInboxProperties(): Promise<boolean> {
 		try {
 			for (let i = 0; i < 10; i++) {
 				if (i !== 0) this.reset();
 				const url = `${this.apiUrl}/${allTasksEndPoint}` + this._checkpoint;
-				// log.debug("url ", url)
 				const response = await this.makeRequest('Get Inbox Properties', url, 'GET');
 				if (!response) continue;
 
-				response['syncTaskBean'].update.forEach((task: any) => {
+				const bean = response as { syncTaskBean: { update: { projectId: string; sortOrder: number }[] } };
+				bean.syncTaskBean.update.forEach((task: { projectId: string; sortOrder: number }) => {
 					if (task.projectId == this.inboxProperties.id && task.sortOrder < this.inboxProperties.sortOrder) {
 						this.inboxProperties.sortOrder = task.sortOrder;
 					}
@@ -220,7 +223,32 @@ export class Tick {
 
 	// TAGS ======================================================================
 
-	// TODO: if Tags required, they come from allTagsEndPoint
+	async getTags(): Promise<ITag[]> {
+		try {
+			const url = `${this.apiUrl}/${allTagsEndPoint}`;
+			const response = await this.makeRequest('Get Tags', url, 'GET', undefined);
+			if (response) {
+				return response as ITag[];
+			}
+		} catch (e) {
+			log.error('Get Tags failed: ', e);
+			this.setError('Get Tags', null, e);
+		}
+		return [];
+	}
+
+	async createTags(tags: { label: string; name: string; parent: string | null }[]): Promise<unknown> {
+		try {
+			const url = `${this.apiUrl}/${batchTagEndPoint}`;
+			const payload = { add: tags };
+			const response = await this.makeRequest('Create Tags', url, 'POST', payload);
+			return response;
+		} catch (e) {
+			log.error('Create Tags failed: ', e);
+			this.setError('Create Tags', null, e);
+			return null;
+		}
+	}
 
 	// HABITS ====================================================================
 
@@ -228,15 +256,21 @@ export class Tick {
 
 	// PROJECTS ==================================================================
 
+	//TODO, we could get all the project related information in one swell foop.
 	async getProjectGroups(): Promise<IProjectGroup[]> {
 		try {
-			const url = `${this.apiUrl}/${allProjectGroupsEndPoint}`;
+			const url = `${this.apiUrl}/${allProjectGroupsEndPoint}/0`;
 			const response = await this.makeRequest('Get Project Groups', url, 'GET', undefined);
 			if (response) {
-				return response;
+				// API returns wrapped format: { projectGroups: [{ id, group: IProjectGroup }, ...] }
+				// We need to unwrap to get the actual IProjectGroup objects
+				const raw = (response as { projectGroups: unknown[] }).projectGroups;
+				if (Array.isArray(raw)) {
+					return raw.map(g => ((g as Record<string, unknown>)?.group ?? g)) as IProjectGroup[];
+				}
 			}
 		} catch (e) {
-			log.error('Get Project Groups failed: ', e);
+			log.error('Get ProjectF Groups failed: ', e);
 			this.setError('Get Project Groups', null, e);
 		}
 		return [];
@@ -247,7 +281,7 @@ export class Tick {
 			const url = `${this.apiUrl}/${allProjectsEndPoint}`;
 			const response = await this.makeRequest('Get Projects', url, 'GET', undefined);
 			if (response) {
-				return response;
+				return response as IProject[];
 			}
 		} catch (e) {
 			log.error('Get Projects failed: ', e);
@@ -262,7 +296,7 @@ export class Tick {
 			const url = `${this.apiUrl}/${getSections}/${projectId}`;
 			const response = await this.makeRequest('Get Project Sections', url, 'GET', undefined);
 			if (response) {
-				return response;
+				return response as ISections[];
 			} else {
 				return [];
 			}
@@ -273,17 +307,61 @@ export class Tick {
 		}
 	}
 
+	async updateProject(project: IProject): Promise<unknown> {
+		try {
+			const updatePayload: UpdatePayload = {
+				add: [],
+				addAttachments: [],
+				delete: [],
+				deleteAttachments: [],
+				updateAttachments: [],
+				update: [project]
+			};
+			const url = `${this.apiUrl}/${updateProjectEndPoint}`;
+			const response = await this.makeRequest('Update project', url, 'POST', updatePayload);
+			if (response) {
+				return response;
+			} else {
+				return null;
+			}
+		} catch (e) {
+			log.error('Get Project Sections failed: ', e);
+			this.setError('Get Project Sections', null, e);
+			return [];
+		}
+	}
+
+	async getUpdatedTasks(since: number): Promise<{ update: ITask[], delete: string[] }> {
+		try {
+			log.debug('Get updated tasks', 'Since', since > 0 ? new Date(since).toISOString() : 'from the beginning of time.');
+			const url = `${this.apiUrl}/${allTasksEndPoint}` + since;
+			const response = await this.makeRequest('Get All Resources', url, 'GET', undefined);
+			if (response) {
+				const r = response as { checkPoint: number; syncTaskBean: { update: ITask[]; delete: string[] } };
+				this._checkpoint = r.checkPoint;
+				return {
+					update: r.syncTaskBean.update,
+					delete: r.syncTaskBean.delete
+				};
+			}
+		} catch (e) {
+			log.error('Get Updated Tasks failed: ', e);
+			this.setError('Get All Resources', null, e);
+		}
+		return { update: [], delete: [] };
+	}
+
 	// RESOURCES =================================================================
 	async getAllResources(): Promise<IBatch | null> {
 		try {
-			let retry = 10; //TODO: really need to do this better. MB move to makeRequest and add delay?
+			let retry = 10;
 			while (retry > 0) {
 				const checkpointDate = new Date(this._checkpoint);
-				log.debug('Get All Resources', this._checkpoint? "as of: " + checkpointDate.toISOString() : 'from the beginning of time. ');
+				log.debug('Get All Resources', this._checkpoint ? 'as of: ' + checkpointDate.toISOString() : 'from the beginning of time. ');
 				const url = `${this.apiUrl}/${allTasksEndPoint}` + this._checkpoint;
 				const response = await this.makeRequest('Get All Resources', url, 'GET', undefined);
 				if (response) {
-					return response;
+					return response as IBatch;
 				}
 				retry -= 1;
 				this.getPreviousCheckPoint();
@@ -303,16 +381,15 @@ export class Tick {
 				const url = `${this.apiUrl}/${allTasksEndPoint}` + this._checkpoint;
 				const response = await this.makeRequest('Get Task Details', url, 'GET', undefined);
 				if (response) {
-					const numReturns = response['syncTaskBean'].update.length;
-					// log.debug('Got: ', numReturns);
+					const r = response as { checkPoint: number; syncTaskBean: { update: ITask[] } };
+					const numReturns = r.syncTaskBean.update.length;
 					if (numReturns > 0) {
-						//checkpoint, may have changed. Save it if it has.
-						if (getSettings().checkPoint != response.checkPoint) {
-							this._checkpoint = response.checkPoint;
-							getSettings().checkPoint = <number>this._checkpoint;
-							updateSettings({ checkPoint: this._checkpoint});
+						if (getSettings().checkPoint != r.checkPoint) {
+							this._checkpoint = r.checkPoint;
+							getSettings().checkPoint = this._checkpoint;
+							updateSettings({ checkPoint: this._checkpoint });
 						}
-						return response['syncTaskBean'];
+						return r.syncTaskBean as unknown as ITask[];
 					} else {
 						retry -= 1;
 						this.getPreviousCheckPoint();
@@ -340,8 +417,8 @@ export class Tick {
 				const url = `${this.apiUrl}/${allTasksEndPoint}` + this._checkpoint;
 				const response = await this.makeRequest('Get Tasks', url, 'GET', undefined);
 				if (response) {
-					log.debug('Got: ', response['syncTaskBean'].update.length);
-					return response['syncTaskBean'].update;
+					const r = response as { syncTaskBean: { update: ITask[] } };
+					return r.syncTaskBean.update;
 				} else {
 					if (retry > 0) {
 						this.getPreviousCheckPoint();
@@ -351,6 +428,7 @@ export class Tick {
 					}
 				}
 			}
+			return [];
 		} catch (e) {
 			log.error('Get Tasks failed: ', e);
 			this.setError('Get Tasks', null, e);
@@ -360,15 +438,16 @@ export class Tick {
 
 	async getTask(taskID: string, projectID: string | undefined | null): Promise<ITask | null> {
 		try {
-			let url = `${this.apiUrl}/${TaskEndPoint}/${taskID}`;//
+			let url = `${this.apiUrl}/${TaskEndPoint}/${taskID}`;
 
-			const projectParam = `?projectID=${projectID}`;
+
 			if (projectID) {
+				const projectParam = `?projectID=${projectID}`;
 				url = url + projectParam;
 			}
 			const response = await this.makeRequest('Get Tasks', url, 'GET', undefined);
 			if (response) {
-				return response;
+				return response as ITask;
 			} else {
 				return null;
 			}
@@ -384,7 +463,7 @@ export class Tick {
 			const url = `${this.apiUrl}/${getAllCompletedItems}`;
 			const response = await this.makeRequest('Get All Completed Items', url, 'GET', undefined);
 			if (response) {
-				return response['syncTaskBean'].update;
+				return (response as { syncTaskBean: { update: ITask[] } }).syncTaskBean.update;
 			} else {
 				return [];
 			}
@@ -395,51 +474,52 @@ export class Tick {
 		}
 	}
 
-	async addTask(jsonOptions: any): Promise<any> {
+	async addTask(task: Record<string, unknown>): Promise<unknown> {
 		try {
 			let bIsAllDay = true;
-			if (jsonOptions.isAllDay == null) {
+			if (task.isAllDay == null) {
 				bIsAllDay = true;
 			} else {
-				bIsAllDay = jsonOptions.isAllDay;
+				bIsAllDay = task.isAllDay as boolean;
 			}
-			const thisTask: ITask = {
-				id: jsonOptions.id ? jsonOptions.id : ObjectID(),
-				projectId: jsonOptions.projectId ? jsonOptions.projectId : this.inboxProperties.id,
-				sortOrder: jsonOptions.sortOrder ? jsonOptions.sortOrder : this.inboxProperties.sortOrder,
-				title: jsonOptions.title,
-				content: jsonOptions.content ? jsonOptions.content : '',
-				desc: jsonOptions.desc ? jsonOptions.desc : '',
-				startDate: jsonOptions.startDate ? jsonOptions.startDate : null,
-				dueDate: jsonOptions.dueDate ? jsonOptions.dueDate : null,
-				timeZone: jsonOptions.timeZone ? jsonOptions.timeZone : 'America/New_York', // This needs to be updated to grab dynamically
+			const thisTask = {
+				id: task.id ? task.id as string : ObjectID().toHexString(),
+				projectId: task.projectId ? task.projectId as string : this.inboxProperties.id,
+				sortOrder: task.sortOrder ? task.sortOrder as number : this.inboxProperties.sortOrder,
+				title: task.title as string,
+				content: task.content ? task.content as string : '',
+				desc: task.desc ? task.desc as string : '',
+				startDate: task.startDate ? task.startDate as string : null as unknown as string,
+				dueDate: task.dueDate ? task.dueDate as string : null as unknown as string,
+				timeZone: task.timeZone ? task.timeZone as string : 'America/New_York',
 				isAllDay: bIsAllDay,
-				reminder: jsonOptions.reminder ? jsonOptions.reminder : null,
-				reminders: jsonOptions.reminders ? jsonOptions.reminders : [{
-					id: ObjectID(),
+				reminder: task.reminder ? task.reminder as string : null as unknown as string,
+				reminders: task.reminders ? task.reminders as { id: string; trigger: string }[] : [{
+					id: ObjectID().toHexString(),
 					trigger: 'TRIGGER:PT0S'
 				}],
-				repeatFlag: jsonOptions.repeatFlag ? jsonOptions.repeatFlag : null,
-				priority: jsonOptions.priority ? jsonOptions.priority : 0,
-				status: jsonOptions.status ? jsonOptions.status : 0,
-				items: jsonOptions.items ? jsonOptions.items : [],
-				progress: jsonOptions.progress ? jsonOptions.progress : 0,
-				modifiedTime: jsonOptions.modifiedTime ? jsonOptions.modifiedTime : new Date().toISOString().replace('Z', '+0000'), //"2017-08-12T17:04:51.982+0000",
-				deleted: jsonOptions.deleted ? jsonOptions.deleted : 0,
-				assignee: jsonOptions.assignee ? jsonOptions.assignee : null,
-				isDirty: jsonOptions.isDirty ? jsonOptions.isDirty : true,
-				local: jsonOptions.local ? jsonOptions.local : true,
-				remindTime: jsonOptions.remindTime ? jsonOptions.remindTime : null,
-				tags: jsonOptions.tags ? jsonOptions.tags : [],
-				childIds: jsonOptions.childIds ? jsonOptions.childIds : [],
-				parentId: jsonOptions.parentId ? jsonOptions.parentId : null
-			};
+				repeatFlag: task.repeatFlag ? task.repeatFlag as string : null as unknown as string,
+				priority: task.priority ? task.priority as number : 0,
+				status: task.status ? task.status as number : 0,
+				items: task.items ? task.items as ITaskItem[] : [],
+				progress: task.progress ? task.progress as number : 0,
+				modifiedTime: task.modifiedTime ? task.modifiedTime as string : new Date().toISOString().replace('Z', '+0000'),
+				deleted: task.deleted ? task.deleted as number : 0,
+				assignee: task.assignee ? task.assignee : null,
+				isDirty: task.isDirty ? task.isDirty as boolean : true,
+				local: task.local ? task.local as boolean : true,
+				remindTime: task.remindTime ? task.remindTime as string : null as unknown as string,
+				tags: task.tags ? task.tags as string[] : [],
+				childIds: task.childIds ? task.childIds as string[] : [],
+				parentId: task.parentId ? task.parentId as string : null as unknown as string
+			} as unknown as ITask;
 
 			const url = `${this.apiUrl}/${TaskEndPoint}`;
 			const response = await this.makeRequest('Add Task', url, 'POST', thisTask);
 			if (response) {
+				const r = response as { sortOrder: number };
 				let bodySortOrder;
-				bodySortOrder = response.sortOrder;
+				bodySortOrder = r.sortOrder;
 				this.inboxProperties.sortOrder = bodySortOrder - 1;
 
 				return response;
@@ -454,49 +534,44 @@ export class Tick {
 
 	}
 
-	async updateTask(jsonOptions: any): Promise<any> {
+	async updateTask(jsonOptions: Record<string, unknown>): Promise<unknown> {
 		try {
 			let bIsAllDay = true;
 			if (jsonOptions.isAllDay == null) {
 				bIsAllDay = true;
 			} else {
-				bIsAllDay = jsonOptions.isAllDay;
+				bIsAllDay = jsonOptions.isAllDay as boolean;
 			}
-			const thisTask: ITask = {
-				id: jsonOptions.id ? jsonOptions.id : ObjectID(),
-				projectId: jsonOptions.projectId ? jsonOptions.projectId : this.inboxProperties.id,
-				sortOrder: jsonOptions.sortOrder ? jsonOptions.sortOrder : this.inboxProperties.sortOrder,
-				title: jsonOptions.title,
-				content: jsonOptions.content ? jsonOptions.content : '',
-				desc: jsonOptions.desc ? jsonOptions.desc : '',
-				startDate: jsonOptions.startDate ? jsonOptions.startDate : null,
-				dueDate: jsonOptions.dueDate ? jsonOptions.dueDate : null,
-				timeZone: jsonOptions.timeZone ? jsonOptions.timeZone : 'America/New_York', // This needs to be updated to grab dynamically
+			const thisTask = {
+				id: jsonOptions.id ? jsonOptions.id as string : ObjectID().toHexString(),
+				projectId: jsonOptions.projectId ? jsonOptions.projectId as string : this.inboxProperties.id,
+				sortOrder: jsonOptions.sortOrder ? jsonOptions.sortOrder as number : this.inboxProperties.sortOrder,
+				title: jsonOptions.title as string,
+				content: jsonOptions.content ? jsonOptions.content as string : '',
+				desc: jsonOptions.desc ? jsonOptions.desc as string : '',
+				startDate: jsonOptions.startDate ? jsonOptions.startDate as string : null as unknown as string,
+				dueDate: jsonOptions.dueDate ? jsonOptions.dueDate as string : null as unknown as string,
+				timeZone: jsonOptions.timeZone ? jsonOptions.timeZone as string : 'America/New_York',
 				isAllDay: bIsAllDay,
-				reminder: jsonOptions.reminder ? jsonOptions.reminder : null,
-				reminders: jsonOptions.reminders ? jsonOptions.reminders : [{
-					id: ObjectID(),
-					trigger: 'TRIGGER:PT0S'
-				}],
-				repeatFlag: jsonOptions.repeatFlag ? jsonOptions.repeatFlag : null,
-				priority: jsonOptions.priority ? jsonOptions.priority : 0,
-				status: jsonOptions.status ? jsonOptions.status : 0,
-				items: jsonOptions.items ? jsonOptions.items : [],
-				progress: jsonOptions.progress ? jsonOptions.progress : 0,
-				modifiedTime: jsonOptions.modifiedTime ? jsonOptions.modifiedTime : new Date().toISOString().replace('Z', '+0000'), //"2017-08-12T17:04:51.982+0000",
-				deleted: jsonOptions.deleted ? jsonOptions.deleted : 0,
+				reminder: jsonOptions.reminder ? jsonOptions.reminder as string : null as unknown as string,
+				reminders: jsonOptions.reminders ? jsonOptions.reminders as { id: string; trigger: string }[] : [],
+				repeatFlag: jsonOptions.repeatFlag ? jsonOptions.repeatFlag as string : null as unknown as string,
+				priority: jsonOptions.priority ? jsonOptions.priority as number : 0,
+				status: jsonOptions.status ? jsonOptions.status as number : 0,
+				items: jsonOptions.items ? jsonOptions.items as ITaskItem[] : [],
+				progress: jsonOptions.progress ? jsonOptions.progress as number : 0,
+				modifiedTime: jsonOptions.modifiedTime ? jsonOptions.modifiedTime as string : new Date().toISOString().replace('Z', '+0000'),
+				deleted: jsonOptions.deleted ? jsonOptions.deleted as number : 0,
 				assignee: jsonOptions.assignee ? jsonOptions.assignee : null,
-				isDirty: jsonOptions.isDirty ? jsonOptions.isDirty : true,
-				local: jsonOptions.local ? jsonOptions.local : true,
-				remindTime: jsonOptions.remindTime ? jsonOptions.remindTime : null,
-				tags: jsonOptions.tags ? jsonOptions.tags : [],
-				childIds: jsonOptions.childIds ? jsonOptions.childIds : [],
-				parentId: jsonOptions.parentId ? jsonOptions.parentId : null
-			};
-			log.debug('Update Task: ', thisTask.id, thisTask.projectId);
+				isDirty: jsonOptions.isDirty ? jsonOptions.isDirty as boolean : true,
+				local: jsonOptions.local ? jsonOptions.local as boolean : true,
+				remindTime: jsonOptions.remindTime ? jsonOptions.remindTime as string : null as unknown as string,
+				tags: jsonOptions.tags ? jsonOptions.tags as string[] : [],
+				childIds: jsonOptions.childIds ? jsonOptions.childIds as string[] : [],
+				parentId: jsonOptions.parentId ? jsonOptions.parentId as string : null as unknown as string
+			} as unknown as ITask;
 
-			let updatePayload: any;
-			updatePayload = {
+			const updatePayload: UpdatePayload = {
 				add: [],
 				addAttachments: [],
 				delete: [],
@@ -506,7 +581,6 @@ export class Tick {
 			};
 			const url = `${this.apiUrl}/${updateTaskEndPoint}`;
 			const response = await this.makeRequest('Update Task', url, 'POST', updatePayload);
-			// log.debug('Update Task Response: ', response);
 			if (response) {
 				return response;
 			} else {
@@ -520,15 +594,14 @@ export class Tick {
 	}
 
 
-	async deleteTask(deleteTaskId: string, deletedTaskprojectId: string): Promise<any> {
+	async deleteTask(deleteTaskId: string, deletedTaskprojectId: string): Promise<unknown> {
 		if (!deleteTaskId || !deletedTaskprojectId) {
 			throw new Error('Both Task Id and Project ID are required for a delete, otherwise TickTick will fail silently.');
 		}
 		try {
 			const taskToDelete = { taskId: deleteTaskId, projectId: deletedTaskprojectId };
 
-			let deletePayload: any;
-			deletePayload = {
+			const deletePayload: UpdatePayload = {
 				add: [],
 				addAttachments: [],
 				delete: [taskToDelete],
@@ -537,12 +610,11 @@ export class Tick {
 				update: []
 			};
 
-			//We're using the updateTaskEndPoint because the delete end point is a permanent delete.
-			// This is a move to trash situation
 			const url = `${this.apiUrl}/${updateTaskEndPoint}`;
 			const response = await this.makeRequest('Delete Task', url, 'POST', deletePayload);
 			if (response) {
-				this.inboxProperties.sortOrder = response.sortOrder - 1;
+				const r = response as { sortOrder: number };
+				this.inboxProperties.sortOrder = r.sortOrder - 1;
 				return response;
 			} else {
 				return null;
@@ -554,20 +626,37 @@ export class Tick {
 		}
 	}
 
+	async batchUpdate(payload: { add?: unknown[]; update?: unknown[]; delete?: unknown[] }): Promise<unknown> {
+		try {
+			const updatePayload: UpdatePayload = {
+				add: payload.add || [],
+				addAttachments: [],
+				delete: payload.delete || [],
+				deleteAttachments: [],
+				updateAttachments: [],
+				update: payload.update || []
+			};
+			const url = `${this.apiUrl}/${updateTaskEndPoint}`;
+			const response = await this.makeRequest('Batch Update', url, 'POST', updatePayload);
+			return response;
+		} catch (e) {
+			log.error('Batch Update failed: ', e);
+			this.setError('Batch Update', null, e);
+			return null;
+		}
+	}
+
 
 	async exportData(): Promise<string | null> {
 		try {
 			const url = `${this.apiUrl}/${exportData}`;
 			const response = await this.makeRequest('Export', url, 'GET', undefined);
 			if (response) {
-				//What we get back is a string, with escaped characters.
-				let body = response;
-				//get rid of first and last quote.
+				let body = response as string;
 				body = body.substring(1);
 				body = body.substring(0, body.length - 1);
 
-				//get rid of escaped quotes, and escaped line returns
-				body = body.replace(/\\\"/g, '"');
+				body = body.replace(/\\"/g, '"');
 				body = body.replace(/\\n/g, '\n');
 
 				return body;
@@ -595,8 +684,9 @@ export class Tick {
 
 			const response = await this.makeRequest('Project Move', url, 'POST', projectMovePayload);
 			if (response) {
-				this.inboxProperties.sortOrder = response.sortOrder - 1;
-				return response;
+				const r = response as { sortOrder: number };
+				this.inboxProperties.sortOrder = r.sortOrder - 1;
+				return response as string;
 			} else {
 				return null;
 			}
@@ -616,11 +706,11 @@ export class Tick {
 
 			const response = await this.makeRequest('Project Move', url, 'POST', parentMovePayLoad);
 			if (response) {
-				this.inboxProperties.sortOrder = response.sortOrder - 1;
-				return response;
-			} else {
-				//todo: error handle.
+				const r = response as { sortOrder: number };
+				this.inboxProperties.sortOrder = r.sortOrder - 1;
+				return response as string;
 			}
+			return null;
 		} catch (e) {
 			log.error('Parent Move failed: ', e);
 			this.setError('Parent Move', null, e);
@@ -628,33 +718,28 @@ export class Tick {
 		}
 	}
 
-	async makeRequest(operation: string, url: string, method: string, body: any | undefined = undefined) {
+	async makeRequest(operation: string, url: string, method: string, body: unknown = undefined): Promise<unknown> {
 
-		let error = '';
 		this.lastError = undefined;
 		try {
-			let requestOptions = {};
+			let requestOptions: RequestUrlParam | undefined;
 			if (operation == 'Login') {
 				requestOptions = this.createLoginRequestOptions(url, body);
 			} else {
 				if (!this.cookieHeader) {
-					this.cookieHeader = localStorage.getItem('TTS_Cookies');
+					this.cookieHeader = window.localStorage.getItem('TTS_Cookies') ?? '';
 				}
 				requestOptions = this.createRequestOptions(method, url, body);
 			}
-			// log.debug(requestOptions)
 			const result = await requestUrl(requestOptions);
-			//log.debug(operation, result)
 			if (result.status != 200) {
 				this.setError(operation, result, null);
 				return null;
 			}
-			// if (operation == 'Login') {
 			this.cookies =
 				(result.headers['set-cookie'] as unknown as string[]) ?? [];
 			this.cookieHeader = this.cookies.join('; ') + ';';
-			localStorage.setItem('TTS_Cookies', this.cookieHeader);
-			// }
+			window.localStorage.setItem('TTS_Cookies', this.cookieHeader);
 			return result.json;
 		} catch (error) {
 			this.setError(operation, null, error);
@@ -664,21 +749,13 @@ export class Tick {
 
 	}
 
-	private createLoginRequestOptions(url: string, body: JSON) {
+	private createLoginRequestOptions(url: string, body: unknown) {
 		const headers = {
-			// 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:131.0) Gecko/20100101 Firefox/131.0',
 			'Accept': '*/*',
-			// 'Accept-Language': 'en-US,en;q=0.5',
-			// 'Accept-Encoding': 'gzip, deflate, br, zstd',
-			// 'X-Csrftoken': '',
 			'x-device': this.deviceAgent,
-			//"x-device": "{\"platform\":\"web\",\"os\":\"Windows 10\",\"device\":\"Firefox 117.0\",\"name\":\"\",\"version\":124.0.6367.243,\"id\":\"124.0.6367.243\",\"channel\":\"website\",\"campaign\":\"\",\"websocket\":\"\"}",
 			'Content-Type': 'application/json',
 			'X-Requested-With': 'XMLHttpRequest'
-			// 'Cookie' : this.cookieHeader
 		};
-
-		// log.debug('Login headers', headers);
 
 		const options: RequestUrlParam = {
 			method: 'POST',
@@ -691,17 +768,14 @@ export class Tick {
 		return options;
 	}
 
-	private createRequestOptions(method: string, url: string, body: JSON | undefined) {
+	private createRequestOptions(method: string, url: string, body: unknown) {
 		let headers = {
-			//For the record, the bloody rules keep changin and we might have to the _csrf_token
 			'Content-Type': 'application/json',
 			'User-Agent': `${this.userAgent}`,
 			'x-device': `${this.deviceAgent}`,
-			// 'Cookie': 't=' + `${this.token}` + '; AWSALB=pSOIrwzvoncz4ZewmeDJ7PMpbA5nOrji5o1tcb1yXSzeEDKmqlk/maPqPiqTGaXJLQk0yokDm0WtcoxmwemccVHh+sFbA59Mx1MBjBFVV9vACQO5HGpv8eO5pXYL; AWSALBCORS=pSOIrwzvoncz4ZewmeDJ7PMpbA5nOrji5o1tcb1yXSzeEDKmqlk/maPqPiqTGaXJLQk0yokDm0WtcoxmwemccVHh+sFbA59Mx1MBjBFVV9vACQO5HGpv8eO5pXYL',
 			'Cookie': 't=' + `${this.token}` + ';' + this.cookieHeader,
 			't': `${this.token}`
 		};
-		// log.debug("Regular headers\n", method, "\n", url, "\n", headers);
 		const options: RequestUrlParam = {
 			method: method,
 			url: url,
@@ -715,25 +789,23 @@ export class Tick {
 
 	private setError(operation: string,
 					 response: RequestUrlResponse | null,
-					 error: string | null) {
+					 error: unknown) {
 		if (response) {
 			const statusCode = response.status;
-			let errorMessage;
-			if (statusCode == 429) { //Too many requests and we don't get anything else.
+			let errorMessage: unknown;
+			if (statusCode == 429) {
 				errorMessage = 'Error: ' + statusCode + ' TickTick reporting too many requests.';
 				this._lastError = { operation, statusCode, errorMessage };
 			} else {
-				//When ticktick errors out, sometimes we get a JSON response, sometimes we get
-				// a HTML response. Sometimes we get no response. Try to accommodate everything.
 				try {
 					errorMessage = response.json;
-				} catch (e) {
+				} catch {
 					log.debug('Bad JSON response');
 					log.debug('Trying Text.');
 					try {
 						errorMessage = this.extractTitleContent(response.text);
 						log.error('Error: ', errorMessage);
-					} catch (e) {
+					} catch {
 						log.debug('Bad text response');
 						log.debug('No error message.');
 						errorMessage = 'No Error message received.';
@@ -742,7 +814,7 @@ export class Tick {
 				this._lastError = { operation, statusCode, errorMessage };
 			}
 		} else {
-			let errorMessage;
+			let errorMessage: unknown;
 			let statusCode = 666;
 
 			if (error) {
@@ -755,24 +827,15 @@ export class Tick {
 		}
 	}
 
-	//Checkpoint processing is fraught.
-	//Assumption: Checkpoint tells TickTick how far back to get last updated tasks.
-	//Empirical evidence: If we have a checkpoint from two weeks ago, it gives us pretty much everything. (which
-	//                    doesn't match with the assumption.
-	//TODO: The full solution would be to ask the user when they started using TickTick, then start from there.
-	//      Then update Checkpoint on every fetch so we only fetch updated Tasks. But I'm not confident that this
-	//      is actually going to work.
 	private getPreviousCheckPoint() {
 		let dtDate = new Date();
-		// log.debug("Date: ", dtDate)
 		dtDate.setDate(dtDate.getDate() - 15);
-		// log.debug("Date: ", dtDate)
 		this._checkpoint = dtDate.getTime();
 		log.debug('Checkpoint has been changed.', this._checkpoint);
 		return this._checkpoint;
 	}
 
-	private extractTitleContent(inputString) {
+	private extractTitleContent(inputString: string) {
 		const startTag = '<title>';
 		const endTag = '</title>';
 		const startIndex = inputString.indexOf(startTag) + startTag.length;
@@ -782,28 +845,18 @@ export class Tick {
 	}
 
 	private getUserAgent() {
-		// log.debug("Agent: ", navigator.userAgent);
-		// log.debug("Navigator Platform: ", navigator.platform);
-		// log.debug("Platform: ", Platform);
-		// log.debug("ua Parser: ", UAParser(navigator.userAgent));
-		return navigator.userAgent;
+		return _userAgent;
 	}
 
 	private getXDevice() {
-		// log.debug('\'generatedID\': ', this.generateRandomID());
 		const randomID = this.generateRandomID();
-		//TickTick wants a version number equal to or greater than 6070. I thought it was random. It's not.
 		const randomVersion = 6070;
-		const uaObject = UAParser(navigator.userAgent);
 
 		let xDeviceObject = {
-			//TickTick won't take anything but web
-			platform: 'web',//`${this.getPlatform()}`,
-			//TickTick won't take anything but a Windows variant apparently.
-			os: 'Windows 10', //`${uaObject.os.name} ${uaObject.os.version}`,
-			//TickTick doesn't care about the device name.
-			device: 'Firefox 117.0', //`${uaObject.browser.name} ${uaObject.browser.version}`,
-			name: '', //"${uaObject.engine.name}",
+			platform: 'web',
+			os: 'Windows 10',
+			device: 'Firefox 117.0',
+			name: '',
 			version: randomVersion,
 			id: randomID,
 			channel: 'website',
@@ -815,7 +868,6 @@ export class Tick {
 	}
 
 	private getPlatform() {
-		let thisThing = Platform;
 		if (Platform.isIosApp) {
 			return 'ios';
 		} else if (Platform.isAndroidApp) {
@@ -837,40 +889,38 @@ export class Tick {
 
 	private generateRandomID() {
 
-		let result = localStorage.getItem('TTS_UniqueID');
+		let result = window.localStorage.getItem('TTS_UniqueID');
 
-		//leftover from one of the old iterations.
 		if (result) {
 			if (result.includes('-')) {
-				localStorage.removeItem('TTS_UniqueID');
+				window.localStorage.removeItem('TTS_UniqueID');
 				result = null;
 			}
 		}
 
 		if (!result) {
 			const prefix = '66';
-			const length = 24; // Total length of the string
-			const characters = '0123456789abcdef'; // Allowed characters (hexadecimal)
+			const length = 24;
+			const characters = '0123456789abcdef';
 
-			result = prefix; // Start with '66'
+			result = prefix;
 
-			// Calculate the number of characters needed after the prefix
 			const remainingLength = length - prefix.length;
 
 			for (let i = 0; i < remainingLength; i++) {
 				const randomIndex = Math.floor(Math.random() * characters.length);
-				result += characters[randomIndex]; // Append a random character
+				result += characters[randomIndex];
 			}
-			localStorage.setItem('TTS_UniqueID', result);
+			window.localStorage.setItem('TTS_UniqueID', result);
 		}
 
 		return result;
 	}
 
 	private generateRandomVersion() {
-		let number;
+		let number: number;
 		do {
-			number = Math.floor(Math.random() * 4000) + 6000; // Generates a number between 6000 and 9999
+			number = Math.floor(Math.random() * 4000) + 6000;
 		} while (number < 6000 || number > 9999);
 		return number;
 	}

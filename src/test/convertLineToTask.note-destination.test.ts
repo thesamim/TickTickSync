@@ -1,16 +1,20 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { TaskParser } from '@/taskParser';
-import type { ITaskRecord } from '@/services/fileMap';
+import type { ITaskRecord } from '@/services/NewFileMap';
 import { getSettings } from '@/settings';
+
+vi.mock('@/db/projects', () => ({
+  getAllProjects: vi.fn().mockResolvedValue([]),
+}));
 
 function makePlugin(parser: TaskParser) {
   return {
     taskParser: parser,
-    cacheOperation: {
+    fileTaskQueries: {
       getDefaultProjectIdForFilepath: (_: string) => 'proj-1',
-      getProjectIdByNameFromCache: async (_: string) => null,
+    },
+    fileMetadataService: {
       getFilepathForTask: (_: string) => 'Some/Path.md',
-      loadTaskFromCacheID: (_: string) => null,
     },
     dateMan: {
       parseDates: (_: string) => ({}),
@@ -18,7 +22,7 @@ function makePlugin(parser: TaskParser) {
       formatDateToISO: (_: Date) => '2025-01-01T00:00:00.000Z',
     },
     app: { vault: { getName: () => 'TestVault' } },
-  } as any;
+  } as unknown;
 }
 
 describe('convertLineToTask note destination', () => {
@@ -27,12 +31,11 @@ describe('convertLineToTask note destination', () => {
   const filepath = 'Folder/File.md';
 
   it('puts note into desc when task has child items', async () => {
-    (getSettings as any)().noteDelimiter = '';
-    (getSettings as any)().fileLinksInTickTick = 'noLink';
+    ((getSettings as unknown as () => Record<string, string>)()).noteDelimiter = '';
+    ((getSettings as unknown as () => Record<string, string>)()).fileLinksInTickTick = 'noLink';
 
-    const parser = new TaskParser({} as any, {} as any);
-    const plugin = makePlugin(parser);
-    parser.plugin = plugin;
+    const parser = new TaskParser({} as unknown, {} as unknown);
+	  parser.plugin = makePlugin(parser);
 
     const fileMap = {
       getTaskItems: (_: string) => ['\t- [ ] child %%111111111111111111111111%%'],
@@ -41,7 +44,7 @@ describe('convertLineToTask note destination', () => {
         parentId: '',
         taskLines: ['  first', '  second'],
       } satisfies Partial<ITaskRecord>)
-    } as any;
+    } as unknown;
 
     const task = await parser.convertLineToTask(line, 0, filepath, fileMap, null);
 
@@ -50,12 +53,11 @@ describe('convertLineToTask note destination', () => {
   });
 
   it('puts note into content when task has no child items', async () => {
-    (getSettings as any)().noteDelimiter = '';
-    (getSettings as any)().fileLinksInTickTick = 'noLink';
+    ((getSettings as unknown as () => Record<string, string>)()).noteDelimiter = '';
+    ((getSettings as unknown as () => Record<string, string>)()).fileLinksInTickTick = 'noLink';
 
-    const parser = new TaskParser({} as any, {} as any);
-    const plugin = makePlugin(parser);
-    parser.plugin = plugin;
+    const parser = new TaskParser({} as unknown, {} as unknown);
+	  parser.plugin = makePlugin(parser);
 
     const fileMap = {
       getTaskItems: (_: string) => [],
@@ -64,7 +66,7 @@ describe('convertLineToTask note destination', () => {
         parentId: '',
         taskLines: ['  alpha', '  beta'],
       } satisfies Partial<ITaskRecord>)
-    } as any;
+    } as unknown;
 
     const task = await parser.convertLineToTask(line, 0, filepath, fileMap, null);
 

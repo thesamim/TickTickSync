@@ -113,7 +113,7 @@ describe('parseQuery - rejections', () => {
 		it(tc.description, () => {
 			expect(() => {
 				parseQuery(JSON.stringify(tc.input));
-			}).toThrowError(ParsingError);
+			}).toThrow(ParsingError);
 		});
 	}
 });
@@ -223,7 +223,7 @@ describe('parseQuery', () => {
 
 	for (const tc of testcases) {
 		it(tc.description, () => {
-			const [output, _] = parseQuery(JSON.stringify(tc.input));
+			const [output] = parseQuery(JSON.stringify(tc.input));
 			expect(output).toStrictEqual(tc.expectedOutput);
 		});
 	}
@@ -262,7 +262,7 @@ describe('parseQuery - warnings', () => {
 
 	for (const tc of testcases) {
 		it(tc.description, () => {
-			const [_, warnings] = parseQuery(JSON.stringify(tc.input));
+			const [, warnings] = parseQuery(JSON.stringify(tc.input));
 			expect(warnings).toStrictEqual(tc.expectedWarnings);
 		});
 	}

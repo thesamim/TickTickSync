@@ -1,0 +1,11 @@
+.md-nav--primary .md-nav__item--section > .md-nav__link {
+  font-size: 0.75rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  opacity: 0.6;
+}
+
+.md-nav--primary .md-nav__item--section > .md-nav {
+  padding-left: 0.75rem;
+  border-left: 1px solid var(--md-default-fg-color--lighter);
+}

@@ -1,13 +1,13 @@
-export { IFilter };
+export type { IFilter };
 
 interface IFilter {
 	id: string;
 	name: string;
 	rule: string;
-	sortOrder: any;
+	sortOrder: number;
 	sortType: string;
-	viewMode: any;
-	timeline: any;
+	viewMode: string;
+	timeline: unknown;
 	etag: string;
 	createdTime: string;
 	modifiedTime: string;

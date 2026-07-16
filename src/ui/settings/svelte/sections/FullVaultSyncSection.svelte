@@ -9,7 +9,6 @@
 	export let open = false;
 	export let plugin;
 
-	let enableFullVaultSync: boolean = false;
 	const dispatch = createEventDispatcher();
 
 	function handleHeaderClick() {
@@ -17,23 +16,29 @@
 	}
 
 	// Use store subscription
-	$: enableFullVaultSync = $settingsStore.enableFullVaultSync;
+	// $: enableFullVaultSync = $settingsStore.enableFullVaultSync; // Removed redundant local variable
 
 	async function confirmFullSync() {
-		const myModal = new ConfirmFullSyncModal(app, () => {
+		const myModal = new ConfirmFullSyncModal(plugin.app, () => {
 		});
 		return await myModal.showModal();
 	}
 
+	async function handleToggle() {
+		const targetValue = !$settingsStore.enableFullVaultSync;
+		await handleFullVaultSyncChange(targetValue);
+	}
+
 	async function handleFullVaultSyncChange(value: boolean) {
 		let noticeString: string;
-		if (!$settingsStore.enableFullVaultSync) {
+		if (value) { // Use the passed value instead of checking store state before update
 			const bConfirmation = await confirmFullSync();
 			if (bConfirmation) {
 				// enable, update store
 				settingsStore.update((s) => ({ ...s, enableFullVaultSync: true }));
 				noticeString = 'Full vault sync is enabled.';
 			} else {
+				// stay disabled
 				settingsStore.update((s) => ({ ...s, enableFullVaultSync: false }));
 				noticeString = 'Full vault sync not enabled.';
 			}
@@ -63,16 +68,12 @@
 					<p><b>NOTE: This includes all tasks that are currently Items of a task.</b></p></div>
 			</div>
 			<div class="setting-item-control">
-				<label class="toggle-switch">
+				<label class="checkbox-container" class:is-enabled={$settingsStore.enableFullVaultSync}>
 					<input
 						type="checkbox"
-						bind:checked={enableFullVaultSync}
-						on:change={async (e) => {
-							const checked = e.target.checked;
-							await handleFullVaultSyncChange(checked)
-					  }}
+						checked={$settingsStore.enableFullVaultSync}
+						on:click|preventDefault={handleToggle}
 					/>
-					<span class="slider"></span>
 				</label>
 			</div>
 		</div>

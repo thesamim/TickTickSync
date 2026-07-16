@@ -9,16 +9,16 @@ const possibleWarnings: Record<string, string> = {
 };
 
 export class ParsingError extends Error {
-	inner: unknown | undefined;
+	inner: unknown;
 
-	constructor(msg: string, inner: unknown | undefined = undefined) {
+	constructor(msg: string, inner: unknown = undefined) {
 		super(msg);
 		this.inner = inner;
 	}
 
 	public toString(): string {
 		if (this.inner) {
-			return `${this.message}: '${this.inner}'`;
+			return `${this.message}: '${JSON.stringify(this.inner)}'`;
 		}
 
 		return super.toString();
@@ -50,7 +50,7 @@ export function parseQuery(raw: string): [Query, QueryWarning[]] {
 
 function tryParseAsJson(raw: string): Record<string, unknown> {
 	try {
-		return JSON.parse(raw);
+		return JSON.parse(raw) as Record<string, unknown>;
 	} catch (e) {
 		throw new ParsingError('Invalid JSON', e);
 	}
@@ -58,7 +58,7 @@ function tryParseAsJson(raw: string): Record<string, unknown> {
 
 function tryParseAsYaml(raw: string): Record<string, unknown> {
 	try {
-		return YAML.parse(raw);
+		return YAML.parse(raw) as Record<string, unknown>;
 	} catch (e) {
 		throw new ParsingError('Invalid YAML', e);
 	}
@@ -97,7 +97,7 @@ function asRequired<T>(key: string, val: T | undefined): T {
 		throw new ParsingError(`Field ${key} must be text`);
 	}
 
-	return val as T;
+	return val;
 }
 
 function stringField(obj: Record<string, unknown>, key: string): string | undefined {
@@ -111,7 +111,7 @@ function stringField(obj: Record<string, unknown>, key: string): string | undefi
 		throw new ParsingError(`Field ${key} must be text`);
 	}
 
-	return value as string;
+	return value;
 }
 
 function numberField(
@@ -129,7 +129,7 @@ function numberField(
 		throw new ParsingError(`Field ${key} must be a number`);
 	}
 
-	const num = value as number;
+	const num = value;
 
 	if (Number.isNaN(num)) {
 		throw new ParsingError(`Field ${key} must be a number`);
@@ -153,7 +153,7 @@ function booleanField(obj: Record<string, unknown>, key: string): boolean | unde
 		throw new ParsingError(`Field ${key} must be a boolean.`);
 	}
 
-	return value as boolean;
+	return value;
 }
 
 function optionsArrayField<T>(

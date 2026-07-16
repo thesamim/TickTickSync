@@ -1,0 +1,238 @@
+import { App, Modal, Setting, TFile } from 'obsidian';
+import TickTickSync from '@/main';
+import log from '@/utils/logger';
+import type { ITask } from '@/api/types/Task';
+import { db } from "@/db/dexie";
+import { getFile } from "@/db/files";
+
+export interface DuplicateSelection {
+    taskId: string;
+    taskTitle?: string;
+    filePath: string;
+    selected: boolean;
+}
+
+export class FoundDuplicateTasksModal extends Modal {
+    private resolvePromise!: (value: boolean) => void;
+    private selections: DuplicateSelection[] = [];
+    private sortColumn: 'title' | 'file' | null = null;
+    private sortDirection: 'asc' | 'desc' = 'asc';
+    private tableBody!: HTMLTableSectionElement;
+
+    constructor(
+        app: App,
+        private plugin: TickTickSync,
+        private duplicates: Record<string, string[]>,
+        private taskIds: Record<string, string>
+    ) {
+        super(app);
+        this.titleEl.setText('Duplicate tasks found');
+
+        // Initialize selections: for each taskId, we have the original file and the duplicate files
+        for (const taskId in duplicates) {
+            const originalFile = taskIds[taskId];
+            const duplicateFiles = duplicates[taskId];
+
+            this.selections.push({ taskId, filePath: originalFile, selected: false });
+            duplicateFiles.forEach(file => {
+                this.selections.push({ taskId, filePath: file, selected: false });
+            });
+        }
+    }
+
+    async onOpen() {
+        const { contentEl, titleEl } = this;
+
+        titleEl.setText('Duplicate tasks found');
+
+        // Fetch task titles for all unique task IDs
+        const uniqueTaskIds = [...new Set(this.selections.map(s => s.taskId))];
+        const taskMap = new Map<string, string>();
+        await Promise.all(uniqueTaskIds.map(async (id) => {
+            const task = await this.plugin.taskRepository.loadTaskById(id);
+            taskMap.set(id, task?.title ?? '');
+        }));
+
+        this.selections.forEach((item) => {
+            item.taskTitle = taskMap.get(item.taskId);
+        });
+
+        contentEl.createEl('p', { 
+            text: 'The following tasks were found in multiple files in your metadata. This causes unpredictable sync results. Select which instances to remove from your files and metadata, or cancel to handle it manually.' 
+        });
+
+        const table = contentEl.createEl('table', { cls: 'projects-table' });
+        const thead = table.createEl('thead');
+        const headerRow = thead.createEl('tr');
+        headerRow.createEl('th', { text: 'Remove?' });
+
+        const titleHeader = headerRow.createEl('th', { cls: 'sortable-header' });
+        titleHeader.addClass('sortable-header');
+        titleHeader.setText('Task title ⇅');
+        titleHeader.addEventListener('click', () => this.sortBy('title', titleHeader));
+
+        const fileHeader = headerRow.createEl('th', { cls: 'sortable-header' });
+        fileHeader.addClass('sortable-header');
+        fileHeader.setText('File path ⇅');
+        fileHeader.addEventListener('click', () => this.sortBy('file', fileHeader));
+
+        this.tableBody = table.createEl('tbody');
+        this.renderTableRows();
+
+        new Setting(contentEl)
+            .addButton(btn => btn
+                .setButtonText('Cancel & abort sync')
+                .onClick(() => {
+                    this.close();
+                    this.resolvePromise(false);
+                }))
+            .addButton(btn => btn
+                .setButtonText('Apply & continue sync')
+                .setCta()
+                .onClick(async () => {
+                    await this.performDeletions();
+                    this.close();
+                    this.resolvePromise(true);
+                }));
+    }
+
+    private renderTableRows() {
+        this.tableBody.empty();
+
+        this.selections.forEach((item) => {
+            const row = this.tableBody.createEl('tr');
+
+            const checkCell = row.createEl('td', { cls: 'project-table-border' });
+            const checkbox = checkCell.createEl('input', { type: 'checkbox' });
+            checkbox.checked = item.selected;
+            checkbox.addEventListener('change', () => {
+                item.selected = checkbox.checked;
+            });
+
+            const title = item.taskTitle || item.taskId;
+            const displayTitle = title.length > 20 ? title.substring(0, 20) + '...' : title;
+            row.createEl('td', { cls: 'project-table-border', text: displayTitle });
+            row.createEl('td', { cls: 'project-table-border', text: item.filePath });
+        });
+    }
+
+    private sortBy(column: 'title' | 'file', headerEl: HTMLTableCellElement) {
+        if (this.sortColumn === column) {
+            this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc';
+        } else {
+            this.sortColumn = column;
+            this.sortDirection = 'asc';
+        }
+
+        this.selections.sort((a, b) => {
+            let compareA: string;
+            let compareB: string;
+
+            if (column === 'title') {
+                compareA = (a.taskTitle || a.taskId).toLowerCase();
+                compareB = (b.taskTitle || b.taskId).toLowerCase();
+            } else {
+                compareA = a.filePath.toLowerCase();
+                compareB = b.filePath.toLowerCase();
+            }
+
+            const comparison = compareA.localeCompare(compareB);
+            return this.sortDirection === 'asc' ? comparison : -comparison;
+        });
+
+        // Update header text with sort indicator
+        const arrow = this.sortDirection === 'asc' ? '↑' : '↓';
+        const label = column === 'title' ? 'Task title' : 'File path';
+        headerEl.setText(`${label} ${arrow}`);
+
+        this.renderTableRows();
+    }
+
+    private async performDeletions() {
+        const toDelete = this.selections.filter(s => s.selected);
+        
+        // Group by filePath to minimize file operations
+        const groupedDeletions: Record<string, string[]> = {};
+        for (const item of toDelete) {
+            if (!groupedDeletions[item.filePath]) {
+                groupedDeletions[item.filePath] = [];
+            }
+            groupedDeletions[item.filePath].push(item.taskId);
+        }
+
+        for (const filePath in groupedDeletions) {
+            const taskIds = groupedDeletions[filePath];
+            log.info(`Removing ${taskIds.length} duplicate task references from metadata and file ${filePath}`);
+            
+            for (const taskId of taskIds) {
+                await this.plugin.fileMetadataService.removeTaskFromFile(filePath, taskId);
+            }
+
+            const file = this.app.vault.getAbstractFileByPath(filePath);
+            if (file instanceof TFile) {
+                // We use fake ITask objects as only 'id' is required by deleteTasksFromSpecificFile
+                const dummyTasks = taskIds.map(id => ({ id } as ITask));
+                await this.plugin.fileOperation.deleteTasksFromSpecificFile(file, dummyTasks, false);
+            }
+        }
+
+        // Reconcile kept instances: update DB file/projectId and TickTick if needed
+        const keptByTaskId = new Map<string, DuplicateSelection[]>();
+        for (const item of this.selections) {
+            if (!item.selected) {
+                if (!keptByTaskId.has(item.taskId)) {
+                    keptByTaskId.set(item.taskId, []);
+                }
+                keptByTaskId.get(item.taskId)!.push(item);
+            }
+        }
+
+        for (const [taskId, keeps] of keptByTaskId) {
+            if (keeps.length !== 1) continue;
+
+            const keepFile = keeps[0].filePath;
+            const fileRecord = await getFile(keepFile);
+            const targetProjectId = fileRecord?.defaultProjectId;
+
+            const localTask = await db.tasks.where("taskId").equals(taskId).first();
+            if (!localTask) continue;
+
+            if (targetProjectId && targetProjectId !== localTask.task.projectId) {
+                const oldProjectId = localTask.task.projectId;
+                localTask.task.projectId = targetProjectId;
+                await db.tasks.update(localTask.localId, {
+                    file: keepFile,
+                    task: localTask.task,
+                    updatedAt: Date.now(),
+                    lastVaultSync: Date.now()
+                });
+
+                try {
+                    const remoteTask = await this.plugin.tickTickRestAPI?.getTaskById(taskId, oldProjectId);
+                    if (remoteTask && remoteTask.projectId !== targetProjectId) {
+                        await this.plugin.tickTickRestAPI?.moveTaskProject(localTask.task, remoteTask.projectId, targetProjectId);
+                    }
+                } catch (err) {
+                    log.error(`Failed to reconcile task ${taskId} project on TickTick:`, err);
+                }
+            } else {
+                await db.tasks.update(localTask.localId, {
+                    file: keepFile,
+                    updatedAt: Date.now(),
+                    lastVaultSync: Date.now()
+                });
+            }
+        }
+    }
+
+    onClose() {
+        this.contentEl.empty();
+    }
+
+    public showModal(): Promise<boolean> {
+        this.open();
+        return new Promise(resolve => {
+            this.resolvePromise = resolve;
+        });
+    }
+}

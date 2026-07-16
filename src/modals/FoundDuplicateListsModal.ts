@@ -1,21 +1,22 @@
 import { App, Modal, Setting } from 'obsidian';
 import TickTickSync from '@/main';
 import { getSettings } from '@/settings';
+import type { IProject } from '@/api/types/Project';
 
 
-export class FoundDuplicatesModal extends Modal {
+export class FoundDuplicateListsModal extends Modal {
 	title = 'Duplicate Projects/Lists found';
 
 	message: string;
 	cancelLabel = 'Cancel';
 	confirmLabel = 'Abort Sync';
-	projects: string [] = [];
-	result: boolean;
+	projects: IProject[] = [];
+	result!: boolean;
 	onSubmit: (result: boolean) => void;
-	resolvePromise: (value: (PromiseLike<boolean> | boolean)) => void;
+	resolvePromise!: (value: (PromiseLike<boolean> | boolean)) => void;
 	private plugin: TickTickSync;
 
-	constructor(app: App, plugin: TickTickSync, projects: [], onSubmit: (result: boolean) => void) {
+	constructor(app: App, plugin: TickTickSync, projects: IProject[], onSubmit: (result: boolean) => void) {
 		super(app);
 		this.plugin = plugin;
 		this.projects = projects;
@@ -41,22 +42,22 @@ export class FoundDuplicatesModal extends Modal {
 		const projectsTableHeadRow = projectsTableHead.createEl('tr');
 		const projectsTableHeadRowName = projectsTableHeadRow.createEl('th');
 		const projectsTableHeadRowName2 = projectsTableHeadRow.createEl('th');
-		projectsTableHeadRowName.setText('Project Name');
+		projectsTableHeadRowName.setText('Project name');
 		projectsTableHeadRowName2.setText('Project ID');
 		const projectsTableBody = projectsTable.createEl('tbody');
 
 		this.projects.forEach((project) => {
 			const row = projectsTableBody.createEl('tr');
-			const projectId = row.createEl('td', 'project-table-border');
-			const projectName = row.createEl('td', 'project-table-border');
-			projectId.setText(project.name);
-			projectName.setText(project.id);
+			const projectId = row.createEl('td', { cls: 'project-table-border' });
+			const projectName = row.createEl('td', { cls: 'project-table-border' });
+			projectId.setText(String(project.id));
+			projectName.setText(String(project.name));
 		});
 
 
 		new Setting(contentEl).addButton(confirmBtn => {
 			confirmBtn.setClass('ts_button');
-			confirmBtn.setWarning();
+			confirmBtn.buttonEl.addClass('mod-destructive');
 			confirmBtn.setButtonText(this.confirmLabel);
 			confirmBtn.onClick(() => {
 				this.result = true;

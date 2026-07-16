@@ -5,6 +5,7 @@
 	import { onMount } from 'svelte';
 	import { LOG_LEVEL } from '@/ui/settings/svelte/constants.svelte.js';
 	import './SettingsStyles.css';
+	import { SyncJournalModal } from '@/modals/SyncJournalModal';
 
 	export let plugin: TickTickSync;
 
@@ -13,23 +14,16 @@
 	let debugString = '';
 	let copyStatus = '';
 
-	async function handleDebugModeChange(event: Event) {
-		const checked = (event.target as HTMLInputElement).checked;
-		debugMode = checked;
-		updateSettings({ debugMode: checked });
-		await plugin.saveSettings();
-	}
-
 	onMount(async () => {
 		debugMode = getSettings().debugMode;
 	});
 
-	function generateDebugInfoSubset() {
+	async function generateDebugInfoSubset() {
 		const settings = getSettings();
-		const fileMetaData = getSettings().fileMetadata;
+		const fileMetaData = await plugin.fileMetadataService?.getAllFileMetadata() ?? {};
 		const fmdData = [];
 		for (const file in fileMetaData) {
-			const numFiles = fileMetaData[file].TickTickTasks? fileMetaData[file].TickTickTasks.length: "TickTickTasks not found" ;
+			const numFiles = fileMetaData[file].TickTickTasks ? fileMetaData[file].TickTickTasks.length : 'TickTickTasks not found';
 			fmdData.push(`${file}, ${numFiles}`);
 		}
 
@@ -45,7 +39,7 @@
 				taskLinksInObsidian: settings.taskLinksInObsidian,
 				bkupFolder: settings.bkupFolder,
 				skipBackup: settings.skipBackup,
-				numProjects: settings.TickTickTasksData.projects.length,
+				numProjects: (await plugin.service.getProjects()).length,
 				fileTasks: fmdData
 			},
 			defaults:
@@ -68,8 +62,8 @@
 	}
 
 	async function generateDebug() {
-		let debugInfo = generateDebugInfoSubset();
-		debugString = "```\n" + JSON.stringify(debugInfo, null, 2) + "\n```";
+		let debugInfo = await generateDebugInfoSubset();
+		debugString = '```\n' + JSON.stringify(debugInfo, null, 2) + '\n```';
 		showDebugInfo = true;
 		log.debug(debugString);
 	}
@@ -85,6 +79,11 @@
 		}
 	}
 
+	function openJournal() {
+		const modal = new SyncJournalModal(plugin.app);
+		modal.open();
+	}
+
 </script>
 
 <div class="debug-options">
@@ -94,18 +93,18 @@
 			<div class="setting-item-description">Allow access to developer settings</div>
 		</div>
 		<div class="setting-item-control">
-			<label class="toggle-switch">
+			<label class="checkbox-container" class:is-enabled={debugMode}>
 				<input
 					type="checkbox"
 					bind:checked={debugMode}
-					on:change={async (e) => {
-							const checked = e.target.checked;
-							debugMode = checked; // Ensure local state stays in sync
-							updateSettings({ debugMode: checked });
+					on:change={async () => {
+							const logLevel = getSettings().logLevel;
+							const newLevel = debugMode ? logLevel : 'info';
+							updateSettings({ debugMode: debugMode , logLevel: newLevel});
+							log.setLevel(newLevel);
 							await plugin.saveSettings();
 					  }}
 				/>
-				<span class="slider"></span>
 			</label>
 		</div>
 	</div>
@@ -147,9 +146,9 @@
 		<div style="margin-top: 1em;">
     <textarea
 		readonly
-		rows="10"
-		style="width:100%;"
-		bind:value={debugString}
+	    rows="10"
+	    style="width:100%;"
+	    bind:value={debugString}
 	></textarea>
 			<div style="display:flex; align-items:center; gap: 1em; margin-top: 0.5em;">
 				<button on:click={copyToClipboard}>Copy to clipboard</button>
@@ -160,6 +159,37 @@
 		</div>
 	{/if}
 
+	<div class="setting-item">
+		<div class="setting-item-info">
+			<div class="setting-item-name">Journal Retention</div>
+			<div class="setting-item-description">Days to keep journal entries (1–7)</div>
+		</div>
+		<div class="TTS-setting-item-control">
+			<input
+				type="number"
+				min="1"
+				max="7"
+				value={getSettings().journalRetentionDays}
+				on:change={async (e) => {
+					const val = Math.min(7, Math.max(1, parseInt(e.target.value, 10) || 3));
+					updateSettings({ journalRetentionDays: val });
+					await plugin.saveSettings();
+				}}
+			/>
+		</div>
+	</div>
+
+	<div class="setting-item">
+		<div class="setting-item-info">
+			<div class="setting-item-name">View Sync Journal</div>
+			<div class="setting-item-description">Browse and export sync journal entries</div>
+		</div>
+		<div class="setting-item-control">
+			<button class="mod-cta" on:click={openJournal}>
+				View Journal
+			</button>
+		</div>
+	</div>
 
 </div>
 

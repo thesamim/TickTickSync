@@ -1,21 +1,17 @@
-//borrowed from https://github.com/SilentVoid13/Templater/
-// Credits go to Liam's Periodic Notes Plugin: https://github.com/liamcain/obsidian-periodic-notes
+import { App, TAbstractFile, TFolder, AbstractInputSuggest } from 'obsidian';
 
-import { TAbstractFile, TFolder } from 'obsidian';
-import { TextInputSuggest } from './suggest';
+export class FolderSuggest extends AbstractInputSuggest<TFolder> {
+	private inputEl: HTMLInputElement;
 
-export class FolderSuggest extends TextInputSuggest<TFolder> {
-	private app: any;
-	constructor(inputEl: HTMLInputElement, app: any) {
-		super(inputEl);
+	constructor(inputEl: HTMLInputElement, app: App) {
+		super(app, inputEl);
 		this.inputEl = inputEl;
-		this.app = app;
 	}
 
-	getSuggestions(inputStr: string): TFolder[] {
+	getSuggestions(query: string): TFolder[] {
 		const abstractFiles = this.app.vault.getAllLoadedFiles();
 		const folders: TFolder[] = [];
-		const lowerCaseInputStr = inputStr.toLowerCase();
+		const lowerCaseInputStr = query.toLowerCase();
 
 		abstractFiles.forEach((folder: TAbstractFile) => {
 			if (
@@ -29,12 +25,12 @@ export class FolderSuggest extends TextInputSuggest<TFolder> {
 		return folders;
 	}
 
-	renderSuggestion(file: TFolder, el: HTMLElement): void {
-		el.setText(file.path);
+	renderSuggestion(value: TFolder, el: HTMLElement): void {
+		el.setText(value.path);
 	}
 
-	selectSuggestion(file: TFolder): void {
-		this.inputEl.value = file.path;
+	selectSuggestion(value: TFolder, _evt: MouseEvent | KeyboardEvent): void {
+		this.inputEl.value = value.path;
 		this.inputEl.trigger('input');
 		this.close();
 	}

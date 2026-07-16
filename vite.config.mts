@@ -4,12 +4,11 @@ import builtins from "builtin-modules";
 import {svelte, vitePreprocess} from '@sveltejs/vite-plugin-svelte';
 import {type UserConfig} from "vite";
 import {viteStaticCopy} from "vite-plugin-static-copy";
-import tsConfigPaths from "vite-tsconfig-paths";
 import {configDefaults, defineConfig} from "vitest/config";
 import {pathToFileURL} from "node:url";
-import tsconfigPaths from 'vite-tsconfig-paths';
 
 const DEV_PATH = path.join("..", "test-vault", ".obsidian", "plugins", "tickticksync");
+// const DEV_PATH = path.join("G:\\My Drive\\SyncFolder\\Obsidian\\", "test-vault-syncthing", ".obsidian", "plugins", "tickticksync");
 function getOutDir(prod: boolean): string | undefined {
 	if (!prod)
 		return DEV_PATH;
@@ -19,11 +18,13 @@ function getOutDir(prod: boolean): string | undefined {
 export default defineConfig(({mode}) => {
 	const prod = mode === 'production';
 	return {
+		resolve: {
+			tsconfigPaths: true,
+		},
 		plugins: [
 			svelte({
 				preprocess: [vitePreprocess()]
 			}),
-			tsConfigPaths(),
 			viteStaticCopy({
 				targets: [
 					{
@@ -63,8 +64,8 @@ export default defineConfig(({mode}) => {
 				],
 				output: {
 					// Overwrite default Vite output fileName
+					codeSplitting: false,
 					manualChunks: undefined,
-					inlineDynamicImports: true,
 					entryFileNames: 'main.js',
 					chunkFileNames: 'main.js',
 					assetFileNames: 'styles.css',
@@ -94,6 +95,7 @@ export default defineConfig(({mode}) => {
 			environment: "jsdom",
 			alias: {
 				obsidian: resolve(__dirname, "src/test/AppPluginDefinitions.ts"),
+				"@": resolve(__dirname, "src"),
 			},
 			setupFiles: ["./vitest-setup.ts"],
 		},

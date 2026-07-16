@@ -1,14 +1,18 @@
-import type { ITask } from '@/api/types/Task';
-import type { IProject } from '@/api/types/Project';
-import type { IProjectGroup } from '@/api/types/ProjectGroup';
-import type { FileMetadata } from '@/services/cacheOperation';
+import type { DeviceInfo } from '@/db/schema';
 import { settingsStore } from '@/ui/settings/settingsstore';
+
+export interface TaskDisplayModeSettings {
+	link: 'show' | 'hide' | 'hover';
+	id: boolean;
+	tag: boolean;
+}
 
 export interface ITickTickSyncSettings {
 
 	baseURL: string;
 	token?: string;
 	version?: string;
+
 	automaticSynchronizationInterval: number;
 	enableFullVaultSync: boolean;
 	tagAndOr: number; // 1 == And ; 2 == Or
@@ -27,6 +31,8 @@ export interface ITickTickSyncSettings {
 
 	debugMode: boolean;
 	logLevel: string;
+	journalRetentionDays: number;
+	deletedTaskRetentionDays: number;
 	skipBackup?: boolean;
 
 	//TODO look like one cache object
@@ -34,14 +40,16 @@ export interface ITickTickSyncSettings {
 	inboxName: string;
 	checkPoint: number;
 
+	vaultName: string;
 
-	fileMetadata: FileMetadata;
-	TickTickTasksData: {
-		projects: IProject[];
-		projectGroups: IProjectGroup[];
-		tasks: ITask[];
+	taskDisplay: {
+		reading: TaskDisplayModeSettings;
+		editing: TaskDisplayModeSettings;
 	};
-	//statistics: any;
+
+	devices: DeviceInfo[];
+
+	// statistics: any;
 }
 
 export const DEFAULT_SETTINGS: ITickTickSyncSettings = {
@@ -51,6 +59,8 @@ export const DEFAULT_SETTINGS: ITickTickSyncSettings = {
 	tagAndOr: 1,
 	debugMode: false,
 	logLevel: 'info',
+	journalRetentionDays: 3,
+	deletedTaskRetentionDays: 7,
 	SyncProject: '',
 	SyncTag: '',
 	defaultProjectId: '',
@@ -68,11 +78,22 @@ export const DEFAULT_SETTINGS: ITickTickSyncSettings = {
 	checkPoint: 0,
 	skipBackup: false,
 
-	fileMetadata: {},
-	TickTickTasksData: {
-		projects: [],
-		tasks: []
-	}
+	vaultName: '',
+
+	taskDisplay: {
+		reading: {
+			link: 'show',
+			id: false,
+			tag: true,
+		},
+		editing: {
+			link: 'show',
+			id: true,
+			tag: true,
+		},
+	},
+
+	devices: [],
 
 	//statistics: {}
 };
@@ -95,44 +116,29 @@ export const updateSettings = (newSettings: Partial<ITickTickSyncSettings>): ITi
 	return getSettings();
 };
 
-//TODO move to store
+/**
+ * Merge two device lists, deduplicating by deviceId.
+ * `override` entries take precedence for label when IDs match.
+ */
+export function mergeDeviceLists(base: DeviceInfo[], override: DeviceInfo[]): DeviceInfo[] {
+	const map = new Map<string, DeviceInfo>();
+	for (const d of base) map.set(d.deviceId, d);
+	for (const d of override) map.set(d.deviceId, d);
+	return Array.from(map.values());
+}
 
-// let projects: IProject[] = [];
-
-export const getProjects = (): IProject[] => {
-	return settings.TickTickTasksData.projects;
-};
-
-export const updateProjects = (newProjects: IProject[]): IProject[] => {
-	settings.TickTickTasksData.projects = newProjects;
-	return getProjects();
-};
-
-// let tasks: ITask[] = [];
-
-export const getTasks = (): ITask[] => {
-	return settings.TickTickTasksData.tasks;
-};
-
-export const updateTasks = (newTasks: ITask[]): ITask[] => {
-	settings.TickTickTasksData.tasks = newTasks;
-	return getTasks();
-};
-
-// let projectGroups: IProjectGroup[] = [];
-
-export const getProjectGroups = (): IProjectGroup[] => {
-	return settings.TickTickTasksData.projectGroups;
-};
-
-export const updateProjectGroups = (newProjectGroups: IProjectGroup[]): IProjectGroup[] => {
-	settings.TickTickTasksData.projectGroups = newProjectGroups;
-	return getProjectGroups();
-};
 export const getDefaultFolder = (): string => {
-	if (settings.TickTickTasksFilePath === '/') {
+	let path = settings.TickTickTasksFilePath;
+	if (!path || path === '/') {
 		return '';
-	} else {
-		return settings.TickTickTasksFilePath;
 	}
+	// Remove leading slash
+	if (path.startsWith('/')) {
+		path = path.substring(1);
+	}
+	// Remove trailing slash
+	if (path.endsWith('/')) {
+		path = path.substring(0, path.length - 1);
+	}
+	return path;
 };

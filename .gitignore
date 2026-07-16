@@ -28,3 +28,6 @@ userData
 dist/
 
 pnpm-lock.yaml
+
+# MkDocs build output
+site/

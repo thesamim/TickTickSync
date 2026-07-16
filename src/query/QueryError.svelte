@@ -1,5 +1,6 @@
 <script lang="ts">
-	let error: string = "";
+	export let error: string = "";
+
 </script>
 
 <div class="break-words number">

@@ -64,6 +64,95 @@ button.ts_button[disabled]:hover {
 	padding: 10px;
 }
 
+/* --- TickTick task display controls --- */
+/* Applied by TaskDisplayProcessor via registerMarkdownPostProcessor */
+
+/* Hide TickTick link text in reading mode (<a> tag - text wrapped in .tt-link-text) */
+.ticktick-task.tt-link-hide a.tt-tickticklink .tt-link-text {
+	display: none;
+}
+
+/* Hide TickTick link text (CM6 spans) */
+.ticktick-task.tt-link-hide .tt-tickticklink .cm-underline {
+	display: none;
+}
+
+/* Hover reveal for TickTick link text in reading mode */
+.ticktick-task.tt-link-hover a.tt-tickticklink .tt-link-text {
+	opacity: 0;
+	pointer-events: none;
+	transition: opacity 0.15s ease;
+}
+.ticktick-task.tt-link-hover:hover a.tt-tickticklink .tt-link-text {
+	opacity: 1;
+	pointer-events: auto;
+}
+
+/* Hover reveal for TickTick link text (CM6 spans) */
+.ticktick-task.tt-link-hover .tt-tickticklink .cm-underline {
+	opacity: 0;
+	pointer-events: none;
+	transition: opacity 0.15s ease;
+}
+.ticktick-task.tt-link-hover:hover .tt-tickticklink .cm-underline {
+	opacity: 1;
+	pointer-events: auto;
+}
+
+/* Hide #ticktick tag in rendered view */
+.ticktick-task.tt-tag-hide .tag[href="#ticktick"] {
+	display: none;
+}
+
+/* Hide injected TickTick ID span (shown in reading mode) */
+.ticktick-task.tt-id-hide .tt-id-visible {
+	display: none;
+}
+
+/* --- Editing mode (Live Preview) --- */
+/* Hide TickTick link text in editing mode (<a> tag) */
+.HyperMD-task-line.ticktick-task.tt-link-hide a.tt-tickticklink .tt-link-text {
+	display: none;
+}
+
+/* Hide TickTick link text in editing mode (CM6 spans) */
+.HyperMD-task-line.ticktick-task.tt-link-hide .tt-tickticklink .cm-underline {
+	display: none;
+}
+
+/* Hover reveal for link text in editing mode (<a> tag) */
+.HyperMD-task-line.ticktick-task.tt-link-hover a.tt-tickticklink .tt-link-text {
+	opacity: 0;
+	pointer-events: none;
+	transition: opacity 0.15s ease;
+}
+.HyperMD-task-line.ticktick-task.tt-link-hover:hover a.tt-tickticklink .tt-link-text {
+	opacity: 1;
+	pointer-events: auto;
+}
+
+/* Hover reveal for link text in editing mode (CM6 spans) */
+.HyperMD-task-line.ticktick-task.tt-link-hover .tt-tickticklink .cm-underline {
+	opacity: 0;
+	pointer-events: none;
+	transition: opacity 0.15s ease;
+}
+.HyperMD-task-line.ticktick-task.tt-link-hover:hover .tt-tickticklink .cm-underline {
+	opacity: 1;
+	pointer-events: auto;
+}
+
+/* Hide #ticktick tag in editing mode */
+.HyperMD-task-line.ticktick-task.tt-tag-hide .cm-tag-ticktick,
+.HyperMD-task-line.ticktick-task.tt-tag-hide .cm-formatting-hashtag-begin.cm-tag-ticktick {
+	display: none;
+}
+
+/* Hide ticktick_id in editing mode (overrides existing .cm-comment rules) */
+.HyperMD-task-line.ticktick-task.tt-id-hide span.cm-comment {
+	display: none !important;
+}
+
 /*changes below from @gsdtr*/
 .code {
 	width: 500px;
@@ -92,6 +181,42 @@ button.ts_button[disabled]:hover {
 .edit,
 .results {
 	float: left
+}
+
+.sortable-header {
+	cursor: pointer;
+	user-select: none;
+}
+
+/* Sync Journal Modal */
+.sync-journal-count {
+	margin-bottom: 0.5em;
+	font-weight: bold;
+}
+.sync-journal-container {
+	max-height: 400px;
+	overflow-y: auto;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 4px;
+	padding: 0.5em;
+	margin-bottom: 1em;
+	font-size: 12px;
+	font-family: monospace;
+}
+.sync-journal-row {
+	border-bottom: 1px solid var(--background-modifier-border);
+	padding: 0.4em 0;
+}
+.sync-journal-details {
+	margin: 0.2em 0 0 1em;
+	font-size: 11px;
+	color: var(--text-muted);
+	white-space: pre-wrap;
+}
+.sync-journal-btn-group {
+	display: flex;
+	gap: 0.5em;
+	justify-content: flex-end;
 }
 
 .theme {

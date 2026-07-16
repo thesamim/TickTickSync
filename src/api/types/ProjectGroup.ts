@@ -1,15 +1,15 @@
-export { IProjectGroup };
+export type { IProjectGroup };
 
 interface IProjectGroup {
 	id: string;
 	etag: string;
 	name: string;
 	showAll: boolean;
-	sortOrder: any;
-	viewMode: any;
+	sortOrder: number;
+	viewMode: string;
 	deleted: number;
 	userId: number;
 	sortType: string;
-	teamId: any;
-	timeline: any;
+	teamId: string;
+	timeline: unknown;
 }

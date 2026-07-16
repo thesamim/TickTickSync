@@ -38,7 +38,7 @@
 	});
 
 
-	// Handle when radio is changed
+	// Handle when option is changed
 	function handleOptionChange(option: 'none' | 'custom') {
 		delimiterOption = option;
 		if (option === 'none') {
@@ -77,6 +77,8 @@
 
 </script>
 <div class="{isWorking ? 'wait-cursor' : 'default-cursor'}">
+
+
 	<div class="notes-settings ">
 		<div class="setting-item">
 			<div class="setting-item-info">
@@ -84,18 +86,15 @@
 				<div class="setting-item-description">Synchronize Notes</div>
 			</div>
 			<div class="setting-item-control">
-				<label class="toggle-switch">
+				<label class="checkbox-container" class:is-enabled={syncNotes}>
 					<input
 						type="checkbox"
 						bind:checked={syncNotes}
-						on:change={async (e) => {
-							const checked = e.target.checked;
-							syncNotes = checked; // Ensure local state stays in sync
-							settingsStore.update(s => ({ ...s, syncNotes: checked }));
+						on:change={async () => {
+							settingsStore.update(s => ({ ...s, syncNotes: syncNotes }));
 							await plugin.saveSettings();
 					  }}
 					/>
-					<span class="slider"></span>
 				</label>
 			</div>
 		</div>
@@ -103,8 +102,6 @@
 		{#if syncNotes}
 			<div>Notes will be synchronized.</div>
 			<br>
-
-
 			<div class="setting-item delimiter-settings">
 				<div class="setting-item-info">
 					<div class="setting-item-name">Note Delimiter</div>
@@ -113,44 +110,31 @@
 						TickTick.
 					</div>
 				</div>
-				<div class="setting-item-control">
-					<div class="note-delimiter-row">
-						<div class="delimiter-radio-group">
-							<label>
-								<input
-									type="radio"
-									name="delimiterOption"
-									value="none"
-									checked={delimiterOption === "none"}
-									on:change={() => handleOptionChange("none")}
-								/>
-								No delimiter
-							</label>
-							<label>
-								<input
-									type="radio"
-									name="delimiterOption"
-									value="custom"
-									checked={delimiterOption === "custom"}
-									on:change={() => handleOptionChange("custom")}
-								/>
-								Custom
-							</label>
-						</div>
-						{#if delimiterOption === "custom"}
-							<input
-								type="text"
-								placeholder="Enter delimiter (e.g., ---)"
-								bind:value={customDelimiter}
-								on:input={handleCustomChange}
-								maxlength={61}
-								style="margin-left:0.5em; width:10em"
-							/>
-						{/if}
-						<div class="delimiter-preview">
-							<p>Preview:</p>
-							<span><pre>{previewExample}</pre></span>
-						</div>
+
+			</div>
+			<div class="setting-item delimiter-settings">
+				<div class="setting-item-info">
+					<select
+						class="dropdown"
+						bind:value={delimiterOption}
+						on:change={() => handleOptionChange(delimiterOption)}
+					>
+						<option value="none">No delimiter</option>
+						<option value="custom">Custom</option>
+					</select>
+					{#if delimiterOption === "custom"}
+						<input
+							type="text"
+							placeholder="Enter delimiter (e.g., ---)"
+							bind:value={customDelimiter}
+							on:input={handleCustomChange}
+							maxlength={61}
+							style="margin-left:0.5em; width:10em"
+						/>
+					{/if}
+					<div class="delimiter-preview">
+						<p>Preview:</p>
+						<span><pre>{previewExample}</pre></span>
 					</div>
 				</div>
 			</div>

@@ -1,11 +1,11 @@
-export { IHabit };
+export type { IHabit };
 
 interface IHabit {
 	id: string;
 	name: string;
 	iconRes: string;
 	color: string;
-	sortOrder: any;
+	sortOrder: number;
 	status: number;
 	encouragement: string;
 	totalCheckIns: number;

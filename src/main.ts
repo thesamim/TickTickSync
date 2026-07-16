@@ -1,20 +1,10 @@
 import '@/static/index.css';
 import '@/static/styles.css';
 
-import { type Editor, type MarkdownFileInfo, Platform } from 'obsidian';
-import { MarkdownView, Notice, Plugin, TFolder } from 'obsidian';
+import { type Editor, type MarkdownFileInfo, MarkdownView, Notice, Plugin } from 'obsidian';
 
 //settings
-import {
-	DEFAULT_SETTINGS,
-	getProjects,
-	getSettings,
-	getTasks,
-	updateProjectGroups,
-	updateProjects,
-	updateSettings,
-	updateTasks
-} from './settings';
+import { DEFAULT_SETTINGS, getSettings, mergeDeviceLists, updateSettings } from './settings';
 
 import { TickTickService } from '@/services';
 //TickTick api
@@ -22,50 +12,150 @@ import { TickTickRestAPI } from '@/services/TicktickRestAPI';
 //task parser
 import { TaskParser } from './taskParser';
 //cache task read and write
-import { CacheOperation } from '@/services/cacheOperation';
 //file operation
 import { FileOperation } from './fileOperation';
 
 //import modals
 import { SetDefaultProjectForFileModal } from './modals/DefaultProjectModal';
 import { LatestChangesModal } from './modals/LatestChangesModal';
+import { CleanupDeletedTasksModal } from './modals/CleanupDeletedTasksModal';
+import { RecoverDeletedTasksModal } from './modals/RecoverDeletedTasksModal';
 
 //import utils
 import { isOlder } from './utils/version';
+import { NOTABLE_CHANGES } from './notable-changes';
 import { TickTickSyncSettingTab } from './ui/settings';
-import { QueryInjector } from '@/query/injector';
+import { MarkdownProcessor } from '@/query/MarkdownProcessor';
 import store from '@/store';
 import { DateMan } from '@/dateMan';
+import { NewFileMap } from '@/services/NewFileMap';
 
 //logging
 import log from '@/utils/logger';
+
+//database
+import { initDB } from '@/db/dexie';
+import { migrateFromDataJson } from '@/db/migrations';
+import type { DeviceInfo } from '@/db/schema';
+
+//NEW: Repository layer
+import { FileMetadataService } from '@/repositories/FileMetadataService';
+import { TaskRepository } from '@/repositories/TaskRepository';
+import { FileTaskQueries } from '@/repositories/FileTaskQueries';
+import { TaskCache } from '@/repositories/TaskCache';
+import { ProjectGroupRepository } from '@/repositories/ProjectGroupRepository';
+
+//NEW: Service layer
+import { ProjectSyncService } from '@/services/ProjectSyncService';
+import { EventHandlerService } from '@/services/EventHandlerService';
+import { VaultSyncCoordinator } from '@/services/VaultSyncCoordinator';
+import { TaskModificationDetector } from '@/services/TaskModificationDetector';
+import { TaskDeletionHandler } from '@/services/TaskDeletionHandler';
+import { TaskOperationsService } from '@/services/TaskOperationsService';
+import { FolderSyncService } from '@/services/FolderSyncService';
+import { FolderMigrationService } from '@/services/FolderMigrationService';
+import { TagService } from '@/services/TagService';
+
+import { generateDeviceId } from '@/db/device';
+
 
 export default class TickTickSync extends Plugin {
 
 	readonly service: TickTickService = new TickTickService(this);
 	readonly taskParser: TaskParser = new TaskParser(this.app, this);
 	readonly fileOperation: FileOperation = new FileOperation(this.app, this);
-	readonly cacheOperation: CacheOperation = new CacheOperation(this.app, this);
+	readonly fileMetadataService: FileMetadataService = new FileMetadataService();
 	readonly dateMan: DateMan = new DateMan();
+	readonly tagService: TagService = new TagService();
 
 	readonly lastLines: Map<string, number> = new Map(); //lastLine object {path:line} is saved in lastLines map
 
+	//NEW: Repository layer
+	taskRepository!: TaskRepository;
+	fileTaskQueries!: FileTaskQueries;
+	taskCache!: TaskCache;
+	projectGroupRepository!: ProjectGroupRepository;
+
+	//NEW: Service layer
+	projectSyncService!: ProjectSyncService;
+	eventHandlerService!: EventHandlerService;
+	vaultSyncCoordinator!: VaultSyncCoordinator;
+	taskModificationDetector!: TaskModificationDetector;
+	taskDeletionHandler!: TaskDeletionHandler;
+	taskOperationsService!: TaskOperationsService;
+	folderSyncService!: FolderSyncService;
+	folderMigrationService!: FolderMigrationService;
 
 	tickTickRestAPI?: TickTickRestAPI;
 	statusBar?: HTMLElement;
 	private syncIntervalId?: number;
-	private logger: any;
+	private markdownProcessor?: MarkdownProcessor;
 
 	async onload() {
-		//We're doing too much at load time, and it's causing issues. Do it properly!
-
 		this.app.workspace.onLayoutReady(async () => {
-			//todo: detect end of sync and/or make sure there's not conflict somehow.
-			// log.debug(`TickTickSync onload pausing for 60 seconds to allow for sync to complete!`);
-			// await waitFor(60000)
+			await this.waitForObsidianSync();
 			await this.pluginLoad();
 		});
+	}
 
+	/**
+	 * If Obsidian Sync is installed and enabled, wait until it finishes
+	 * syncing before proceeding with plugin initialization.
+	 */
+	private async waitForObsidianSync(): Promise<void> {
+		const app = this.app as unknown as {
+			internalPlugins: { getPluginById(id: string): { enabled: boolean; instance?: unknown } | undefined };
+			sync?: { isSyncing?: () => boolean; on?: (event: string, handler: () => void) => void; syncing?: boolean };
+		};
+		const internalPlugins = app.internalPlugins;
+		if (!internalPlugins) return;
+
+		const syncPlugin = internalPlugins.getPluginById('sync');
+		if (!syncPlugin?.enabled) return;
+
+		const syncService = app.sync ?? syncPlugin.instance as { isSyncing?: () => boolean; on?: (event: string, handler: () => void) => void; syncing?: boolean };
+		if (!syncService) return;
+
+		log.debug('Obsidian Sync detected, waiting for sync to complete...');
+
+		return new Promise<void>((resolve) => {
+			const isSyncing = (): boolean => {
+				try {
+					const fn = syncService.isSyncing;
+					return typeof fn === 'function' ? fn() : (fn ?? syncService.syncing ?? false);
+				} catch {
+					return false;
+				}
+			};
+
+			if (!isSyncing()) {
+				log.debug('Obsidian Sync already idle, proceeding.');
+				resolve();
+				return;
+			}
+
+			const poll = () => {
+				if (!isSyncing()) {
+					log.debug('Obsidian Sync finished, proceeding.');
+					resolve();
+					return;
+				}
+				window.setTimeout(poll, 500);
+			};
+			poll();
+
+			try {
+				if (typeof syncService.on === 'function') {
+					syncService.on('status-change', () => {
+						if (!isSyncing()) {
+							resolve();
+						}
+					});
+				}
+			} catch {
+				// event listener not available, polling alone is fine
+			}
+		});
 	}
 
 	reloadInterval() {
@@ -77,7 +167,9 @@ export default class TickTickSync extends Plugin {
 		if (timeout === 0) {
 			return;
 		}
-		this.syncIntervalId = window.setInterval(this.scheduledSynchronization.bind(this), timeout);
+		this.syncIntervalId = this.registerInterval(
+			window.setInterval(() => { void this.scheduledSynchronization(); }, timeout)
+		);
 	}
 
 	// Configure logging.
@@ -91,16 +183,23 @@ export default class TickTickSync extends Plugin {
 	// 	logging.configure(options);
 	// }
 
-	async onunload() {
-		if (this.syncIntervalId) {
-			window.clearInterval(this.syncIntervalId);
-		}
+	onunload() {
+		super.onunload();
+		// registerInterval handles cleanup of syncIntervalId automatically
+		//NEW: Cleanup event handler
+		this.eventHandlerService?.cleanup();
+		//NEW: Clear cache
+		this.taskCache?.clear();
 		log.debug(`TickTickSync unloaded!`);
 	}
 
 	async loadSettings() {
 		try {
-			let data = await this.loadData();
+			let data = await this.loadData() as Record<string, unknown> | null;
+			if (!data) {
+				data = { version: this.manifest.version };
+				await this.saveData(data);
+			}
 			try {
 				data = await this.migrateData(data);
 			} catch (error) {
@@ -108,15 +207,12 @@ export default class TickTickSync extends Plugin {
 				return false; // Returning false indicates that the setting loading failed
 			}
 			if (data?.TickTickTasksData) {
-				updateProjects(data.TickTickTasksData.projects);
-				updateTasks(data.TickTickTasksData.tasks);
-				updateProjectGroups(data.TickTickTasksData.projectGroups);
-				delete data.TickTickTasksData;
+				// Old data migration is handled by initDB
 			}
 			const settings = Object.assign({}, DEFAULT_SETTINGS, data);
 			updateSettings(settings);
 		} catch (error) {
-			log.error(`Failed to load data:( ${error})`);
+			log.error('Failed to load data:( ' + String(error) + ')');
 			return false; // Returning false indicates that the setting loading failed
 		}
 		return true; // Returning true indicates that the settings are loaded successfully
@@ -124,14 +220,34 @@ export default class TickTickSync extends Plugin {
 
 	async saveSettings() {
 		try {
-			const settings = getSettings();
+			const inMemorySettings = getSettings();
 			// Verify that the setting exists and is not empty
-			if (settings && Object.keys(settings).length > 0) {
-				await this.saveData( //TODO: migrate to getSettings
-					{
-						...settings,
-						TickTickTasksData: { 'projects': getProjects(), 'tasks': getTasks() }
-					});
+			if (inMemorySettings && Object.keys(inMemorySettings).length > 0) {
+				const settingsToSave = { ...inMemorySettings };
+				// Large data is now in Dexie only
+				const saveData = settingsToSave as Record<string, unknown>;
+				delete saveData.fileMetadata;
+				delete saveData.TickTickTasksData;
+				delete saveData.__migratedDBData;
+
+				// Defensive merge: on-disk data.json may have been updated by
+				// another device via Obsidian Sync. Merge devices so that entries
+				// added by other instances are not lost.
+				try {
+					const onDiskData = await this.loadData() as Record<string, unknown> | null;
+					if (onDiskData?.devices && Array.isArray(onDiskData.devices)) {
+						const merged = mergeDeviceLists(
+							onDiskData.devices as DeviceInfo[],
+							settingsToSave.devices || []
+						);
+						settingsToSave.devices = merged;
+						getSettings().devices = merged;
+					}
+				} catch (e) {
+					log.warn('Could not read on-disk settings for device merge', e);
+				}
+
+				await this.saveData(settingsToSave);
 			} else {
 				log.warn('Settings are empty or invalid, not saving to avoid data loss.');
 			}
@@ -144,13 +260,36 @@ export default class TickTickSync extends Plugin {
 	// return true of false
 	async initializePlugin(): Promise<boolean> {
 		if (!getSettings().token) {
+			new Notice(`Please login from settings.`);
 			return false;
 		}
 
+		// Load Dexie first as it's the source of truth
+		await initDB();
+
+		//NEW: Initialize repositories
+		this.taskRepository = new TaskRepository();
+		this.fileTaskQueries = new FileTaskQueries();
+		this.taskCache = new TaskCache();
+		this.projectGroupRepository = new ProjectGroupRepository();
+
+		//NEW: Initialize services
+		this.projectSyncService = new ProjectSyncService(this.app, this);
+		this.folderSyncService = new FolderSyncService(this.app, this, this.projectGroupRepository);
+		this.projectSyncService.setFolderSyncService(this.folderSyncService);
+		this.folderMigrationService = new FolderMigrationService(this.app, this.folderSyncService);
+		this.vaultSyncCoordinator = new VaultSyncCoordinator(this.app, this, this.folderSyncService);
+		this.taskModificationDetector = new TaskModificationDetector(this.app, this, this.folderSyncService);
+		this.taskDeletionHandler = new TaskDeletionHandler(this.app, this);
+		this.taskOperationsService = new TaskOperationsService(this.app, this);
+
+		// Device ID and Label are now managed in the DB and loaded into memory during initDB
+		// They are no longer stored in settings to prevent sync conflicts
+		await this.tagService.loadFromDb();
 		const isProjectsSaved = await this.saveProjectsToCache();
 		if (!isProjectsSaved) {// invalid token or offline?
 			this.tickTickRestAPI = undefined;
-			new Notice(`TickTickSync plugin initialization failed, please check userID and password in settings.`);
+			new Notice(`TickTickSync plugin initialization failed, please check userid and password in settings.`);
 			return false;
 		}
 
@@ -163,9 +302,14 @@ export default class TickTickSync extends Plugin {
 			}
 		} catch (error) {
 			log.error('error creating user data folder: ', error);
-			new Notice(`error creating user data folder`);
+			new Notice(`Error creating user data folder`);
 			return false;
 		}
+		//And now load the DB and sync it.
+		await this.service.synchronization(true);
+
+		await this.autoCleanupDeletedTasks();
+
 		new Notice('TickTickSync loaded successfully.' + getSettings().skipBackup ? ' Skipping backup.' : 'TickTick data has been backed up.');
 		return true;
 	}
@@ -188,8 +332,6 @@ export default class TickTickSync extends Plugin {
 		const cursor = markDownView?.editor.getCursor();
 		const line = cursor?.line;
 		//const lineText = view.editor.getLine(line)
-		const fileContent = markDownView.data;
-
 		//log.debug(line)
 		//const fileName = view.file?.name
 		const file = markDownView?.app.workspace.activeEditor?.file;
@@ -197,7 +339,7 @@ export default class TickTickSync extends Plugin {
 		const filepath = file?.path;
 
 		if (typeof this.lastLines === 'undefined' || typeof this.lastLines.get(fileName as string) === 'undefined') {
-			this.lastLines.set(fileName as string, line as number);
+			this.lastLines.set(fileName as string, line);
 			return false;
 		}
 
@@ -214,7 +356,7 @@ export default class TickTickSync extends Plugin {
 			if (!(this.checkModuleClass())) {
 				return false;
 			}
-			this.lastLines.set(fileName as string, line as number);
+			this.lastLines.set(fileName as string, line);
 
 			return await this.service.lineModifiedTaskCheck(filepath as string, lastLineText, lastLine as number);
 		} else {
@@ -227,13 +369,12 @@ export default class TickTickSync extends Plugin {
 		const target = evt.target as HTMLInputElement;
 		const bOpenTask = target.checked;
 
-		if (target.className !== 'task-list-item-checkbox') {
+		if (!target.classList.contains('task-list-item-checkbox')) {
 			return;
 		}
 
 		if (editor) {
-			const cursor = editor.getCursor('from'); // Get the cursor position
-			const mouse = editor.posAtMouse(evt);
+			const mouse = (editor as unknown as { posAtMouse(evt: MouseEvent): { line: number; ch: number } }).posAtMouse(evt);
 			const line = mouse.line; // Line where the click occurred
 			const clickedText = editor.getLine(line); // Get the text at the clicked line
 			if (this.taskParser.isMarkdownTask(clickedText)) {
@@ -247,7 +388,12 @@ export default class TickTickSync extends Plugin {
 				} else {
 					const itemID = this.taskParser.getLineItemId(clickedText);
 					if (itemID) {
-						new Notice('Item will be updated on next sync');
+						const markDownView = this.app.workspace.getActiveViewOfType(MarkdownView);
+						if (markDownView?.file) {
+							const fileMap = new NewFileMap(this.app, this, markDownView.file);
+							await fileMap.init();
+							await this.service.tickTickSync.handleTaskItem(clickedText, fileMap, line);
+						}
 					}
 				}
 			}
@@ -279,7 +425,7 @@ export default class TickTickSync extends Plugin {
 		}
 
 		const filepath = markDownView.file.path;
-		let defaultProjectName = await this.cacheOperation.getDefaultProjectNameForFilepath(filepath);
+		let defaultProjectName = await this.fileMetadataService.getDefaultProjectNameForFilepath(filepath);
 		if (!defaultProjectName) {
 			if (filepath.startsWith('Inbox')) {
 				defaultProjectName = 'Inbox';
@@ -291,21 +437,32 @@ export default class TickTickSync extends Plugin {
 
 	}
 
-	async scheduledSynchronization() {
+	async scheduledSynchronization(fullSync: boolean = false) {
 		if (!this.checkModuleClass()) {
 			return;
 		}
 
-		const startTime = performance.now();
-		log.debug(`TickTick scheduled synchronization task started at ${new Date().toLocaleString()}`);
+		await this.waitForObsidianSync();
+
 		try {
-			await this.service.synchronization();
+			await this.service.synchronization(fullSync);
+			await this.autoCleanupDeletedTasks();
 		} catch (error) {
 			log.error('An error occurred: ', error);
-			new Notice(`An error occurred: ${error}`);
+			new Notice(`An error occurred: ${String(error)}`);
 		}
-		const endTime = performance.now();
-		log.debug(`TickTick scheduled synchronization task completed at ${new Date().toLocaleString()}, took ${(endTime - startTime).toFixed(2)} ms`);
+	}
+
+	async autoCleanupDeletedTasks() {
+		try {
+			const days = getSettings().deletedTaskRetentionDays;
+			const purged = await this.taskRepository.purgeOldDeletedTasks(days);
+			if (purged > 0) {
+				log.info(`Auto-cleanup: purged ${purged} deleted task(s) older than ${days} day(s).`);
+			}
+		} catch (error) {
+			log.error('Auto-cleanup error:', error);
+		}
 	}
 
 
@@ -365,10 +522,10 @@ export default class TickTickSync extends Plugin {
 		const startTime = performance.now();
 		log.debug(`TickTick saveProjectsToCache started at ${new Date().toLocaleString()}`);
 		try {
-			result = await this.service.saveProjectsToCache();
+			result = !!(await this.service.saveProjectsToCache());
 		} catch (error) {
-			log.error(`An error in saveProjectsToCache occurred:( ${error}`);
-			new Notice(`An error in saveProjectsToCache occurred: ${error}`);
+			log.error(`An error in saveProjectsToCache occurred:( ${String(error)}`);
+			new Notice(`An error in saveProjectsToCache occurred: ${String(error)}`);
 		}
 		const endTime = performance.now();
 		log.debug(`TickTick saveProjectsToCache completed at ${new Date().toLocaleString()}, took ${(endTime - startTime).toFixed(2)} ms`);
@@ -384,37 +541,69 @@ export default class TickTickSync extends Plugin {
 			new Notice('Settings failed to load. Please reload the TickTickSync plugin.');
 			return;
 		}
-		log.setLevel(getSettings().logLevel)
+		log.setLevel(getSettings().logLevel as 'trace' | 'debug' | 'info' | 'warn' | 'error' | 'silent')
 		log.info(`loading plugin "${this.manifest.name}" v${this.manifest.version}`);
 
 
 
 		try {
+			updateSettings({vaultName: this.app.vault.getName()});
 			await this.initializePlugin();
 		} catch (error) {
-			log.error(`API Initialization Failed.( ${error})`);
+			log.error('API Initialization Failed.( ' + String(error) + ')');
 		}
 
 		store.service.set(this.service);
-		const queryInjector = new QueryInjector(this);
-		this.registerMarkdownCodeBlockProcessor(
-			'ticktick',
-			queryInjector.onNewBlock.bind(queryInjector)
-		);
+		this.markdownProcessor = new MarkdownProcessor(this);
+		this.markdownProcessor.activate();
 
 
-		const ribbonIconEl = this.addRibbonIcon('sync', 'TickTickSync', async (evt: MouseEvent) => {
+		this.addRibbonIcon('sync', 'TickTickSync', async (evt: MouseEvent) => {
 			// Called when the user clicks the icon.
 			await this.synchronizeNow();
 		});
 
-		//Used for testing adhoc code.
-		// const ribbonIconEl1 = this.addRibbonIcon('check', 'TTS Test', async (evt: MouseEvent) => {
+		// //Used for testing adhoc code.
+		// this.addRibbonIcon('check', 'Tts test', async (evt: MouseEvent) => {
 		// 	// Nothing to see here right now.
-		// 	// const foo = await this.tickTickRestAPI?.api?.getUserStatus()
-		// 	// log.debug(foo)
-		// 	log.debug("AppID", this.app.appid);
-		// 	log.debug("HostName", require('os').hostname())
+		// 	const vaultId = this.app.vault.getName();
+		// 	log.debug(`Vault ID: ${vaultId}`);
+		// 	this.dumpDB();
+		// });
+
+		//Used for testing adhoc code.
+		// this.addRibbonIcon('dice', 'Tts test 2', async (evt: MouseEvent) => {
+		// 	// Nothing to see here right now.
+		// 	// for (const file of this.app.vault.getMarkdownFiles()) {
+		// 	// 	if (file.path.includes("List 1")) {
+		// 	// 		const fileMap = new NewFileMap(this.app, this, file);
+		// 	// 		await fileMap.init();
+		// 	// 		const taskRecord = fileMap.getTaskRecord("6a08733c9086963234d145a5")
+		// 	// 		const taskItems = fileMap.getTaskItems("6a08733c9086963234d145a5")
+		// 	// 		log.debug("record", taskRecord)
+		// 	// 		log.debug("items", taskItems)
+		// 	// 	}
+		// 	// }
+		// 	// Example Usage inside a command or event:
+		// 	// const targetFolder = 'Folder 1';
+		// 	//
+		// 	// // Get every file in the vault and filter by path prefix
+		// 	// const allFilesInFolder = this.app.vault.getFiles().filter(file =>
+		// 	// 	file.path.startsWith(targetFolder + '/')
+		// 	// );
+		// 	//
+		// 	// for (const file of allFilesInFolder) {
+		// 	// 	const activeFile = this.app.vault.getFileByPath(file)
+		// 	// 	const tasks = await getTasksWithChildren(activeFile, this.app);
+		// 	// 	// const fm = new NewFileMap(this.app, this, activeFile);
+		// 	// 	// await fm.init();
+		// 	// 	// const tasks = fm.getTasks();
+		// 	//
+		// 	// 	log.debug("In File: ", file.name, "\nStructured Tasks:\n", JSON.stringify(tasks,null, 4));
+		// 	// }
+		// 	generateDeviceId();
+		//
+		//
 		// });
 
 
@@ -424,8 +613,8 @@ export default class TickTickSync extends Plugin {
 		// set default project for TickTick task in the current file
 		// This adds an editor command that can perform some operation on the current editor instance
 		this.addCommand({
-			id: 'set-default-project-for-TickTick-task-in-the-current-file',
-			name: 'Set default TickTick project for current file',
+			id: 'tts-default-project-for-file',
+			name: 'Set default ticktick project for current file',
 			editorCallback: (editor: Editor, view: MarkdownView | MarkdownFileInfo) => {
 				if (!view || !view.file) {
 					new Notice(`No active file.`);
@@ -443,6 +632,37 @@ export default class TickTickSync extends Plugin {
 			}
 		});
 
+		this.addCommand({
+			id: 'tts-delete-permanent',
+			name: 'Permanently delete tasks',
+			callback: async () => {
+				const deletedTasks = await this.taskRepository.getDeletedTasks();
+				if (deletedTasks.length === 0) {
+					new Notice('No deleted tasks found.');
+					return;
+				}
+				const modal = new CleanupDeletedTasksModal(this.app, deletedTasks);
+				const selected = await modal.showModal();
+				if (selected.length > 0) {
+					await this.taskRepository.hardDeleteTasks(selected);
+					new Notice(`Permanently deleted ${selected.length} task(s).`);
+				}
+			}
+		});
+
+		this.addCommand({
+			id: 'tts-recover-tasks',
+			name: 'View and recover deleted tasks',
+			callback: async () => {
+				const deletedTasks = await this.taskRepository.getDeletedTasks();
+				if (deletedTasks.length === 0) {
+					new Notice('No deleted tasks found.');
+					return;
+				}
+				const modal = new RecoverDeletedTasksModal(this.app, this, deletedTasks);
+				await modal.showModal();
+			}
+		});
 
 		//display default project for the current file on status bar
 		// This adds a status bar item to the bottom of the app. Does not work on mobile apps.
@@ -455,228 +675,55 @@ export default class TickTickSync extends Plugin {
 	}
 
 	private registerEvents() {
-		//Key event monitoring, judging line breaks and deletions
-		this.registerDomEvent(document, 'keyup', async (evt: KeyboardEvent) => {
-			if (!getSettings().token) {
-				return;
-			}
-
-			const editor = this.app.workspace.activeEditor?.editor;
-			if (!editor || !editor.hasFocus()) {
-				return;
-			}
-
-			if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'PageUp', 'PageDown'].includes(evt.key)) {
-				//trace( `${evt.key} arrow key is released`);
-				if (!this.checkModuleClass()) {
-					return;
-				}
-				await this.lineNumberCheck();
-			}
-
-			if (['Delete', 'Backspace'].includes(evt.key)) {
-				try {
-					//trace( `${evt.key} arrow key is released`);
-					if (!(this.checkModuleClass())) {
-						return;
-					}
-					await this.service.deletedTaskCheck(null);
-					await this.saveSettings();
-				} catch (error) {
-					log.warn(`An error occurred while deleting tasks: ${error}`);
-				}
-
-			}
-		});
-
-		// If the plugin hooks up any global DOM events (on parts of the app that doesn't belong to this plugin)
-		// Using this function will automatically remove the event listener when this plugin is disabled.
-		this.registerDomEvent(document, 'click', async (evt: MouseEvent) => {
-			//Here for future debugging.
-			const { target } = evt;
-
-			if (!getSettings().token) {
-				return;
-			}
-
-			const editor = this.app.workspace.activeEditor?.editor;
-
-			// if (!editor || !editor.hasFocus()) {
-			// 	log.debug("bail no focus");
-			// 	return;
-			// }
-
-			if (!(this.checkModuleClass())) {
-				return;
-			}
-
-			await this.lineNumberCheck();
-
-			if (target && target.type === 'checkbox') {
-				await this.checkboxEventhandler(evt, editor);
-			}
-		});
-
-		let processTimeOut: ReturnType<typeof setTimeout>;
-		//hook editor-change event, if the current line contains #ticktick, it means there is a new task
-		//TODO: This gets called on every keystroke. Consider giving the user the option to only check for changes
-		//      keyup, or keyup and specific events (eg: enter, up-arrow, down-arrow)
-		//for now, we'll debounce it.
-		this.registerEvent(this.app.workspace.on('editor-change', async (editor: Editor, info: MarkdownView | MarkdownFileInfo) => {
-
-			processTimeOut = setTimeout(async () => {
-				clearTimeout(processTimeOut);
-				try {
-					if (!getSettings().token) {
-						return;
-					}
-					if (getSettings().enableFullVaultSync) {
-						//we'll deal with modifications on full sync
-						return;
-					}
-
-
-					//TODO: lineNumberCheck also triggers a line modified check. I suspect this is redundant and
-					//      inefficient when a new task is being added. I've added returns out of there, but I need for find if the last line check
-					//      is needed for an add.
-					await this.lineNumberCheck();
-					if (!(this.checkModuleClass())) {
-						return;
-					}
-					await this.service.lineNewContentTaskCheck(editor, info);
-					await this.saveSettings();
-				} catch (error) {
-					log.error('An error occurred while check new task in line: ', error);
-				}
-			}, 1000);
-		}));
-
-		//Listen to the delete event
-		this.registerEvent(this.app.vault.on('delete', async (file) => {
-			if (file instanceof TFolder || !getSettings().token) {
-				//individual file deletes will be handled. I hope.
-				return;
-			}
-			const updated = await this.service.deletedFileCheck(file.path);
-			if (updated) {
-				await this.saveSettings();
-			}
-		}));
-
-		//Listen to the rename event and update the path in task data
-		this.registerEvent(this.app.vault.on('rename', async (file, oldPath) => {
-			if (file instanceof TFolder || !getSettings().token) {
-				//individual file rename will be handled. I hope.
-				return;
-			}
-			const updated = await this.service.renamedFileCheck(file.path, oldPath);
-			if (updated) {
-				await this.saveSettings();
-			}
-		}));
-
-
-		//Listen for file modified events and execute fullTextNewTaskCheck
-		this.registerEvent(this.app.vault.on('modify', async (file) => {
-			try {
-				// log.debug('modified.', file.name);
-				if (!getSettings().token) {
-					return;
-				}
-				const filepath = file.path;
-				//get current view
-				const activateFile = this.app.workspace.getActiveFile();
-				//To avoid conflicts, Do not check files being edited
-				if (activateFile?.path == filepath) {
-					//TODO: find out if they cut or pasted task(s) in here.
-					return;
-				}
-
-				await this.service.fullTextNewTaskCheck(filepath);
-			} catch (error) {
-				log.error('An error occurred while modifying the file: ', error);
-				// You can add further error handling logic here. For example, you may want to
-				// revert certain operations, or alert the user about the error.
-			}
-		}));
-
-		this.registerEvent(this.app.workspace.on('active-leaf-change', async (leaf) => {
-			await this.setStatusBarText();
-		}));
+		//NEW: Use EventHandlerService to manage all event registration
+		this.eventHandlerService = new EventHandlerService(this.app, this);
+		this.eventHandlerService.registerAll();
 	}
 
-	private async migrateData(data: any) {
+	private async migrateData(data: Record<string, unknown>): Promise<Record<string, unknown>> {
 		if (!data) return data;
 
-		const notableChanges: string [][] = [];
-		//TODO make more clean
 		//We're going to handle data structure conversions here.
-		if (!data.version) {
-			const fileMetaDataStructure = data.fileMetadata;
-			if (Array.isArray(fileMetaDataStructure)) {
-				for (const file in fileMetaDataStructure) {
-					const oldTasksHolder = fileMetaDataStructure[file]; //an array of tasks.
-					let newTasksHolder = {};
-					newTasksHolder = {
-						TickTickTasks: oldTasksHolder.TickTickTasks.map((taskIDString) => ({
-							taskId: taskIDString,
-							taskItems: [] //TODO: Validate that the assumption that the next sync will fill these correctly.
-						})),
-						TickTickCount: oldTasksHolder.TickTickCount,
-						defaultProjectId: oldTasksHolder.defaultProjectId
-					};
-					fileMetaDataStructure[file] = newTasksHolder;
-				}
-			}
-			//Force a sync
-			if (getSettings().token) {
-				await this.scheduledSynchronization();
-			}
-		}
-		if ((!data.version) || (isOlder(data.version, '1.0.10'))) {
+		//NB: The version that goes in the literal is the current version.
+		if ((!data.version) || (isOlder(data.version as string, '1.0.10'))) {
 			//get rid of username and password. we don't need them no more.
-			//delete data.username; //keep username for info
-			// @ts-ignore
 			delete data.username;
 			delete data.password;
 		}
-		if ((!data.version) || (isOlder(data.version, '1.0.36'))) {
+		if ((!data.version) || (isOlder(data.version as string, '1.0.36'))) {
 			//default to AND because that's what we used to do:
 			data.tagAndOr = 1;
-			//warn about tag changes.
-			notableChanges.push(['New Task Limiting rules', 'Please update your preferences in settings as needed.', 'priorTo1.0.36']);
 		}
-		if ((!data.version) || (isOlder(data.version, '1.0.40'))) {
-			//warn about the date/time foo
-			notableChanges.push(['New Date/Time Handling', 'Old date formats will be converted on the next synchronization operation.', 'priorTo1.0.40']);
+
+		//BIG Change. BIG I tell you!
+		const isOlderResult = (!data.version) || isOlder(data.version as string, '2.0.0');
+		if (isOlderResult) {
+			log.debug('Entering 1.1.17 migration block');
+			// Migrate from legacy data.json repository to Dexie-based repository
+			data.__migratedDBData = migrateFromDataJson(data);
+			log.debug('migrateFromDataJson completed');
 		}
-		if ((!data.version) || (isOlder(data.version, '1.1.1'))) {
-			//warn about the date/time foo
-			notableChanges.push(['Note Synchronization', 'TickTickSync will now synchronize Notes.', 'priorTo1.1.1']);
-		}
-		if ((!data.version) || (isOlder(data.version, '1.1.7'))) {
-			notableChanges.push(['Note and Default Project Settings', 'Note and Default Project settings improvements.', 'priorTo1.1.7']);
-		}
-		if ((!data.version) || (isOlder(data.version, '1.1.8'))) {
-			notableChanges.push(['Link to Tasks now Configurable', 'Link to Tasks are now Configurable.', 'priorTo1.1.8']);
-		}
-		if ((!data.version) || (isOlder(data.version, '1.1.10'))) {
-			notableChanges.push(['Several Changes', 'Tasks stay where they are created.\nBackups now configurable.\nNote delimiter now configurable.', 'priorTo1.1.9']);
-		}
-		if ((!data.version) || (isOlder(data.version, '1.1.15'))) {
-			notableChanges.push(['Can now login with SSO/2FA enabled account on Desktop', 'Desktop SSO/2FA login enabled.', 'priorTo1.1.14']);
-		}
-		if ((!data.version) || (isOlder(data.version, '1.1.16'))) {
-			notableChanges.push(['Note handling improvements', 'Can now have checklist items and TickTick Task links in notes.', 'priorTo1.1.15']);
+
+		//Build notable changes from the single source of truth
+		const notableChanges: string[][] = [];
+		const currentVersion = (data.version as string) || '0.0.0';
+		for (const change of NOTABLE_CHANGES) {
+			if (!data.version || isOlder(currentVersion, change.version)) {
+				notableChanges.push([change.title, change.description, change.anchor]);
+			}
 		}
 
 		if (notableChanges.length > 0) {
+			log.debug('Calling LatestChangesModal with', notableChanges.length, 'items');
 			await this.LatestChangesModal(notableChanges);
+			log.debug('LatestChangesModal returned');
+		} else {
+			log.debug('Skipping LatestChangesModal - no notable changes');
 		}
 
 		//Update the version number. It will save me headaches later.
 
-		if ((!data.version) || (isOlder(data.version, this.manifest.version))) {
+		if ((!data.version) || (isOlder(data.version as string, this.manifest.version))) {
 			log.debug('Updating version number to ', this.manifest.version);
 			data.version = this.manifest.version;
 			await this.saveSettings();
@@ -686,38 +733,55 @@ export default class TickTickSync extends Plugin {
 	}
 
 	private async LatestChangesModal(notableChanges: string[][]) {
-		const myModal = new LatestChangesModal(this.app, notableChanges, (result) => {
-			this.ret = result;
+		return await new Promise<boolean>(resolve => {
+			const myModal = new LatestChangesModal(this.app, notableChanges, (result) => {
+				resolve(result);
+			});
+			myModal.open();
 		});
-		return await myModal.showModal();
 
 	}
-	getDefaultDeviceName() {
-		if (Platform.isDesktopApp) {
-			return (
-				// eslint-disable-next-line @typescript-eslint/no-var-requires
-				require("os").hostname() ||
-				(Platform.isMacOS
-					? "Mac"
-					: Platform.isWin
-						? "Windows"
-						: Platform.isLinux
-							? "Linux"
-							: "Desktop")
-			);
-		}
-		if (Platform.isIosApp) {
-			if (Platform.isPhone) return "iPhone";
-			if (Platform.isTablet) return "iPad";
-			return "iOS Device";
-		}
-		if (Platform.isAndroidApp) {
-			if (Platform.isPhone) return "Android Phone";
-			if (Platform.isTablet) return "Android Tablet";
-			return "Android Device";
-		}
-		return "Unknown Device";
+	private dumpDB() {
+		let dbName = (getSettings().vaultName || '')  + "TickTickSync";
+		const request = indexedDB.open(dbName);
+
+		request.onsuccess = async (event) => {
+			const db = (event.target as EventTarget & { result: IDBDatabase }).result;
+			const storeNames = Array.from(db.objectStoreNames);
+			const exportData: Record<string, unknown> = {};
+
+			// Process all stores
+			for (const storeName of storeNames) {
+				exportData[storeName] = await new Promise((resolve) => {
+					const transaction = db.transaction([storeName], "readonly");
+					const store = transaction.objectStore(storeName);
+					const allItems = store.getAll();
+
+					allItems.onsuccess = () => resolve(allItems.result);
+					allItems.onerror = () => resolve([]); // Handle empty/error stores
+				});
+			}
+
+			// Create and download JSON file
+			const jsonString = JSON.stringify(exportData, null, 2);
+			const blob = new Blob([jsonString], { type: "application/json" });
+			const url = URL.createObjectURL(blob);
+			const a = createEl("a");
+
+			a.href = url;
+			a.download = `${dbName}_full_dump.json`;
+			a.click();
+
+			URL.revokeObjectURL(url);
+			log.debug(`Exported ${storeNames.length} stores to ${dbName}_full_dump.json`);
+			db.close();
+		};
+
+		request.onerror = (e: Event) => console.error("Database failed to open:", (e.target as IDBRequest)?.error);
+
 	}
+
+
 }
 
 

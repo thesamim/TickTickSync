@@ -22,9 +22,9 @@
 	const tabs = {
 		access: 'Access Control',
 		sync: 'Sync Control',
-		manual: 'Manual Operations',
+		manual: 'Maintenance',
 		debug: 'Debug Options',
-		tasks: 'Task Links',
+		tasks: 'Task Settings',
 		notes: 'Notes',
 	};
 </script>
