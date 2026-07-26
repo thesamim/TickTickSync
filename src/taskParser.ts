@@ -307,7 +307,14 @@ export class TaskParser {
 
 		let timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
-		const rawTags = this.getAllTagsFromLineText(textWithoutIndentation);
+		// The #ticktick tag is Obsidian-side control signal (marks this line
+		// as plugin-tracked) -- it's not a real tag and must never be sent
+		// to TickTick as one. Excluded here so it never flows into task.tags
+		// for creation, comparison, or update; see TaskModificationDetector
+		// for the separate step that preserves a *genuinely* TT-side
+		// "ticktick" tag if one already exists there independently.
+		const rawTags = this.getAllTagsFromLineText(textWithoutIndentation)
+			.filter(t => t.toLowerCase() !== 'ticktick');
 
 		// Resolve tags: handle hierarchy and create unknown tags in TickTick
 		const tagSvc = this.plugin?.tagService;

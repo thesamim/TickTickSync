@@ -574,11 +574,6 @@ export class FileOperation {
 
 			}
 
-			// Ensure the ticktick tag is in the task's TickTick tags
-			if (!task.tags?.includes('ticktick')) {
-				task.tags = [...(task.tags || []), 'ticktick'];
-			}
-
 			if (!bUpdating) {
 				//we're updating the task to get the right OBS URL in there.
 				let addedTask = (await this.plugin.tickTickRestAPI?.updateTask(task))!;
