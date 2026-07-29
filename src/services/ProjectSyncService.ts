@@ -65,10 +65,14 @@ export class ProjectSyncService {
 		const fileMetadatas = await this.plugin.fileMetadataService.getAllFileMetadata();
 		if (!fileMetadatas) return;
 		const projects = await getAllProjects();
-		if (!projects || Object.keys(projects).length == 0) return;
 
 		const project = projects.find(p => p.id === ttProjectId);
-		if (!project) {
+		// A project needs a file mapping whether it is brand new to us or was
+		// cached before we ever managed to map it to a file (first run: the
+		// projects cache is populated in the same pass, so nothing ever looks
+		// "new" again and the mapping would never be created).
+		const mappedPath = await this.plugin.fileMetadataService.getFilepathForProjectId(ttProjectId);
+		if (!mappedPath) {
 			let newFilePath: string;
 			const folder = getDefaultFolder();
 			const sanitize = (name: string): string =>
@@ -89,11 +93,11 @@ export class ProjectSyncService {
 				newFilePath = (folder ? folder + "/" : "") + safeProjectName + '.md';
 			}
 
-			log.debug(`New project detected: ${ttProjectName} (${ttProjectId}). Creating file entry: ${newFilePath}`);
+			log.debug(`Unmapped project: ${ttProjectName} (${ttProjectId}). Creating file entry: ${newFilePath}`);
 			await upsertFile(newFilePath, ttProjectId);
 			return;
 		}
-		if (project?.name !== ttProjectName) {
+		if (project && project.name !== ttProjectName) {
 			log.debug(`Project Name Changed from ${project?.name} to ${ttProjectName}`)
 
 			const files = await getAllFiles();
