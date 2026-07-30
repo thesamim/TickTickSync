@@ -26,9 +26,10 @@ If TickTickSync detects duplicate project/list names, it will show a warning and
 
 ### Login Issues
 
-- For SSO/2FA accounts on desktop, use the web login option
+- For SSO/2FA accounts on desktop, use the web login option ![img.png](img.png)
 - For mobile, ensure you've logged in on desktop first and synced your vault
 - Try changing your home server region if authentication fails
+- If TickTick returns `Error 429: Too many requests`, use the web login option. 
 
 ### Shared Vaults (Desktop + Mobile)
 

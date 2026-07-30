@@ -14,3 +14,6 @@ Additional thanks:
 - [coneos](https://github.com/coneos) — Mobile login language disparity
 - [gsdstr](https://github.com/gsdstr) — Major refactor
 - [mProjectsCode](https://github.com/mProjectsCode) — Svelte documentation contribution
+- [dbarnett](https://github.com/dbarnett) - [All-day task dueDate drifts](https://github.com/thesamim/TickTickSync/issues/366)
+- [qberdugo](https://github.com/qberdugo) - [create the project-to-file mapping on first sync](https://github.com/thesamim/TickTickSync/pull/368)
+
