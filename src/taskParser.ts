@@ -305,7 +305,12 @@ export class TaskParser {
 		content = __ret.content;
 		taskItems = __ret.taskItems;
 
-		let timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+		// A timezone only means something relative to a date -- don't
+		// manufacture one for a task that doesn't have either.
+		let timeZone: string | undefined;
+		if (allDatesStruct?.dueDate || allDatesStruct?.startDate) {
+			timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+		}
 
 		const rawTags = this.getAllTagsFromLineText(textWithoutIndentation);
 

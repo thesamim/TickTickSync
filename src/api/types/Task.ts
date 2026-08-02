@@ -12,7 +12,7 @@ export interface ITask {
 	content: string;
 	startDate: string;
 	dueDate: string;
-	timeZone: string;
+	timeZone?: string;
 	isFloating?: boolean;
 	isAllDay: boolean;
 	reminder: string; // we only get a set
