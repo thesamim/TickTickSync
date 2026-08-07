@@ -33,7 +33,6 @@
 		"@types/lowdb": "^1.0.15",
 		"bson-objectid": "^2.0.4",
 		"builtin-modules": "^5.3.0",
-		"capacitor": "^0.5.6",
 		"crypto-hash": "^3.1.0",
 		"dependency-tree": "^11.0.1",
 		"dexie": "^4.2.1",
