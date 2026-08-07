@@ -51,3 +51,21 @@ When enabled, the plugin automatically adds `#ticktick` to **all** tasks in your
 
 !!! warning
     Full vault sync includes all task items (sub-tasks). Use with caution.
+
+## When Sync Happens
+
+TickTickSync syncs on two different triggers, and they don't behave the same way:
+
+**Editing a task line in Obsidian** pushes that single line to TickTick about a second after you stop typing. This is a push only — it doesn't pull anything from TickTick first, so it doesn't pick up changes made elsewhere since your last full sync.
+
+**The automatic sync interval** (or clicking **Sync Now**) runs a full cycle: pull everything TickTick has changed, update your vault to match, then push any local changes that haven't gone out yet.
+
+!!! note
+    Enabling **Full Vault Sync** turns off the per-line push entirely. With it on, every edit only takes effect at the next full sync interval (or a manual **Sync Now**), not within a second of typing.
+
+## Conflict Handling
+
+If the same task changes in both Obsidian and TickTick before a full sync runs, TickTickSync resolves it by keeping whichever side was saved more recently — **the entire task**, not a field-by-field merge. The other side's changes for that sync are discarded.
+
+!!! warning
+    Editing the same task in Obsidian and TickTick around the same time can lose one side's edit, even to a field the other side didn't touch. If you know a task was recently edited elsewhere, sync (pull) before editing it locally.

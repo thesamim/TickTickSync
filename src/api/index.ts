@@ -474,7 +474,7 @@ export class Tick {
 		}
 	}
 
-	async addTask(task: Record<string, unknown>): Promise<unknown> {
+	async addTask(task: ITask): Promise<unknown> {
 		try {
 			let bIsAllDay = true;
 			if (task.isAllDay == null) {
@@ -491,13 +491,10 @@ export class Tick {
 				desc: task.desc ? task.desc as string : '',
 				startDate: task.startDate ? task.startDate as string : null as unknown as string,
 				dueDate: task.dueDate ? task.dueDate as string : null as unknown as string,
-				timeZone: task.timeZone ? task.timeZone as string : 'America/New_York',
+				timeZone: task.timeZone,
 				isAllDay: bIsAllDay,
 				reminder: task.reminder ? task.reminder as string : null as unknown as string,
-				reminders: task.reminders ? task.reminders as { id: string; trigger: string }[] : [{
-					id: ObjectID().toHexString(),
-					trigger: 'TRIGGER:PT0S'
-				}],
+				reminders: task.reminders ? task.reminders as string[] : [],
 				repeatFlag: task.repeatFlag ? task.repeatFlag as string : null as unknown as string,
 				priority: task.priority ? task.priority as number : 0,
 				status: task.status ? task.status as number : 0,
@@ -534,7 +531,7 @@ export class Tick {
 
 	}
 
-	async updateTask(jsonOptions: Record<string, unknown>): Promise<unknown> {
+	async updateTask(jsonOptions: ITask): Promise<unknown> {
 		try {
 			let bIsAllDay = true;
 			if (jsonOptions.isAllDay == null) {
@@ -551,10 +548,10 @@ export class Tick {
 				desc: jsonOptions.desc ? jsonOptions.desc as string : '',
 				startDate: jsonOptions.startDate ? jsonOptions.startDate as string : null as unknown as string,
 				dueDate: jsonOptions.dueDate ? jsonOptions.dueDate as string : null as unknown as string,
-				timeZone: jsonOptions.timeZone ? jsonOptions.timeZone as string : 'America/New_York',
+				timeZone: jsonOptions.timeZone,
 				isAllDay: bIsAllDay,
 				reminder: jsonOptions.reminder ? jsonOptions.reminder as string : null as unknown as string,
-				reminders: jsonOptions.reminders ? jsonOptions.reminders as { id: string; trigger: string }[] : [],
+				reminders: jsonOptions.reminders ? jsonOptions.reminders as string[] : [],
 				repeatFlag: jsonOptions.repeatFlag ? jsonOptions.repeatFlag as string : null as unknown as string,
 				priority: jsonOptions.priority ? jsonOptions.priority as number : 0,
 				status: jsonOptions.status ? jsonOptions.status as number : 0,

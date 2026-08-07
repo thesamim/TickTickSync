@@ -120,7 +120,7 @@ export class TickTickRestAPI {
 	async createTask(taskToAdd: ITask) {
 		await this.initializeAPI();
 		try {
-			const newTask = await this.api?.addTask(taskToAdd as unknown as Record<string, unknown>);
+			const newTask = await this.api?.addTask(taskToAdd);
 			if (newTask) {
 				this.plugin.dateMan?.addDateHolderToTask(newTask as ITask, undefined);
 			}
@@ -186,7 +186,7 @@ export class TickTickRestAPI {
 		try {
 			const saveDateHolder = taskToUpdate.dateHolder;
 			const saveLineHash = taskToUpdate.lineHash;
-			const updateResult = await this.api?.updateTask(taskToUpdate as unknown as Record<string, unknown>);
+			const updateResult = await this.api?.updateTask(taskToUpdate);
 			if (!updateResult) {
 				//bad shit happened.
 				log.error('Error', 'Update Failed.', this.api?.lastError, taskToUpdate);
@@ -220,7 +220,7 @@ export class TickTickRestAPI {
 			let task = await this.api?.getTask(taskId, projectId);
 			if (task) {
 				task.status = taskStatus;
-				const isSuccess = await this.api?.updateTask(task as unknown as Record<string, unknown>);
+				const isSuccess = await this.api?.updateTask(task);
 				// log.debug(`Task ${taskId} is reopened`)
 				return (isSuccess);
 			} else {
@@ -478,7 +478,7 @@ export class TickTickRestAPI {
 
 		//Near as I can tell, this is redundant, but TickTick does it. I think it may be a
 		// sortorder thing, Just do it.
-		await this.api?.updateTask(task as unknown as Record<string, unknown>);
+		await this.api?.updateTask(task);
 
 	}
 
@@ -493,7 +493,11 @@ export class TickTickRestAPI {
 			}
 
 			// log.debug('childIds after filtering:', task?.childIds);
-			await this.api?.updateTask(task as unknown as Record<string, unknown>);
+			// Old parent may not be locally known (e.g. never synced to this
+			// device) -- skip rather than call updateTask on an undefined task.
+			if (task) {
+				await this.api?.updateTask(task);
+			}
 			// log.debug('updateResult', updateResult);
 		}
 
