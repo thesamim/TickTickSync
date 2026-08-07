@@ -22,6 +22,10 @@ The plugin works best when the [Tasks](https://github.com/obsidian-tasks-group/o
 
 See the full documentation at [https://thesamim.github.io/TickTickSync/](https://thesamim.github.io/TickTickSync/).
 
+## Changelog
+
+See the [Changelog](https://thesamim.github.io/TickTickSync/changelog/) for the list of changes in each release.
+
 ## Installation
 
 See [Getting Started](https://thesamim.github.io/TickTickSync/getting-started/) for installation and setup instructions.

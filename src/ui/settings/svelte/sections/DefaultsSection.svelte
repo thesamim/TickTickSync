@@ -351,67 +351,66 @@
 			</div>
 		</div>
 	{/if}
-
-	<style>
-		/* Modal basic styles */
-		.local-modal-backdrop {
-			position: fixed;
-			top: 0;
-			left: 0;
-			width: 100vw;
-			height: 100vh;
-			background: rgba(0, 0, 0, 0.4);
-			z-index: 99;
-		}
-
-		.local-modal-dialog {
-			position: fixed;
-			top: 50%;
-			left: 50%;
-			transform: translate(-50%, -50%);
-			z-index: 100;
-			background: var(--background-secondary); /* matches settings panel */
-			border: 1.5px solid var(--background-modifier-border); /* matches panel border */
-			border-radius: 8px;
-			box-shadow: 0 2px 24px #0003;
-			min-width: 300px;
-			max-width: 95vw;
-			color: var(--text-normal); /* make text readable in all themes */
-			display: inline-flex;
-			flex-direction: column;
-		}
-
-		.local-modal-content {
-			padding: 2em;
-			display: inline-flex;
-			flex-direction: column;
-		}
-
-		.local-modal-content h2 {
-			margin: 0 0 1.2em 0;
-		}
-
-		.local-modal-content p {
-			margin: 0 0 2em 0;
-		}
-
-		.file-list {
-			max-height: 300px;
-			overflow-y: auto;
-			margin: 0 0 2em 0;
-			padding-left: 1.2em;
-			text-align: left;
-			background: var(--background-primary);
-			border: 1px solid var(--background-modifier-border);
-			border-radius: 4px;
-			padding: 10px;
-		}
-
-		.local-modal-actions {
-			margin-top: 2.2em;
-			display: flex;
-			justify-content: flex-end;
-		}
-	</style>
-
 </CollapsibleSection>
+
+<style>
+	/* Modal basic styles */
+	.local-modal-backdrop {
+		position: fixed;
+		top: 0;
+		left: 0;
+		width: 100vw;
+		height: 100vh;
+		background: rgba(0, 0, 0, 0.4);
+		z-index: 99;
+	}
+
+	.local-modal-dialog {
+		position: fixed;
+		top: 50%;
+		left: 50%;
+		transform: translate(-50%, -50%);
+		z-index: 100;
+		background: var(--background-secondary); /* matches settings panel */
+		border: 1.5px solid var(--background-modifier-border); /* matches panel border */
+		border-radius: 8px;
+		box-shadow: 0 2px 24px #0003;
+		min-width: 300px;
+		max-width: 95vw;
+		color: var(--text-normal); /* make text readable in all themes */
+		display: inline-flex;
+		flex-direction: column;
+	}
+
+	.local-modal-content {
+		padding: 2em;
+		display: inline-flex;
+		flex-direction: column;
+	}
+
+	.local-modal-content h2 {
+		margin: 0 0 1.2em 0;
+	}
+
+	.local-modal-content p {
+		margin: 0 0 2em 0;
+	}
+
+	.file-list {
+		max-height: 300px;
+		overflow-y: auto;
+		margin: 0 0 2em 0;
+		padding-left: 1.2em;
+		text-align: left;
+		background: var(--background-primary);
+		border: 1px solid var(--background-modifier-border);
+		border-radius: 4px;
+		padding: 10px;
+	}
+
+	.local-modal-actions {
+		margin-top: 2.2em;
+		display: flex;
+		justify-content: flex-end;
+	}
+</style>

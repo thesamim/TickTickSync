@@ -59,5 +59,11 @@ export const NOTABLE_CHANGES: NotableChange[] = [
 		title: "Complete re-architecture for better cross-device handling",
 		description: "General performance improvements\n<strong>Recurrence processing</strong>\n<strong>Task display visibility controls</strong> — custom rendering for TickTick tasks in reading & edit mode\n<strong>Granular link hiding</strong> for TickTick tasks in reading & edit mode\n<strong>Sync journal persisted to Dexie</strong>, with modal viewer\n<strong>Device identity & tracking</strong> — mobile device ID capture, device naming in settings\n<strong>Project preservation</strong> — follow TickTick project folder structure\n<strong>Orphan task detection</strong> modal, <strong>found duplicate tasks</strong> modal\n<strong>Conflict resolution</strong> logging\n<strong>Access control / SSO 2FA login</strong> improvements\n<strong>Soft-delete task lifecycle</strong> — auto-cleanup of deleted tasks after configurable retention period (default 7 days), manual permanent deletion, recovery,\n<strong>Tag handling overhaul</strong> — case-sensitivity respected, sub-tags handled correctly.\n<strong>Case-insensitive project matching</strong> (via normalized dashes)\n<strong>Task file stickiness on sync</strong> — tasks stay associated with their source file across syncs",
 		anchor: '2.0.1',
+	},
+	{
+		version: '2.0.5',
+		title: "<strong>Fresh installs now sync correctly</strong> — tasks pulled from TickTick appear in your vault from the very first sync (project-to-file mapping is created automatically)",
+		description: "<strong>All-day task dates no longer drift</strong> — due dates on all-day tasks could shift by a day on each sync in some timezones; now stable\n<strong>TickTick tag handling is now configurable</strong> — new settings under <strong>Task Display</strong> let you stop injecting the `ticktick` tag onto TickTick tasks, and strip the legacy tag when you reset your tasks\n<strong>Better documentation</strong> — sync timing, conflict handling, and known TickTick quirks are now covered in the docs\nGeneral stability and performance improvements",
+		anchor: '2.0.5',
 	}
 ];
