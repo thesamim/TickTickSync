@@ -259,6 +259,11 @@ export class TaskModificationDetector {
 		// Convert line to task object
 		const lineTask = (await this.plugin.taskParser?.convertLineToTask(lineText, lineNumber!, filepath!, fileMap, taskRecord));
 
+		// If TickTick already has a genuine "ticktick" tag on this task, keep
+		// it so comparisons/updates don't silently strip it (see
+		// TaskParser.preserveTickTickTag).
+		this.plugin.taskParser?.preserveTickTickTag(lineTask, savedTask);
+
 		// Ensure task has required fields
 		if (!savedTask.dateHolder) {
 			this.plugin.dateMan?.addDateHolderToTask(savedTask, undefined);

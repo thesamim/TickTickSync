@@ -26,6 +26,8 @@
 	let editingLink: string;
 	let editingId: boolean;
 	let editingTag: boolean;
+	let stopInjectingTickTickTag: boolean;
+	let stripTickTickTagOnReset: boolean;
 
 	let linkVisibilityOptions: Record<string, string> = LINK_VISIBILITY;
 
@@ -64,6 +66,8 @@
 	$: editingLink = $settingsStore.taskDisplay?.editing?.link ?? 'show';
 	$: editingId = $settingsStore.taskDisplay?.editing?.id ?? true;
 	$: editingTag = $settingsStore.taskDisplay?.editing?.tag ?? true;
+	$: stopInjectingTickTickTag = $settingsStore.stopInjectingTickTickTag ?? false;
+	$: stripTickTickTagOnReset = $settingsStore.stripTickTickTagOnReset ?? false;
 
 	// Remove noteLink from options if needed
 	$: if (!syncNotes) {
@@ -109,6 +113,18 @@
 				}
 			};
 		});
+		await plugin.saveSettings();
+	}
+
+	async function handleStopInjectingTickTickTagChange(event: Event) {
+		const checked = (event.target as HTMLInputElement).checked;
+		updateSettings({ stopInjectingTickTickTag: checked });
+		await plugin.saveSettings();
+	}
+
+	async function handleStripTickTickTagOnResetChange(event: Event) {
+		const checked = (event.target as HTMLInputElement).checked;
+		updateSettings({ stripTickTickTagOnReset: checked });
 		await plugin.saveSettings();
 	}
 </script>
@@ -302,6 +318,43 @@
 						on:change={(e: Event) => handleTaskDisplayChange('editing.tag', (e.target as HTMLInputElement).checked)}
 					/>
 				</label>
+			</div>
+		</div>
+
+		<div class="setting-item">
+			<div class="setting-item-info">
+				<div class="setting-item-name">Stop injecting the ticktick tag on TickTick</div>
+				<div class="setting-item-description">
+					The plugin marks synced tasks in Obsidian with a #ticktick tag and, for
+					backwards compatibility, also injects it onto the TickTick task itself.
+					Enable this to stop injecting it as a real TickTick tag. Existing tasks
+					keep the tag until it's removed in TickTick.
+				</div>
+			</div>
+			<div class="setting-item-control">
+				<input
+					type="checkbox"
+					checked={stopInjectingTickTickTag}
+					on:change={handleStopInjectingTickTickTagChange}
+				/>
+			</div>
+		</div>
+
+		<div class="setting-item">
+			<div class="setting-item-info">
+				<div class="setting-item-name">Strip the ticktick tag on reset</div>
+				<div class="setting-item-description">
+					On a task reset, actively remove the legacy "ticktick" tag from existing
+					TickTick tasks. Requires the setting above to be enabled.
+				</div>
+			</div>
+			<div class="setting-item-control">
+				<input
+					type="checkbox"
+					checked={stripTickTickTagOnReset}
+					disabled={!stopInjectingTickTickTag}
+					on:change={handleStripTickTickTagOnResetChange}
+				/>
 			</div>
 		</div>
 
