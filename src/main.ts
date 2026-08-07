@@ -1,4 +1,3 @@
-import '@/static/index.css';
 import '@/static/styles.css';
 
 import { type Editor, type MarkdownFileInfo, MarkdownView, Notice, Plugin } from 'obsidian';
@@ -696,12 +695,20 @@ export default class TickTickSync extends Plugin {
 		}
 
 		//BIG Change. BIG I tell you!
-		const isOlderResult = (!data.version) || isOlder(data.version as string, '2.0.0');
-		if (isOlderResult) {
+		if ((!data.version) || isOlder(data.version as string, '2.0.0')) {
 			log.debug('Entering 1.1.17 migration block');
 			// Migrate from legacy data.json repository to Dexie-based repository
 			data.__migratedDBData = migrateFromDataJson(data);
 			log.debug('migrateFromDataJson completed');
+		}
+		if ((!data.version) || (isOlder(data.version as string, '2.0.5'))) {
+			log.debug('Entering 2.0.5 migration block');
+			// New in 2.0.5: opt-in settings for the "#ticktick" control tag.
+			// Historically the plugin force-injected "ticktick" onto every
+			// synced task's TickTick tags. Default off (false) preserves the
+			// legacy behavior for existing installs.
+			data.stopInjectingTickTickTag = false;
+			data.stripTickTickTagOnReset = false;
 		}
 
 		//Build notable changes from the single source of truth

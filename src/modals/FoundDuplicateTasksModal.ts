@@ -66,13 +66,13 @@ export class FoundDuplicateTasksModal extends Modal {
         const headerRow = thead.createEl('tr');
         headerRow.createEl('th', { text: 'Remove?' });
 
-        const titleHeader = headerRow.createEl('th', { cls: 'sortable-header' });
-        titleHeader.addClass('sortable-header');
+        const titleHeader = headerRow.createEl('th', { cls: 'tt-sortable-header' });
+        titleHeader.addClass('tt-sortable-header');
         titleHeader.setText('Task title ⇅');
         titleHeader.addEventListener('click', () => this.sortBy('title', titleHeader));
 
-        const fileHeader = headerRow.createEl('th', { cls: 'sortable-header' });
-        fileHeader.addClass('sortable-header');
+        const fileHeader = headerRow.createEl('th', { cls: 'tt-sortable-header' });
+        fileHeader.addClass('tt-sortable-header');
         fileHeader.setText('File path ⇅');
         fileHeader.addEventListener('click', () => this.sortBy('file', fileHeader));
 

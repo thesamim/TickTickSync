@@ -4,6 +4,14 @@
 
 ## Notable Changes
 
+### 2.0.1 → 2.0.5 — Sync Fixes & TickTick Tag Handling { #2.0.5 }
+
+- **Fresh installs now sync correctly** — tasks pulled from TickTick appear in your vault from the very first sync (project-to-file mapping is created automatically)
+- **All-day task dates no longer drift** — due dates on all-day tasks could shift by a day on each sync in some timezones; now stable
+- **TickTick tag handling is now configurable** — new settings under **Task Display** let you stop injecting the `ticktick` tag onto TickTick tasks, and strip the legacy tag when you reset your tasks
+- **Better documentation** — sync timing, conflict handling, and known TickTick quirks are now covered in the docs
+- General stability and performance improvements
+
 ### 1.1.7 → 2.0.1 { #2.0.1 }
 
 - Complete re-architecture for better cross-device handling
