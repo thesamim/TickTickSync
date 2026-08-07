@@ -63,7 +63,7 @@ export const NOTABLE_CHANGES: NotableChange[] = [
 	{
 		version: '2.0.5',
 		title: "<strong>Fresh installs now sync correctly</strong> — tasks pulled from TickTick appear in your vault from the very first sync (project-to-file mapping is created automatically)",
-		description: "<strong>All-day task dates no longer drift</strong> — due dates on all-day tasks could shift by a day on each sync in some timezones; now stable\n<strong>TickTick tag handling is now configurable</strong> — new settings under <strong>Task Display</strong> let you stop injecting the `ticktick` tag onto TickTick tasks, and strip the legacy tag when you reset your tasks\n<strong>Better documentation</strong> — sync timing, conflict handling, and known TickTick quirks are now covered in the docs\nGeneral stability and performance improvements",
+		description: "<strong>All-day task dates no longer drift</strong> — due dates on all-day tasks could shift by a day on each sync in some timezones; now stable\n<strong>TickTick tag handling is now configurable</strong> — new settings under <strong>Task Display</strong> let you stop injecting the `ticktick` tag onto TickTick tasks, and strip the legacy tag when you reset your tasks\n<strong>Better documentation</strong> — sync timing, conflict handling, and known TickTick quirks are now covered in the docs\n<strong>Make settings 1.13.x compatible</strong>\nGeneral stability and performance improvements",
 		anchor: '2.0.5',
 	}
 ];

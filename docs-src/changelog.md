@@ -10,6 +10,7 @@
 - **All-day task dates no longer drift** — due dates on all-day tasks could shift by a day on each sync in some timezones; now stable
 - **TickTick tag handling is now configurable** — new settings under **Task Display** let you stop injecting the `ticktick` tag onto TickTick tasks, and strip the legacy tag when you reset your tasks
 - **Better documentation** — sync timing, conflict handling, and known TickTick quirks are now covered in the docs
+- **Make settings 1.13.x compatible** 
 - General stability and performance improvements
 
 ### 1.1.7 → 2.0.1 { #2.0.1 }

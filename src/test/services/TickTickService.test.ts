@@ -13,7 +13,10 @@ vi.mock('obsidian', () => ({
 	Notice: vi.fn(),
 	Plugin: vi.fn(),
 	PluginSettingTab: vi.fn(),
-	// SettingPage -- requires Obsidian 1.13.0+, commented out for 1.12.7 compat
+	// SettingPage is imported as a value but only ever subclassed lazily inside
+	// getSettingDefinitions() (Obsidian 1.13.0+ only), so the mock only needs
+	// to exist for imports; it is never instantiated on the 1.12.7 path.
+	SettingPage: class SettingPage {},
 	TFile: vi.fn(),
 	TFolder: vi.fn(),
 }));

@@ -5,6 +5,7 @@ export class Notice {}
 export class Plugin {}
 export class SettingTab {}
 export class PluginSettingTab {}
+export class SettingPage {}
 export class MarkdownRenderChild {}
 export class Modal {}
 export class Editor {}
