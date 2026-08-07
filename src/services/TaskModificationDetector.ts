@@ -259,16 +259,10 @@ export class TaskModificationDetector {
 		// Convert line to task object
 		const lineTask = (await this.plugin.taskParser?.convertLineToTask(lineText, lineNumber!, filepath!, fileMap, taskRecord));
 
-		// convertLineToTask never includes the "ticktick" control tag in
-		// lineTask.tags (it's an Obsidian-side signal, not a real TT tag).
-		// If TickTick already independently has a genuine "ticktick" tag on
-		// this task (per our last-known state), preserve it here so
-		// comparisons/updates don't silently strip it -- we should never
-		// actively add or remove it, only leave whatever's already there.
-		if (savedTask.tags?.some(t => t.toLowerCase() === 'ticktick') &&
-			!lineTask.tags?.some(t => t.toLowerCase() === 'ticktick')) {
-			lineTask.tags = [...(lineTask.tags || []), 'ticktick'];
-		}
+		// If TickTick already has a genuine "ticktick" tag on this task, keep
+		// it so comparisons/updates don't silently strip it (see
+		// TaskParser.preserveTickTickTag).
+		this.plugin.taskParser?.preserveTickTickTag(lineTask, savedTask);
 
 		// Ensure task has required fields
 		if (!savedTask.dateHolder) {

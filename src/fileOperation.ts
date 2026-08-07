@@ -574,6 +574,13 @@ export class FileOperation {
 
 			}
 
+			// Backwards compatibility: keep the "ticktick" tag injected on
+			// the TickTick task unless the user opted out (see
+			// stopInjectingTickTickTag setting).
+			if (!getSettings().stopInjectingTickTickTag && !task.tags?.includes('ticktick')) {
+				task.tags = [...(task.tags || []), 'ticktick'];
+			}
+
 			if (!bUpdating) {
 				//we're updating the task to get the right OBS URL in there.
 				let addedTask = (await this.plugin.tickTickRestAPI?.updateTask(task))!;

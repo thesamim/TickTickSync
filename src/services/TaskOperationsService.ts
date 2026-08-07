@@ -82,6 +82,13 @@ export class TaskOperationsService {
 				// Add URL to task title
 				task.title = task.title + ' ' + taskURL;
 
+				// Backwards compatibility: keep the "ticktick" tag injected on
+				// the TickTick task unless the user opted out (see
+				// stopInjectingTickTickTag setting).
+				if (!getSettings().stopInjectingTickTickTag && !task.tags?.includes('ticktick')) {
+					task.tags = [...(task.tags || []), 'ticktick'];
+				}
+
 				// Update in TickTick
 				const updatedTask = await this.plugin.tickTickRestAPI?.updateTask(task);
 
@@ -146,6 +153,8 @@ export class TaskOperationsService {
 						// Merge saved data with line data
 						const merged = { ...savedTask, ...lineTask };
 						Object.assign(lineTask, merged);
+						// Preserve a genuine TT-side "ticktick" tag (see TaskParser.preserveTickTickTag)
+						this.plugin.taskParser?.preserveTickTickTag(lineTask, savedTask);
 
 						// Update in TickTick
 						const updatedTask = await this.plugin.tickTickRestAPI?.updateTask(lineTask) as ITask;

@@ -27,6 +27,14 @@ export interface ITickTickSyncSettings {
 	fileLinksInTickTick: string;
 	taskLinksInObsidian: string;
 	bkupFolder: string;
+	// Opt-in: stop injecting the "#ticktick" control tag as a real TickTick
+	// tag. Historically the plugin force-added "ticktick" to every synced
+	// task's TickTick tags; this lets users stop that behavior.
+	stopInjectingTickTickTag: boolean;
+	// Opt-in (only meaningful with stopInjectingTickTickTag): on a full task
+	// reset, actively strip the legacy "ticktick" tag from existing TickTick
+	// tasks so it gets cleaned up there too.
+	stripTickTickTagOnReset: boolean;
 
 
 	debugMode: boolean;
@@ -72,6 +80,8 @@ export const DEFAULT_SETTINGS: ITickTickSyncSettings = {
 	fileLinksInTickTick: 'taskLink',
 	taskLinksInObsidian: 'taskLink',
 	bkupFolder: '/',
+	stopInjectingTickTickTag: false,
+	stripTickTickTagOnReset: false,
 
 	inboxID: '',
 	inboxName: 'Inbox',
