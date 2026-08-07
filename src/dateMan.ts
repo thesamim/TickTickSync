@@ -212,16 +212,31 @@ export class DateMan {
 			//Just a task with no dates.
 			(task as { dateHolder: date_holder_type }).dateHolder = dates;
 		} else {
-			if ('dueDate' in task) {
-				dates.dueDate = this.getDateAndTime(task.dueDate, task.isAllDay, date_emoji.dueDate);
-				if (task.dueDate !== task.startDate) {
-					//If they're different also save off the startdate because it's a duration.
-					dates.startDate = this.getDateAndTime(task.startDate, task.isAllDay, date_emoji.startDate);
+			const dueDate = this.getDateAndTime(task.dueDate, task.isAllDay, date_emoji.dueDate);
+			if (dueDate) {
+				dates.dueDate = dueDate;
+			}
+			// TickTick may report empty/null dates for a task that simply has
+			// no date (e.g. a completed task without a due date). Guard against
+			// them -- getDateAndTime returns null for anything empty or invalid,
+			// so an "empty" date can never masquerade as a real one (that used
+			// to surface as 1970-01-01 / 'Invalid Date' and made the plugin
+			// think a date changed on the pull-write-reparse round trip, which
+			// pushed a task update back to TickTick and reset the completion
+			// date -- issue #209).
+			if (task.startDate && task.startDate !== task.dueDate) {
+				//If they're different also save off the startdate because it's a duration.
+				const startDate = this.getDateAndTime(task.startDate, task.isAllDay, date_emoji.startDate);
+				if (startDate) {
+					dates.startDate = startDate;
 				}
 			}
 		}
 		if (task.completedTime) {
-			dates.completedTime = this.getDateAndTime(task.completedTime, false, date_emoji.completedTime);
+			const completedTime = this.getDateAndTime(task.completedTime, false, date_emoji.completedTime);
+			if (completedTime) {
+				dates.completedTime = completedTime;
+			}
 		}
 		//Pick up the times that TickTick doesn't care about, but Obsidian does.
 		if (oldTask && oldTask.dateHolder) {
@@ -415,9 +430,21 @@ export class DateMan {
 		return myDateHolder;
 	}
 
-	private getDateAndTime(inDate: string, isAllDay: boolean, emoji: string) {
+	private getDateAndTime(inDate: string, isAllDay: boolean, emoji: string): date_time_type | null {
+		if (!inDate) {
+			//Empty or absent date -- never manufacture a real date from it.
+			//A null input parses as the unix epoch and an empty string as
+			//'Invalid Date' otherwise, both of which then masquerade as a real
+			//date on the next comparison.
+			return null;
+		}
+		const parsedDate = new Date(inDate);
+		if (isNaN(parsedDate.getTime())) {
+			log.warn('getDateAndTime: ignoring invalid date', inDate);
+			return null;
+		}
 		let targetDate = this.getEmptyDate();
-		targetDate.isoDate = this.formatDateToISO(new Date(inDate));
+		targetDate.isoDate = this.formatDateToISO(parsedDate);
 		let localDate = this.utcToLocal(inDate);
 		const splitDates = localDate.split(' ');
 		targetDate.date = splitDates[0];

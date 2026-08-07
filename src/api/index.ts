@@ -493,6 +493,10 @@ export class Tick {
 				dueDate: task.dueDate ? task.dueDate as string : null as unknown as string,
 				timeZone: task.timeZone,
 				isAllDay: bIsAllDay,
+				// Send the completion time so a completed task's completion
+				// date survives a push. Omitting it makes TickTick reset the
+				// date to "now" (issue #209).
+				completedTime: task.completedTime ?? null,
 				reminder: task.reminder ? task.reminder as string : null as unknown as string,
 				reminders: task.reminders ? task.reminders as string[] : [],
 				repeatFlag: task.repeatFlag ? task.repeatFlag as string : null as unknown as string,
@@ -550,6 +554,10 @@ export class Tick {
 				dueDate: jsonOptions.dueDate ? jsonOptions.dueDate as string : null as unknown as string,
 				timeZone: jsonOptions.timeZone,
 				isAllDay: bIsAllDay,
+				// Send the completion time so a completed task's completion
+				// date survives a push. Omitting it makes TickTick reset the
+				// date to "now" (issue #209).
+				completedTime: jsonOptions.completedTime ?? null,
 				reminder: jsonOptions.reminder ? jsonOptions.reminder as string : null as unknown as string,
 				reminders: jsonOptions.reminders ? jsonOptions.reminders as string[] : [],
 				repeatFlag: jsonOptions.repeatFlag ? jsonOptions.repeatFlag as string : null as unknown as string,
