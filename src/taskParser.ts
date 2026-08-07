@@ -227,6 +227,32 @@ export class TaskParser {
 		return line;
 	}
 
+	/**
+	 * When the stopInjectingTickTickTag setting is enabled, convertLineToTask
+	 * excludes the "ticktick" control tag from lineTask.tags. If TickTick
+	 * already independently has a genuine "ticktick" tag on this task (per our
+	 * last-known state in savedTask), carry it over here so comparisons and
+	 * updates never silently strip it. We only ever preserve what's already
+	 * there -- never actively add it back.
+	 */
+	preserveTickTickTag(lineTask: ITask, savedTask: ITask | null | undefined): void {
+		if (!getSettings().stopInjectingTickTickTag) return;
+		if (savedTask?.tags?.some(t => t.toLowerCase() === 'ticktick') &&
+			!lineTask.tags?.some(t => t.toLowerCase() === 'ticktick')) {
+			lineTask.tags = [...(lineTask.tags || []), 'ticktick'];
+		}
+	}
+
+	/**
+	 * Actively remove the "ticktick" tag from the task's tags. Used during a
+	 * full reset (forceUpdates) when the user opted into stripTickTickTagOnReset,
+	 * so legacy injected tags are cleaned up on TickTick. The counterpart to
+	 * preserveTickTickTag. The caller decides when to strip vs preserve.
+	 */
+	stripTickTickTag(lineTask: ITask): void {
+		lineTask.tags = (lineTask.tags || []).filter(t => t.toLowerCase() !== 'ticktick');
+	}
+
 	addTagsToLine(resultLine: string, tags: string[]) {
 		//we're looking for the ticktick tag without the #
 		const regEx = new RegExp(keywords.TickTick_TAG.substring(1), 'i');
@@ -307,7 +333,15 @@ export class TaskParser {
 
 		let timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
-		const rawTags = this.getAllTagsFromLineText(textWithoutIndentation);
+		// The #ticktick tag is an Obsidian-side control signal (marks this
+		// line as plugin-tracked). It has historically also been injected as
+		// a real TickTick tag; that injection is opt-out via the
+		// stopInjectingTickTickTag setting. When opted out, it's excluded
+		// here so it never flows into task.tags for creation, comparison, or
+		// update -- see preserveTickTickTag for the step that keeps a
+		// *genuinely* TT-side "ticktick" tag if one already exists there.
+		const rawTags = this.getAllTagsFromLineText(textWithoutIndentation)
+			.filter(t => getSettings().stopInjectingTickTickTag ? t.toLowerCase() !== 'ticktick' : true);
 
 		// Resolve tags: handle hierarchy and create unknown tags in TickTick
 		const tagSvc = this.plugin?.tagService;

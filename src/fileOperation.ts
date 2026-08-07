@@ -574,8 +574,10 @@ export class FileOperation {
 
 			}
 
-			// Ensure the ticktick tag is in the task's TickTick tags
-			if (!task.tags?.includes('ticktick')) {
+			// Backwards compatibility: keep the "ticktick" tag injected on
+			// the TickTick task unless the user opted out (see
+			// stopInjectingTickTickTag setting).
+			if (!getSettings().stopInjectingTickTickTag && !task.tags?.includes('ticktick')) {
 				task.tags = [...(task.tags || []), 'ticktick'];
 			}
 
