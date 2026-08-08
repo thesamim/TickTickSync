@@ -103,12 +103,13 @@ export class NewFileMap {
 		return insertLine;
 	}
 
-	updateTask(task: ITask, taskLine: string, bParentUpdate = false) {
+	/** @returns true if the task's line was rewritten, false if the task was not in the file. */
+	updateTask(task: ITask, taskLine: string, bParentUpdate = false): boolean {
 		this.rebuildEntries();
 		const entry = this.entries.find(e => e.id === task.id);
 		if (!entry) {
 			log.warn(`updateTask: task ${task.id} not found in ${this.file.path}`);
-			return;
+			return false;
 		}
 
 		const oldLineIdx = entry.lineIdx;
@@ -159,6 +160,7 @@ export class NewFileMap {
 			}
 		}
 		this.rebuildEntries();
+		return true;
 	}
 
 	deleteTask(id: string, bKillTheChildren: boolean = false): number {

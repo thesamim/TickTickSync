@@ -508,6 +508,9 @@ export class FileOperation {
 
 			let lineText = '';
 			let filePath = fileMap.getFilePath();
+			//Did this task's line actually make it into the file? Only then may we
+			//record a vault sync for it.
+			let bLinePersisted = true;
 
 			lineText = await this.plugin.taskParser?.convertTaskToLine(task, numParentTabs);
 			//Tired of seeing duplicates because of Sync conflicts.
@@ -521,6 +524,12 @@ export class FileOperation {
 				} else {
 					fileMap.addTask(task, lineText);
 				}
+			} else if (fileMap.getTaskIndex(task.id) == -1) {
+				//it's in the cache, but not in the file. Just add it.
+				//Mirrors the add branch above: without this the update is a silent
+				//no-op, and the task is then read back as deleted from the vault.
+				log.warn('A Task was being updated but was not in file: ', task.id, task.title);
+				fileMap.addTask(task, lineText);
 			} else {
 				//For updates doing the dateHolder mambo here because we need to make sure we get old dates....
 				const oldTask = await this.plugin.taskRepository.loadTaskById(task.id);
@@ -545,7 +554,7 @@ export class FileOperation {
 						}
 					} else {
 						const bParentUpdate = this.plugin.taskParser?.isParentIdChanged(vaultTask, task);
-						fileMap.updateTask(task, lineText, bParentUpdate);
+						bLinePersisted = fileMap.updateTask(task, lineText, bParentUpdate);
 					}
 				} else {
 					//how would that happen????
@@ -589,7 +598,15 @@ export class FileOperation {
 			} else {
 				if (!bTaskMove) {
 					task.lineHash = lineHash;
-					await this.plugin.taskRepository.upsertTask(task, file.path, Date.now());
+					if (bLinePersisted) {
+						await this.plugin.taskRepository.upsertTask(task, file.path, Date.now());
+					} else {
+						//The line was never written, so don't claim a vault sync for it.
+						//Doing so makes the task look deleted-from-the-vault on the next
+						//scan, and offers it up for deletion in TickTick.
+						log.warn(`Not recording a vault sync for ${task.id}: its line was not written to ${file.path}`);
+						await this.plugin.taskRepository.upsertTask(task);
+					}
 				} else {
 					task.lineHash = lineHash;
 					let addedTask = (await this.plugin.tickTickRestAPI?.updateTask(task))!;
