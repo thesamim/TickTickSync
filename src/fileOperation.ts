@@ -518,8 +518,7 @@ export class FileOperation {
 				if (fileMap.getTaskIndex(task.id) != -1) {
 					log.warn('A Task was being added but was already in file: ', task.id, task.title);
 					//it's in the file, but not in cache. Just update it.
-					fileMap.updateTask(task, lineText);
-					await this.plugin.taskRepository.upsertTask(task, file.path, Date.now());
+					await this.recordVaultSync(task, file, fileMap.updateTask(task, lineText));
 					continue;
 				} else {
 					fileMap.addTask(task, lineText);
@@ -557,8 +556,11 @@ export class FileOperation {
 						bLinePersisted = fileMap.updateTask(task, lineText, bParentUpdate);
 					}
 				} else {
-					//how would that happen????
+					//how would that happen???? The task has no DB record, so we
+					//never touched the file -- don't record a vault sync that
+					//would make it look user-deleted on the next scan.
 					log.warn('No Old Task found for: ', task.id);
+					bLinePersisted = false;
 				}
 			}
 
@@ -598,15 +600,7 @@ export class FileOperation {
 			} else {
 				if (!bTaskMove) {
 					task.lineHash = lineHash;
-					if (bLinePersisted) {
-						await this.plugin.taskRepository.upsertTask(task, file.path, Date.now());
-					} else {
-						//The line was never written, so don't claim a vault sync for it.
-						//Doing so makes the task look deleted-from-the-vault on the next
-						//scan, and offers it up for deletion in TickTick.
-						log.warn(`Not recording a vault sync for ${task.id}: its line was not written to ${file.path}`);
-						await this.plugin.taskRepository.upsertTask(task);
-					}
+					await this.recordVaultSync(task, file, bLinePersisted);
 				} else {
 					task.lineHash = lineHash;
 					let addedTask = (await this.plugin.tickTickRestAPI?.updateTask(task))!;
@@ -619,6 +613,21 @@ export class FileOperation {
 		const resultLines = fileMap.getFileLines();
 		this.plugin.lastLines.set(file.path, resultLines.length);
 		return resultLines;
+	}
+
+	/**
+	 * Record that a task was synced to the vault -- but only when its line was
+	 * actually written to the file. Recording a vault sync for a write that
+	 * never happened makes the task look user-deleted on the next scan, and it
+	 * gets offered up for deletion in TickTick.
+	 */
+	private async recordVaultSync(task: ITask, file: TFile, bLinePersisted: boolean): Promise<void> {
+		if (bLinePersisted) {
+			await this.plugin.taskRepository.upsertTask(task, file.path, Date.now());
+		} else {
+			log.warn(`Not recording a vault sync for ${task.id}: its line was not written to ${file.path}`);
+			await this.plugin.taskRepository.upsertTask(task);
+		}
 	}
 
 	private hasChildren(currentTask: ITask) {
