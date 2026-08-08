@@ -66,7 +66,12 @@ export class TaskDeletionHandler {
 		}
 
 		if (!currentFileValue) {
-			log.warn('File content not readable:', filepath, "assuming all tasks deleted.");
+			//Never infer deletions from a file we could not read: every task the DB
+			//places in it would be treated as deleted and removed from TickTick.
+			const message = `TickTickSync: could not read ${filepath}. Skipping the deleted-task check for it, so no tasks will be removed from TickTick.`;
+			log.error(message);
+			new Notice(message, 5000);
+			return;
 		}
 
 		// Remove frontmatter from content
