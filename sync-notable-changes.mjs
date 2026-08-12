@@ -42,9 +42,8 @@ for (const section of sections) {
 
 	if (bullets.length === 0) continue;
 
-	const toHtml = (s) => s.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
-	const title = toHtml(bullets[0]);
-	const description = bullets.slice(1).map(toHtml).join("\n");
+	const title = bullets[0];
+	const description = bullets.slice(1).join("\n");
 
 	entries.push({ version, title, description, anchor });
 }

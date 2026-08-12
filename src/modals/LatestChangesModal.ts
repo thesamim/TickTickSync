@@ -1,4 +1,4 @@
-import { App, Modal, Setting } from 'obsidian';
+import { App, MarkdownRenderer, Modal, Setting, type Component } from 'obsidian';
 
 
 export class LatestChangesModal extends Modal {
@@ -49,15 +49,12 @@ export class LatestChangesModal extends Modal {
 		let changesText = contentEl.createEl('ol');
 		this.notableChanges.forEach(notableChange => {
 			let lineItem = changesText.createEl('li');
-			const link = lineItem.createEl('a', { href: `${notableChangesURL}${notableChange[2]}` });
-			// eslint-disable-next-line no-unsanitized/property -- trusted static content
-			link.innerHTML = notableChange[0];
+			void MarkdownRenderer.render(this.app, `[${notableChange[0]}](<${notableChangesURL}${notableChange[2]}>)`, lineItem, '', this as unknown as Component);
 			let holder = lineItem.createEl('ol');
 			const changeLines = notableChange[1].split('\n');
 			changeLines.forEach(line => {
 				const div = holder.createDiv();
-				// eslint-disable-next-line no-unsanitized/property -- trusted static content
-				div.innerHTML = line;
+				void MarkdownRenderer.render(this.app, line, div, '', this as unknown as Component);
 			})
 		});
 

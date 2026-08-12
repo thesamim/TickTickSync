@@ -3,7 +3,7 @@ import { Platform, requestUrl, type RequestUrlParam, type RequestUrlResponse } f
 import ObjectID from 'bson-objectid';
 import type { IProjectGroup } from './types/ProjectGroup';
 import type { IProject, ISections } from './types/Project';
-import type { ITask, ITaskItem } from './types/Task';
+import type { ITask } from './types/Task';
 import type { ITag } from './types/Tag';
 import { API_ENDPOINTS } from './utils/get-api-endpoints';
 import log from '@/utils/logger';
@@ -480,39 +480,39 @@ export class Tick {
 			if (task.isAllDay == null) {
 				bIsAllDay = true;
 			} else {
-				bIsAllDay = task.isAllDay as boolean;
+				bIsAllDay = task.isAllDay;
 			}
 			const thisTask = {
-				id: task.id ? task.id as string : ObjectID().toHexString(),
-				projectId: task.projectId ? task.projectId as string : this.inboxProperties.id,
-				sortOrder: task.sortOrder ? task.sortOrder as number : this.inboxProperties.sortOrder,
-				title: task.title as string,
-				content: task.content ? task.content as string : '',
-				desc: task.desc ? task.desc as string : '',
-				startDate: task.startDate ? task.startDate as string : null as unknown as string,
-				dueDate: task.dueDate ? task.dueDate as string : null as unknown as string,
+				id: task.id ? task.id : ObjectID().toHexString(),
+				projectId: task.projectId ? task.projectId : this.inboxProperties.id,
+				sortOrder: task.sortOrder ? task.sortOrder : this.inboxProperties.sortOrder,
+				title: task.title,
+				content: task.content ? task.content : '',
+				desc: task.desc ? task.desc : '',
+				startDate: task.startDate ? task.startDate : null as unknown as string,
+				dueDate: task.dueDate ? task.dueDate : null as unknown as string,
 				timeZone: task.timeZone,
 				isAllDay: bIsAllDay,
 				// Send the completion time so a completed task's completion
 				// date survives a push. Omitting it makes TickTick reset the
 				// date to "now" (issue #209).
 				completedTime: task.completedTime ?? null,
-				reminder: task.reminder ? task.reminder as string : null as unknown as string,
-				reminders: task.reminders ? task.reminders as string[] : [],
-				repeatFlag: task.repeatFlag ? task.repeatFlag as string : null as unknown as string,
-				priority: task.priority ? task.priority as number : 0,
-				status: task.status ? task.status as number : 0,
-				items: task.items ? task.items as ITaskItem[] : [],
-				progress: task.progress ? task.progress as number : 0,
-				modifiedTime: task.modifiedTime ? task.modifiedTime as string : new Date().toISOString().replace('Z', '+0000'),
-				deleted: task.deleted ? task.deleted as number : 0,
+				reminder: task.reminder ? task.reminder : null as unknown as string,
+				reminders: task.reminders ? task.reminders : [],
+				repeatFlag: task.repeatFlag ? task.repeatFlag : null as unknown as string,
+				priority: task.priority ? task.priority : 0,
+				status: task.status ? task.status : 0,
+				items: task.items ? task.items : [],
+				progress: task.progress ? task.progress : 0,
+				modifiedTime: task.modifiedTime ? task.modifiedTime : new Date().toISOString().replace('Z', '+0000'),
+				deleted: task.deleted ? task.deleted : 0,
 				assignee: task.assignee ? task.assignee : null,
 				isDirty: task.isDirty ? task.isDirty as boolean : true,
 				local: task.local ? task.local as boolean : true,
-				remindTime: task.remindTime ? task.remindTime as string : null as unknown as string,
-				tags: task.tags ? task.tags as string[] : [],
-				childIds: task.childIds ? task.childIds as string[] : [],
-				parentId: task.parentId ? task.parentId as string : null as unknown as string
+				remindTime: task.remindTime ? task.remindTime : null as unknown as string,
+				tags: task.tags ? task.tags : [],
+				childIds: task.childIds ? task.childIds : [],
+				parentId: task.parentId ? task.parentId : null as unknown as string
 			} as unknown as ITask;
 
 			const url = `${this.apiUrl}/${TaskEndPoint}`;
@@ -541,39 +541,39 @@ export class Tick {
 			if (jsonOptions.isAllDay == null) {
 				bIsAllDay = true;
 			} else {
-				bIsAllDay = jsonOptions.isAllDay as boolean;
+				bIsAllDay = jsonOptions.isAllDay;
 			}
 			const thisTask = {
-				id: jsonOptions.id ? jsonOptions.id as string : ObjectID().toHexString(),
-				projectId: jsonOptions.projectId ? jsonOptions.projectId as string : this.inboxProperties.id,
-				sortOrder: jsonOptions.sortOrder ? jsonOptions.sortOrder as number : this.inboxProperties.sortOrder,
-				title: jsonOptions.title as string,
-				content: jsonOptions.content ? jsonOptions.content as string : '',
-				desc: jsonOptions.desc ? jsonOptions.desc as string : '',
-				startDate: jsonOptions.startDate ? jsonOptions.startDate as string : null as unknown as string,
-				dueDate: jsonOptions.dueDate ? jsonOptions.dueDate as string : null as unknown as string,
+				id: jsonOptions.id ? jsonOptions.id : ObjectID().toHexString(),
+				projectId: jsonOptions.projectId ? jsonOptions.projectId : this.inboxProperties.id,
+				sortOrder: jsonOptions.sortOrder ? jsonOptions.sortOrder : this.inboxProperties.sortOrder,
+				title: jsonOptions.title,
+				content: jsonOptions.content ? jsonOptions.content : '',
+				desc: jsonOptions.desc ? jsonOptions.desc : '',
+				startDate: jsonOptions.startDate ? jsonOptions.startDate : null as unknown as string,
+				dueDate: jsonOptions.dueDate ? jsonOptions.dueDate : null as unknown as string,
 				timeZone: jsonOptions.timeZone,
 				isAllDay: bIsAllDay,
 				// Send the completion time so a completed task's completion
 				// date survives a push. Omitting it makes TickTick reset the
 				// date to "now" (issue #209).
 				completedTime: jsonOptions.completedTime ?? null,
-				reminder: jsonOptions.reminder ? jsonOptions.reminder as string : null as unknown as string,
-				reminders: jsonOptions.reminders ? jsonOptions.reminders as string[] : [],
-				repeatFlag: jsonOptions.repeatFlag ? jsonOptions.repeatFlag as string : null as unknown as string,
-				priority: jsonOptions.priority ? jsonOptions.priority as number : 0,
-				status: jsonOptions.status ? jsonOptions.status as number : 0,
-				items: jsonOptions.items ? jsonOptions.items as ITaskItem[] : [],
-				progress: jsonOptions.progress ? jsonOptions.progress as number : 0,
-				modifiedTime: jsonOptions.modifiedTime ? jsonOptions.modifiedTime as string : new Date().toISOString().replace('Z', '+0000'),
-				deleted: jsonOptions.deleted ? jsonOptions.deleted as number : 0,
+				reminder: jsonOptions.reminder ? jsonOptions.reminder : null as unknown as string,
+				reminders: jsonOptions.reminders ? jsonOptions.reminders : [],
+				repeatFlag: jsonOptions.repeatFlag ? jsonOptions.repeatFlag : null as unknown as string,
+				priority: jsonOptions.priority ? jsonOptions.priority : 0,
+				status: jsonOptions.status ? jsonOptions.status : 0,
+				items: jsonOptions.items ? jsonOptions.items : [],
+				progress: jsonOptions.progress ? jsonOptions.progress : 0,
+				modifiedTime: jsonOptions.modifiedTime ? jsonOptions.modifiedTime : new Date().toISOString().replace('Z', '+0000'),
+				deleted: jsonOptions.deleted ? jsonOptions.deleted : 0,
 				assignee: jsonOptions.assignee ? jsonOptions.assignee : null,
 				isDirty: jsonOptions.isDirty ? jsonOptions.isDirty as boolean : true,
 				local: jsonOptions.local ? jsonOptions.local as boolean : true,
-				remindTime: jsonOptions.remindTime ? jsonOptions.remindTime as string : null as unknown as string,
-				tags: jsonOptions.tags ? jsonOptions.tags as string[] : [],
-				childIds: jsonOptions.childIds ? jsonOptions.childIds as string[] : [],
-				parentId: jsonOptions.parentId ? jsonOptions.parentId as string : null as unknown as string
+				remindTime: jsonOptions.remindTime ? jsonOptions.remindTime : null as unknown as string,
+				tags: jsonOptions.tags ? jsonOptions.tags : [],
+				childIds: jsonOptions.childIds ? jsonOptions.childIds : [],
+				parentId: jsonOptions.parentId ? jsonOptions.parentId : null as unknown as string
 			} as unknown as ITask;
 
 			const updatePayload: UpdatePayload = {
