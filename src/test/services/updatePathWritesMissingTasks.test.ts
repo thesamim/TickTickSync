@@ -5,10 +5,19 @@
  * used to be skipped silently by the update path and then recorded as synced.
  * The next scan read it back as deleted-from-the-vault and offered to delete it
  * from TickTick.
+ *
+ * Also covers the follow-ups: the add path's "already in file" fallback, and
+ * the update path when the task has no DB record -- in both cases a vault sync
+ * must only be recorded when the line was actually written to the file.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { App, TFile } from 'obsidian';
+import type TickTickSync from '@/main';
 import type { ITask } from '@/api/types/Task';
 import type { LocalTask } from '@/db/schema';
+import { FileOperation } from '@/fileOperation';
+import { NewFileMap } from '@/services/NewFileMap';
+import { TaskDeletionHandler } from '@/services/TaskDeletionHandler';
 
 const notices: string[] = [];
 
@@ -55,29 +64,86 @@ vi.mock('@/settings', () => ({
 	getDefaultFolder: vi.fn(() => ''),
 }));
 
-import { TFile } from 'obsidian';
-import { NewFileMap } from '@/services/NewFileMap';
-import { TaskDeletionHandler } from '@/services/TaskDeletionHandler';
-
 const STUB = '== Added by TickTickSync -- 2.0.1 == ';
 const TASK_LINE = '- [ ] a task #ticktick %%[ticktick_id:: task-1]%%';
 
-const taskParser = {
-	isMarkdownTask: (line: string) => /^\s*[-*+] \[[x ]\]/i.test(line),
-	getTickTickId: (line: string) => line.match(/%%\[ticktick_id::\s*(\S+?)\]%%/)?.[1] ?? null,
-	getNumTabs: () => 0,
-	getTabs: (line: string) => (line.match(/^\s*/)?.[0] ?? ''),
+function makeTFile(path: string): TFile {
+	return Object.assign(Object.create(TFile.prototype), { path }) as TFile;
+}
+
+const taskParserStub = {
+	isMarkdownTask: (line: string): boolean => /^\s*[-*+] \[[x ]\]/i.test(line),
+	getTickTickId: (line: string): string | null => line.match(/%%\[ticktick_id::\s*(\S+?)\]%%/)?.[1] ?? null,
+	getNumTabs: (): number => 0,
+	getTabs: (line: string): string => (line.match(/^\s*/)?.[0] ?? ''),
 };
 
-function makeFileMap(content: string) {
+const aTask: ITask = { id: 'task-1', projectId: 'proj-a', title: 'a task' } as ITask;
+
+function makeFileMap(content: string): NewFileMap {
 	return new NewFileMap(
-		{ metadataCache: { getFileCache: () => ({ listItems: [] }) } } as never,
-		{ taskParser } as never,
-		Object.assign(Object.create(TFile.prototype), { path: 'TODO/Work.md' }) as never
+		{ metadataCache: { getFileCache: () => ({ listItems: [] }) } } as unknown as App,
+		{
+			taskParser: taskParserStub,
+			fileOperation: { readFileContent: async () => content },
+		} as unknown as TickTickSync,
+		makeTFile('TODO/Work.md')
 	);
 }
 
-const aTask = { id: 'task-1', projectId: 'proj-a', title: 'a task' } as ITask;
+interface FileOperationEnv {
+	fileOperation: FileOperation;
+	upsertTask: ReturnType<typeof vi.fn>;
+	getWritten: () => string;
+}
+
+function makeFileOperationEnv(options: {
+	fileContent: string;
+	loadTaskById?: (id: string) => Promise<ITask | null>;
+}): FileOperationEnv {
+	let written = '';
+	const file = makeTFile('TODO/Work.md');
+
+	const app = {
+		workspace: { getActiveFile: () => null, activeEditor: null },
+		vault: {
+			getAbstractFileByPath: () => file,
+			read: async () => options.fileContent,
+			cachedRead: async () => options.fileContent,
+			process: async (_file: TFile, cb: (data: string) => string) => { written = cb(options.fileContent); },
+		},
+		metadataCache: { getFileCache: () => ({ listItems: [] }) },
+	} as unknown as App;
+
+	const upsertTask = vi.fn(async (_task: ITask, _file?: string, _timestamp?: number) => {});
+	const plugin = {
+		app,
+		fileOperation: { readFileContent: async () => options.fileContent },
+		taskParser: {
+			...taskParserStub,
+			convertTaskToLine: async () => TASK_LINE,
+			isProjectIdChanged: async () => false,
+			isParentIdChanged: () => false,
+			getNoteString: () => '',
+			getLineHash: async () => 'hash',
+			getLinkLocation: () => ({ taskURL: null, noteURL: null }),
+		},
+		dateMan: { addDateHolderToTask: () => {} },
+		taskRepository: {
+			loadTaskById: options.loadTaskById ?? (async () => aTask),
+			upsertTask,
+		},
+		fileTaskQueries: {
+			getDefaultProjectIdForFilepath: async () => 'proj-a',
+			filepathHasDefaultProjectID: async () => true,
+		},
+		tickTickRestAPI: { updateTask: async (t: ITask) => t },
+		lastLines: new Map<string, number>(),
+	} as unknown as TickTickSync;
+
+	const fileOperation = new FileOperation(app, plugin);
+	return { fileOperation, upsertTask, getWritten: () => written };
+}
 
 describe('NewFileMap.updateTask', () => {
 	it('reports failure and writes nothing when the task is not in the file', async () => {
@@ -103,63 +169,69 @@ describe('NewFileMap.updateTask', () => {
 });
 
 describe('persistToFile: a task marked for update but missing from the file', () => {
-	it('is added to the file instead of being silently skipped', async () => {
-		const { FileOperation } = await import('@/fileOperation');
-
-		let written = '';
-		const file = Object.assign(Object.create(TFile.prototype), { path: 'TODO/Work.md' });
-
-		const app = {
-			workspace: { getActiveFile: () => null, activeEditor: null },
-			vault: {
-				getAbstractFileByPath: () => file,
-				read: async () => STUB,
-				cachedRead: async () => STUB,
-				process: async (_f: unknown, cb: (d: string) => string) => { written = cb(STUB); },
-			},
-			metadataCache: { getFileCache: () => ({ listItems: [] }) },
-		};
-
-		const upsertTask = vi.fn(async (..._args: unknown[]) => {});
-		const plugin = {
-			app,
-			taskParser: {
-				...taskParser,
-				convertTaskToLine: async () => TASK_LINE,
-				isProjectIdChanged: async () => false,
-				isParentIdChanged: () => false,
-				getNoteString: () => '',
-				getLineHash: async () => 'hash',
-				getLinkLocation: () => ({ taskURL: null, noteURL: null }),
-			},
-			dateMan: { addDateHolderToTask: () => {} },
-			taskRepository: { loadTaskById: async () => aTask, upsertTask },
-			fileTaskQueries: {
-				getDefaultProjectIdForFilepath: async () => 'proj-a',
-				filepathHasDefaultProjectID: async () => true,
-			},
-			tickTickRestAPI: { updateTask: async (t: ITask) => t },
-			lastLines: new Map<string, number>(),
-		};
-
-		const fileOperation = new FileOperation(app as never, plugin as never);
-		(plugin as unknown as { fileOperation: unknown }).fileOperation = fileOperation;
+	it('is added to the file instead of being silently skipped, and records a vault sync', async () => {
+		const { fileOperation, upsertTask, getWritten } = makeFileOperationEnv({ fileContent: STUB });
 
 		await fileOperation.synchronizeToVault('TODO/Work.md', [aTask], true);
 
 		// the line was actually written to the file...
-		expect(written).toContain('ticktick_id:: task-1');
+		expect(getWritten()).toContain('ticktick_id:: task-1');
 
 		// ...so recording a vault sync for it is now truthful
 		expect(upsertTask).toHaveBeenCalledTimes(1);
 		const [taskArg, pathArg, timestampArg] = upsertTask.mock.calls[0];
-		expect((taskArg as ITask).id).toBe('task-1');
+		expect(taskArg.id).toBe('task-1');
 		expect(pathArg).toBe('TODO/Work.md');
 		expect(typeof timestampArg).toBe('number');
+	});
+
+	it('records a vault sync when the add path finds the task already in the file', async () => {
+		const { fileOperation, upsertTask } = makeFileOperationEnv({ fileContent: `${STUB}\n${TASK_LINE}` });
+
+		await fileOperation.synchronizeToVault('TODO/Work.md', [aTask], false);
+
+		expect(upsertTask).toHaveBeenCalledTimes(1);
+		const [taskArg, pathArg, timestampArg] = upsertTask.mock.calls[0];
+		expect(taskArg.id).toBe('task-1');
+		expect(pathArg).toBe('TODO/Work.md');
+		expect(typeof timestampArg).toBe('number');
+	});
+
+	it('does not record a vault sync when the task has no DB record (nothing was written)', async () => {
+		const { fileOperation, upsertTask } = makeFileOperationEnv({
+			fileContent: `${STUB}\n${TASK_LINE}`,
+			loadTaskById: async () => null,
+		});
+
+		await fileOperation.synchronizeToVault('TODO/Work.md', [aTask], true);
+
+		// upserted without a file path, so it can't look user-deleted next scan
+		expect(upsertTask).toHaveBeenCalledTimes(1);
+		const [taskArg, pathArg] = upsertTask.mock.calls[0];
+		expect(taskArg.id).toBe('task-1');
+		expect(pathArg).toBeUndefined();
 	});
 });
 
 describe('TaskDeletionHandler on an unreadable file', () => {
+	function makeDeletionHandlerEnv(fileContent: string) {
+		const file = makeTFile('TODO/Work.md');
+		const app = {
+			vault: {
+				getAbstractFileByPath: () => file,
+				getMarkdownFiles: () => [],
+			},
+		} as unknown as App;
+		const plugin = {
+			fileOperation: { readFileContent: async () => fileContent },
+		} as unknown as TickTickSync;
+
+		const handler = new TaskDeletionHandler(app, plugin);
+		const deleteTasksByIds = vi.fn(async (_ids: string[]) => []);
+		Object.assign(handler, { deleteTasksByIds });
+		return { handler, deleteTasksByIds };
+	}
+
 	beforeEach(() => {
 		notices.length = 0;
 		tasksInFile.length = 0;
@@ -170,14 +242,7 @@ describe('TaskDeletionHandler on an unreadable file', () => {
 	});
 
 	it('does not treat empty content as "every task deleted", and tells the user', async () => {
-		const file = Object.assign(Object.create(TFile.prototype), { path: 'TODO/Work.md' });
-		const deleteTasksByIds = vi.fn(async () => []);
-
-		const handler = new TaskDeletionHandler(
-			{ vault: { getAbstractFileByPath: () => file, getMarkdownFiles: () => [] } } as never,
-			{ fileOperation: { readFileContent: async () => '' } } as never
-		);
-		(handler as unknown as { deleteTasksByIds: unknown }).deleteTasksByIds = deleteTasksByIds;
+		const { handler, deleteTasksByIds } = makeDeletionHandlerEnv('');
 
 		await handler.checkFileForDeletedTasks('TODO/Work.md');
 
@@ -186,14 +251,7 @@ describe('TaskDeletionHandler on an unreadable file', () => {
 	});
 
 	it('still detects a genuine deletion when the file is readable', async () => {
-		const file = Object.assign(Object.create(TFile.prototype), { path: 'TODO/Work.md' });
-		const deleteTasksByIds = vi.fn(async () => []);
-
-		const handler = new TaskDeletionHandler(
-			{ vault: { getAbstractFileByPath: () => file, getMarkdownFiles: () => [] } } as never,
-			{ fileOperation: { readFileContent: async () => '- [ ] some other task\n' } } as never
-		);
-		(handler as unknown as { deleteTasksByIds: unknown }).deleteTasksByIds = deleteTasksByIds;
+		const { handler, deleteTasksByIds } = makeDeletionHandlerEnv('- [ ] some other task\n');
 
 		await handler.checkFileForDeletedTasks('TODO/Work.md');
 
