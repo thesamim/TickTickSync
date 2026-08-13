@@ -9,6 +9,7 @@ import { NewFileMap } from '@/services/NewFileMap';
 //Logging
 import log from '@/utils/logger';
 import { FoundDuplicateTasksModal } from '@/modals/FoundDuplicateTasksModal';
+import { CleanupDatabaseModal } from '@/modals/CleanupDatabaseModal';
 import { TaskDeletionModal } from '@/modals/TaskDeletionModal';
 import { OrphanTaskModal, type OrphanItem } from '@/modals/OrphanTaskModal';
 import type { ITask } from '@/api/types/Task';
@@ -344,6 +345,7 @@ export class TickTickService {
 
 		const tasksToDelete: { filepath: string, taskId: string, title: string }[] = [];
 		const tasksToResolve: { filepath: string, taskId: string, title: string, projectId: string, task: ITask, inFile: boolean }[] = [];
+		const deletedFiles: string[] = [];
 		const allLocalIds = new Set<string>();
 
 		await doWithLock(LOCK_TASKS, async () => {
@@ -405,8 +407,8 @@ export class TickTickService {
 							continue;
 						}
 					}
-					log.debug(`Removing DB entry for non-existent file: ${dbFile.path}`);
-					await this.plugin.fileMetadataService.deleteFileMetadata(dbFile.path);
+					log.debug(`Found DB entry for non-existent file: ${dbFile.path}`);
+					deletedFiles.push(dbFile.path);
 				}
 			}
 
@@ -576,6 +578,20 @@ export class TickTickService {
 		log.debug(`Finished checking database for ${markdownFiles.length} markdown files and ${dbFiles.length} DB entries.`);
 		log.debug(`Found ${tasksToDelete.length} tasks to be deleted.`);
 		log.debug(`Known local task IDs: ${allLocalIds.size}.`);
+
+		// Offer to clean up DB entries for files that no longer exist in the vault
+		if (deletedFiles.length > 0) {
+			log.debug(`Found ${deletedFiles.length} DB entries for non-existent files.`);
+			const cleanupModal = new CleanupDatabaseModal(this.plugin.app, deletedFiles);
+			const shouldCleanup = await cleanupModal.showModal();
+			if (shouldCleanup) {
+				for (const filepath of deletedFiles) {
+					log.debug(`Removing DB entry for non-existent file: ${filepath}`);
+					await this.plugin.fileMetadataService.deleteFileMetadata(filepath);
+				}
+				new Notice(`Removed ${deletedFiles.length} non-existent file(s) from the database.`);
+			}
+		}
 
 		// Scan TickTick for tasks that have no local reference at all
 		try {
@@ -768,8 +784,8 @@ export class TickTickService {
 				}
 			}
 
-			if (fileResult) {
-				for (const [taskId, files] of Object.entries(fileResult)) {
+			if (fileResult?.duplicates) {
+				for (const [taskId, files] of Object.entries(fileResult.duplicates)) {
 					const fileList = files;
 					if (fileList.length > 1) {
 						const extraFiles = fileList.slice(1);
@@ -813,11 +829,25 @@ export class TickTickService {
 
 		//let's see if any files got killed while we weren't watching
 		//TODO: Files deleted while we weren't looking is not handled right.
+		const filesMissingFromVault: string[] = [];
 		for (const fileKey in newFilesToSync) {
 			const file = this.plugin.app.vault.getAbstractFileByPath(fileKey);
 			if (!file) {
-				log.debug('File ', fileKey, ' was deleted before last sync.');
-				await this.plugin.fileMetadataService?.deleteFileMetadata(fileKey);
+				filesMissingFromVault.push(fileKey);
+			}
+		}
+
+		if (filesMissingFromVault.length > 0) {
+			const cleanupModal = new CleanupDatabaseModal(this.plugin.app, filesMissingFromVault);
+			const shouldCleanup = await cleanupModal.showModal();
+
+			for (const fileKey of filesMissingFromVault) {
+				if (shouldCleanup) {
+					log.debug('File ', fileKey, ' was deleted before last sync. Cleaning up database.');
+					await this.plugin.fileMetadataService?.deleteFileMetadata(fileKey);
+				} else {
+					log.debug('File ', fileKey, ' was deleted before last sync. Skipped database cleanup.');
+				}
 				delete newFilesToSync[fileKey];
 			}
 		}

@@ -81,6 +81,16 @@ vi.mock('@/api/tick_singleton_factory', () => ({
 	getTick: vi.fn(),
 }));
 
+const cleanupModalShowModal = vi.fn();
+vi.mock('@/modals/CleanupDatabaseModal', () => ({
+	CleanupDatabaseModal: class CleanupDatabaseModal {
+		constructor(_app: unknown, _files: string[]) {}
+		async showModal() {
+			return cleanupModalShowModal();
+		}
+	},
+}));
+
 describe('TickTickService', () => {
 	let service: TickTickService;
 	let mockPlugin: unknown;
@@ -205,6 +215,67 @@ describe('TickTickService', () => {
 			await expect(service.syncFiles(false)).resolves.not.toThrow();
 
 			expect((mockPlugin as { taskDeletionHandler: { checkFileForDeletedTasks: Mock } }).taskDeletionHandler.checkFileForDeletedTasks).toHaveBeenCalledWith('Projects/ProjectA.md');
+		});
+
+		it('should present cleanup modal and delete metadata for files missing from vault when confirmed', async () => {
+			const filesToSync: Record<string, unknown> = {
+				'Projects/ProjectA.md': { defaultProjectId: 'proj-a' },
+				'Projects/Deleted.md': { defaultProjectId: 'proj-b' },
+			};
+			(mockPlugin as Record<string, unknown>).fileMetadataService = {
+				getAllFileMetadata: vi.fn().mockResolvedValue(filesToSync),
+				checkForDuplicates: vi.fn().mockResolvedValue({ duplicates: {} }),
+				deleteFileMetadata: vi.fn(),
+			};
+			(mockPlugin as { app: { vault: { getAbstractFileByPath: Mock } } }).app.vault.getAbstractFileByPath = vi.fn((path: string) => {
+				return path === 'Projects/ProjectA.md' ? {} : null;
+			});
+			cleanupModalShowModal.mockResolvedValue(true);
+
+			await service.syncFiles(false);
+
+			expect(cleanupModalShowModal).toHaveBeenCalledTimes(1);
+			const fileMetadataService = (mockPlugin as { fileMetadataService: { deleteFileMetadata: Mock } }).fileMetadataService;
+			expect(fileMetadataService.deleteFileMetadata).toHaveBeenCalledWith('Projects/Deleted.md');
+			expect(fileMetadataService.deleteFileMetadata).not.toHaveBeenCalledWith('Projects/ProjectA.md');
+		});
+
+		it('should present cleanup modal but not delete metadata when user declines', async () => {
+			const filesToSync: Record<string, unknown> = {
+				'Projects/ProjectA.md': { defaultProjectId: 'proj-a' },
+				'Projects/Deleted.md': { defaultProjectId: 'proj-b' },
+			};
+			(mockPlugin as Record<string, unknown>).fileMetadataService = {
+				getAllFileMetadata: vi.fn().mockResolvedValue(filesToSync),
+				checkForDuplicates: vi.fn().mockResolvedValue({ duplicates: {} }),
+				deleteFileMetadata: vi.fn(),
+			};
+			(mockPlugin as { app: { vault: { getAbstractFileByPath: Mock } } }).app.vault.getAbstractFileByPath = vi.fn((path: string) => {
+				return path === 'Projects/ProjectA.md' ? {} : null;
+			});
+			cleanupModalShowModal.mockResolvedValue(false);
+
+			await service.syncFiles(false);
+
+			expect(cleanupModalShowModal).toHaveBeenCalledTimes(1);
+			const fileMetadataService = (mockPlugin as { fileMetadataService: { deleteFileMetadata: Mock } }).fileMetadataService;
+			expect(fileMetadataService.deleteFileMetadata).not.toHaveBeenCalled();
+		});
+
+		it('should not present cleanup modal when all files exist in vault', async () => {
+			const filesToSync: Record<string, unknown> = {
+				'Projects/ProjectA.md': { defaultProjectId: 'proj-a' },
+			};
+			(mockPlugin as Record<string, unknown>).fileMetadataService = {
+				getAllFileMetadata: vi.fn().mockResolvedValue(filesToSync),
+				checkForDuplicates: vi.fn().mockResolvedValue({ duplicates: {} }),
+				deleteFileMetadata: vi.fn(),
+			};
+			(mockPlugin as { app: { vault: { getAbstractFileByPath: Mock } } }).app.vault.getAbstractFileByPath = vi.fn().mockReturnValue({});
+
+			await service.syncFiles(false);
+
+			expect(cleanupModalShowModal).not.toHaveBeenCalled();
 		});
 	});
 });

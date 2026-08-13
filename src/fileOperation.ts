@@ -268,9 +268,10 @@ export class FileOperation {
 	async checkForDuplicates(fileMetadata: Record<string, unknown>, taskList: Record<string, string> | undefined) {
 		const taskIds: Record<string, string> = {};
 		const duplicates: Record<string, string[]> = {};
+		const notFoundFiles: string[] = [];
 
 		if (!fileMetadata) {
-			return;
+			return { duplicates, notFoundFiles };
 		}
 
 		let fileName;
@@ -281,6 +282,7 @@ export class FileOperation {
 				const currentFile = this.app.vault.getAbstractFileByPath(file);
 				if ((!currentFile)) {
 					log.debug('Duplicate check Skipping ', file, ' because it\'s not found.');
+					notFoundFiles.push(file);
 					continue;
 				}
 				if (currentFile instanceof TFolder) {
@@ -311,7 +313,7 @@ export class FileOperation {
 				}
 
 			}
-			return duplicates;
+			return { duplicates, notFoundFiles };
 		} catch (Fail) {
 			const errMsg = `File [${fileName}] not found, or is locked. If file exists, Please try again later.`;
 			log.error(Fail, errMsg);
