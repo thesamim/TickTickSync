@@ -9,6 +9,7 @@ interface ElectronWebContents {
   removeAllListeners?(event: string): void;
   executeJavaScript(code: string): Promise<unknown>;
   isDestroyed?(): boolean;
+  setWindowOpenHandler?(handler: (details: { url: string }) => { action: string }): void;
   session: {
     cookies: {
       get(opts: { url: string }): Promise<{ name: string; value: string }[]>;
@@ -152,6 +153,25 @@ export class DesktopAuth {
 						}
 					});
 					const w = win;
+
+					// Keep the whole login flow inside this window. Obsidian's main
+					// process attaches handlers to every webContents it creates that
+					// send renderer navigations and window.open() calls to the system
+					// browser instead. Override both for this window so that Sign in,
+					// SSO redirects and Log out all happen in place.
+					w.webContents?.removeAllListeners?.('will-navigate');
+					w.webContents?.on('will-navigate', (event, url) => {
+						const ev = event as { preventDefault(): void };
+						if (typeof url !== 'string' || !/^https:\/\//.test(url)) {
+							ev.preventDefault();
+						}
+					});
+					w.webContents?.setWindowOpenHandler?.(({ url }) => {
+						if (typeof url === 'string' && /^https:\/\//.test(url)) {
+							void w.loadURL(url).catch(() => {});
+						}
+						return { action: 'deny' };
+					});
 
 					// Inject UI on every load
 					w.webContents?.on('did-finish-load', () => {
