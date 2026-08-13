@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { TFile } from 'obsidian';
 import type { IProject } from '@/api/types/Project';
 
 vi.mock('obsidian', () => ({
@@ -152,5 +153,37 @@ describe('ProjectSyncService.saveProjectsToCache', () => {
 		await svc.checkProjectRename('proj-a', 'Work Stuff');
 
 		expect(updateFilePath).toHaveBeenCalledWith('Work.md', 'Work Stuff.md');
+	});
+
+	it('does not re-create a file entry for a cached project whose vault file is gone', async () => {
+		const { plugin } = makePlugin();
+		const svc = new ProjectSyncService(
+			{ vault: { getAbstractFileByPath: () => null } } as never,
+			plugin as never
+		);
+
+		// Project is cached (survives the database cleanup) but its vault file
+		// was deleted and cleaned up, so there is no mapping anymore.
+		projectsTable.set('proj-a', { id: 'proj-a', project: { id: 'proj-a', name: 'Work' } as IProject });
+
+		await svc.checkProjectRename('proj-a', 'Work');
+
+		expect(upsertFile).not.toHaveBeenCalled();
+	});
+
+	it('re-creates a file entry for a cached project when the vault file still exists', async () => {
+		const { plugin } = makePlugin();
+		const svc = new ProjectSyncService(
+			{ vault: { getAbstractFileByPath: () => new TFile() } } as never,
+			plugin as never
+		);
+
+		// Project is cached and its vault file exists, but the database mapping
+		// was lost (e.g. corruption). The mapping should be rebuilt.
+		projectsTable.set('proj-a', { id: 'proj-a', project: { id: 'proj-a', name: 'Work' } as IProject });
+
+		await svc.checkProjectRename('proj-a', 'Work');
+
+		expect(upsertFile).toHaveBeenCalledWith('Work.md', 'proj-a');
 	});
 });
