@@ -1036,10 +1036,9 @@ export class TaskParser {
 		//TODO figure out Note presentation
 		//admonitions just don't work in indented tasks. Until I sort out the presentation, keep it simple until I
 		//get all the functionality sorted out,
-		const rawPath = await this.plugin.fileMetadataService.getFilepathForProjectId(projectId) ?? '';
-		const path = encodeURI(rawPath);
-
-		const linkRegex = new RegExp(`\\[.*\\]\\(obsidian://open\\?vault=.*&file=${path}\\)`, 'giu');
+		// Matches the file link the plugin prepends to a task note when
+		// fileLinksInTickTick is 'noteLink': [file](obsidian://open?vault=..&file=..)
+		const linkRegex = new RegExp(`\\[.*\\]\\(obsidian://open\\?vault=[^)]*&file=[^)]*\\)`, 'giu');
 		let noteLines: string[];
 
 		if (content.length > 0) {
@@ -1049,11 +1048,13 @@ export class TaskParser {
 		}
 
 		if (getSettings().taskLinksInObsidian === 'taskLink' && getSettings().fileLinksInTickTick == 'noteLink') {
-			//if the only note line is the link, and the link is going in the task. return.
-			if (noteLines.length > 1) {
-				//the link is always the first item
+			// The note's first line is normally the file link the plugin prepended
+			// when the task was pushed to TickTick. Only drop it when it actually
+			// is such a link; a task created in TickTick may have real note content
+			// on its first line.
+			if (noteLines.length > 0 && noteLines[0].trim().search(linkRegex) >= 0) {
 				noteLines.splice(0, 1);
-				if (noteLines.length === 1 && noteLines[0].trim().length === 0) {
+				if (noteLines.length === 0 || (noteLines.length === 1 && noteLines[0].trim().length === 0)) {
 					//just the link. bail
 					return resultLine;
 				}
