@@ -42,6 +42,17 @@ export interface TaskModifications {
 	repeatFlagModified: boolean;
 }
 
+/**
+ * A task found in a vault file that is neither in the local cache nor on
+ * TickTick. Collected during a sync scan so all such tasks (across all files)
+ * can be confirmed for deletion in a single dialog.
+ */
+export interface PendingTickTickDeletion {
+	file: TFile;
+	filepath: string;
+	lineTask: ITask;
+}
+
 export class TaskModificationDetector {
 	private app: App;
 	private plugin: TickTickSync;
@@ -180,7 +191,8 @@ export class TaskModificationDetector {
 		filepath: string | undefined,
 		lineText: string,
 		lineNumber: number | undefined,
-		fileMap: NewFileMap
+		fileMap: NewFileMap,
+		pendingDeletions?: PendingTickTickDeletion[]
 	): Promise<boolean> {
 		// Only process full tasks here.  taskParser.isTaskItem handles item
 		// identification; note-level content is skipped entirely.
@@ -221,6 +233,17 @@ export class TaskModificationDetector {
 			if (remoteTask) {
 				log.warn(`Task ${taskId} not in local DB but exists on TickTick. Importing.`);
 				await this.plugin.taskRepository.upsertTask(remoteTask, filepath, Date.now());
+				return false;
+			}
+
+			if (pendingDeletions) {
+				log.error(`Task ${taskId} not found on TickTick. Queueing for deletion from file ${filepath}`);
+				const file = this.app.vault.getAbstractFileByPath(filepath!);
+				if (!(file instanceof TFile)) { return false; }
+				const lineTask = (await this.plugin.taskParser?.convertLineToTask(lineText, lineNumber!, filepath!, fileMap, taskRecord));
+				if (lineTask) {
+					pendingDeletions.push({ file, filepath: filepath!, lineTask });
+				}
 				return false;
 			}
 
@@ -282,7 +305,7 @@ export class TaskModificationDetector {
 	/**
 	 * Check entire file for modifications
 	 */
-	async checkFileForModifications(filepath: string | null): Promise<void> {
+	async checkFileForModifications(filepath: string | null, pendingDeletions?: PendingTickTickDeletion[]): Promise<void> {
 		if (!filepath) {
 			return;
 		}
@@ -301,7 +324,7 @@ export class TaskModificationDetector {
 			const line = lines[i];
 			if (this.plugin.taskParser?.isMarkdownTask(line)) {
 				try {
-					await this.checkLineForModifications(filepath, line, i, fileMap);
+					await this.checkLineForModifications(filepath, line, i, fileMap, pendingDeletions);
 				} catch (error) {
 					log.error('Error checking task modification:', error);
 				}

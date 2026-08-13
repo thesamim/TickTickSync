@@ -10,8 +10,9 @@ import { NewFileMap } from '@/services/NewFileMap';
 import log from '@/utils/logger';
 import { FoundDuplicateTasksModal } from '@/modals/FoundDuplicateTasksModal';
 import { CleanupDatabaseModal } from '@/modals/CleanupDatabaseModal';
-import { TaskDeletionModal } from '@/modals/TaskDeletionModal';
+import { TaskDeletionModal, type DeletionItem } from '@/modals/TaskDeletionModal';
 import { OrphanTaskModal, type OrphanItem } from '@/modals/OrphanTaskModal';
+import type { PendingTickTickDeletion } from '@/services/TaskModificationDetector';
 import type { ITask } from '@/api/types/Task';
 import { getTick } from '@/api/tick_singleton_factory'
 import { syncTickTickWithDexie } from '@/sync/sync';
@@ -857,6 +858,7 @@ export class TickTickService {
 			// Phase 1: Process new tasks and modifications for all files first.
 			// This detects and handles task moves (updating the DB file field),
 			// so deletions in Phase 2 won't see moved tasks as "missing".
+			const pendingTickTickDeletions: PendingTickTickDeletion[] = [];
 			for (const fileKey in newFilesToSync) {
 				if (bForceUpdate) {
 					try {
@@ -873,9 +875,34 @@ export class TickTickService {
 				}
 
 				try {
-					await this.plugin.taskModificationDetector.checkFileForModifications(fileKey);
+					await this.plugin.taskModificationDetector.checkFileForModifications(fileKey, pendingTickTickDeletions);
 				} catch (error) {
 					log.error('An error occurred in fullTextModifiedTaskCheck:', error);
+				}
+			}
+
+			// Tasks whose ticktick id exists in a vault file but are neither in
+			// the local cache nor on TickTick were collected during Phase 1.
+			// Present a single confirmation dialog covering all affected files
+			// before deleting any of them.
+			if (pendingTickTickDeletions.length > 0) {
+				const items: DeletionItem[] = pendingTickTickDeletions.map(d => ({
+					title: this.plugin.taskParser.stripOBSUrl(d.lineTask.title),
+					filePath: d.filepath
+				}));
+				const modal = new TaskDeletionModal(this.plugin.app, items, 'task(s) not found on TickTick', () => { });
+				const confirmed = await modal.showModal();
+				if (confirmed) {
+					for (const d of pendingTickTickDeletions) {
+						try {
+							log.info(`Deleting task ${d.lineTask.id} from ${d.filepath}`);
+							await this.plugin.fileOperation?.deleteTaskFromSpecificFile(d.file, d.lineTask, false);
+						} catch (error) {
+							log.error(`Error deleting task ${d.lineTask.id} from ${d.filepath}:`, error);
+						}
+					}
+				} else {
+					new Notice('Tasks not found on TickTick will not be deleted.', 5000);
 				}
 			}
 
