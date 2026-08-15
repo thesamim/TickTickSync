@@ -65,5 +65,11 @@ export const NOTABLE_CHANGES: NotableChange[] = [
 		title: "**Fresh installs now sync correctly** — tasks pulled from TickTick appear in your vault from the very first sync (project-to-file mapping is created automatically)",
 		description: "**All-day task dates no longer drift** — due dates on all-day tasks could shift by a day on each sync in some timezones; now stable\n**TickTick tag handling is now configurable** — new settings under **Task Display** let you stop injecting the `ticktick` tag onto TickTick tasks, and strip the legacy tag when you reset your tasks\n**Better documentation** — sync timing, conflict handling, and known TickTick quirks are now covered in the docs\n**Make settings 1.13.x compatible**\nGeneral stability and performance improvements",
 		anchor: '2.0.5',
+	},
+	{
+		version: '2.0.8',
+		title: "**Misplaced project files are now resolved instead of duplicated** — when a new vault file matches a project by name but is located outside the expected folder, you're asked how to proceed: move it to the correct location (merging the two files if one already exists), delete the misplaced file, delete the file at the correct location, or skip (leaves the file unassociated)",
+		description: "**Aggregated deletions** — tasks missing from TickTick are now grouped into a single confirmation dialog\n**Project rename safety** — guard added so a renamed project can't be mistaken for a moved project\nGeneral stability and performance improvements",
+		anchor: '2.0.8',
 	}
 ];

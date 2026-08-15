@@ -169,17 +169,51 @@ export class TickTickService {
 		for (const file of markdownFiles) {
 			const dbFile = await getFile(file.path);
 			if (!dbFile) {
-				// Look up file name in projects cache to auto-associate
-				const fileName = file.basename;
-				const matchingProject = allProjects.find(p => p.name === fileName);
-				if (matchingProject) {
-					log.debug(`Auto-associating file with project: ${file.path} -> ${matchingProject.name}`);
-					await upsertFile(file.path, matchingProject.id);
-				} else {
-					log.debug(`Registering file without project association: ${file.path}`);
-					await upsertFile(file.path);
+				await this.registerNewVaultFile(file, allProjects);
+			}
+		}
+	}
+
+	/**
+	 * Register a new (previously unseen) vault file in the database.
+	 * When keepProjectFolders is on and the file's basename matches a project but its
+	 * location differs from the expected one, asks the user how to resolve the conflict
+	 * (move/merge, delete one of the files, or skip) instead of auto-associating the file
+	 * at the wrong location.
+	 * @param file - The new vault file
+	 * @param allProjects - All known projects
+	 */
+	private async registerNewVaultFile(file: TFile, allProjects: IProject[]): Promise<void> {
+		// Look up file name in projects cache to auto-associate
+		const fileName = file.basename;
+		const matchingProject = allProjects.find(p => p.name === fileName);
+
+		if (matchingProject && getSettings().keepProjectFolders && this.plugin.folderSyncService) {
+			const basePath = getDefaultFolder();
+			const expectedFolderPath = await this.plugin.folderSyncService.getFolderPathForProject(matchingProject.id);
+			const fileFolder = file.path.includes('/') ? file.path.substring(0, file.path.lastIndexOf('/')) : '';
+
+			// If group lookup failed (expected == base path) and file is in a subfolder,
+			// we can't determine the correct location — fall back to plain auto-association
+			// (mirrors the guard used in checkDataBase).
+			const canDetermineGroup = !(expectedFolderPath === basePath && fileFolder !== basePath);
+
+			if (canDetermineGroup) {
+				const expectedPath = await this.plugin.folderSyncService.getFilePathForProject(matchingProject.id, matchingProject.name);
+				if (expectedPath !== file.path) {
+					log.debug(`Found new file ${file.path} matching project "${matchingProject.name}" but expected at ${expectedPath}. Presenting location conflict.`);
+					await this.plugin.folderSyncService.resolveFileLocationConflict(file.path, expectedPath, matchingProject);
+					return;
 				}
 			}
+		}
+
+		if (matchingProject) {
+			log.debug(`Auto-associating file with project: ${file.path} -> ${matchingProject.name}`);
+			await upsertFile(file.path, matchingProject.id);
+		} else {
+			log.debug(`Registering file without project association: ${file.path}`);
+			await upsertFile(file.path);
 		}
 	}
 
@@ -417,16 +451,7 @@ export class TickTickService {
 			for (const file of markdownFiles) {
 				const dbFile = await getFile(file.path);
 				if (!dbFile) {
-					// Look up file name in projects cache
-					const fileName = file.basename;
-					const matchingProject = allProjects.find(p => p.name === fileName);
-					if (matchingProject) {
-						log.debug(`Matching project found for new DB entry: ${file.path} -> ${matchingProject.name}`);
-						await upsertFile(file.path, matchingProject.id);
-					} else {
-						log.debug(`Adding new DB entry for file: ${file.path}`);
-						await upsertFile(file.path);
-					}
+					await this.registerNewVaultFile(file, allProjects);
 				} else {
 					const fileName = file.basename;
 					const matchingProject = allProjects.find(p => p.name === fileName);

@@ -5,10 +5,14 @@
 
 import { App, Notice, TFile } from 'obsidian';
 import type { ITask } from '@/api/types/Task';
+import type { IProject } from '@/api/types/Project';
 import { db } from '@/db/dexie';
 import { getDefaultFolder, getSettings } from '@/settings';
 import { ProjectGroupRepository } from '@/repositories/ProjectGroupRepository';
 import { getProjectById } from '@/db/projects';
+import { upsertFile, deleteFile } from '@/db/files';
+import { NewFileMap } from '@/services/NewFileMap';
+import { FileLocationConflictModal } from '@/modals/FileLocationConflictModal';
 import log from '@/utils/logger';
 import type TickTickSync from '@/main';
 
@@ -249,13 +253,194 @@ export class FolderSyncService {
 	}
 
 	/**
+	 * Resolve a conflict where a new vault file matches a project by name but is
+	 * located somewhere other than the expected location.
+	 * Presents the user with options (move/merge, delete this file, delete the
+	 * correct file, skip) and updates the database to reflect their choice.
+	 * @param filePath - The path of the newly-found (misplaced) file
+	 * @param expectedPath - The path where the file should be located
+	 * @param project - The project the file matched by name
+	 */
+	async resolveFileLocationConflict(filePath: string, expectedPath: string, project: IProject): Promise<void> {
+		const targetExists = this.app.vault.getAbstractFileByPath(expectedPath) instanceof TFile;
+
+		const modal = new FileLocationConflictModal(
+			this.app,
+			filePath,
+			expectedPath,
+			project.name,
+			targetExists,
+			() => {}
+		);
+		const action = await modal.showModal();
+
+		switch (action) {
+			case 'move': {
+				log.debug(`User chose to move ${filePath} to ${expectedPath}`);
+				if (targetExists) {
+					// Merge the misplaced file's tasks into the existing file, then remove the duplicate.
+					await this.mergeFiles(filePath, expectedPath);
+					const misplacedFile = this.app.vault.getAbstractFileByPath(filePath);
+					if (misplacedFile instanceof TFile) {
+						await this.app.fileManager.trashFile(misplacedFile);
+					}
+					await this.repointTasks(filePath, expectedPath);
+					await deleteFile(filePath);
+				} else {
+					await this.moveFileToExpectedPath(filePath, expectedPath);
+					await this.repointTasks(filePath, expectedPath);
+					await deleteFile(filePath);
+				}
+				await upsertFile(expectedPath, project.id);
+				new Notice(`Moved ${filePath} to ${expectedPath}`);
+				break;
+			}
+			case 'delete-misplaced': {
+				log.debug(`User chose to delete misplaced file ${filePath}`);
+				const misplacedFile = this.app.vault.getAbstractFileByPath(filePath);
+				if (misplacedFile instanceof TFile) {
+					await this.app.fileManager.trashFile(misplacedFile);
+				}
+				// Re-point any tasks that referenced the misplaced file at the expected file.
+				await this.repointTasks(filePath, expectedPath);
+				await deleteFile(filePath);
+				if (targetExists) {
+					await upsertFile(expectedPath, project.id);
+				}
+				new Notice(`Deleted ${filePath}`);
+				break;
+			}
+			case 'delete-correct': {
+				if (targetExists) {
+					log.debug(`User chose to delete file at expected location ${expectedPath}`);
+					const correctFile = this.app.vault.getAbstractFileByPath(expectedPath);
+					if (correctFile instanceof TFile) {
+						await this.app.fileManager.trashFile(correctFile);
+					}
+					await this.moveFileToExpectedPath(filePath, expectedPath);
+					await this.repointTasks(filePath, expectedPath);
+					await deleteFile(filePath);
+					await upsertFile(expectedPath, project.id);
+					new Notice(`Deleted ${expectedPath} and moved ${filePath} in its place`);
+				}
+				break;
+			}
+			case 'skip':
+			default:
+				log.debug(`User skipped location conflict for ${filePath}; registering without project association`);
+				// Register the file without a project association so it doesn't re-prompt on
+				// every sync and doesn't get double-mapped to a project.
+				await upsertFile(filePath);
+				break;
+		}
+	}
+
+	/**
+	 * Move a file to the expected location, creating the target folder if needed.
+	 * @param oldPath - Current file path
+	 * @param newPath - Target file path
+	 * @returns True if the move succeeded
+	 */
+	private async moveFileToExpectedPath(oldPath: string, newPath: string): Promise<boolean> {
+		const file = this.app.vault.getAbstractFileByPath(oldPath);
+		if (!(file instanceof TFile)) {
+			log.warn(`File ${oldPath} not found, cannot move`);
+			return false;
+		}
+
+		const newFolderPath = this.extractFolderFromPath(newPath).folders;
+		if (newFolderPath) {
+			await this.ensureFolderExists(newFolderPath);
+		}
+
+		if (this.app.vault.getAbstractFileByPath(newPath)) {
+			log.warn(`Cannot move ${oldPath}: ${newPath} already exists`);
+			return false;
+		}
+
+		await this.app.fileManager.renameFile(file, newPath);
+		log.debug(`Moved file from ${oldPath} to ${newPath}`);
+		return true;
+	}
+
+	/**
+	 * Merge all tasks from the source file into the target file (deduplicated by task id),
+	 * preserving the source's non-task content by appending it to the target.
+	 * @param sourcePath - File to copy tasks from
+	 * @param targetPath - File to receive the tasks
+	 */
+	private async mergeFiles(sourcePath: string, targetPath: string): Promise<void> {
+		const sourceFile = this.app.vault.getAbstractFileByPath(sourcePath);
+		const targetFile = this.app.vault.getAbstractFileByPath(targetPath);
+		if (!(sourceFile instanceof TFile) || !(targetFile instanceof TFile)) {
+			log.warn(`Cannot merge: source or target file missing (${sourcePath} -> ${targetPath})`);
+			return;
+		}
+
+		const sourceMap = new NewFileMap(this.app, this.plugin, sourceFile);
+		await sourceMap.init();
+		const targetMap = new NewFileMap(this.app, this.plugin, targetFile);
+		await targetMap.init();
+
+		const targetIds = new Set(targetMap.getTasks());
+		const sourceLines = sourceMap.getFileLines().split('\n');
+
+		// Lines already consumed by a task block (task line + its sub-lines), so they
+		// aren't duplicated when we append leftover non-task content.
+		const consumedLines = new Set<number>();
+		for (const id of sourceMap.getTasks()) {
+			const record = sourceMap.getTaskRecord(id);
+			const taskIndex = sourceMap.getTaskIndex(id);
+			if (taskIndex >= 0) {
+				const blockLength = 1 + (record.taskLines?.length ?? 0);
+				for (let i = taskIndex; i < taskIndex + blockLength; i++) {
+					consumedLines.add(i);
+				}
+			}
+			if (!targetIds.has(id)) {
+				const block = [record.task, ...(record.taskLines ?? [])].join('\n');
+				targetMap.addTask({ id, parentId: record.parentId } as ITask, block);
+				targetIds.add(id);
+			}
+		}
+
+		const leftover = sourceLines.filter((line, index) => !consumedLines.has(index));
+		let content = targetMap.getFileLines();
+		if (leftover.length > 0) {
+			const joined = leftover.join('\n');
+			content = content ? `${content}\n${joined}` : joined;
+		}
+
+		await this.app.vault.modify(targetFile, content);
+		log.debug(`Merged tasks from ${sourcePath} into ${targetPath}`);
+	}
+
+	/**
+	 * Re-point all DB task records that reference an old file path to a new file path.
+	 * @param oldPath - Old file path referenced by tasks
+	 * @param newPath - New file path
+	 */
+	private async repointTasks(oldPath: string, newPath: string): Promise<void> {
+		try {
+			const tasks = await db.tasks.where('file').equals(oldPath).toArray();
+			for (const task of tasks) {
+				await db.tasks.update(task.localId, { file: newPath });
+			}
+			if (tasks.length > 0) {
+				log.debug(`Re-pointed ${tasks.length} task reference(s) from ${oldPath} to ${newPath}`);
+			}
+		} catch (error) {
+			log.error(`Error re-pointing tasks from ${oldPath} to ${newPath}:`, error);
+		}
+	}
+
+	/**
 	 * Check if two projects are in different project groups
 	 * @param projectId1 - First project ID
 	 * @param projectId2 - Second project ID
 	 * @returns True if projects are in different groups
 	 */
-	async projectsInDifferentGroups(projectId1: string, projectId2: string): Promise<boolean> {
-		try {
+	async projectsInDifferentGroups(projectId1: string, projectId2: string): Promise<boolean> {		try {
 			const project1 = await getProjectById(projectId1);
 			const project2 = await getProjectById(projectId2);
 

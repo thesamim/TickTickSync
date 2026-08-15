@@ -1,5 +1,8 @@
 import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
 import { TickTickService } from '@/services/index';
+import { getSettings, getDefaultFolder } from '@/settings';
+import { getAllProjects } from '@/db/projects';
+import { getFile, upsertFile, deleteFile } from '@/db/files';
 
 // Mock dependencies
 vi.mock('obsidian', () => ({
@@ -33,6 +36,7 @@ vi.mock('@/settings', () => ({
 		debugMode: false,
 	})),
 	updateSettings: vi.fn(),
+	getDefaultFolder: vi.fn(() => 'Projects'),
 }));
 
 vi.mock('@/utils/logger', () => ({
@@ -65,6 +69,7 @@ vi.mock('@/db/files', () => ({
 	getFile: vi.fn(),
 	getAllFiles: vi.fn().mockResolvedValue([]),
 	upsertFile: vi.fn(),
+	deleteFile: vi.fn(),
 }));
 
 vi.mock('@/db/projects', () => ({
@@ -139,10 +144,14 @@ describe('TickTickService', () => {
 				checkForDuplicates: vi.fn().mockResolvedValue(undefined),
 			},
 			taskOperationsService: { updateTaskContentForFile: vi.fn() },
-			folderSyncService: { detectProjectGroupChange: vi.fn() },
+			folderSyncService: {
+				detectProjectGroupChange: vi.fn(),
+				getFolderPathForProject: vi.fn().mockResolvedValue('Projects'),
+				getFilePathForProject: vi.fn().mockResolvedValue('Projects/ProjectA.md'),
+				resolveFileLocationConflict: vi.fn().mockResolvedValue(undefined),
+			},
 			taskRepository: { loadTaskById: vi.fn(), upsertTask: vi.fn() },
 		};
-
 		service = new TickTickService(mockPlugin);
 		service.api = {} as unknown;
 	});
@@ -387,6 +396,89 @@ describe('TickTickService', () => {
 
 			expect(deletionHandler.checkFileForDeletedTasks).toHaveBeenCalledWith('Projects/ProjectA.md');
 			expect(deletionHandler.checkFileForDeletedTasks).toHaveBeenCalledWith('Projects/ProjectB.md');
+		});
+	});
+
+	describe('ensureVaultFilesRegistered - misplaced file location conflicts', () => {
+		const mockMarkdownFile = (path: string) => ({ path, basename: path.split('/').pop()?.replace('.md', '') ?? '' });
+
+		beforeEach(() => {
+			vi.clearAllMocks();
+			(getSettings as Mock).mockReturnValue({
+				token: 'test-token',
+				inboxID: 'inbox-id',
+				baseURL: 'https://api.ticktick.com',
+				checkPoint: 0,
+				SyncProject: '',
+				SyncTag: '',
+				tagAndOr: 0,
+				debugMode: false,
+				keepProjectFolders: true,
+			});
+			(getDefaultFolder as Mock).mockReturnValue('Projects');
+			(getAllProjects as Mock).mockResolvedValue([
+				{ id: 'proj-a', name: 'ProjectA', groupId: 'group-1' },
+			]);
+			(getFile as Mock).mockResolvedValue(undefined);
+			(mockPlugin as { app: { vault: { getMarkdownFiles: Mock } } }).app.vault.getMarkdownFiles = vi.fn().mockReturnValue([mockMarkdownFile('ProjectA.md')]);
+		});
+
+		it('should auto-associate when keepProjectFolders is disabled', async () => {
+			(getSettings as Mock).mockReturnValue({ keepProjectFolders: false });
+
+			await service.ensureVaultFilesRegistered();
+
+			expect(upsertFile).toHaveBeenCalledWith('ProjectA.md', 'proj-a');
+			const folderSync = (mockPlugin as { folderSyncService: { resolveFileLocationConflict: Mock } }).folderSyncService;
+			expect(folderSync.resolveFileLocationConflict).not.toHaveBeenCalled();
+		});
+
+		it('should auto-associate when the file is already at the expected location', async () => {
+			(mockPlugin as { app: { vault: { getMarkdownFiles: Mock } } }).app.vault.getMarkdownFiles = vi.fn().mockReturnValue([mockMarkdownFile('Projects/ProjectA.md')]);
+			const folderSync = (mockPlugin as { folderSyncService: { getFilePathForProject: Mock } }).folderSyncService;
+			folderSync.getFilePathForProject = vi.fn().mockResolvedValue('Projects/ProjectA.md');
+
+			await service.ensureVaultFilesRegistered();
+
+			expect(upsertFile).toHaveBeenCalledWith('Projects/ProjectA.md', 'proj-a');
+			const conflictResolver = (mockPlugin as { folderSyncService: { resolveFileLocationConflict: Mock } }).folderSyncService;
+			expect(conflictResolver.resolveFileLocationConflict).not.toHaveBeenCalled();
+		});
+
+		it('should present a location conflict when the file is at the wrong location', async () => {
+			const folderSync = (mockPlugin as { folderSyncService: { getFolderPathForProject: Mock; getFilePathForProject: Mock } }).folderSyncService;
+			folderSync.getFolderPathForProject = vi.fn().mockResolvedValue('Projects/Work');
+			folderSync.getFilePathForProject = vi.fn().mockResolvedValue('Projects/Work/ProjectA.md');
+
+			await service.ensureVaultFilesRegistered();
+
+			expect(upsertFile).not.toHaveBeenCalled();
+			expect(folderSync.resolveFileLocationConflict).toHaveBeenCalledWith(
+				'ProjectA.md',
+				'Projects/Work/ProjectA.md',
+				expect.objectContaining({ id: 'proj-a', name: 'ProjectA' })
+			);
+		});
+
+		it('should not auto-associate a misplaced file that was already registered via skip', async () => {
+			(getFile as Mock).mockResolvedValue({ path: 'ProjectA.md', defaultProjectId: undefined });
+
+			await service.ensureVaultFilesRegistered();
+
+			expect(upsertFile).not.toHaveBeenCalled();
+			const folderSync = (mockPlugin as { folderSyncService: { resolveFileLocationConflict: Mock } }).folderSyncService;
+			expect(folderSync.resolveFileLocationConflict).not.toHaveBeenCalled();
+		});
+
+		it('should not auto-associate files whose basename matches no project', async () => {
+			(mockPlugin as { app: { vault: { getMarkdownFiles: Mock } } }).app.vault.getMarkdownFiles = vi.fn().mockReturnValue([mockMarkdownFile('Untitled.md')]);
+
+			await service.ensureVaultFilesRegistered();
+
+			expect(upsertFile).toHaveBeenCalledWith('Untitled.md');
+			expect(upsertFile).not.toHaveBeenCalledWith(expect.any(String), 'proj-a');
+			const folderSync = (mockPlugin as { folderSyncService: { resolveFileLocationConflict: Mock } }).folderSyncService;
+			expect(folderSync.resolveFileLocationConflict).not.toHaveBeenCalled();
 		});
 	});
 });
