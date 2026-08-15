@@ -1,6 +1,6 @@
 import * as path from "path";
 import {resolve} from "path";
-import builtins from "builtin-modules";
+import { builtinModules as builtins } from "node:module";
 import {svelte, vitePreprocess} from '@sveltejs/vite-plugin-svelte';
 import {type UserConfig} from "vite";
 import {viteStaticCopy} from "vite-plugin-static-copy";

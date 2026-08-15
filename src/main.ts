@@ -55,9 +55,6 @@ import { FolderSyncService } from '@/services/FolderSyncService';
 import { FolderMigrationService } from '@/services/FolderMigrationService';
 import { TagService } from '@/services/TagService';
 
-import { generateDeviceId } from '@/db/device';
-
-
 export default class TickTickSync extends Plugin {
 
 	readonly service: TickTickService = new TickTickService(this);

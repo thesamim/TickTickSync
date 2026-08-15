@@ -1,9 +1,4 @@
 /* Note To Self: This relies on task lines we care about being decorated with the .cm-tag-ticktick class */
-/*hide TickTick ID*/
-.cm-line:not(:hover):not(.cm-active):has(.cm-tag-ticktick) span.cm-comment {
-	display: none;
-}
-
 /*hide task item ID*/
 .HyperMD-task-line span.cm-comment {
 	display: none;
@@ -29,16 +24,16 @@
 	cursor: pointer;
 }
 
-button.ts_button[disabled] {
+.modal button.ts_button[disabled] {
 	opacity: 0.3;
-	background-color: unset !important;
-	color: unset !important;
+	background-color: unset;
+	color: unset;
 	box-shadow: var(--input-shadow);
 }
 
-button.ts_button[disabled]:hover {
-	background-color: unset !important;
-	color: unset !important;
+.modal button.ts_button[disabled]:hover {
+	background-color: unset;
+	color: unset;
 	box-shadow: var(--input-shadow);
 }
 
@@ -150,7 +145,7 @@ button.ts_button[disabled]:hover {
 
 /* Hide ticktick_id in editing mode (overrides existing .cm-comment rules) */
 .HyperMD-task-line.ticktick-task.tt-id-hide span.cm-comment {
-	display: none !important;
+	display: none;
 }
 
 .tt-sortable-header {

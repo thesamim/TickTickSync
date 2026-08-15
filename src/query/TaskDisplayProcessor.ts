@@ -151,9 +151,7 @@ export class TaskDisplayProcessor {
 				if (!a.querySelector('.tt-link-text')) {
 					for (const node of Array.from(a.childNodes)) {
 						if (node.nodeType === Node.TEXT_NODE && node.textContent) {
-							const span = document.createElement('span');
-							span.className = 'tt-link-text';
-							span.textContent = node.textContent;
+							const span = document.createSpan({ cls: 'tt-link-text', text: node.textContent });
 							a.replaceChild(span, node);
 						}
 					}
@@ -171,7 +169,7 @@ export class TaskDisplayProcessor {
 				NodeFilter.SHOW_ELEMENT,
 				{
 					acceptNode: (node: Node) => {
-						if (!(node instanceof HTMLElement)) return NodeFilter.FILTER_SKIP;
+						if (!node.instanceOf(HTMLElement)) return NodeFilter.FILTER_SKIP;
 						if (node === ticktickTag) return NodeFilter.FILTER_SKIP;
 						if (node.classList.contains('cm-link') &&
 							!node.classList.contains('cm-comment') &&

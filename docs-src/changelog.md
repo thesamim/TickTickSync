@@ -4,6 +4,13 @@
 
 ## Notable Changes
 
+### 2.0.5 → 2.0.8 — Misplaced File Conflict Resolution & Sync Fixes { #2.0.8 }
+
+- **Misplaced project files are now resolved instead of duplicated** — when a new vault file matches a project by name but is located outside the expected folder, you're asked how to proceed: move it to the correct location (merging the two files if one already exists), delete the misplaced file, delete the file at the correct location, or skip (leaves the file unassociated)
+- **Aggregated deletions** — tasks missing from TickTick are now grouped into a single confirmation dialog
+- **Project rename safety** — guard added so a renamed project can't be mistaken for a moved project
+- General stability and performance improvements
+
 ### 2.0.1 → 2.0.5 — Sync Fixes & TickTick Tag Handling { #2.0.5 }
 
 - **Fresh installs now sync correctly** — tasks pulled from TickTick appear in your vault from the very first sync (project-to-file mapping is created automatically)

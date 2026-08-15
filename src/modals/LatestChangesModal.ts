@@ -1,4 +1,4 @@
-import { App, Modal, Setting } from 'obsidian';
+import { App, Component, MarkdownRenderer, Modal, Setting } from 'obsidian';
 
 
 export class LatestChangesModal extends Modal {
@@ -10,6 +10,7 @@ export class LatestChangesModal extends Modal {
 	notableChanges: string[][];
 	onSubmit: (result: boolean) => void;
 	resolvePromise!: (value: (PromiseLike<boolean> | boolean)) => void;
+	private renderComponent!: Component;
 
 
 	constructor(app: App, notableChanges: string[][], onSubmit: (result: boolean) => void) {
@@ -22,6 +23,8 @@ export class LatestChangesModal extends Modal {
 	 * Called automatically by the Modal class when modal is opened.
 	 */
 	onOpen() {
+		this.renderComponent = new Component();
+		this.renderComponent.load();
 		const notableChangesURL = 'https://thesamim.github.io/TickTickSync/changelog/#';
 		let { titleEl, contentEl } = this;
 		titleEl.setText(this.title);
@@ -49,15 +52,12 @@ export class LatestChangesModal extends Modal {
 		let changesText = contentEl.createEl('ol');
 		this.notableChanges.forEach(notableChange => {
 			let lineItem = changesText.createEl('li');
-			const link = lineItem.createEl('a', { href: `${notableChangesURL}${notableChange[2]}` });
-			// eslint-disable-next-line no-unsanitized/property -- trusted static content
-			link.innerHTML = notableChange[0];
+			void MarkdownRenderer.render(this.app, `[${notableChange[0]}](<${notableChangesURL}${notableChange[2]}>)`, lineItem, '', this.renderComponent);
 			let holder = lineItem.createEl('ol');
 			const changeLines = notableChange[1].split('\n');
 			changeLines.forEach(line => {
 				const div = holder.createDiv();
-				// eslint-disable-next-line no-unsanitized/property -- trusted static content
-				div.innerHTML = line;
+				void MarkdownRenderer.render(this.app, line, div, '', this.renderComponent);
 			})
 		});
 
@@ -79,6 +79,7 @@ export class LatestChangesModal extends Modal {
 	 * Called automatically by the Modal class when modal is closed.
 	 */
 	onClose() {
+		this.renderComponent.unload();
 		this.titleEl.empty();
 		this.contentEl.empty();
 		super.onClose();

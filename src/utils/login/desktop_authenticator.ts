@@ -9,6 +9,7 @@ interface ElectronWebContents {
   removeAllListeners?(event: string): void;
   executeJavaScript(code: string): Promise<unknown>;
   isDestroyed?(): boolean;
+  setWindowOpenHandler?(handler: (details: { url: string }) => { action: string }): void;
   session: {
     cookies: {
       get(opts: { url: string }): Promise<{ name: string; value: string }[]>;
@@ -153,46 +154,37 @@ export class DesktopAuth {
 					});
 					const w = win;
 
+					// Keep the whole login flow inside this window. Obsidian's main
+					// process attaches handlers to every webContents it creates that
+					// send renderer navigations and window.open() calls to the system
+					// browser instead. Override both for this window so that Sign in,
+					// SSO redirects and Log out all happen in place.
+					w.webContents?.removeAllListeners?.('will-navigate');
+					w.webContents?.on('will-navigate', (event, url) => {
+						const ev = event as { preventDefault(): void };
+						if (typeof url !== 'string' || !/^https:\/\//.test(url)) {
+							ev.preventDefault();
+						}
+					});
+					w.webContents?.setWindowOpenHandler?.(({ url }) => {
+						if (typeof url === 'string' && /^https:\/\//.test(url)) {
+							void w.loadURL(url).catch(() => {});
+						}
+						return { action: 'deny' };
+					});
+
 					// Inject UI on every load
 					w.webContents?.on('did-finish-load', () => {
 						w.webContents?.executeJavaScript(`
               (function () {
                 if (document.getElementById('__tts_auth_bar')) return;
-                const bar = document.createElement('div');
-                bar.id = '__tts_auth_bar';
-                bar.style.position = 'fixed';
-                bar.style.right = '24px';
-                bar.style.bottom = '24px';
-                bar.style.display = 'flex';
-                bar.style.gap = '8px';
-                bar.style.zIndex = '999999';
-                bar.style.pointerEvents = 'none';
-
-                const mkBtn = (id, text, bg) => {
-                  const b = document.createElement('button');
-                  b.id = id;
-                  b.textContent = text;
-                  b.style.pointerEvents = 'auto';
-                  b.style.padding = '10px 16px';
-                  b.style.border = 'none';
-                  b.style.borderRadius = '6px';
-                  b.style.boxShadow = '0 3px 10px rgba(0,0,0,0.2)';
-                  b.style.color = '#fff';
-                  b.style.fontWeight = '600';
-                  b.style.cursor = 'pointer';
-                  b.style.background = bg;
-                  return b;
-                };
-
-                const finishBtn = mkBtn('__tts_finish', 'Finish', '#4b8bf4');
-                const cancelBtn = mkBtn('__tts_cancel', 'Cancel', '#666');
-
-                finishBtn.onclick = () => { window.__TTS_FINISH = true; };
-                cancelBtn.onclick = () => { window.__TTS_CANCEL = true; };
-
-                bar.appendChild(cancelBtn);
-                bar.appendChild(finishBtn);
-                document.body.appendChild(bar);
+                document.body.insertAdjacentHTML('beforeend',
+                  '<div id="__tts_auth_bar" style="position:fixed;right:24px;bottom:24px;display:flex;gap:8px;z-index:999999;pointer-events:none">' +
+                  '<button id="__tts_finish" style="pointer-events:auto;padding:10px 16px;border:none;border-radius:6px;box-shadow:0 3px 10px rgba(0,0,0,0.2);color:#fff;font-weight:600;cursor:pointer;background:#4b8bf4">Finish</button>' +
+                  '<button id="__tts_cancel" style="pointer-events:auto;padding:10px 16px;border:none;border-radius:6px;box-shadow:0 3px 10px rgba(0,0,0,0.2);color:#fff;font-weight:600;cursor:pointer;background:#666">Cancel</button>' +
+                  '</div>');
+                document.getElementById('__tts_finish').onclick = function () { window.__TTS_FINISH = true; };
+                document.getElementById('__tts_cancel').onclick = function () { window.__TTS_CANCEL = true; };
               })();
             `).catch(() => {
 						// ignore
