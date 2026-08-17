@@ -1,7 +1,7 @@
 {
 	"id": "tickticksync",
 	"name": "TickTickSync",
-	"version": "2.0.8",
+	"version": "2.0.9",
 	"minAppVersion": "1.12.7",
 	"description": "Sync tasks and notes bidirectionally with TickTick.",
 	"author": "thesamim",

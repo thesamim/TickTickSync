@@ -759,7 +759,10 @@ export class Tick {
 			'Accept': '*/*',
 			'x-device': this.deviceAgent,
 			'Content-Type': 'application/json',
-			'X-Requested-With': 'XMLHttpRequest'
+			'X-Requested-With': 'XMLHttpRequest',
+			'User-Agent': this.userAgent,
+			'Origin': this.originUrl,
+			'Referer': `${this.originUrl}/signin`
 		};
 
 		const options: RequestUrlParam = {
