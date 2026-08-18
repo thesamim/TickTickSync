@@ -1,5 +1,17 @@
 import type { date_holder_type } from '@/dateMan';
 
+/**
+ * A TickTick reminder. On the web sync API (batch/check, batch/task) reminders
+ * are objects: `{ id, trigger }` where `trigger` is an RFC 5545 TRIGGER value
+ * such as `TRIGGER:PT30M` (30 minutes before the task's start/due time) or
+ * `TRIGGER:P0DT9H0M0S` (9 hours before, TickTick's "on time" for all-day
+ * tasks). `id` is assigned by TickTick and is absent on freshly-parsed lines.
+ */
+export type Reminder = {
+	id?: string;
+	trigger: string;
+};
+
 export interface ITask {
 	id: string;
 	projectId: string;
@@ -15,8 +27,10 @@ export interface ITask {
 	timeZone?: string;
 	isFloating?: boolean;
 	isAllDay: boolean;
-	reminder: string; // we only get a set
-	reminders: string[];
+	// Vestigial: the web sync API only exposes `reminders`. Kept for payload
+	// compatibility; the server ignores it.
+	reminder: string;
+	reminders: Reminder[];
 	repeatFirstDate?: string;
 	repeatFlag: string;
 	exDate?: string[];
@@ -44,6 +58,9 @@ export interface ITask {
 	//This is not a TickTick data element. It must be managed separately.
 	dateHolder: date_holder_type;
 	lineHash: string;
+	//Not a TickTick data element. Set when the Obsidian line explicitly says
+	//`⏰ off`, telling the sync to delete all reminders on TickTick.
+	clearReminders?: boolean;
 }
 
 export interface ITaskItem {

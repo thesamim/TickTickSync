@@ -40,6 +40,7 @@ export interface TaskModifications {
 	notesModified: boolean;
 	projectMoved: boolean;
 	repeatFlagModified: boolean;
+	remindersModified: boolean;
 }
 
 /**
@@ -109,7 +110,11 @@ export class TaskModificationDetector {
 				);
 
 				// Create task in TickTick
-				const newTask = await this.plugin.tickTickRestAPI?.createTask(currentTask) as ITask;
+				const newTask = await this.plugin.tickTickRestAPI?.createTask(currentTask) as ITask | null;
+				if (!newTask) {
+					// createTask already surfaced the API error in a Notice.
+					return;
+				}
 
 				// Handle parent-child relationship
 				if (currentTask.parentId) {
@@ -148,6 +153,10 @@ export class TaskModificationDetector {
 			} catch (error) {
 				log.error('Error adding task:', error);
 				log.error(`The error occurred in file: ${fileMap.getFilePath()}`);
+				new Notice(
+					`Failed to add task to TickTick: ${error instanceof Error ? error.message : String(error)}. The task was not modified.`,
+					8000
+				);
 			}
 		}
 	}
@@ -385,7 +394,8 @@ export class TaskModificationDetector {
 			taskItemsModified: this.plugin.taskParser.areItemsChanged(lineTask.items, savedTask.items),
 			notesModified: this.detectNotesModification(lineTask, savedTask),
 			projectMoved: false, // Will be set separately
-			repeatFlagModified: normalizeRepeatFlag(lineTask.repeatFlag) !== normalizeRepeatFlag(savedTask.repeatFlag)
+			repeatFlagModified: normalizeRepeatFlag(lineTask.repeatFlag) !== normalizeRepeatFlag(savedTask.repeatFlag),
+			remindersModified: this.plugin.taskParser?.areRemindersChanged(lineTask, savedTask) || false
 		};
 	}
 
@@ -459,15 +469,11 @@ export class TaskModificationDetector {
 		if (this.hasContentChanges(modifications)) {
 			savedTask.modifiedTime = this.plugin.dateMan?.formatDateToISO(new Date());
 			const saveDateHolder = lineTask.dateHolder;
-			// Preserve reminder fields from saved task when line task lacks them
-			if ((!lineTask.reminders || lineTask.reminders.length === 0) && savedTask.reminders?.length) {
-				lineTask.reminders = savedTask.reminders;
-			}
-			if (!lineTask.reminder && savedTask.reminder) {
-				lineTask.reminder = savedTask.reminder;
-			}
-			if (!lineTask.remindTime && savedTask.remindTime) {
-				lineTask.remindTime = savedTask.remindTime;
+			// Preserve reminder fields from saved task when the line task lacks
+			// them (and the user didn't explicitly clear/change them with `⏰ off`
+			// or a new `⏰` value).
+			if (!modifications.remindersModified) {
+				this.plugin.taskParser?.preserveReminders(lineTask, savedTask);
 			}
 			if (!lineTask.repeatFlag && savedTask.repeatFlag) {
 				lineTask.repeatFlag = savedTask.repeatFlag;
@@ -504,7 +510,8 @@ export class TaskModificationDetector {
 			modifications.taskItemsModified ||
 			modifications.notesModified ||
 			modifications.projectMoved ||
-			modifications.repeatFlagModified;
+			modifications.repeatFlagModified ||
+			modifications.remindersModified;
 	}
 
 	/**

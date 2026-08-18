@@ -4,9 +4,15 @@
 
 ## Notable Changes
 
+### 2.0.8 → 2.0.10 — Reminder Creation from Obsidian { #2.0.10 }
+
+- **Create tasks with reminders** — writing `⏰ 30m` on a new Obsidian task now creates it in TickTick with the reminder set (previously reminders were only pulled from TickTick, not pushed on create). See [Task Format](task-format.md#reminders).
+- **Multiple reminders round-trip correctly** — reminders synced from TickTick are fully preserved when editing the task in Obsidian, including their IDs and trigger values.
+
 ### 2.0.5 → 2.0.8 — Misplaced File Conflict Resolution & Sync Fixes { #2.0.8 }
 
 - **Misplaced project files are now resolved instead of duplicated** — when a new vault file matches a project by name but is located outside the expected folder, you're asked how to proceed: move it to the correct location (merging the two files if one already exists), delete the misplaced file, delete the file at the correct location, or skip (leaves the file unassociated)
+- **Reminders** — set TickTick reminders from Obsidian with the `⏰` emoji plus a relative duration (`⏰ 30m`, `⏰ 1d`, `⏰ 0m` for on time, `⏰ off` to clear). Multiple `⏰` tokens add multiple reminders. Editing a task without `⏰` no longer wipes reminders set in the TickTick app. See [Task Format](task-format.md#reminders).
 - **Aggregated deletions** — tasks missing from TickTick are now grouped into a single confirmation dialog
 - **Project rename safety** — guard added so a renamed project can't be mistaken for a moved project
 - General stability and performance improvements

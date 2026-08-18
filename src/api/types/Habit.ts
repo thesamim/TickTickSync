@@ -1,5 +1,7 @@
 export type { IHabit };
 
+import type { Reminder } from './Task';
+
 interface IHabit {
 	id: string;
 	name: string;
@@ -17,7 +19,7 @@ interface IHabit {
 	unit: string;
 	etag: string;
 	repeatRule: string;
-	reminders: string[];
+	reminders: Reminder[];
 	recordEnable: boolean;
 	sectionId: string;
 	targetDays: number;
