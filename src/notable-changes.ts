@@ -69,7 +69,13 @@ export const NOTABLE_CHANGES: NotableChange[] = [
 	{
 		version: '2.0.8',
 		title: "**Misplaced project files are now resolved instead of duplicated** — when a new vault file matches a project by name but is located outside the expected folder, you're asked how to proceed: move it to the correct location (merging the two files if one already exists), delete the misplaced file, delete the file at the correct location, or skip (leaves the file unassociated)",
-		description: "**Aggregated deletions** — tasks missing from TickTick are now grouped into a single confirmation dialog\n**Project rename safety** — guard added so a renamed project can't be mistaken for a moved project\nGeneral stability and performance improvements",
+		description: "**Reminders** — set TickTick reminders from Obsidian with the `⏰` emoji plus a relative duration (`⏰ 30m`, `⏰ 1d`, `⏰ 0m` for on time, `⏰ off` to clear). Multiple `⏰` tokens add multiple reminders. Editing a task without `⏰` no longer wipes reminders set in the TickTick app. See [Task Format](task-format.md#reminders).\n**Aggregated deletions** — tasks missing from TickTick are now grouped into a single confirmation dialog\n**Project rename safety** — guard added so a renamed project can't be mistaken for a moved project\nGeneral stability and performance improvements",
 		anchor: '2.0.8',
+	},
+	{
+		version: '2.0.10',
+		title: "**Create tasks with reminders** — writing `⏰ 30m` on a new Obsidian task now creates it in TickTick with the reminder set (previously reminders were only pulled from TickTick, not pushed on create). See [Task Format](task-format.md#reminders).",
+		description: "**Multiple reminders round-trip correctly** — reminders synced from TickTick are fully preserved when editing the task in Obsidian, including their IDs and trigger values.",
+		anchor: '2.0.10',
 	}
 ];

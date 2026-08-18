@@ -1,11 +1,12 @@
 import { type App, Notice } from 'obsidian';
 import type TickTickSync from '@/main';
-import type { ITask, ITaskItem } from '@/api/types/Task';
+import type { ITask, ITaskItem, Reminder } from '@/api/types/Task';
 import { getSettings } from '@/settings';
 import { sha256 } from 'crypto-hash';
 import type { NewFileMap, ITaskRecord } from '@/services/NewFileMap';
 import { getAllProjects } from '@/db/projects';
 import { tasksTextToRRule, rruleToTasksText } from '@/utils/RecurrenceConverter';
+import { normalizeTrigger, parseReminderText, secondsToShorthand, triggerToSeconds } from '@/utils/ReminderConverter';
 import log from '@/utils/logger';
 
 const prioritySymbols = {
@@ -31,7 +32,8 @@ const keywords = {
 	TASK_DUE_DATE: '📅',
 	TASK_COMPLETE: '✅',
 	RECURRENCE: '🔁',
-	ALL_TASK_EMOJI: '➕|⏳|🛫|📅|✅|❌|🔁',
+	REMINDER: '⏰',
+	ALL_TASK_EMOJI: '➕|⏳|🛫|📅|✅|❌|🔁|⏰',
 	// priorityIcons: "⏬|🔽|🔼|⏫|🔺",
 	priority: `\\s([\u{23EC}\u{1F53D}\u{1F53C}\u{23EB}\u{1F53A}])\\s`
 };
@@ -100,7 +102,8 @@ export const REGEX = {
 		REMOVE_DATE: new RegExp(due_date_strip_regex, 'gum'),
 		REMOVE_COMPLETION_DATE: new RegExp(completion_date_strip_regex, 'gmu'),
 		REMOVE_INLINE_METADATA: /%%\[\w+::\s*\w+\]%%/g,
-		REMOVE_RECURRENCE: /🔁\s+[^🔁➕⏳🛫📅✅❌\n]+/gu,
+		REMOVE_RECURRENCE: /🔁\s+[^🔁➕⏳🛫📅✅❌⏰\n]+/gu,
+		REMOVE_REMINDER: /⏰\s+[^⏰➕⏳🛫📅✅❌🔁🔺⏫🔼🔽⏬\n]+/gu,
 		REMOVE_CHECKBOX: /^(-|\*)\s+\[(x|X| )\]\s/,
 		REMOVE_CHECKBOX_WITH_INDENTATION: /^([ \t]*)?(-|\*)\s+\[(x|X| )\]\s/,
 		REMOVE_TickTick_LINK: /\[link\]\(.*?\)/
@@ -112,7 +115,8 @@ export const REGEX = {
 	TASK_PRIORITY: new RegExp(keywords.priority, 'u'),
 	priorityRegex: /^.*([🔺⏫🔼🔽⏬]).*$/u,
 	BLANK_LINE: /^\s*$/,
-	RECURRENCE_RULE: /🔁\s+([^🔁➕⏳🛫📅✅❌]+?)(?=\s*[➕⏳🛫📅✅❌]|\s*$)/u,
+	RECURRENCE_RULE: /🔁\s+([^🔁➕⏳🛫📅✅❌⏰]+?)(?=\s*[➕⏳🛫📅✅❌⏰]|\s*$)/u,
+	REMINDER_RULE: /⏰\s+([^⏰➕⏳🛫📅✅❌🔁🔺⏫🔼🔽⏬\n]+?)(?=\s*(?:[➕⏳🛫📅✅❌🔁⏰🔺⏫🔼🔽⏬]|#|%%|\[)|\s*$)/gu,
 	TickTick_EVENT_DATE: /(\d{4})-(\d{2})-(\d{2})/,
 	ITEM_LINE: /\[(.*?)\]\s*(.*?)\s*%%(.*?)%%/,
 	LINE_ITEM_ID: /%%(?!\[ticktick_id::\s)[a-f0-9]{24}%%/g
@@ -151,6 +155,13 @@ export class TaskParser {
 
 		resultLine = this.addTickTickId(resultLine, task.id);
 
+		//add reminders
+		//Reminders are not a signifier emoji the Obsidian Tasks plugin
+		//understands. Tasks reads back from the end of the line and stops at
+		//unrecognized text, so `⏰ ...` must be emitted *before* the priority /
+		//recurrence / date cluster or those emojis would be unreadable.
+		resultLine = this.addRemindersToLine(resultLine, task);
+
 		//add priority
 		resultLine = this.addPriorityToLine(resultLine, task);
 
@@ -184,26 +195,112 @@ export class TaskParser {
 		return resultLine;
 	}
 
-	stripOBSUrl(title: string): string {
+	stripOBSUrl(title: string | undefined): string {
 		//TODO: this is ugly but I can't find a clean regex to make it happen.
 		let result = title;
 		if (result) {
-			let eoURL = title.lastIndexOf('.md)');
+			let eoURL = result.lastIndexOf('.md)');
 			let boURL = 0;
 			if (eoURL > 0) {
 				for (let i = eoURL; i > 0; i--) {
-					if (title[i] === '[') {
+					if (result[i] === '[') {
 						boURL = i;
 						break;
 					}
 				}
 				if (boURL > 0) {
-					result = title.substring(0, boURL);
-					result = result + title.substring(eoURL + 4); //magic number is len of .md + 1
+					result = result.substring(0, boURL);
+					result = result + result.substring(eoURL + 4); //magic number is len of .md + 1
 				}
 			}
 		}
-		return result.trim();
+		return (result ?? '').trim();
+	}
+
+	//Append `⏰ <shorthand>` tokens for each relative reminder, e.g. `⏰ 30m`.
+	//Reminders whose trigger isn't a relative lead time (absolute date-times)
+	//can't be round-tripped and are omitted from the line.
+	addRemindersToLine(resultLine: string, task: ITask): string {
+		if (!task.reminders?.length) {
+			return resultLine;
+		}
+		for (const reminder of task.reminders) {
+			const seconds = triggerToSeconds(reminder.trigger);
+			if (seconds === null) {
+				continue;
+			}
+			resultLine += ` ${keywords.REMINDER} ${secondsToShorthand(seconds)}`;
+		}
+		return resultLine;
+	}
+
+	//Parse `⏰ <value>` tokens. A value of `off` clears all reminders; multiple
+	//`⏰ <duration>` tokens add multiple reminders.
+	getRemindersFromLine(lineText: string): { reminders: Reminder[]; clear: boolean } {
+		const reminders: Reminder[] = [];
+		let clear = false;
+		for (const match of lineText.matchAll(REGEX.REMINDER_RULE)) {
+			const parsed = parseReminderText(match[1]);
+			if (!parsed) {
+				continue;
+			}
+			if ('clear' in parsed) {
+				clear = true;
+			} else {
+				reminders.push({ trigger: parsed.trigger });
+			}
+		}
+		if (clear) {
+			return { reminders: [], clear: true };
+		}
+		return { reminders, clear: false };
+	}
+
+	//True when the reminder sets (by trigger value) differ between the line task
+	//and the last-known state. Triggers are compared in their normalized form,
+	//so `TRIGGER:PT35M` (as written in a line) matches `TRIGGER:-PT35M` (as
+	//TickTick returns it). `⏰ off` (clearReminders) always counts as changed
+	//when there were reminders to clear.
+	areRemindersChanged(lineTask: ITask, savedTask: ITask): boolean {
+		const lineTriggers = (lineTask.reminders || []).map(r => normalizeTrigger(r.trigger));
+		const savedTriggers = (savedTask.reminders || []).map(r => normalizeTrigger(r.trigger));
+		const sort = (arr: string[]) => [...arr].sort();
+		if (lineTask.clearReminders && savedTriggers.length > 0) {
+			return true;
+		}
+		if (lineTriggers.length !== savedTriggers.length) {
+			return true;
+		}
+		return JSON.stringify(sort(lineTriggers)) !== JSON.stringify(sort(savedTriggers));
+	}
+
+	//Carry over reminders from the last-known state when the line task has none
+	//and the user didn't explicitly ask to clear them (`⏰ off`). This stops a
+	//plain Obsidian text edit from silently wiping a TickTick-side reminder.
+	//Also merges TickTick ids onto line reminders by matching trigger (in
+	//normalized form, so `PT35M` matches `-PT35M`), keeping the original
+	//TickTick trigger value so an update to `batch/task` keeps referencing the
+	//existing reminder objects.
+	preserveReminders(lineTask: ITask, savedTask: ITask | null | undefined): void {
+		if (lineTask.clearReminders) {
+			lineTask.reminders = [];
+			return;
+		}
+		const savedReminders = savedTask?.reminders;
+		if (!savedReminders?.length) {
+			return;
+		}
+		if (!lineTask.reminders || lineTask.reminders.length === 0) {
+			lineTask.reminders = savedReminders;
+			return;
+		}
+		lineTask.reminders = lineTask.reminders.map(reminder => {
+			if (reminder.id) {
+				return reminder;
+			}
+			const match = savedReminders.find(saved => normalizeTrigger(saved.trigger) === normalizeTrigger(reminder.trigger));
+			return match ? { ...reminder, id: match.id, trigger: match.trigger } : reminder;
+		});
 	}
 
 	//Remove Extraneous data from line.
@@ -212,6 +309,7 @@ export class TaskParser {
 			.replace(REGEX.TASK_CONTENT.REMOVE_TickTick_LINK, '')
 			.replace(REGEX.TASK_CONTENT.REMOVE_PRIORITY, '')
 			.replace(REGEX.TASK_CONTENT.REMOVE_RECURRENCE, '')
+			.replace(REGEX.TASK_CONTENT.REMOVE_REMINDER, '')
 			.replace(REGEX.TASK_CONTENT.REMOVE_TAGS, ' ')
 			.replace(REGEX.TASK_CONTENT.REMOVE_CHECKBOX, '')
 			.replace(REGEX.TASK_CONTENT.REMOVE_CHECKBOX_WITH_INDENTATION, '')
@@ -299,6 +397,8 @@ export class TaskParser {
 
 		const recurrenceMatch = textWithoutIndentation.match(REGEX.RECURRENCE_RULE);
 		const recurrenceResult = recurrenceMatch ? tasksTextToRRule(recurrenceMatch[1]) : null;
+
+		const reminderResult = this.getRemindersFromLine(textWithoutIndentation);
 
 		let taskRecord: ITaskRecord;
 
@@ -472,7 +572,8 @@ export class TaskParser {
 			childIds: [],
 			sortOrder: 0,
 			reminder: '',
-			reminders: [],
+			reminders: reminderResult.clear ? [] : reminderResult.reminders,
+			clearReminders: reminderResult.clear || undefined,
 			progress: 0,
 			deleted: 0,
 			lineHash: '',

@@ -8,6 +8,7 @@ import type { ITag } from './types/Tag';
 import { API_ENDPOINTS } from './utils/get-api-endpoints';
 import log from '@/utils/logger';
 import { getSettings, updateSettings } from '@/settings';
+import { normalizeTrigger } from '@/utils/ReminderConverter';
 
 const _userAgent = window['navigator']['userAgent'];
 
@@ -482,6 +483,9 @@ export class Tick {
 			} else {
 				bIsAllDay = task.isAllDay;
 			}
+			// Canonical positive triggers (e.g. TRIGGER:PT30M, TRIGGER:P1D)
+			// for both the singular and plural reminder fields.
+			const triggers = (task.reminders || []).map(r => normalizeTrigger(r.trigger));
 			const thisTask = {
 				id: task.id ? task.id : ObjectID().toHexString(),
 				projectId: task.projectId ? task.projectId : this.inboxProperties.id,
@@ -497,8 +501,12 @@ export class Tick {
 				// date survives a push. Omitting it makes TickTick reset the
 				// date to "now" (issue #209).
 				completedTime: task.completedTime ?? null,
-				reminder: task.reminder ? task.reminder : null as unknown as string,
-				reminders: task.reminders ? task.reminders : [],
+				// POST /task uses the legacy web API's native {id, trigger}
+				// reminder shape (same as batch/check). Empty string id tells
+				// TickTick to generate one. The singular `reminder` field must
+				// carry the first (or only) trigger.
+				reminder: triggers[0] || task.reminder || null,
+				reminders: triggers.map(t => ({ id: '', trigger: t })),
 				repeatFlag: task.repeatFlag ? task.repeatFlag : null as unknown as string,
 				priority: task.priority ? task.priority : 0,
 				status: task.status ? task.status : 0,
@@ -516,14 +524,19 @@ export class Tick {
 			} as unknown as ITask;
 
 			const url = `${this.apiUrl}/${TaskEndPoint}`;
+			// TEMP DEBUG: dump the exact create payload sent to POST /task.
+			log.info('Add Task payload:', JSON.stringify(thisTask, null, 2));
 			const response = await this.makeRequest('Add Task', url, 'POST', thisTask);
+			// TEMP DEBUG: dump the raw response (and the API error when rejected).
+			log.info('Add Task response:', JSON.stringify(response), this.lastError ? `lastError: ${JSON.stringify(this.lastError)}` : '');
 			if (response) {
-				const r = response as { sortOrder: number };
-				let bodySortOrder;
-				bodySortOrder = r.sortOrder;
-				this.inboxProperties.sortOrder = bodySortOrder - 1;
+				// POST /task sometimes wraps the created task in {ok, result} —
+				// unwrap it so callers get the task object directly.
+				const raw = response as { ok?: boolean; result?: { sortOrder?: number } };
+				const created = raw.ok && raw.result ? raw.result : response;
+				this.inboxProperties.sortOrder = ((created as { sortOrder?: number }).sortOrder ?? 0) - 1;
 
-				return response;
+				return created;
 			} else {
 				return [];
 			}
@@ -558,8 +571,17 @@ export class Tick {
 				// date survives a push. Omitting it makes TickTick reset the
 				// date to "now" (issue #209).
 				completedTime: jsonOptions.completedTime ?? null,
-				reminder: jsonOptions.reminder ? jsonOptions.reminder : null as unknown as string,
-				reminders: jsonOptions.reminders ? jsonOptions.reminders : [],
+				// Populated from the first trigger in the reminders array,
+				// matching the legacy create path. Without this, TickTick
+				// silently drops all reminders on update.
+				reminder: jsonOptions.reminders?.[0] ? normalizeTrigger(jsonOptions.reminders[0].trigger) : (jsonOptions.reminder || null),
+				// batch/task uses the {id, trigger} object form returned by the web sync API.
+				// Existing reminders keep their TickTick id; new ones get an empty string.
+				// Triggers are normalized to the positive canonical form TickTick accepts.
+				reminders: (jsonOptions.reminders || []).map(r => ({
+					id: r.id || '',
+					trigger: r.id ? r.trigger : normalizeTrigger(r.trigger),
+				})),
 				repeatFlag: jsonOptions.repeatFlag ? jsonOptions.repeatFlag : null as unknown as string,
 				priority: jsonOptions.priority ? jsonOptions.priority : 0,
 				status: jsonOptions.status ? jsonOptions.status : 0,

@@ -153,6 +153,9 @@ export class TaskOperationsService {
 						// Merge saved data with line data
 						const merged = { ...savedTask, ...lineTask };
 						Object.assign(lineTask, merged);
+						// Reminders have no other in-line source here: carry them over
+						// from the last-known state so a force update can't wipe them.
+						this.plugin.taskParser?.preserveReminders(lineTask, savedTask);
 						// Preserve a genuine TT-side "ticktick" tag (see TaskParser.preserveTickTickTag)
 						this.plugin.taskParser?.preserveTickTickTag(lineTask, savedTask);
 

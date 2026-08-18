@@ -102,20 +102,27 @@ export class TaskRepository {
 			const currentDeviceId = getCurrentDeviceInfo()?.deviceId;
 
 			if (existingTask) {
-				// Preserve reminder fields from the existing task if the incoming task lacks them
-				if ((!task.reminders || task.reminders.length === 0) && existingTask.task.reminders?.length) {
-					task.reminders = existingTask.task.reminders;
+				// An explicit `⏰ off` on the line means "delete all reminders":
+				// consume the control flag and don't resurrect anything.
+				if (task.clearReminders) {
+					task.reminders = [];
+					delete task.clearReminders;
+				} else {
+					// Preserve reminder fields from the existing task if the incoming task lacks them
+					if ((!task.reminders || task.reminders.length === 0) && existingTask.task.reminders?.length) {
+						task.reminders = existingTask.task.reminders;
+					}
+					if (!task.reminder && existingTask.task.reminder) {
+						task.reminder = existingTask.task.reminder;
+					}
+					if (!task.remindTime && existingTask.task.remindTime) {
+						task.remindTime = existingTask.task.remindTime;
+					}
 				}
-				if (!task.reminder && existingTask.task.reminder) {
-					task.reminder = existingTask.task.reminder;
+				if (!task.repeatFlag && existingTask.task.repeatFlag) {
+					task.repeatFlag = existingTask.task.repeatFlag;
+					task.repeatFrom = existingTask.task.repeatFrom;
 				}
-				if (!task.remindTime && existingTask.task.remindTime) {
-					task.remindTime = existingTask.task.remindTime;
-				}
-			if (!task.repeatFlag && existingTask.task.repeatFlag) {
-				task.repeatFlag = existingTask.task.repeatFlag;
-				task.repeatFrom = existingTask.task.repeatFrom;
-			}
 
 				// Update existing
 				await db.tasks.update(existingTask.localId, {
