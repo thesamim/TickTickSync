@@ -3,6 +3,7 @@ import { resolveTaskConflict } from "./conflicts";
 import { logSyncEvent } from "./journal";
 import type { TickTickRestAPI } from '@/services/TicktickRestAPI';
 import type { LocalTask, SyncMeta } from "@/db/schema";
+import { updateSettings } from '@/settings';
 import log from '@/utils/logger';
 
 /** Resolve a task identifier that may appear as `id` or `taskId`. */
@@ -118,6 +119,9 @@ export async function pullFromTickTick(
 			lastDeltaSync: ticktickRestApi.checkpoint
 		});
 	}
+	// Persist checkpoint to data.json so it survives Dexie DB resets
+	updateSettings({ checkPoint: ticktickRestApi.checkpoint });
+	await ticktickRestApi.plugin.saveSettings();
 	logSyncEvent(meta.deviceId, "pull:complete", { applied });
 
 	return applied;

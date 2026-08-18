@@ -45,12 +45,18 @@ vi.mock('./conflicts', () => ({
 	})),
 }));
 
+const mockSaveSettings = vi.fn().mockResolvedValue(undefined);
+vi.mock('../settings', () => ({
+	updateSettings: vi.fn(),
+}));
+
 describe('pullFromTickTick', () => {
 	const mockApi = {
 		getUpdatedTasks: vi.fn(),
 		checkpoint: 123456789,
 		plugin: {
 			dateMan: { addDateHolderToTask: vi.fn() },
+			saveSettings: mockSaveSettings,
 		},
 	} as any;
 

@@ -96,6 +96,11 @@ export class NewFileMap {
 			} else {
 				insertLine = this.fileLines.length;
 			}
+			// If inserting at the end and the last line is empty (from trailing \n),
+			// insert before it to avoid adding a blank line
+			if (insertLine === this.fileLines.length && this.fileLines.length > 0 && this.fileLines[this.fileLines.length - 1] === '') {
+				insertLine--;
+			}
 		}
 		const taskLines = taskLine.split('\n');
 		this.fileLines.splice(insertLine, 0, ...taskLines);
