@@ -45,12 +45,18 @@ vi.mock('../sync/conflicts', () => ({
 	})),
 }));
 
+const mockSaveSettings = vi.fn().mockResolvedValue(undefined);
+vi.mock('../settings', () => ({
+	updateSettings: vi.fn(),
+}));
+
 describe('pullFromTickTick field mapping and echo detection', () => {
 	const mockApi = {
 		getUpdatedTasks: vi.fn(),
 		checkpoint: 123456789,
 		plugin: {
 			dateMan: { addDateHolderToTask: vi.fn() },
+			saveSettings: mockSaveSettings,
 		},
 	};
 
@@ -123,5 +129,41 @@ describe('pullFromTickTick field mapping and echo detection', () => {
 
 		expect(applied).toBe(0);
 		expect((db.tasks as unknown as Record<string, Mock>).bulkPut).not.toHaveBeenCalled();
+	});
+
+	it('should persist checkpoint to data.json after pull', async () => {
+		const { updateSettings } = await import('../settings');
+
+		mockApi.getUpdatedTasks.mockResolvedValue({ update: [], delete: [] });
+		mockApi.checkpoint = 9999999;
+
+		await pullFromTickTick(mockApi, mockMeta, false);
+
+		// Should update Dexie DB
+		expect((db.meta as unknown as Record<string, Mock>).update).toHaveBeenCalledWith('sync', {
+			lastDeltaSync: 9999999,
+		});
+
+		// Should also persist to data.json
+		expect(updateSettings).toHaveBeenCalledWith({ checkPoint: 9999999 });
+		expect(mockSaveSettings).toHaveBeenCalled();
+	});
+
+	it('should persist fullSync checkpoint to data.json', async () => {
+		const { updateSettings } = await import('../settings');
+
+		mockApi.getUpdatedTasks.mockResolvedValue({ update: [], delete: [] });
+		mockApi.checkpoint = 8888888;
+
+		await pullFromTickTick(mockApi, mockMeta, true);
+
+		// Should update Dexie DB with lastFullSync
+		expect((db.meta as unknown as Record<string, Mock>).update).toHaveBeenCalledWith('sync', {
+			lastFullSync: 8888888,
+		});
+
+		// Should also persist to data.json
+		expect(updateSettings).toHaveBeenCalledWith({ checkPoint: 8888888 });
+		expect(mockSaveSettings).toHaveBeenCalled();
 	});
 });

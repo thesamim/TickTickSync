@@ -473,6 +473,11 @@ export class FileOperation {
 	private async syncTasks(file: TFile, tasks: ITask[], bUpdating: boolean): Promise<boolean> {
 		try {
 			const newData = await this.persistToFile(tasks, file, bUpdating);
+			const currentData = await this.readFileContent(file);
+			if (newData === currentData) {
+				log.debug(`No changes to write for ${file.path}, skipping write`);
+				return true;
+			}
 			await this.app.vault.process(file, (data) => {
 				data = newData;
 				return data;
