@@ -155,20 +155,20 @@ describe('ProjectSyncService.saveProjectsToCache', () => {
 		expect(updateFilePath).toHaveBeenCalledWith('Work.md', 'Work Stuff.md');
 	});
 
-	it('does not re-create a file entry for a cached project whose vault file is gone', async () => {
+	it('re-creates a file entry for a cached project whose vault file is gone', async () => {
 		const { plugin } = makePlugin();
 		const svc = new ProjectSyncService(
 			{ vault: { getAbstractFileByPath: () => null } } as never,
 			plugin as never
 		);
 
-		// Project is cached (survives the database cleanup) but its vault file
-		// was deleted and cleaned up, so there is no mapping anymore.
+		// Project is cached but its vault file was deleted.
+		// The mapping and file should be re-created.
 		projectsTable.set('proj-a', { id: 'proj-a', project: { id: 'proj-a', name: 'Work' } as IProject });
 
 		await svc.checkProjectRename('proj-a', 'Work');
 
-		expect(upsertFile).not.toHaveBeenCalled();
+		expect(upsertFile).toHaveBeenCalledWith('Work.md', 'proj-a');
 	});
 
 	it('re-creates a file entry for a cached project when the vault file still exists', async () => {
