@@ -502,11 +502,11 @@ export class Tick {
 				// date to "now" (issue #209).
 				completedTime: task.completedTime ?? null,
 				// POST /task uses the legacy web API's native {id, trigger}
-				// reminder shape (same as batch/check). Empty string id tells
-				// TickTick to generate one. The singular `reminder` field must
-				// carry the first (or only) trigger.
+				// reminder shape (same as batch/check). Generate reminder ids
+				// client-side, matching the TickTick/Dida web client. The singular
+				// `reminder` field must carry the first (or only) trigger.
 				reminder: triggers[0] || task.reminder || null,
-				reminders: triggers.map(t => ({ id: '', trigger: t })),
+				reminders: triggers.map(t => ({ id: ObjectID().toHexString(), trigger: t })),
 				repeatFlag: task.repeatFlag ? task.repeatFlag : null as unknown as string,
 				priority: task.priority ? task.priority : 0,
 				status: task.status ? task.status : 0,
@@ -576,10 +576,11 @@ export class Tick {
 				// silently drops all reminders on update.
 				reminder: jsonOptions.reminders?.[0] ? normalizeTrigger(jsonOptions.reminders[0].trigger) : (jsonOptions.reminder || null),
 				// batch/task uses the {id, trigger} object form returned by the web sync API.
-				// Existing reminders keep their TickTick id; new ones get an empty string.
+				// Existing reminders keep their TickTick id; new ones get a client-generated
+				// ObjectId, matching reminders created by the TickTick/Dida web client.
 				// Triggers are normalized to the positive canonical form TickTick accepts.
 				reminders: (jsonOptions.reminders || []).map(r => ({
-					id: r.id || '',
+					id: r.id || ObjectID().toHexString(),
 					trigger: r.id ? r.trigger : normalizeTrigger(r.trigger),
 				})),
 				repeatFlag: jsonOptions.repeatFlag ? jsonOptions.repeatFlag : null as unknown as string,
