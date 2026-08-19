@@ -40,17 +40,23 @@ function makeTask(overrides: Partial<ITask> = {}): ITask {
 }
 
 describe('addTask payload reminders', () => {
-	it('sends reminders as {id, trigger} objects with empty id on create', async () => {
+	it('sends reminders with client-generated ObjectIds on create', async () => {
 		const { tick, mock } = makeApi();
 		const task = makeTask({ reminders: [{ trigger: 'TRIGGER:PT30M' }, { trigger: 'TRIGGER:P1D' }] });
 
 		await tick.addTask(task);
 
 		const body = mock.mock.calls[0][3];
-		expect(body.reminders).toEqual([
-			{ id: '', trigger: 'TRIGGER:PT30M' },
-			{ id: '', trigger: 'TRIGGER:P1D' },
-		]);
+		expect(body.reminders).toHaveLength(2);
+		expect(body.reminders[0]).toEqual({
+			id: expect.stringMatching(/^[a-f0-9]{24}$/),
+			trigger: 'TRIGGER:PT30M',
+		});
+		expect(body.reminders[1]).toEqual({
+			id: expect.stringMatching(/^[a-f0-9]{24}$/),
+			trigger: 'TRIGGER:P1D',
+		});
+		expect(body.reminders[0].id).not.toBe(body.reminders[1].id);
 	});
 
 	it('sets the singular reminder field to the first trigger on create', async () => {
@@ -72,14 +78,18 @@ describe('addTask payload reminders', () => {
 		expect(body.reminders).toEqual([]);
 	});
 
-	it('always uses empty id for reminders on create (no task exists yet)', async () => {
+	it('replaces local reminder ids on create because no remote reminder exists yet', async () => {
 		const { tick, mock } = makeApi();
 		const task = makeTask({ reminders: [{ id: 'r1', trigger: 'TRIGGER:PT30M' }] });
 
 		await tick.addTask(task);
 
 		const body = mock.mock.calls[0][3];
-		expect(body.reminders).toEqual([{ id: '', trigger: 'TRIGGER:PT30M' }]);
+		expect(body.reminders).toEqual([{
+			id: expect.stringMatching(/^[a-f0-9]{24}$/),
+			trigger: 'TRIGGER:PT30M',
+		}]);
+		expect(body.reminders[0].id).not.toBe('r1');
 	});
 
 	it('returns the created task directly', async () => {
@@ -105,7 +115,7 @@ describe('addTask payload reminders', () => {
 });
 
 describe('updateTask payload reminders', () => {
-	it('sends reminders as {id, trigger} objects on update, empty id for new ones', async () => {
+	it('preserves existing reminder ids and generates ObjectIds for new reminders on update', async () => {
 		const { tick, mock } = makeApi();
 		const task = makeTask({
 			reminders: [{ id: 'r1', trigger: 'TRIGGER:-PT35M' }, { trigger: 'TRIGGER:PT30M' }],
@@ -116,7 +126,7 @@ describe('updateTask payload reminders', () => {
 		const payload = mock.mock.calls[0][3];
 		expect(payload.update[0].reminders).toEqual([
 			{ id: 'r1', trigger: 'TRIGGER:-PT35M' },
-			{ id: '', trigger: 'TRIGGER:PT30M' },
+			{ id: expect.stringMatching(/^[a-f0-9]{24}$/), trigger: 'TRIGGER:PT30M' },
 		]);
 	});
 
