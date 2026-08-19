@@ -3,7 +3,7 @@
  * Extracts vault sync logic from SyncModule
  */
 
-import { App, Notice, TFile } from 'obsidian';
+import { App, Notice, TFile, TFolder } from 'obsidian';
 import type TickTickSync from '@/main';
 import type { ITask } from '@/api/types/Task';
 import type { LocalTask } from '@/db/schema';
@@ -104,8 +104,9 @@ export class VaultSyncCoordinator {
 					dbUpdates.push({ localId: lt.localId, changes: { lastVaultSync: Date.now() } });
 				}
 			} else if (lt.file) {
-				// No longer matches filter, remove from vault
-				group.toDelete.push(task);
+				// Task doesn't match current filter but already exists in vault.
+				// Leave it alone -- do not delete user's existing tasks.
+				continue;
 			}
 		}
 
@@ -124,6 +125,9 @@ export class VaultSyncCoordinator {
 			});
 			log.debug(`VaultSync: Updated ${dbUpdates.length} task records in DB`);
 		}
+
+		// Ensure all projects with DB file mappings have their vault files
+		await this.ensureProjectFilesExist();
 	}
 
 	/**
@@ -323,6 +327,55 @@ export class VaultSyncCoordinator {
 			// 3. Handle Additions
 			if (group.toAdd.length > 0) {
 				await this.plugin.fileOperation?.synchronizeToVault(filePath, group.toAdd, false);
+			}
+		}
+	}
+
+	/**
+	 * Ensure all projects with DB file mappings have their vault files.
+	 * This covers projects that have no tasks yet but still need a file created.
+	 */
+	private async ensureProjectFilesExist(): Promise<void> {
+		const allFileRecords = await db.files.toArray();
+		const managedFiles = allFileRecords.filter(f => f.defaultProjectId);
+
+		for (const fileRecord of managedFiles) {
+			const file = this.app.vault.getAbstractFileByPath(fileRecord.path);
+			if (file instanceof TFile) {
+				continue;
+			}
+
+			log.debug(`Ensuring project file exists: ${fileRecord.path}`);
+			try {
+				let normalizedPath = fileRecord.path;
+				if (normalizedPath.startsWith('/')) {
+					normalizedPath = normalizedPath.substring(1);
+				}
+
+				const parentPath = normalizedPath.includes('/') ? normalizedPath.substring(0, normalizedPath.lastIndexOf('/')) : '';
+				if (parentPath) {
+					const parts = parentPath.split('/').filter(Boolean);
+					let current = '';
+					for (const part of parts) {
+						current = current ? `${current}/${part}` : part;
+						const folder = this.app.vault.getAbstractFileByPath(current);
+						if (!folder) {
+							await this.app.vault.createFolder(current);
+						} else if (!(folder instanceof TFolder)) {
+							log.error(`Path conflict: ${current} exists and is not a folder`);
+							return;
+						}
+					}
+				}
+
+				const whoAdded = `${this.plugin.manifest.name} -- ${this.plugin.manifest.version}`;
+				await this.app.vault.create(normalizedPath, `== Added by ${whoAdded} == `);
+			} catch (error) {
+				if ((error as Error).message?.includes('File already exists')) {
+					log.debug(`File already exists: ${fileRecord.path}`);
+				} else {
+					log.error(`Error creating project file ${fileRecord.path}:`, error);
+				}
 			}
 		}
 	}

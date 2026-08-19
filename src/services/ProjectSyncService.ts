@@ -1,4 +1,4 @@
-import { App, Notice, TFile } from 'obsidian';
+import { App, Notice, TFile, TFolder } from 'obsidian';
 import type TickTickSync from '@/main';
 import type { IProject } from '@/api/types/Project';
 import type { FolderSyncService } from '@/services/FolderSyncService';
@@ -93,20 +93,48 @@ export class ProjectSyncService {
 				newFilePath = (folder ? folder + "/" : "") + safeProjectName + '.md';
 			}
 
-			// A project that is already in the cache but whose vault file is
-			// gone had its file deliberately deleted by the user (and cleaned up
-			// from the database). Re-creating the mapping here would resurrect
-			// the entry on every sync. Only re-create the mapping when the vault
-			// file still exists (e.g. the DB record was lost) or the project is
-			// brand new (not cached yet, so it still needs its initial mapping).
 			const vaultFile = this.app?.vault?.getAbstractFileByPath ? this.app.vault.getAbstractFileByPath(newFilePath) : undefined;
-			if (project && !(vaultFile instanceof TFile)) {
-				log.debug(`Not re-creating file entry for ${ttProjectName} (${ttProjectId}): vault file ${newFilePath} does not exist.`);
-				return;
-			}
 
 			log.debug(`Unmapped project: ${ttProjectName} (${ttProjectId}). Creating file entry: ${newFilePath}`);
 			await upsertFile(newFilePath, ttProjectId);
+
+			// Create the vault file if it doesn't exist yet
+			if (!(vaultFile instanceof TFile)) {
+				try {
+					let normalizedPath = newFilePath;
+					if (normalizedPath.startsWith('/')) {
+						normalizedPath = normalizedPath.substring(1);
+					}
+
+					const parentPath = normalizedPath.includes('/') ? normalizedPath.substring(0, normalizedPath.lastIndexOf('/')) : '';
+					if (parentPath) {
+						const parts = parentPath.split('/').filter(Boolean);
+						let current = '';
+						for (const part of parts) {
+							current = current ? `${current}/${part}` : part;
+							const folder = this.app.vault.getAbstractFileByPath(current);
+							if (!folder) {
+								log.debug(`Creating folder: ${current}`);
+								await this.app.vault.createFolder(current);
+							} else if (!(folder instanceof TFolder)) {
+								log.error(`Path conflict: ${current} exists and is not a folder`);
+								return;
+							}
+						}
+					}
+
+					const whoAdded = `${this.plugin.manifest.name} -- ${this.plugin.manifest.version}`;
+					log.debug(`Creating vault file: ${normalizedPath}`);
+					await this.app.vault.create(normalizedPath, `== Added by ${whoAdded} == `);
+				} catch (error) {
+					if ((error as Error).message?.includes('File already exists')) {
+						log.debug(`File already exists: ${newFilePath}`);
+					} else {
+						log.error(`Error creating vault file ${newFilePath}:`, error);
+					}
+				}
+			}
+
 			return;
 		}
 		if (project && project.name !== ttProjectName) {
