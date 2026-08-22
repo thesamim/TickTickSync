@@ -6,7 +6,8 @@ The TickTickSync plugin automatically creates tasks in TickTick and synchronizes
 
 If TickTickSync provides value:
 
-<a href='https://ko-fi.com/O0C12398ZK' target='_blank'><img height='36' style='border:0px;height:36px;' src='https://storage.ko-fi.com/cdn/kofi6.png?v=6' border='0' alt='Buy Me a Coffee at ko-fi.com' /></a>
+[![Buy Me a Coffee.](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/O0C12398ZK)
+
 
 
 The plugin works best when the [Tasks](https://github.com/obsidian-tasks-group/obsidian-tasks) plugin is installed.
