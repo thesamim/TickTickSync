@@ -1,10 +1,11 @@
-import { type App, Notice } from 'obsidian';
+import { type App, type MetadataCache, Notice } from 'obsidian';
 import type TickTickSync from '@/main';
 import type { ITask, ITaskItem, Reminder } from '@/api/types/Task';
 import { getSettings } from '@/settings';
 import { sha256 } from 'crypto-hash';
 import type { NewFileMap, ITaskRecord } from '@/services/NewFileMap';
 import { getAllProjects } from '@/db/projects';
+import type { TagService } from '@/services/TagService';
 import { tasksTextToRRule, rruleToTasksText } from '@/utils/RecurrenceConverter';
 import { normalizeTrigger, parseReminderText, secondsToShorthand, triggerToSeconds } from '@/utils/ReminderConverter';
 import log from '@/utils/logger';
@@ -355,6 +356,10 @@ export class TaskParser {
 		//we're looking for the ticktick tag without the #
 		const regEx = new RegExp(keywords.TickTick_TAG.substring(1), 'i');
 		const tagSvc = this.plugin?.tagService;
+		// Snapshot the vault's tags once so we can decide whether a hyphenated
+		// tag's leading segment is an existing parent (hierarchy) or a literal
+		// flat tag. Doing it once per line avoids N metadataCache lookups.
+		const vaultTags = this.getVaultTags();
 		tags.forEach((tag: string) => {
 			//TickTick tag, if present, will be added at the end.
 			if (!tag.match(regEx)) {
@@ -365,15 +370,19 @@ export class TaskParser {
 					if (hierarchical) {
 						display = hierarchical.trim();
 					} else {
-						// Fallback: old -→/ conversion for backward compat
+						// Fallback: only convert - → / when the tag genuinely
+						// belongs to a known hierarchy (its leading segment is an
+						// existing parent). Otherwise keep the flat hyphenated
+						// label verbatim — e.g. `a12s-2026-q2` must stay flat,
+						// not become `a12s/2026/q2`.
 						display = (tagSvc.getLabel(tag) ?? tag).trim();
-						if (display.includes('-')) {
+						if (this.tagIsHierarchical(tag, tagSvc, vaultTags)) {
 							display = display.replace(/-/g, '/');
 						}
 					}
 				} else {
 					display = tag.trim();
-					if (display.includes('-')) {
+					if (this.tagIsHierarchical(tag, undefined, vaultTags)) {
 						display = display.replace(/-/g, '/');
 					}
 				}
@@ -381,6 +390,63 @@ export class TaskParser {
 			}
 		});
 		return resultLine;
+	}
+
+	/**
+	 * True when a TickTick tag name should be rendered/interpreted as part of a
+	 * hierarchy (so hyphen segments become slash segments). This is only the case
+	 * when the tag's leading hyphen-segment already exists as a parent tag in
+	 * either Obsidian's vault tags (metadataCache) or TickTick's cached tag list
+	 * (TagService). A bare hyphenated tag like `a12s-2026-q2` with no known
+	 * `a12s` parent stays flat.
+	 */
+	private tagIsHierarchical(name: string, tagSvc: TagService | undefined, vaultTags: Record<string, number>): boolean {
+		// Already known as a child in TickTick's cache.
+		if (tagSvc?.getParent(name)) return true;
+
+		// Leading hyphen-segment (e.g. "a12s" from "a12s-2026-q2").
+		const segments = name.split('-');
+		if (!segments.length || !segments[0]) return false;
+		const needle = segments[0].trim().toLowerCase() + '/';
+
+		// Any vault tag that starts with "<seg>/" means <seg> is used as a parent.
+		for (const key of Object.keys(vaultTags)) {
+			if (key.toLowerCase().startsWith(needle)) return true;
+		}
+		return false;
+	}
+
+	/**
+	 * Obsidian's `metadataCache.getTags()` (available at runtime in modern
+	 * Obsidian but not present in the older type definitions) returns a map of
+	 * tag -> count for the whole vault. We consult it to decide whether a
+	 * hyphenated tag's leading segment is an existing parent tag. Falls back to
+	 * an empty map when unavailable.
+	 */
+	private getVaultTags(): Record<string, number> {
+		const mc = this.app?.metadataCache as (MetadataCache & { getTags?: () => Record<string, number> }) | undefined;
+		return mc?.getTags?.() ?? {};
+	}
+
+	/**
+	 * Returns the slash form of a raw Obsidian tag for the purpose of hierarchy
+	 * splitting. A tag containing an explicit `/` is already hierarchical and is
+	 * returned unchanged. A bare hyphenated tag (`a12s-2026-q2`) only gains
+	 * hierarchy when its leading hyphen-segment (`a12s`) is an existing parent
+	 * tag — matching the render direction and the "explicit slash form" rule for
+	 * creating brand-new hierarchies. Otherwise it stays flat.
+	 */
+	private effectiveTagForHierarchy(raw: string): string {
+		if (raw.includes('/')) return raw;
+		const segments = raw.split('-');
+		if (!segments.length || !segments[0]) return raw;
+		const seg = segments[0].trim().toLowerCase();
+		const vaultTags = this.getVaultTags();
+		const needle = seg + '/';
+		for (const key of Object.keys(vaultTags)) {
+			if (key.toLowerCase().startsWith(needle)) return raw.replace(/-/g, '/');
+		}
+		return raw;
 	}
 
 	//convert line text to a task object
@@ -467,7 +533,7 @@ export class TaskParser {
 						tagsToCreate.push({ label: raw, name, parent: null });
 					}
 				} else {
-					const parts = raw.split('/');
+					const parts = this.effectiveTagForHierarchy(raw).split('/');
 					if (parts.length === 1) {
 						// Simple tag (no hierarchy)
 						if (!tagSvc.isKnownTag(raw)) {
@@ -515,7 +581,7 @@ export class TaskParser {
 		let tags: string[];
 		if (tagSvc) {
 			tags = rawTags.map(raw => {
-				const parts = raw.split('/');
+				const parts = this.effectiveTagForHierarchy(raw).split('/');
 				if (parts.length === 1) return tagSvc.resolveToName(raw);
 				if (parts.length === 2) return tagSvc.resolveToName(parts[1]);
 				return tagSvc.resolveToName(parts.slice(1).join('-'));

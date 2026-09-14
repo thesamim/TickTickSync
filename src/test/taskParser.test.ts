@@ -68,9 +68,9 @@ describe('addTagsToLine', () => {
 		expect(result).toBe('- [ ] task #work #home');
 	});
 
-	it('converts dashes to slashes for non-hierarchical tags when no tagSvc', () => {
+	it('keeps hyphens flat for non-hierarchical tags when no tagSvc', () => {
 		const result = parser.addTagsToLine('- [ ] task', ['ok-here-we-go']);
-		expect(result).toBe('- [ ] task #ok/here/we/go');
+		expect(result).toBe('- [ ] task #ok-here-we-go');
 	});
 
 	it('skips ticktick tag', () => {
@@ -102,17 +102,56 @@ describe('addTagsToLine', () => {
 		expect(mockTagSvc.resolveHierarchicalLabel).toHaveBeenCalledWith('meeting');
 	});
 
-	it('falls back to label with dash-to-slash when resolveHierarchicalLabel returns null', () => {
+	it('keeps flat label with hyphens when resolveHierarchicalLabel returns null and no parent is known', () => {
 		const mockTagSvc = {
 			resolveHierarchicalLabel: vi.fn(() => null),
 			getLabel: vi.fn((name: string) => {
 				if (name === 'my-tag') return 'My-Tag';
 				return null;
 			}),
+			getParent: vi.fn(() => null),
 		};
 		(parser as any).plugin = { tagService: mockTagSvc };
 		const result = parser.addTagsToLine('- [ ] task', ['my-tag']);
-		expect(result).toBe('- [ ] task #My/Tag');
+		expect(result).toBe('- [ ] task #My-Tag');
+	});
+
+	it('converts hyphens to slashes when the leading segment is an existing parent in the vault', () => {
+		const mockTagSvc = {
+			resolveHierarchicalLabel: vi.fn(() => null),
+			getLabel: vi.fn((name: string) => {
+				if (name === 'a12s-2026-q2') return 'a12s-2026-q2';
+				return null;
+			}),
+			getParent: vi.fn(() => null),
+		};
+		(parser as any).plugin = { tagService: mockTagSvc };
+		(parser as any).app = {
+			metadataCache: {
+				getTags: () => ({ 'a12s/2026/q2': 1, 'a12s': 2 }),
+			},
+		};
+		const result = parser.addTagsToLine('- [ ] task', ['a12s-2026-q2']);
+		expect(result).toBe('- [ ] task #a12s/2026/q2');
+	});
+
+	it('keeps hyphens flat when the leading segment is NOT an existing parent in the vault', () => {
+		const mockTagSvc = {
+			resolveHierarchicalLabel: vi.fn(() => null),
+			getLabel: vi.fn((name: string) => {
+				if (name === 'a12s-2026-q2') return 'a12s-2026-q2';
+				return null;
+			}),
+			getParent: vi.fn(() => null),
+		};
+		(parser as any).plugin = { tagService: mockTagSvc };
+		(parser as any).app = {
+			metadataCache: {
+				getTags: () => ({ 'other/thing': 1 }),
+			},
+		};
+		const result = parser.addTagsToLine('- [ ] task', ['a12s-2026-q2']);
+		expect(result).toBe('- [ ] task #a12s-2026-q2');
 	});
 });
 
