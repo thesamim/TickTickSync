@@ -525,10 +525,10 @@ export class Tick {
 
 			const url = `${this.apiUrl}/${TaskEndPoint}`;
 			// TEMP DEBUG: dump the exact create payload sent to POST /task.
-			log.info('Add Task payload:', JSON.stringify(thisTask, null, 2));
+			// log.info('Add Task payload:', JSON.stringify(thisTask, null, 2));
 			const response = await this.makeRequest('Add Task', url, 'POST', thisTask);
 			// TEMP DEBUG: dump the raw response (and the API error when rejected).
-			log.info('Add Task response:', JSON.stringify(response), this.lastError ? `lastError: ${JSON.stringify(this.lastError)}` : '');
+			// log.info('Add Task response:', JSON.stringify(response), this.lastError ? `lastError: ${JSON.stringify(this.lastError)}` : '');
 			if (response) {
 				// POST /task sometimes wraps the created task in {ok, result} —
 				// unwrap it so callers get the task object directly.
