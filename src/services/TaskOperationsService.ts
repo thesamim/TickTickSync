@@ -80,7 +80,9 @@ export class TaskOperationsService {
 				const task = localTask.task;
 
 				// Add URL to task title
-				task.title = task.title + ' ' + taskURL;
+				if (getSettings().fileLinksInTickTick !== 'taskLink') {
+					task.title = task.title + ' ' + taskURL;
+				}
 
 				// Backwards compatibility: keep the "ticktick" tag injected on
 				// the TickTick task unless the user opted out (see
