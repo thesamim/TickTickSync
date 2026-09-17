@@ -70,7 +70,7 @@ export class TaskOperationsService {
 			return;
 		}
 
-		const taskURL = this.plugin.taskParser?.getObsidianUrlFromFilepath(filepath);
+		const { taskURL } = this.plugin.taskParser?.getLinkLocation(filepath) ?? { taskURL: '' };
 		if (!taskURL) {
 			return;
 		}
@@ -80,9 +80,7 @@ export class TaskOperationsService {
 				const task = localTask.task;
 
 				// Add URL to task title
-				if (getSettings().fileLinksInTickTick !== 'taskLink') {
-					task.title = task.title + ' ' + taskURL;
-				}
+				task.title = task.title + ' ' + taskURL;
 
 				// Backwards compatibility: keep the "ticktick" tag injected on
 				// the TickTick task unless the user opted out (see
