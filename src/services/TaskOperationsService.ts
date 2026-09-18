@@ -70,7 +70,7 @@ export class TaskOperationsService {
 			return;
 		}
 
-		const taskURL = this.plugin.taskParser?.getObsidianUrlFromFilepath(filepath);
+		const { taskURL } = this.plugin.taskParser?.getLinkLocation(filepath) ?? { taskURL: '' };
 		if (!taskURL) {
 			return;
 		}

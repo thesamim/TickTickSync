@@ -197,7 +197,7 @@ export class TaskDeletionHandler {
 
 			// Add Obsidian URL if configured
 			const taskURL = this.plugin.taskParser.getObsidianUrlFromFilepath(filepath);
-			if (taskURL && getSettings().fileLinksInTickTick !== 'noLink') {
+			if (taskURL && getSettings().fileLinksInTickTick === 'taskLink') {
 				task.title = task.title + ' ' + taskURL;
 			}
 
