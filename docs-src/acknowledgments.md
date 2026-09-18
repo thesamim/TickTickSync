@@ -16,4 +16,4 @@ Additional thanks:
 - [mProjectsCode](https://github.com/mProjectsCode) — Svelte documentation contribution
 - [dbarnett](https://github.com/dbarnett) - [All-day task dueDate drifts](https://github.com/thesamim/TickTickSync/issues/366)
 - [qberdugo](https://github.com/qberdugo) - [create the project-to-file mapping on first sync](https://github.com/thesamim/TickTickSync/pull/368)
-
+- [dalinicus](https://github.com/dalinicus) - [Honor taskLink setting when setting title during sync.](https://github.com/thesamim/TickTickSync/pull/399)
