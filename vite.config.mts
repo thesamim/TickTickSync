@@ -1,9 +1,9 @@
 import * as path from "path";
 import {resolve} from "path";
+import {copyFileSync, mkdirSync} from "node:fs";
 import { builtinModules as builtins } from "node:module";
 import {svelte, vitePreprocess} from '@sveltejs/vite-plugin-svelte';
-import {type UserConfig} from "vite";
-import {viteStaticCopy} from "vite-plugin-static-copy";
+import {type Plugin, type UserConfig} from "vite";
 import {configDefaults, defineConfig} from "vitest/config";
 import {pathToFileURL} from "node:url";
 
@@ -15,24 +15,38 @@ function getOutDir(prod: boolean): string | undefined {
 	return undefined;
 }
 
+function copyManifest(): Plugin {
+	let outDir: string;
+	return {
+		name: "copy-manifest",
+		configResolved(config) {
+			outDir = config.build.outDir;
+		},
+		closeBundle() {
+			mkdirSync(outDir, {recursive: true});
+			copyFileSync(resolve(__dirname, "manifest.json"), resolve(outDir, "manifest.json"));
+		},
+	};
+}
+
 export default defineConfig(({mode}) => {
 	const prod = mode === 'production';
 	return {
 		resolve: {
 			tsconfigPaths: true,
+			// Bypass dexie's ESM import wrappers (import-wrapper(-prod).mjs), which
+			// register on globalThis[Symbol.for("Dexie")] and throw if another plugin
+			// bundled a different Dexie semVer (issue #401). The core build in dist/
+			// has no global registration, so each plugin keeps its own private copy.
+			alias: {
+				dexie: resolve(__dirname, "node_modules/dexie/dist/dexie.mjs"),
+			},
 		},
 		plugins: [
 			svelte({
 				preprocess: [vitePreprocess()]
 			}),
-			viteStaticCopy({
-				targets: [
-					{
-						src: "./manifest.json",
-						dest: "",
-					},
-				],
-			}),
+			copyManifest(),
 
 		],
 		build: {

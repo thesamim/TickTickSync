@@ -4,6 +4,16 @@
 
 ## Notable Changes
 
+### 2.0.10 → 2.0.15 — Sync, Reminder & Tag Fixes { #2.0.15 }
+
+- **Missing project files are re-created on sync** instead of their tasks being deleted (#386)
+- **Sync checkpoints persist after errors**, and files no longer gain stray blank lines when a sync has nothing to add (#383)
+- **Android reminders fixed** — reminder IDs are now generated so reminders sync correctly on mobile
+- **Hyphens in tags are handled correctly**
+- **Task link setting is honored** when setting the task title during sync
+- **Runs alongside other Dexie-based plugins** (e.g. Omnisearch) — no more "Two different versions of Dexie loaded" plugin failure
+- General stability and performance improvements
+
 ### 2.0.8 → 2.0.10 — Reminder Creation from Obsidian { #2.0.10 }
 
 - **Create tasks with reminders** — writing `⏰ 30m` on a new Obsidian task now creates it in TickTick with the reminder set (previously reminders were only pulled from TickTick, not pushed on create). See [Task Format](task-format.md#reminders).
