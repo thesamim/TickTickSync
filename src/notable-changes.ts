@@ -77,5 +77,11 @@ export const NOTABLE_CHANGES: NotableChange[] = [
 		title: "**Create tasks with reminders** — writing `⏰ 30m` on a new Obsidian task now creates it in TickTick with the reminder set (previously reminders were only pulled from TickTick, not pushed on create). See [Task Format](task-format.md#reminders).",
 		description: "**Multiple reminders round-trip correctly** — reminders synced from TickTick are fully preserved when editing the task in Obsidian, including their IDs and trigger values.",
 		anchor: '2.0.10',
+	},
+	{
+		version: '2.0.15',
+		title: "**Missing project files are re-created on sync** instead of their tasks being deleted (#386)",
+		description: "**Sync checkpoints persist after errors**, and files no longer gain stray blank lines when a sync has nothing to add (#383)\n**Android reminders fixed** — reminder IDs are now generated so reminders sync correctly on mobile\n**Hyphens in tags are handled correctly**\n**Task link setting is honored** when setting the task title during sync\n**Runs alongside other Dexie-based plugins** (e.g. Omnisearch) — no more \"Two different versions of Dexie loaded\" plugin failure\nGeneral stability and performance improvements",
+		anchor: '2.0.15',
 	}
 ];
