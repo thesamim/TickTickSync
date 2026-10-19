@@ -128,8 +128,11 @@ export class TaskModificationDetector {
 
 				new Notice(`New task created: ${newTask.title} (ID: ${newTask.id})`);
 
-				// If task was created as completed, close it in TickTick
-				if (currentTask.status != 0) {
+				// If task was created as completed or won't do, close it in TickTick
+				if (currentTask.status === -1) {
+					await this.plugin.tickTickRestAPI?.AbandonTask(newTask.id, newTask.projectId);
+					await this.plugin.taskRepository.abandonTask(newTask.id);
+				} else if (currentTask.status != 0) {
 					await this.plugin.tickTickRestAPI?.CloseTask(newTask.id, newTask.projectId);
 					await this.plugin.taskRepository.closeTask(newTask.id);
 				}
@@ -591,10 +594,13 @@ export class TaskModificationDetector {
 	}
 
 	/**
-	 * Handle task status change (complete/incomplete)
+	 * Handle task status change (complete/won't do/incomplete)
 	 */
 	private async handleStatusChange(lineTask: ITask): Promise<void> {
-		if (lineTask.status != 0) {
+		if (lineTask.status === -1) {
+			await this.plugin.tickTickRestAPI?.AbandonTask(lineTask.id, lineTask.projectId);
+			await this.plugin.taskRepository.abandonTask(lineTask.id);
+		} else if (lineTask.status != 0) {
 			await this.plugin.tickTickRestAPI?.CloseTask(lineTask.id, lineTask.projectId);
 			await this.plugin.taskRepository.closeTask(lineTask.id);
 		} else {

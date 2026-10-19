@@ -272,6 +272,19 @@ export class TickTickRestAPI {
 	}
 
 
+	// Mark a task as "Won't do" (status -1) in TickTick API
+	async AbandonTask(taskId: string, projectId: string): Promise<boolean> {
+		await this.initializeAPI();
+		try {
+			const result = await this.modifyTaskStatus(taskId, projectId, -1);
+			return Boolean(result);
+		} catch (error) {
+			log.error("Error marking task won't do:", error);
+			throw error;
+		}
+	}
+
+
 	// get a task by Id
 	async getTaskById(taskId: string, projectId?: string): Promise<ITask | null | undefined> {
 		await this.initializeAPI();

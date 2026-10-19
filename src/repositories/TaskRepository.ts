@@ -214,6 +214,24 @@ export class TaskRepository {
 	}
 
 	/**
+	 * Mark a task as "Won't do"
+	 */
+	async abandonTask(taskId: string): Promise<string | undefined> {
+		try {
+			const localTask = await this.loadLocalTaskById(taskId);
+			if (localTask) {
+				localTask.task.status = -1; // TickTick won't do status
+				await this.upsertTask(localTask.task);
+				return localTask.task.projectId;
+			}
+			return undefined;
+		} catch (error) {
+			log.error(`Error marking task ${taskId} won't do:`, error);
+			throw error;
+		}
+	}
+
+	/**
 	 * Mark a task as incomplete/open
 	 */
 	async reopenTask(taskId: string): Promise<string | undefined> {
