@@ -43,6 +43,9 @@ export type LocalProject = {
 	archived?: boolean;   // TickTick reports the list as archived (closed)
 	deleted?: boolean;    // the list no longer exists in TickTick
 	syncPaused?: boolean; // the plugin must not sync this list
+	// The user paused this list from the plugin (not a lifecycle decision made
+	// for an archived/deleted list). Paused lists stay paused until resumed.
+	userPaused?: boolean;
 	// Original file location before the list file was moved into the
 	// "archived lists" folder, so it can be put back when unarchived.
 	archivedFromPath?: string;

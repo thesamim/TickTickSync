@@ -103,7 +103,7 @@ export class FolderMigrationService {
 			const localProjects = await db.projects.toArray();
 			const frozenProjectIds = new Set(
 				localProjects
-					.filter(lp => lp.archived || lp.deleted || lp.syncPaused)
+					.filter(lp => lp.archived || lp.deleted || lp.syncPaused || lp.userPaused)
 					.map(lp => lp.id)
 			);
 

@@ -80,6 +80,7 @@ export class ProjectSyncService {
 		const isFrozen = !!localProject?.archived
 			|| !!localProject?.deleted
 			|| !!localProject?.syncPaused
+			|| !!localProject?.userPaused
 			|| (ttProject ? isProjectArchived(ttProject) : false);
 
 		if (!mappedPath) {

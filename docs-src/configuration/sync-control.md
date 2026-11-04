@@ -63,6 +63,17 @@ TickTickSync syncs on two different triggers, and they don't behave the same way
 !!! note
     Enabling **Full Vault Sync** turns off the per-line push entirely. With it on, every edit only takes effect at the next full sync interval (or a manual **Sync Now**), not within a second of typing.
 
+## Paused Lists
+
+Pause any list from **Sync Control → List lifecycle → Paused lists**, or run the **Pause or resume a list** command from the command palette. A paused list is ignored completely:
+
+- Nothing is pulled from TickTick or pushed to TickTick.
+- Task moves and edits involving the list are ignored.
+- The list is not offered in project dropdowns.
+- Folder reorganization leaves its file alone, and the file stays exactly where it is.
+
+Pausing a list in the plugin does not change anything in TickTick. Resume it from the same toggle (or the command) to start syncing again. If its file is still in the archived-lists folder when syncing resumes, it is returned to its normal location.
+
 ## Archived and Deleted Lists
 
 When a list is archived (closed) or deleted in TickTick, TickTickSync asks what to do with its file the next time it syncs:

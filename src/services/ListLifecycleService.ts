@@ -12,6 +12,15 @@ import { FileMetadataService } from '@/repositories/FileMetadataService';
 import { FolderSyncService } from '@/services/FolderSyncService';
 
 /**
+ * A list shown in the pause/resume picker.
+ */
+export interface PausableList {
+	id: string;
+	name: string;
+	paused: boolean;
+}
+
+/**
  * Detects archived/deleted lists and applies user-chosen actions.
  * - archived: project.closed is truthy
  * - deleted:  project no longer returned by /projects
@@ -29,6 +38,50 @@ export class ListLifecycleService {
 
 	setFolderSyncService(service: FolderSyncService): void {
 		this.folderSyncService = service;
+	}
+
+	/**
+	 * Lists the user can pause/resume: active (not archived or deleted) lists,
+	 * including the ones already paused through the plugin.
+	 */
+	async getPausableLists(): Promise<PausableList[]> {
+		const localProjects = await getAllLocalProjects();
+		return localProjects
+			.filter(lp => !lp.deleted && !lp.archived && !this.isClosed(lp.project))
+			.map(lp => ({
+				id: lp.id,
+				name: lp.project?.name || lp.id,
+				// A list can also be paused by the lifecycle handling (e.g. a
+				// file that was found in the archived-lists folder). Show it as
+				// paused so the toggle resumes it for real.
+				paused: !!(lp.userPaused || lp.syncPaused),
+			}))
+			.sort((a, b) => a.name.localeCompare(b.name));
+	}
+
+	/**
+	 * Pause or resume a list from the plugin. Paused lists are left completely
+	 * alone (no pull, push, move or folder reorganization) and their files stay
+	 * where they are until the list is resumed.
+	 */
+	async setListPaused(projectId: string, paused: boolean): Promise<void> {
+		const lp = await getLocalProjectById(projectId);
+		if (!lp) return;
+
+		if (paused && (lp.deleted || lp.archived || this.isClosed(lp.project))) {
+			new Notice('Archived and deleted lists are already excluded from syncing.');
+			return;
+		}
+
+		// Resuming clears both pause flags: the user explicitly wants this list
+		// back, so lifecycle bookkeeping must not keep it frozen.
+		await updateProjectState(
+			projectId,
+			paused ? { userPaused: true } : { userPaused: false, syncPaused: false }
+		);
+		const name = lp.project?.name || projectId;
+		log.debug(`${paused ? 'Paused' : 'Resumed'} list ${name} (${projectId})`);
+		new Notice(paused ? `Paused list "${name}"` : `Resumed list "${name}"`);
 	}
 
 	private isClosed(p: IProject): boolean {
@@ -61,6 +114,10 @@ export class ListLifecycleService {
 		const restored: string[] = [];
 
 		for (const lp of localProjects) {
+			// A list paused from the plugin stays paused, and its file stays
+			// where it is, until the user resumes it explicitly.
+			if (lp.userPaused) continue;
+
 			const remote = remoteById.get(lp.id);
 			const proj = lp.project;
 			const filePath = pathByProjectId.get(lp.id);

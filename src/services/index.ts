@@ -531,7 +531,7 @@ export class TickTickService {
 				const localProjectRecords = await db.projects.toArray();
 				const frozenProjectIds = new Set(
 					localProjectRecords
-						.filter(lp => lp.archived || lp.deleted || lp.syncPaused)
+						.filter(lp => lp.archived || lp.deleted || lp.syncPaused || lp.userPaused)
 						.map(lp => lp.id)
 				);
 				let movedCount = 0;

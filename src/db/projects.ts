@@ -13,7 +13,7 @@ export async function upsertProjects(projects: IProject[]) {
 
 /**
  * Store the freshly fetched projects without losing the lifecycle flags
- * (archived / deleted / syncPaused) that were set on a previous sync.
+ * (archived / deleted / paused) that were set on a previous sync.
  */
 export async function upsertProjectsPreservingState(projects: IProject[]): Promise<void> {
 	const existing = await getAllLocalProjects();
@@ -27,6 +27,7 @@ export async function upsertProjectsPreservingState(projects: IProject[]): Promi
 			archived: previous?.archived,
 			deleted: previous?.deleted,
 			syncPaused: previous?.syncPaused,
+			userPaused: previous?.userPaused,
 			archivedFromPath: previous?.archivedFromPath,
 			restoreSkipped: previous?.restoreSkipped
 		};
@@ -69,7 +70,7 @@ export async function getLocalProjectById(id: string): Promise<LocalProject | un
  */
 export async function updateProjectState(
 	id: string,
-	changes: Partial<Pick<LocalProject, 'archived' | 'deleted' | 'syncPaused' | 'archivedFromPath' | 'restoreSkipped'>>
+	changes: Partial<Pick<LocalProject, 'archived' | 'deleted' | 'syncPaused' | 'userPaused' | 'archivedFromPath' | 'restoreSkipped'>>
 ): Promise<void> {
 	const existing = await db.projects.get(id);
 	if (!existing) return;
@@ -84,13 +85,21 @@ export async function deleteProject(id: string): Promise<void> {
 }
 
 /**
+ * A list that the plugin must not sync, for any reason: it was deleted, the
+ * lifecycle handling paused it, or the user paused it explicitly.
+ */
+export function isProjectPaused(lp: LocalProject): boolean {
+	return !!(lp.deleted || lp.syncPaused || lp.userPaused);
+}
+
+/**
  * Projects that should still take part in syncing: lists that are neither
- * gone from TickTick nor paused by the user.
+ * gone from TickTick nor paused.
  */
 export async function getSyncableProjects(): Promise<IProject[]> {
 	const lps = (await db.projects?.toArray?.()) ?? [];
 	return lps
-		.filter(lp => !lp.deleted && !lp.syncPaused)
+		.filter(lp => !isProjectPaused(lp))
 		.map(lp => lp.project);
 }
 
@@ -99,7 +108,7 @@ export async function getSyncableProjects(): Promise<IProject[]> {
  */
 export async function getPausedProjectIds(): Promise<Set<string>> {
 	const lps = (await db.projects?.toArray?.()) ?? [];
-	return new Set(lps.filter(lp => lp.syncPaused || lp.deleted).map(lp => lp.id));
+	return new Set(lps.filter(lp => isProjectPaused(lp)).map(lp => lp.id));
 }
 
 /**
@@ -126,7 +135,7 @@ export async function getSelectableProjects(freshProjects?: IProject[] | null): 
 	const lps = (await db.projects?.toArray?.()) ?? [];
 	const hidden = new Set(
 		lps
-			.filter(lp => lp.archived || lp.deleted || lp.syncPaused || isProjectArchived(lp.project))
+			.filter(lp => lp.archived || isProjectPaused(lp) || isProjectArchived(lp.project))
 			.map(lp => lp.id)
 	);
 

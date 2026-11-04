@@ -291,6 +291,15 @@ export class TaskModificationDetector {
 			return false;
 		}
 
+		// A paused list is not synchronized in either direction. Ignore edits to
+		// its tasks; the previous hash is kept so nothing is pushed.
+		const { getPausedProjectIds } = await import('@/db/projects');
+		const pausedProjectIds = await getPausedProjectIds();
+		if (savedTask.projectId && pausedProjectIds.has(savedTask.projectId)) {
+			log.debug(`Ignoring modification of task ${taskId} in paused list ${savedTask.projectId}`);
+			return false;
+		}
+
 		// Calculate hash for change detection
 		let taskNotes = '';
 		if (taskRecord.taskLines && taskRecord.taskLines.length > 1) {
@@ -745,6 +754,15 @@ export class TaskModificationDetector {
 
 		const newItem = this.plugin.taskParser?.taskFromLine(lineText);
 		const parentTask = await this.plugin.taskRepository.loadTaskById(parentID);
+
+		if (parentTask?.projectId) {
+			const { getPausedProjectIds } = await import('@/db/projects');
+			const paused = await getPausedProjectIds();
+			if (paused.has(parentTask.projectId)) {
+				log.debug(`Ignoring sub-task change in paused list ${parentTask.projectId}`);
+				return false;
+			}
+		}
 
 		if (parentTask && parentTask.items) {
 			if (itemId) {

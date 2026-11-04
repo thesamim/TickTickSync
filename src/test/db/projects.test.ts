@@ -12,7 +12,7 @@ vi.mock('@/db/dexie', () => ({
 }));
 
 import { db } from '@/db/dexie';
-import { getSelectableProjects, isProjectArchived } from '@/db/projects';
+import { getPausedProjectIds, getSelectableProjects, isProjectArchived } from '@/db/projects';
 
 function project(id: string, name: string, closed?: IProject['closed']): IProject {
 	return { id, name, closed } as IProject;
@@ -50,6 +50,7 @@ describe('getSelectableProjects', () => {
 			local(project('closed', 'Closed', true)),
 			local(project('deleted', 'Deleted'), { deleted: true }),
 			local(project('paused', 'Paused'), { syncPaused: true }),
+			local(project('user-paused', 'User Paused'), { userPaused: true }),
 		]);
 
 		const result = await getSelectableProjects();
@@ -103,5 +104,24 @@ describe('getSelectableProjects', () => {
 
 		expect(result).toHaveLength(1);
 		expect(result[0].name).toBe('New Name');
+	});
+});
+
+describe('getPausedProjectIds', () => {
+	beforeEach(() => {
+		vi.mocked(db.projects.toArray).mockResolvedValue([]);
+	});
+
+	it('includes lifecycle-paused, deleted and user-paused lists', async () => {
+		vi.mocked(db.projects.toArray).mockResolvedValue([
+			local(project('active', 'Active')),
+			local(project('lifecycle', 'Lifecycle'), { syncPaused: true }),
+			local(project('deleted', 'Deleted'), { deleted: true }),
+			local(project('user', 'User'), { userPaused: true }),
+		]);
+
+		const result = await getPausedProjectIds();
+
+		expect([...result].sort()).toEqual(['deleted', 'lifecycle', 'user']);
 	});
 });

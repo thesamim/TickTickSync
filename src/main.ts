@@ -637,6 +637,22 @@ export default class TickTickSync extends Plugin {
 		});
 
 		this.addCommand({
+			id: 'tts-pause-resume-list',
+			name: 'Pause or resume a list',
+			callback: async () => {
+				const lists = await this.listLifecycleService?.getPausableLists() ?? [];
+				if (lists.length === 0) {
+					new Notice('No lists available to pause.');
+					return;
+				}
+				const { PauseResumeListModal } = await import('./modals/PauseResumeListModal');
+				new PauseResumeListModal(this.app, lists, async (list) => {
+					await this.listLifecycleService?.setListPaused(list.id, !list.paused);
+				}).open();
+			}
+		});
+
+		this.addCommand({
 			id: 'tts-delete-permanent',
 			name: 'Permanently delete tasks',
 			callback: async () => {
