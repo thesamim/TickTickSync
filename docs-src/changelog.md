@@ -6,7 +6,7 @@
 
 ### 2.0.15 → 2.0.16 — Archived & Deleted List Handling { #2.0.16 }
 
-- **Pause a list at any time** — pause or resume any active list from **Sync Control → List lifecycle** or with the **Pause or resume a list** command. Paused lists are not synced in either direction, disappear from project dropdowns, and their files stay where they are.
+- **Pause a list manually at any time** — pause or resume any active list from **Sync Control → List lifecycle → Paused lists** or with the **Pause or resume a list** command. Paused lists are not synced in either direction, disappear from project dropdowns, and their files stay where they are. Edits made to tasks while a list is paused are kept in the file and sync on the next scheduled or manual sync after you resume it.
 - **Archived, deleted and paused lists stop syncing** — a list archived in TickTick (or deleted there, or paused by you) is left alone: no pulls, pushes, moves, dropdown entries or folder reorganization. Handling is opt-in under **Sync Control → List Lifecycle**, and archived files can be collected in a folder of your choice (default `Archived`). Tasks from a deleted list are treated as moved without showing move notifications.
 - **Unarchiving a list puts its file back** — the file returns to the list's current location. If a file already exists there, you choose to move and merge, delete one of the two files, or skip; a skipped restore is retried silently once the conflict is gone.
 - **Trashing a deleted list's file cleans the database** — its tasks are removed rather than moved to the default project, with no move notifications.

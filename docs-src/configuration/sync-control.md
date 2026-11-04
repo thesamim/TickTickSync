@@ -65,12 +65,15 @@ TickTickSync syncs on two different triggers, and they don't behave the same way
 
 ## Paused Lists
 
-Pause any list from **Sync Control → List lifecycle → Paused lists**, or run the **Pause or resume a list** command from the command palette. A paused list is ignored completely:
+You can pause a list manually at any time from **Sync Control → List lifecycle → Paused lists**, or by running the **Pause or resume a list** command from the command palette. A paused list is ignored completely:
 
 - Nothing is pulled from TickTick or pushed to TickTick.
 - Task moves and edits involving the list are ignored.
 - The list is not offered in project dropdowns.
 - Folder reorganization leaves its file alone, and the file stays exactly where it is.
+
+!!! note
+    Edits you make to tasks while their list is paused are not lost. They stay in the file and are synced on the next scheduled or manual sync **after you resume the list**.
 
 Pausing a list in the plugin does not change anything in TickTick. Resume it from the same toggle (or the command) to start syncing again. If its file is still in the archived-lists folder when syncing resumes, it is returned to its normal location.
 
