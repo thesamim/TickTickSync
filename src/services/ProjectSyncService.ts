@@ -6,7 +6,7 @@ import { FoundDuplicateListsModal } from '@/modals/FoundDuplicateListsModal';
 import { getDefaultFolder, getSettings } from '@/settings';
 import log from '@/utils/logger';
 import { db } from '@/db/dexie';
-import { getAllProjects } from '@/db/projects';
+import { getAllProjects, getLocalProjectById, isProjectArchived } from '@/db/projects';
 import { upsertFile, getAllFiles } from '@/db/files';
 
 export class ProjectSyncService {
@@ -50,8 +50,8 @@ export class ProjectSyncService {
 				await this.checkProjectRename(project.id, project.name, project)
 			}
 
-			const localProjects = projects.map(p => ({ id: p.id, project: p }));
-			await db.projects.bulkPut(localProjects);
+			const { upsertProjectsPreservingState } = await import('@/db/projects');
+			await upsertProjectsPreservingState(projects);
 
 			return true;
 		} catch (error) {
@@ -72,6 +72,16 @@ export class ProjectSyncService {
 		// projects cache is populated in the same pass, so nothing ever looks
 		// "new" again and the mapping would never be created).
 		const mappedPath = await this.plugin.fileMetadataService.getFilepathForProjectId(ttProjectId);
+
+		// Archived/deleted/paused lists keep their file where it is. Never
+		// create or relocate a normal-location file for them: doing so produces
+		// duplicates next to the archived copy.
+		const localProject = await getLocalProjectById(ttProjectId);
+		const isFrozen = !!localProject?.archived
+			|| !!localProject?.deleted
+			|| !!localProject?.syncPaused
+			|| (ttProject ? isProjectArchived(ttProject) : false);
+
 		if (!mappedPath) {
 			let newFilePath: string;
 			const folder = getDefaultFolder();
@@ -91,6 +101,21 @@ export class ProjectSyncService {
 				}
 			} else {
 				newFilePath = (folder ? folder + "/" : "") + safeProjectName + '.md';
+			}
+
+			// A file for this list may already exist (most importantly in the
+			// archived-lists folder). Adopt it instead of creating a second
+			// file at the normal location.
+			const existingFile = this.findExistingProjectFile(safeProjectName, newFilePath);
+			if (existingFile) {
+				log.debug(`Unmapped project: ${ttProjectName} (${ttProjectId}). Adopting existing file: ${existingFile.path}`);
+				await upsertFile(existingFile.path, ttProjectId);
+				return;
+			}
+
+			if (isFrozen) {
+				log.debug(`Not creating a file for archived/deleted/paused list: ${ttProjectName} (${ttProjectId})`);
+				return;
 			}
 
 			const vaultFile = this.app?.vault?.getAbstractFileByPath ? this.app.vault.getAbstractFileByPath(newFilePath) : undefined;
@@ -137,6 +162,13 @@ export class ProjectSyncService {
 
 			return;
 		}
+
+		// A rename would drag an archived/paused file out of its current folder.
+		if (isFrozen) {
+			log.debug(`Skipping rename/relocation for archived/deleted/paused list: ${ttProjectName} (${ttProjectId})`);
+			return;
+		}
+
 		if (project && project.name !== ttProjectName) {
 			log.debug(`Project Name Changed from ${project?.name} to ${ttProjectName}`)
 
@@ -181,6 +213,35 @@ export class ProjectSyncService {
 				}
 			}
 		}
+	}
+
+	/**
+	 * Look for an existing file that already represents this list. Besides the
+	 * expected normal location, check the archived-lists folder: an archived
+	 * file must be adopted instead of creating a duplicate normal-location file.
+	 */
+	private findExistingProjectFile(safeProjectName: string, expectedPath: string): TFile | undefined {
+		const vault = this.app?.vault;
+		if (!vault?.getAbstractFileByPath) return undefined;
+
+		const expected = vault.getAbstractFileByPath(expectedPath);
+		if (expected instanceof TFile) return expected;
+
+		const archivedFolder = (getSettings().archivedListsFolder || 'Archived')
+			.replace(/\\/g, '/')
+			.replace(/^\/+|\/+$/g, '');
+		if (!archivedFolder) return undefined;
+
+		const direct = vault.getAbstractFileByPath(`${archivedFolder}/${safeProjectName}.md`);
+		if (direct instanceof TFile) return direct;
+
+		const markdownFiles = vault.getMarkdownFiles?.() ?? [];
+		const lowerName = safeProjectName.toLowerCase();
+		const lowerFolder = archivedFolder.toLowerCase();
+		return markdownFiles.find(file =>
+			file.basename.toLowerCase() === lowerName &&
+			file.path.toLowerCase().startsWith(`${lowerFolder}/`)
+		);
 	}
 
 	private async showFoundDuplicatesModal(app: App, plugin: TickTickSync, projects: IProject[]) {

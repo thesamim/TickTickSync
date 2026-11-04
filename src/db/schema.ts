@@ -37,6 +37,19 @@ export type LocalTask = {
 export type LocalProject = {
 	id: string;
 	project: IProject;
+
+	// Lifecycle state of the list, derived from TickTick and from the user's
+	// choice when they were asked what to do with it.
+	archived?: boolean;   // TickTick reports the list as archived (closed)
+	deleted?: boolean;    // the list no longer exists in TickTick
+	syncPaused?: boolean; // the plugin must not sync this list
+	// Original file location before the list file was moved into the
+	// "archived lists" folder, so it can be put back when unarchived.
+	archivedFromPath?: string;
+	// The user chose "skip" when an archived file could not be restored
+	// because a file already existed at the target location. While the file
+	// stays in the archive folder the plugin must not ask again.
+	restoreSkipped?: boolean;
 };
 
 export type LocalProjectGroup = {

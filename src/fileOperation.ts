@@ -545,9 +545,14 @@ export class FileOperation {
 					const vaultProjectId = await this.plugin.fileTaskQueries?.getDefaultProjectIdForFilepath(file.path);
 					const vaultParentId = fileMap.getParentId(task.id);
 					const vaultTask: ITask = { ...task, projectId: vaultProjectId ?? '', parentId: vaultParentId ?? '' };
-
 					//Only check for Project/Parent change if task is in cache.
 					if ((await this.plugin.taskParser?.isProjectIdChanged(vaultTask, task))) {
+						const { getPausedProjectIds } = await import('@/db/projects');
+						const paused = await getPausedProjectIds();
+						if (paused.has(vaultTask.projectId) || paused.has(task.projectId)) {
+							new Notice('Cannot move tasks in or out of a paused list');
+							continue;
+						}
 						log.debug('Moving Task: ', task.id, task.title, ' from Project: ', vaultTask.projectId, ' to Project: ', task.projectId);
 						filePath = await this.handleTickTickStructureMove(task, vaultTask, lineText, fileMap);
 						//because we need to update the OBS URL in TT and fix up the cache.

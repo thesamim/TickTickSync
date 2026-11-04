@@ -12,7 +12,7 @@ import { ProjectGroupRepository } from '@/repositories/ProjectGroupRepository';
 import { getProjectById } from '@/db/projects';
 import { upsertFile, deleteFile } from '@/db/files';
 import { NewFileMap } from '@/services/NewFileMap';
-import { FileLocationConflictModal } from '@/modals/FileLocationConflictModal';
+import { FileLocationConflictModal, type FileLocationConflictAction } from '@/modals/FileLocationConflictModal';
 import log from '@/utils/logger';
 import type TickTickSync from '@/main';
 
@@ -261,7 +261,7 @@ export class FolderSyncService {
 	 * @param expectedPath - The path where the file should be located
 	 * @param project - The project the file matched by name
 	 */
-	async resolveFileLocationConflict(filePath: string, expectedPath: string, project: IProject): Promise<void> {
+	async resolveFileLocationConflict(filePath: string, expectedPath: string, project: IProject): Promise<FileLocationConflictAction> {
 		const targetExists = this.app.vault.getAbstractFileByPath(expectedPath) instanceof TFile;
 
 		const modal = new FileLocationConflictModal(
@@ -333,6 +333,8 @@ export class FolderSyncService {
 				await upsertFile(filePath);
 				break;
 		}
+
+		return action;
 	}
 
 	/**

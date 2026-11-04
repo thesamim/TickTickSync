@@ -313,13 +313,15 @@ export class TickTickRestAPI {
 
 
 	//get all projects
-	async GetAllProjects(): Promise<IProject[]> {
+	// Returns null when the request failed so that callers do not mistake a
+	// network error for "every list was deleted".
+	async GetAllProjects(): Promise<IProject[] | null> {
 		await this.initializeAPI();
 		try {
-			return await this.api?.getProjects() ?? [];
+			return await this.api?.getProjects() ?? null;
 		} catch (error) {
 			log.error('Error get all projects', error);
-			return [];
+			return null;
 		}
 	}
 

@@ -37,6 +37,29 @@ export class VaultSyncCoordinator {
 		const syncProject = getSettings().SyncProject;
 		const andOr = getSettings().tagAndOr;
 
+		const { getPausedProjectIds } = await import('@/db/projects');
+		const pausedProjects = await getPausedProjectIds();
+
+		// A task whose list is no longer known (e.g. the list was trashed in
+		// TickTick) must never be re-homed into the default project. Keep the
+		// set of ids we can legitimately place tasks in.
+		const localProjects = (await db.projects?.toArray?.()) ?? [];
+		const knownProjectIds = new Set(localProjects.map(lp => lp.id));
+		const inboxId = getSettings().inboxID;
+		if (inboxId) knownProjectIds.add(inboxId);
+		const defaultProjectId = getSettings().defaultProjectId;
+		if (defaultProjectId) knownProjectIds.add(defaultProjectId);
+		// Projects that still own a registered file are legitimate too; this
+		// also protects older databases whose project cache is incomplete.
+		const fileRecords = (await db.files?.toArray?.()) ?? [];
+		for (const record of fileRecords) {
+			if (record.defaultProjectId) knownProjectIds.add(record.defaultProjectId);
+		}
+		// Only detect orphans once we have something to compare against. An
+		// empty cache must not make every task look orphaned.
+		const canDetectOrphans = knownProjectIds.size > 0;
+		const orphanedTasksByFile: Map<string, ITask[]> = new Map();
+
 		// Group tasks by file
 		const fileGroups: Map<string, { toAdd: ITask[], toUpdate: ITask[], toDelete: ITask[] }> = new Map();
 		const dbUpdates: { localId: string, changes: Partial<LocalTask> }[] = [];
@@ -45,7 +68,27 @@ export class VaultSyncCoordinator {
 
 		// Categorize tasks by their target file and action needed
 		for (const lt of tasks) {
+			if (pausedProjects.has(lt.task.projectId)) {
+				continue;
+			}
 			const task = lt.task;
+
+			if (canDetectOrphans && task.projectId && !knownProjectIds.has(task.projectId)) {
+				// The owning list does not exist anymore. Mark the task as
+				// deleted and remember any vault line that still contains it.
+				log.debug(`Task ${task.id} belongs to unknown list ${task.projectId}; marking deleted`);
+				if (lt.file) {
+					const list = orphanedTasksByFile.get(lt.file) ?? [];
+					list.push(task);
+					orphanedTasksByFile.set(lt.file, list);
+				}
+				dbUpdates.push({
+					localId: lt.localId,
+					changes: { deleted: true, file: '', updatedAt: Date.now() },
+				});
+				continue;
+			}
+
 			const matchesFilter = this.matchesFilter(task, syncTag, syncProject, andOr);
 
 			let targetFile: string | undefined;
@@ -57,7 +100,17 @@ export class VaultSyncCoordinator {
 				if (lt.file) {
 					const existingFile = this.app.vault.getAbstractFileByPath(lt.file);
 					if (existingFile instanceof TFile) {
-						targetFile = lt.file;
+						// A task whose old list was deleted/paused but which was
+						// restored in TickTick (typically into Inbox or another
+						// list) must be treated as moved, not left in the stale
+						// file. Detect this by looking at the file's project.
+						const { getFile } = await import('@/db/files');
+						const fileRecord = await getFile(lt.file);
+						const oldProjectId = fileRecord?.defaultProjectId;
+						const oldProjectGone = !!oldProjectId && pausedProjects.has(oldProjectId);
+						if (!oldProjectGone) {
+							targetFile = lt.file;
+						}
 					}
 				}
 				if (!targetFile) {
@@ -116,6 +169,11 @@ export class VaultSyncCoordinator {
 		// Process each file group
 		await this.processFileGroups(fileGroups, proceedWithDeletions, tasks, dbUpdates);
 
+		// Tasks belonging to deleted lists may still have lines left behind in
+		// other files (for example when a previous cleanup failed). Remove those
+		// lines without asking again: the user already chose to delete the list.
+		await this.removeOrphanedTaskLines(orphanedTasksByFile);
+
 		// Bulk update DB at the end
 		if (dbUpdates.length > 0) {
 			await db.transaction("rw", db.tasks, async () => {
@@ -128,6 +186,24 @@ export class VaultSyncCoordinator {
 
 		// Ensure all projects with DB file mappings have their vault files
 		await this.ensureProjectFilesExist();
+	}
+
+	/**
+	 * Remove vault lines of tasks that belong to lists which no longer exist.
+	 * These tasks have already been marked deleted in the DB.
+	 */
+	private async removeOrphanedTaskLines(tasksByFile: Map<string, ITask[]>): Promise<void> {
+		for (const [filePath, tasks] of tasksByFile) {
+			if (tasks.length === 0) continue;
+			const file = this.app.vault.getAbstractFileByPath(filePath);
+			if (!(file instanceof TFile)) continue;
+			try {
+				await this.plugin.fileOperation?.deleteTasksFromSpecificFile(file, tasks, false);
+				log.debug(`Removed ${tasks.length} task(s) belonging to deleted lists from ${filePath}`);
+			} catch (error) {
+				log.error(`Failed to remove tasks of deleted lists from ${filePath}:`, error);
+			}
+		}
 	}
 
 	/**
@@ -339,7 +415,19 @@ export class VaultSyncCoordinator {
 		const allFileRecords = await db.files.toArray();
 		const managedFiles = allFileRecords.filter(f => f.defaultProjectId);
 
+		// Do not recreate files for lists that are archived/deleted/paused.
+		const localProjects = await db.projects.toArray();
+		const frozenProjectIds = new Set(
+			localProjects
+				.filter(lp => lp.archived || lp.deleted || lp.syncPaused)
+				.map(lp => lp.id)
+		);
+
 		for (const fileRecord of managedFiles) {
+			if (fileRecord.defaultProjectId && frozenProjectIds.has(fileRecord.defaultProjectId)) {
+				log.debug(`Skipping archived/deleted/paused list file: ${fileRecord.path}`);
+				continue;
+			}
 			const file = this.app.vault.getAbstractFileByPath(fileRecord.path);
 			if (file instanceof TFile) {
 				continue;

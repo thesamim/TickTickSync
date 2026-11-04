@@ -17,7 +17,7 @@ import type { ITask } from '@/api/types/Task';
 import { getTick } from '@/api/tick_singleton_factory'
 import { syncTickTickWithDexie } from '@/sync/sync';
 import { db, initDB } from "@/db/dexie";
-import { getAllProjects, getProjectById, upsertProjects } from '@/db/projects';
+import { getAllProjects, getProjectById, upsertProjects, getLocalProjectById, updateProjectState, isProjectArchived } from '@/db/projects';
 import { loadTasksFromCache } from "@/db/tasks";
 import { getAllFiles, getFile, upsertFile } from "@/db/files";
 import type { IProject } from '@/api/types/Project';
@@ -118,6 +118,15 @@ export class TickTickService {
 				if (this.plugin.tickTickRestAPI) {
 					const projects = await this.saveProjectsToCache();
 					if (projects) {
+						// Handle archived/deleted lists before any folder
+						// reorganization so archived files are never dragged out
+						// of their archive folder.
+						try {
+							await this.plugin.listLifecycleService?.handleListLifecycle(projects);
+						} catch (e) {
+							log.error('Error handling list lifecycle:', e);
+						}
+
 						//check to see if we need to move any project files
 						const mostRecentModifiedTime = projects.reduce((latest, project) => {
 							return new Date(project.modifiedTime) > new Date(latest)
@@ -134,13 +143,7 @@ export class TickTickService {
 						if (lastSyncDate && mostRecentModifiedTimeDate > lastSyncDate) {
 							log.debug(`TT Folder move detected. Moving all project files to new location.`)
 							await this.reorganizeFilesToFolders();
-
 						}
-
-
-
-
-
 					}
 
 					// Ensure all vault files are registered in Files metadata
@@ -161,17 +164,114 @@ export class TickTickService {
 		}
 	}
 
+	/**
+	 * Remove ghost file records for a project when the same project already has
+	 * a real file on disk. Leftover records make the plugin restore files to
+	 * the wrong place or recreate empty duplicates.
+	 */
+	private async cleanupGhostProjectFileRecords(): Promise<void> {
+		const files = await getAllFiles();
+		const byProject = new Map<string, typeof files>();
+		for (const fileRecord of files) {
+			if (!fileRecord.defaultProjectId) continue;
+			const list = byProject.get(fileRecord.defaultProjectId) ?? [];
+			list.push(fileRecord);
+			byProject.set(fileRecord.defaultProjectId, list);
+		}
+
+		for (const [projectId, records] of byProject) {
+			const existing = records.filter(r => this.plugin.app.vault.getAbstractFileByPath(r.path) instanceof TFile);
+			// If none of the records exist, leave things alone (the project file
+			// may legitimately be missing and gets recreated elsewhere).
+			if (existing.length === 0) continue;
+
+			for (const record of records) {
+				if (existing.includes(record)) continue;
+				const keepPath = existing[0].path;
+				const tasks = await this.getTasksInFile(record.path);
+				for (const lt of tasks) {
+					await db.tasks.update(lt.localId, { file: keepPath, updatedAt: Date.now() });
+				}
+				if (tasks.length > 0) {
+					log.debug(`Re-pointed ${tasks.length} task(s) from ghost file ${record.path} to ${keepPath}`);
+				}
+				log.debug(`Removing ghost file record for project ${projectId}: ${record.path}`);
+				await this.plugin.fileMetadataService?.deleteFileMetadata(record.path);
+			}
+		}
+	}
+
+	/**
+	 * Count the DB task rows attached to a file path (safe with partial mocks).
+	 */
+	private async countTasksInFile(path: string): Promise<number> {
+		try {
+			if (!db.tasks?.where) return 0;
+			return await db.tasks.where('file').equals(path).count();
+		} catch {
+			return 0;
+		}
+	}
+
+	/**
+	 * Load the DB task rows attached to a file path (safe with partial mocks).
+	 */
+	private async getTasksInFile(path: string): Promise<Array<{ localId: string }>> {
+		try {
+			if (!db.tasks?.where) return [];
+			return await db.tasks.where('file').equals(path).toArray();
+		} catch {
+			return [];
+		}
+	}
+
 	async ensureVaultFilesRegistered(): Promise<void> {
+		await this.cleanupGhostProjectFileRecords();
 		const vault = this.plugin.app.vault;
 		const markdownFiles = vault.getMarkdownFiles();
-		const allProjects = await this.getProjects();
+		// Use all projects (including archived/paused/deleted ones) so a file
+		// that arrives in the archive folder through Obsidian Sync or a manual
+		// move can still be recognised as the matching list.
+		const allProjects = await getAllProjects();
 
 		for (const file of markdownFiles) {
 			const dbFile = await getFile(file.path);
 			if (!dbFile) {
 				await this.registerNewVaultFile(file, allProjects);
+			} else if (!dbFile.defaultProjectId && this.isInsideArchivedListsFolder(file.path)) {
+				const matchingProject = allProjects.find(p => p.name === file.basename);
+				if (matchingProject) {
+					await this.registerArchivedListFile(file, matchingProject);
+				}
 			}
 		}
+	}
+
+	/**
+	 * Associate an already-archived list file with its project and pause it.
+	 */
+	private async registerArchivedListFile(file: TFile, project: IProject): Promise<void> {
+		log.debug(`Registering archived list file: ${file.path} -> ${project.name}`);
+		await upsertFile(file.path, project.id);
+		const lp = await getLocalProjectById(project.id);
+		if (lp && !lp.syncPaused) {
+			await updateProjectState(project.id, {
+				archived: isProjectArchived(project),
+				syncPaused: true,
+			});
+		}
+	}
+
+	/**
+	 * True when the path lives inside the configured archived-lists folder.
+	 */
+	private isInsideArchivedListsFolder(path: string): boolean {
+		const folder = (getSettings().archivedListsFolder || 'Archived')
+			.replace(/\\/g, '/')
+			.replace(/^\/+|\/+$/g, '')
+			.toLowerCase();
+		if (!folder) return false;
+		return path.toLowerCase().startsWith(`${folder}/`);
 	}
 
 	/**
@@ -184,9 +284,26 @@ export class TickTickService {
 	 * @param allProjects - All known projects
 	 */
 	private async registerNewVaultFile(file: TFile, allProjects: IProject[]): Promise<void> {
+		// The vault's markdown file cache can be briefly stale right after a
+		// rename/move. Registering those ghost paths creates phantom file
+		// records that later trigger bogus cleanup/duplicate prompts.
+		const adapter = this.plugin.app.vault.adapter;
+		if (adapter?.exists && !(await adapter.exists(file.path))) {
+			log.debug(`Skipping stale vault cache entry: ${file.path}`);
+			return;
+		}
+
 		// Look up file name in projects cache to auto-associate
 		const fileName = file.basename;
 		const matchingProject = allProjects.find(p => p.name === fileName);
+
+		// A matching file that sits in the archived-lists folder was archived
+		// outside this device (Obsidian Sync / manual move). Associate it and
+		// pause it instead of treating it as a misplaced new file.
+		if (matchingProject && this.isInsideArchivedListsFolder(file.path)) {
+			await this.registerArchivedListFile(file, matchingProject);
+			return;
+		}
 
 		if (matchingProject && getSettings().keepProjectFolders && this.plugin.folderSyncService) {
 			const basePath = getDefaultFolder();
@@ -220,6 +337,14 @@ export class TickTickService {
 	async saveProjectsToCache(): Promise<IProject[] | undefined> {
 		await initDB();
 		let projects = await this.api?.getProjects();
+		// If the request failed, do not wipe the cache or trigger destructive
+		// lifecycle actions.
+		if (projects === null) {
+			return undefined;
+		}
+		if (projects === undefined) {
+			projects = [];
+		}
 		if (projects) {
 			// Also get project groups
 			const groups = await this.api?.getProjectGroups();
@@ -240,7 +365,12 @@ export class TickTickService {
 	}
 
 	async getProjects() {
-		return await getAllProjects();
+		const { getSyncableProjects } = await import('@/db/projects');
+		try {
+			return await getSyncableProjects();
+		} catch {
+			return await getAllProjects();
+		}
 	}
 
 	async getTasks(filter: string) {
@@ -374,6 +504,7 @@ export class TickTickService {
 		const vault = this.plugin.app.vault;
 		const markdownFiles = vault.getMarkdownFiles();
 		const allProjects = await this.getProjects();
+		await this.cleanupGhostProjectFileRecords();
 		const dbFiles = await getAllFiles();
 
 		log.debug(`Checking database for ${markdownFiles.length} markdown files and ${dbFiles.length} DB entries.`);
@@ -395,11 +526,20 @@ export class TickTickService {
 			}
 			if (getSettings().keepProjectFolders && this.plugin.folderSyncService) {
 				const basePath = getDefaultFolder();
+				// Never drag archived/deleted/paused list files out of the
+				// archive folder during a database check.
+				const localProjectRecords = await db.projects.toArray();
+				const frozenProjectIds = new Set(
+					localProjectRecords
+						.filter(lp => lp.archived || lp.deleted || lp.syncPaused)
+						.map(lp => lp.id)
+				);
 				let movedCount = 0;
 				for (const file of markdownFiles) {
 					const dbFile = await getFile(file.path);
 					if (!dbFile?.defaultProjectId) continue;
 					if (dbFile.managedByPlugin === false) continue;
+					if (frozenProjectIds.has(dbFile.defaultProjectId)) continue;
 
 					const project = allProjects.find(p => p.id === dbFile.defaultProjectId);
 					if (!project) continue;
@@ -770,6 +910,9 @@ export class TickTickService {
 	 * @param bForceUpdate
 	 */
 	async syncFiles(bForceUpdate: boolean) {
+		// Remove ghost records left behind by stale vault caches before the
+		// duplicate and missing-file checks see them.
+		await this.cleanupGhostProjectFileRecords();
 		const filesToSync = await this.plugin.fileMetadataService?.getAllFileMetadata();
 		if (!filesToSync) {
 			log.warn('No sync files found.');
@@ -859,6 +1002,17 @@ export class TickTickService {
 		for (const fileKey in newFilesToSync) {
 			const file = this.plugin.app.vault.getAbstractFileByPath(fileKey);
 			if (!file) {
+				// Ghost records (no project association and no tasks) are left
+				// behind by stale vault caches during file moves. Clean those up
+				// silently instead of asking the user about them.
+				const metadata = newFilesToSync[fileKey];
+				const taskCount = await this.countTasksInFile(fileKey);
+				if (!metadata?.defaultProjectId && taskCount === 0) {
+					log.debug(`Removing stale file record without tasks: ${fileKey}`);
+					await this.plugin.fileMetadataService?.deleteFileMetadata(fileKey);
+					delete newFilesToSync[fileKey];
+					continue;
+				}
 				filesMissingFromVault.push(fileKey);
 			}
 		}

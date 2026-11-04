@@ -100,6 +100,13 @@ export class TaskModificationDetector {
 		// Check if it's a new task (has #ticktick tag but no ID yet)
 		if (!this.plugin.taskParser.hasTickTickId(lineTxt) && this.plugin.taskParser.hasTickTickTag(lineTxt)) {
 			try {
+				const { getPausedProjectIds } = await import('@/db/projects');
+				const paused = await getPausedProjectIds();
+				const defaultProjectId = await this.plugin.fileTaskQueries?.getDefaultProjectIdForFilepath(fileMap.getFilePath());
+				if (defaultProjectId && paused.has(defaultProjectId)) {
+					new Notice('Cannot add tasks to a paused list');
+					return;
+				}
 				// Convert markdown to task object
 				const currentTask = await this.plugin.taskParser.convertLineToTask(
 					lineTxt,
@@ -233,7 +240,8 @@ export class TaskModificationDetector {
 		}
 
 		// Get saved task from database
-		const savedTask = await this.plugin.taskRepository.loadTaskById(taskId);
+		const localTaskRecord = await this.plugin.taskRepository.loadLocalTaskById(taskId);
+		const savedTask = localTaskRecord?.task;
 		if (!savedTask) {
 			// Task not in local DB — check TickTick API before deleting.
 			// Handles the race where a file syncs to this device via external
@@ -262,6 +270,24 @@ export class TaskModificationDetector {
 			if (!(file instanceof TFile)) { return false; }
 			const lineTask = (await this.plugin.taskParser?.convertLineToTask(lineText, lineNumber!, filepath!, fileMap, taskRecord));
 			await this.plugin.fileOperation?.deleteTaskFromSpecificFile(file, lineTask, true);
+			return false;
+		}
+
+		// A locally deleted task must never be re-imported or pushed back to
+		// TickTick just because its markdown line is still around. Once the DB
+		// has disassociated the task from all files (the "clean DB" action),
+		// also remove the stale line silently.
+		if (localTaskRecord?.deleted) {
+			log.debug(`Skipping line for locally deleted task ${taskId} in ${filepath}`);
+			if (!localTaskRecord.file) {
+				const file = this.app.vault.getAbstractFileByPath(filepath!);
+				if (file instanceof TFile) {
+					const lineTask = await this.plugin.taskParser?.convertLineToTask(lineText, lineNumber!, filepath!, fileMap, taskRecord);
+					if (lineTask) {
+						await this.plugin.fileOperation?.deleteTaskFromSpecificFile(file, lineTask, false);
+					}
+				}
+			}
 			return false;
 		}
 
@@ -435,9 +461,23 @@ export class TaskModificationDetector {
 		// Check for project move
 		const moveCheck = await this.checkForTaskMove(taskId, filepath);
 		if (moveCheck.moved) {
-			await this.handleProjectMove(lineTask, savedTask, moveCheck.oldFilePath, filepath);
-			modifications.projectMoved = true;
-			modified = true;
+			const { getPausedProjectIds } = await import('@/db/projects');
+			const paused = await getPausedProjectIds();
+			if (paused.has(savedTask.projectId) || paused.has(lineTask.projectId)) {
+				// Only warn for an actual attempt to move the task. An automatic
+				// restore out of a deleted/paused list is re-detected on every
+				// scan and must stay silent.
+				if (!moveCheck.restored) {
+					new Notice('Cannot move tasks in or out of a paused list');
+				}
+			} else if (!moveCheck.restored) {
+				await this.handleProjectMove(lineTask, savedTask, moveCheck.oldFilePath, filepath);
+				modifications.projectMoved = true;
+				modified = true;
+			}
+			// `restored` with the same file path means only the task's project
+			// changed (e.g. it was restored out of a deleted list). Its file is
+			// placed by the vault sync; there is no move to perform or announce.
 
 			// Immediately persist the new file mapping to DB so subsequent API
 			// failures don't leave the local record stale, preventing a sync loop.
@@ -448,15 +488,27 @@ export class TaskModificationDetector {
 		// Handle project change from tag modification
 		if (modifications.tagsModified && !modifications.projectMoved) {
 			if (lineTask.projectId && savedTask.projectId && lineTask.projectId !== savedTask.projectId) {
-				await this.plugin.tickTickRestAPI?.moveTaskProject(lineTask, savedTask.projectId, lineTask.projectId);
-				modified = true;
+				const { getPausedProjectIds } = await import('@/db/projects');
+				const paused = await getPausedProjectIds();
+				if (paused.has(savedTask.projectId) || paused.has(lineTask.projectId)) {
+					new Notice('Cannot move tasks in or out of a paused list');
+				} else {
+					await this.plugin.tickTickRestAPI?.moveTaskProject(lineTask, savedTask.projectId, lineTask.projectId);
+					modified = true;
+				}
 			}
 		}
 
 		// Handle parent change
 		if (modifications.parentIdModified) {
-			await this.handleParentChange(lineTask, savedTask, taskId);
-			modified = true;
+			const { getPausedProjectIds } = await import('@/db/projects');
+			const paused = await getPausedProjectIds();
+			if (paused.has(savedTask.projectId) || paused.has(lineTask.projectId)) {
+				new Notice('Cannot modify tasks in a paused list');
+			} else {
+				await this.handleParentChange(lineTask, savedTask, taskId);
+				modified = true;
+			}
 		}
 
 		// Handle status change (complete/incomplete)
@@ -519,11 +571,35 @@ export class TaskModificationDetector {
 	 */
 	private async checkForTaskMove(taskId: string, currentPath: string): Promise<{
 		moved: boolean;
-		oldFilePath: string
+		oldFilePath: string;
+		restored: boolean;
 	}> {
 		const oldFilePath = await this.plugin.fileMetadataService.getFilepathForTask(taskId);
-		const moved = !!(oldFilePath && oldFilePath !== currentPath);
-		return { moved, oldFilePath: oldFilePath || '' };
+		let moved = !!(oldFilePath && oldFilePath !== currentPath);
+		// `restored` marks a task that was automatically restored out of a
+		// deleted/paused list. It is a consequence of the list lifecycle, not a
+		// user-requested move, so it must not trigger move warnings.
+		let restored = false;
+		if (!moved && oldFilePath) {
+			try {
+				const { getFile } = await import('@/db/files');
+				const { db } = await import('@/db/dexie');
+				const fileRecord = await getFile(oldFilePath);
+				const oldProjectId = fileRecord?.defaultProjectId;
+				if (oldProjectId) {
+					const lt = await db.tasks.where('taskId').equals(taskId).first();
+					// The task's project no longer matches the project that owns the
+					// file it still lives in: it was restored into another list.
+					if (lt?.task?.projectId && lt.task.projectId !== oldProjectId) {
+						moved = true;
+						restored = true;
+					}
+				}
+			} catch {
+				// ignore
+			}
+		}
+		return { moved, oldFilePath: oldFilePath || '', restored };
 	}
 
 	/**
@@ -531,6 +607,17 @@ export class TaskModificationDetector {
 	 * Also checks if project groups differ and moves file if necessary
 	 */
 	private async handleProjectMove(newTask: ITask, oldTask: ITask, oldPath: string, newPath: string): Promise<void> {
+		// Nothing actually moved: same file and same project. Never announce a
+		// no-op move (e.g. "moved from X.md to X.md").
+		if (oldPath === newPath && oldTask.projectId === newTask.projectId) {
+			return;
+		}
+		const { getPausedProjectIds } = await import('@/db/projects');
+		const paused = await getPausedProjectIds();
+		if (paused.has(oldTask.projectId) || paused.has(newTask.projectId)) {
+			new Notice('Cannot move tasks in or out of a paused list');
+			return;
+		}
 		await this.plugin.tickTickRestAPI?.moveTaskProject(newTask, oldTask.projectId, newTask.projectId);
 
 		const message = `Task ${newTask.id} moved from ${oldPath} to ${newPath}`;
