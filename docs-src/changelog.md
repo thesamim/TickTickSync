@@ -4,6 +4,15 @@
 
 ## Notable Changes
 
+### 2.0.15 → 2.0.16 — Archived & Deleted List Handling { #2.0.16 }
+
+- **Archived, deleted and paused lists stop syncing** — a list archived in TickTick (or deleted there, or paused by you) is left alone: no pulls, pushes, moves, dropdown entries or folder reorganization. Handling is opt-in under **Sync Control → List Lifecycle**, and archived files can be collected in a folder of your choice (default `Archived`). Tasks from a deleted list are treated as moved without showing move notifications.
+- **Unarchiving a list puts its file back** — the file returns to the list's current location. If a file already exists there, you choose to move and merge, delete one of the two files, or skip; a skipped restore is retried silently once the conflict is gone.
+- **Trashing a deleted list's file cleans the database** — its tasks are removed rather than moved to the default project, with no move notifications.
+- **New lists appear immediately in project dropdowns** — lists created in TickTick, even ones without tasks, can be selected under **Sync Control** without waiting for a sync.
+- **Task display settings hold in Live Preview and Reading mode** — link, ID and tag visibility stays applied while editing, and nested subtasks no longer hide their parent's metadata.
+- General stability and performance improvements
+
 ### 2.0.10 → 2.0.15 — Sync, Reminder & Tag Fixes { #2.0.15 }
 
 - **Missing project files are re-created on sync** instead of their tasks being deleted (#386)

@@ -83,5 +83,11 @@ export const NOTABLE_CHANGES: NotableChange[] = [
 		title: "**Missing project files are re-created on sync** instead of their tasks being deleted (#386)",
 		description: "**Sync checkpoints persist after errors**, and files no longer gain stray blank lines when a sync has nothing to add (#383)\n**Android reminders fixed** — reminder IDs are now generated so reminders sync correctly on mobile\n**Hyphens in tags are handled correctly**\n**Task link setting is honored** when setting the task title during sync\n**Runs alongside other Dexie-based plugins** (e.g. Omnisearch) — no more \"Two different versions of Dexie loaded\" plugin failure\nGeneral stability and performance improvements",
 		anchor: '2.0.15',
+	},
+	{
+		version: '2.0.16',
+		title: "**Archived, deleted and paused lists stop syncing** — a list archived in TickTick (or deleted there, or paused by you) is left alone: no pulls, pushes, moves, dropdown entries or folder reorganization. Handling is opt-in under **Sync Control → List Lifecycle**, and archived files can be collected in a folder of your choice (default `Archived`). Tasks from a deleted list are treated as moved without showing move notifications.",
+		description: "**Unarchiving a list puts its file back** — the file returns to the list's current location. If a file already exists there, you choose to move and merge, delete one of the two files, or skip; a skipped restore is retried silently once the conflict is gone.\n**Trashing a deleted list's file cleans the database** — its tasks are removed rather than moved to the default project, with no move notifications.\n**New lists appear immediately in project dropdowns** — lists created in TickTick, even ones without tasks, can be selected under **Sync Control** without waiting for a sync.\n**Task display settings hold in Live Preview and Reading mode** — link, ID and tag visibility stays applied while editing, and nested subtasks no longer hide their parent's metadata.\nGeneral stability and performance improvements",
+		anchor: '2.0.16',
 	}
 ];
