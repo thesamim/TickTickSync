@@ -97,10 +97,26 @@ export class FolderMigrationService {
 			// Get all files from database
 			const allFiles = await db.files.toArray();
 
+			// Files belonging to archived/deleted/paused lists are deliberately
+			// kept where they are (e.g. in the archived-lists folder) and must
+			// not be dragged back by a folder-layout reorganization.
+			const localProjects = await db.projects.toArray();
+			const frozenProjectIds = new Set(
+				localProjects
+					.filter(lp => lp.archived || lp.deleted || lp.syncPaused || lp.userPaused)
+					.map(lp => lp.id)
+			);
+
 			for (const fileRecord of allFiles) {
 				// Skip files without defaultProjectId (user-managed)
 				if (!fileRecord.defaultProjectId) {
 					log.debug(`Skipping unassociated file: ${fileRecord.path}`);
+					continue;
+				}
+
+				// Skip files of lists that are archived, deleted or paused.
+				if (frozenProjectIds.has(fileRecord.defaultProjectId)) {
+					log.debug(`Skipping archived/deleted/paused list file: ${fileRecord.path}`);
 					continue;
 				}
 

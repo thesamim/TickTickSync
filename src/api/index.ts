@@ -277,7 +277,7 @@ export class Tick {
 		return [];
 	}
 
-	async getProjects(): Promise<IProject[]> {
+	async getProjects(): Promise<IProject[] | null> {
 		try {
 			const url = `${this.apiUrl}/${allProjectsEndPoint}`;
 			const response = await this.makeRequest('Get Projects', url, 'GET', undefined);
@@ -288,7 +288,9 @@ export class Tick {
 			log.error('Get Projects failed: ', e);
 			this.setError('Get Projects', null, e);
 		}
-		return [];
+		// null (not []) so callers can tell a failed request apart from an
+		// account that genuinely has no lists left.
+		return null;
 	}
 
 

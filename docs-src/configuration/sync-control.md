@@ -63,6 +63,30 @@ TickTickSync syncs on two different triggers, and they don't behave the same way
 !!! note
     Enabling **Full Vault Sync** turns off the per-line push entirely. With it on, every edit only takes effect at the next full sync interval (or a manual **Sync Now**), not within a second of typing.
 
+## Paused Lists
+
+You can pause a list manually at any time from **Sync Control → List lifecycle → Paused lists**, or by running the **Pause or resume a list** command from the command palette. A paused list is ignored completely:
+
+- Nothing is pulled from TickTick or pushed to TickTick.
+- Task moves and edits involving the list are ignored.
+- The list is not offered in project dropdowns.
+- Folder reorganization leaves its file alone, and the file stays exactly where it is.
+
+!!! note
+    Edits you make to tasks while their list is paused are not lost. They stay in the file and are synced on the next scheduled or manual sync **after you resume the list**.
+
+Pausing a list in the plugin does not change anything in TickTick. Resume it from the same toggle (or the command) to start syncing again. If its file is still in the archived-lists folder when syncing resumes, it is returned to its normal location.
+
+## Archived and Deleted Lists
+
+When a list is archived (closed) or deleted in TickTick, TickTickSync asks what to do with its file the next time it syncs:
+
+- **Move to archive folder** — the file is moved to the configured archive folder and syncing for that list is paused.
+- **Stop syncing** — the file is left where it is, but the list is ignored by future syncs.
+- **Trash file and clean database** — the file is removed, and the list's tasks are marked as deleted instead of being moved to another project.
+
+Archived, deleted and paused lists are excluded from the **Default Project** dropdown and from all pull, push and move operations. Task edits are ignored while a list is in that state. If the list is unarchived or restored in TickTick, syncing resumes automatically and its file is returned to its original location.
+
 ## Conflict Handling
 
 If the same task changes in both Obsidian and TickTick before a full sync runs, TickTickSync resolves it by keeping whichever side was saved more recently — **the entire task**, not a field-by-field merge. The other side's changes for that sync are discarded.

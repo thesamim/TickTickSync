@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
+import { TFile } from 'obsidian';
 import { VaultSyncCoordinator } from '@/services/VaultSyncCoordinator';
+import { db } from '@/db/dexie';
 import type { LocalTask } from '@/db/schema';
 import type { ITask } from '@/api/types/Task';
 
@@ -13,7 +15,7 @@ vi.mock('obsidian', () => ({
 	Notice: vi.fn(),
 	Plugin: vi.fn(),
 	PluginSettingTab: vi.fn(),
-	TFile: vi.fn(),
+	TFile: class TFile {},
 	TFolder: vi.fn(),
 	MarkdownView: vi.fn(),
 }));
@@ -27,6 +29,12 @@ vi.mock('@/db/dexie', () => ({
 		},
 		meta: {
 			update: vi.fn(),
+		},
+		files: {
+			toArray: vi.fn().mockResolvedValue([]),
+		},
+		projects: {
+			toArray: vi.fn().mockResolvedValue([]),
 		},
 		transaction: vi.fn((_mode: string, _table: string, callback: () => void) => callback()),
 	},
@@ -287,6 +295,57 @@ describe('VaultSyncCoordinator', () => {
 
 			expect(result).toBe(true);
 			expect(coordinatorPrivates().plugin.fileMetadataService.getDeletionItems).toHaveBeenCalledWith(['deleted-1']);
+		});
+	});
+
+	describe('syncVaultWithDatabase - tasks from deleted lists', () => {
+		let deleteTasksFromSpecificFile: Mock;
+		let synchronizeToVault: Mock;
+		let vaultFile: TFile;
+		let localCoordinator: VaultSyncCoordinator;
+		const task = { id: 'task-1', projectId: 'deleted-list' } as ITask;
+
+		beforeEach(() => {
+			deleteTasksFromSpecificFile = vi.fn().mockResolvedValue(['task-1']);
+			synchronizeToVault = vi.fn().mockResolvedValue(true);
+			vaultFile = new TFile();
+			const app = {
+				vault: {
+					getAbstractFileByPath: vi.fn().mockReturnValue(vaultFile),
+				},
+			};
+			const plugin = {
+				fileOperation: { deleteTasksFromSpecificFile, synchronizeToVault },
+			};
+			localCoordinator = new VaultSyncCoordinator(app as unknown, plugin as unknown, undefined);
+			vi.mocked(db.tasks.toArray).mockResolvedValue([
+				makeLocalTask({
+					localId: 'local-1',
+					taskId: 'task-1',
+					task,
+					file: 'DefaultProject.md',
+				}),
+			] as never);
+			vi.mocked(db.projects.toArray).mockResolvedValue([
+				{ id: 'known-list', project: { id: 'known-list' } },
+			] as never);
+			vi.mocked(db.files.toArray).mockResolvedValue([] as never);
+		});
+
+		it('marks tasks of an unknown list as deleted instead of re-homing them', async () => {
+			await localCoordinator.syncVaultWithDatabase();
+
+			expect(db.tasks.update).toHaveBeenCalledWith('local-1', expect.objectContaining({
+				deleted: true,
+				file: '',
+			}));
+			expect(synchronizeToVault).not.toHaveBeenCalled();
+		});
+
+		it('removes the stale lines of tasks from deleted lists', async () => {
+			await localCoordinator.syncVaultWithDatabase();
+
+			expect(deleteTasksFromSpecificFile).toHaveBeenCalledWith(vaultFile, [task], false);
 		});
 	});
 });

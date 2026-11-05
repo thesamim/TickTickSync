@@ -37,6 +37,11 @@ vi.mock('@/db/dexie', () => ({
 vi.mock('@/db/projects', () => ({
 	getAllProjects: vi.fn(async () => [...projectsTable.values()].map(r => r.project)),
 	getProjectById: vi.fn(async (id: string) => projectsTable.get(id)?.project),
+	getLocalProjectById: vi.fn(async (id: string) => projectsTable.get(id)),
+	isProjectArchived: (p?: IProject) => p?.closed === true || p?.closed === 1,
+	upsertProjectsPreservingState: vi.fn(async (projects: IProject[]) => {
+		projects.forEach(p => projectsTable.set(p.id, { id: p.id, project: p }));
+	}),
 }));
 
 const upsertFile = vi.fn(async (path: string, defaultProjectId?: string) => {
@@ -171,10 +176,64 @@ describe('ProjectSyncService.saveProjectsToCache', () => {
 		expect(upsertFile).toHaveBeenCalledWith('Work.md', 'proj-a');
 	});
 
-	it('re-creates a file entry for a cached project when the vault file still exists', async () => {
+	it('does not create a normal-location file for an archived list', async () => {
 		const { plugin } = makePlugin();
 		const svc = new ProjectSyncService(
-			{ vault: { getAbstractFileByPath: () => new TFile() } } as never,
+			{ vault: { getAbstractFileByPath: () => null, getMarkdownFiles: () => [] } } as never,
+			plugin as never
+		);
+
+		await svc.checkProjectRename('proj-closed', 'Closed', { id: 'proj-closed', name: 'Closed', closed: true } as IProject);
+
+		expect(upsertFile).not.toHaveBeenCalledWith('Closed.md', 'proj-closed');
+	});
+
+	it('adopts an existing archived list file instead of creating a duplicate', async () => {
+		const { plugin } = makePlugin();
+		const archived = new TFile();
+		(archived as unknown as { path: string }).path = 'Archived/Closed.md';
+		const svc = new ProjectSyncService(
+			{
+				vault: {
+					getAbstractFileByPath: (path: string) => path === 'Archived/Closed.md' ? archived : null,
+					getMarkdownFiles: () => [],
+				},
+			} as never,
+			plugin as never
+		);
+
+		await svc.checkProjectRename('proj-closed', 'Closed', { id: 'proj-closed', name: 'Closed', closed: true } as IProject);
+
+		expect(upsertFile).toHaveBeenCalledWith('Archived/Closed.md', 'proj-closed');
+		expect(upsertFile).not.toHaveBeenCalledWith('Closed.md', 'proj-closed');
+	});
+
+	it('adopts an archived file for an active list so it can be restored', async () => {
+		const { plugin } = makePlugin();
+		const archived = new TFile();
+		(archived as unknown as { path: string }).path = 'Archived/Work.md';
+		const svc = new ProjectSyncService(
+			{
+				vault: {
+					getAbstractFileByPath: (path: string) => path === 'Archived/Work.md' ? archived : null,
+					getMarkdownFiles: () => [],
+				},
+			} as never,
+			plugin as never
+		);
+
+		await svc.checkProjectRename('proj-a', 'Work', { id: 'proj-a', name: 'Work' } as IProject);
+
+		expect(upsertFile).toHaveBeenCalledWith('Archived/Work.md', 'proj-a');
+		expect(upsertFile).not.toHaveBeenCalledWith('Work.md', 'proj-a');
+	});
+
+	it('re-creates a file entry for a cached project when the vault file still exists', async () => {
+		const { plugin } = makePlugin();
+		const existing = new TFile();
+		(existing as unknown as { path: string }).path = 'Work.md';
+		const svc = new ProjectSyncService(
+			{ vault: { getAbstractFileByPath: () => existing } } as never,
 			plugin as never
 		);
 
