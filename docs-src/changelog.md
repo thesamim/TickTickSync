@@ -11,7 +11,8 @@
 - **Unarchiving a list puts its file back** — the file returns to the list's current location. If a file already exists there, you choose to move and merge, delete one of the two files, or skip; a skipped restore is retried silently once the conflict is gone.
 - **Trashing a deleted list's file cleans the database** — its tasks are removed rather than moved to the default project, with no move notifications.
 - **New lists appear immediately in project dropdowns** — lists created in TickTick, even ones without tasks, can be selected under **Sync Control** without waiting for a sync.
-- **Task display settings hold in Live Preview and Reading mode** — link, ID and tag visibility stays applied while editing, and nested subtasks no longer hide their parent's metadata.
+- **Task display settings hold in Live Preview and Reading mode** - link, ID and tag visibility stays applied while editing, and nested subtasks no longer hide their parent's metadata.
+- **Parent-change notices show the real parent** - when a task's parent changes, the notice now shows the parent's title and id instead of repeating `none`, falls back to the id when the parent isn't cached, and stays silent when the parent relationship didn't actually change (#404).
 - General stability and performance improvements
 
 ### 2.0.10 → 2.0.15 — Sync, Reminder & Tag Fixes { #2.0.15 }

@@ -515,8 +515,10 @@ export class TaskModificationDetector {
 			if (paused.has(savedTask.projectId) || paused.has(lineTask.projectId)) {
 				new Notice('Cannot modify tasks in a paused list');
 			} else {
-				await this.handleParentChange(lineTask, savedTask, taskId);
-				modified = true;
+				const parentChanged = await this.handleParentChange(lineTask, savedTask, taskId);
+				if (parentChanged) {
+					modified = true;
+				}
 			}
 		}
 
@@ -674,16 +676,45 @@ export class TaskModificationDetector {
 
 	/**
 	 * Handle task parent change (subtask hierarchy)
+	 * @returns true when the parent relationship actually changed and was applied
 	 */
-	private async handleParentChange(lineTask: ITask, savedTask: ITask, taskId: string): Promise<void> {
+	private async handleParentChange(lineTask: ITask, savedTask: ITask, taskId: string): Promise<boolean> {
+		const oldParentId = savedTask.parentId?.trim() ?? '';
+		const newParentId = lineTask.parentId?.trim() ?? '';
+
+		// Nothing to do when the parent id is unchanged. Keeping this guard here
+		// prevents a no-op move and a misleading "none" -> "none" notice.
+		if (oldParentId === newParentId) {
+			log.debug(`Task ${taskId} parent unchanged (${newParentId || 'none'}); skipping parent move`);
+			return false;
+		}
+
 		await this.plugin.tickTickRestAPI?.moveTaskParent(taskId, savedTask.parentId, lineTask.parentId, lineTask.projectId);
 
-		const oldParent = await this.plugin.taskRepository.loadTaskById(savedTask.parentId);
-		const newParent = await this.plugin.taskRepository.loadTaskById(lineTask.parentId);
+		const oldParent = oldParentId ? await this.plugin.taskRepository.loadTaskById(oldParentId) : undefined;
+		const newParent = newParentId ? await this.plugin.taskRepository.loadTaskById(newParentId) : undefined;
 
-		const message = `Task ${taskId} parent changed from "${oldParent?.title || 'none'}" to "${newParent?.title || 'none'}"`;
+		const oldLabel = this.formatParentLabel(oldParentId, oldParent);
+		const newLabel = this.formatParentLabel(newParentId, newParent);
+
+		const message = `Task ${taskId} parent changed from "${oldLabel}" to "${newLabel}"`;
 		new Notice(message, 5000);
 		log.debug(message);
+		return true;
+	}
+
+	/**
+	 * Build a readable label for a parent task, falling back to the id when the
+	 * parent is not in the local cache (or has no title). This keeps real parent
+	 * changes distinguishable instead of rendering as "none" -> "none".
+	 */
+	private formatParentLabel(parentId: string, parent: ITask | undefined): string {
+		if (!parentId) {
+			return 'none';
+		}
+
+		const title = parent?.title?.trim();
+		return title ? `${title} (${parentId})` : parentId;
 	}
 
 	/**
