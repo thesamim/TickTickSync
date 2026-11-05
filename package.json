@@ -33,7 +33,6 @@
 		"@types/lowdb": "^1.0.15",
 		"bson-objectid": "^2.0.4",
 		"crypto-hash": "^3.1.0",
-		"dependency-tree": "^11.0.1",
 		"dexie": "^4.2.1",
 		"eventemitter2": "^6.4.9",
 		"loglevel": "^1.9.2",
