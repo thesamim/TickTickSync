@@ -498,6 +498,7 @@ export class FileOperation {
 		const fileMap = new NewFileMap(this.app, this.plugin, file);
 		await fileMap.init();
 		let bTaskMove: boolean = false;
+		const parentChanges: Array<{ task: ITask; oldParentId: string; newParentId: string }> = [];
 
 
 		// log.debug('================');
@@ -566,6 +567,13 @@ export class FileOperation {
 					} else {
 						const bParentUpdate = this.plugin.taskParser?.isParentIdChanged(vaultTask, task);
 						bLinePersisted = fileMap.updateTask(task, lineText, bParentUpdate);
+						if (bParentUpdate && bLinePersisted) {
+							parentChanges.push({
+								task,
+								oldParentId: vaultParentId ?? '',
+								newParentId: task.parentId ?? ''
+							});
+						}
 					}
 				} else {
 					//how would that happen???? The task has no DB record, so we
@@ -624,7 +632,52 @@ export class FileOperation {
 
 		const resultLines = fileMap.getFileLines();
 		this.plugin.lastLines.set(file.path, resultLines.length);
+		await this.notifyPullParentChanges(file, parentChanges);
 		return resultLines;
+	}
+
+	/**
+	 * Announce parent changes that arrived from TickTick. The push direction is
+	 * reported by TaskModificationDetector; the pull direction used to rewrite
+	 * the vault silently. Changes are consolidated per file so a batch of
+	 * re-parented tasks produces a single Notice.
+	 */
+	private async notifyPullParentChanges(
+		file: TFile,
+		changes: Array<{ task: ITask; oldParentId: string; newParentId: string }>
+	): Promise<void> {
+		if (changes.length === 0) {
+			return;
+		}
+
+		const describeParent = async (parentId: string): Promise<string> => {
+			if (!parentId) {
+				return 'top level';
+			}
+			const parent = await this.plugin.taskRepository.loadTaskById(parentId);
+			const parentTitle = this.plugin.taskParser?.stripOBSUrl(parent?.title);
+			const title = parentTitle?.trim();
+			return title ? `${title} (${parentId})` : parentId;
+		};
+
+		const lines: string[] = [];
+		for (const change of changes) {
+			const strippedTitle = this.plugin.taskParser?.stripOBSUrl(change.task.title);
+			const taskTitle = strippedTitle?.trim() || change.task.id;
+			const from = await describeParent(change.oldParentId);
+			const to = await describeParent(change.newParentId);
+			log.debug(`Parent changed in TickTick: task ${change.task.id} in ${file.path}: ${from} -> ${to}`);
+			lines.push(`"${taskTitle}" moved from ${from} to ${to}`);
+		}
+
+		const preview = lines.slice(0, 5);
+		if (lines.length > preview.length) {
+			preview.push(`… and ${lines.length - preview.length} more`);
+		}
+		const heading = changes.length === 1
+			? `Parent changed in TickTick (${file.path})`
+			: `${changes.length} parent changes from TickTick (${file.path})`;
+		new Notice(`${heading}\n${preview.join('\n')}`, 8000);
 	}
 
 	/**

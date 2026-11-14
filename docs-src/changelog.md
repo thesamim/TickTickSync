@@ -13,6 +13,7 @@
 - **New lists appear immediately in project dropdowns** — lists created in TickTick, even ones without tasks, can be selected under **Sync Control** without waiting for a sync.
 - **Task display settings hold in Live Preview and Reading mode** - link, ID and tag visibility stays applied while editing, and nested subtasks no longer hide their parent's metadata.
 - **Parent-change notices show the real parent** - when a task's parent changes, the notice now shows the parent's title and id instead of repeating `none`, falls back to the id when the parent isn't cached, and stays silent when the parent relationship didn't actually change (#404).
+- **Parent changes made in TickTick are announced** - when a task is re-parented in TickTick, the vault update now shows one notice per affected file naming the new parent instead of changing the file silently. Paused, archived and deleted lists remain silent.
 - General stability and performance improvements
 
 ### 2.0.10 → 2.0.15 — Sync, Reminder & Tag Fixes { #2.0.15 }

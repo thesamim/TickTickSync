@@ -74,6 +74,8 @@ function makeTFile(path: string): TFile {
 const taskParserStub = {
 	isMarkdownTask: (line: string): boolean => /^\s*[-*+] \[[x ]\]/i.test(line),
 	getTickTickId: (line: string): string | null => line.match(/%%\[ticktick_id::\s*(\S+?)\]%%/)?.[1] ?? null,
+	hasTickTickId: (line: string): boolean => /%%\[ticktick_id::/.test(line),
+	getLineItemId: (): string | null => null,
 	getNumTabs: (): number => 0,
 	getTabs: (line: string): string => (line.match(/^\s*/)?.[0] ?? ''),
 };
@@ -100,6 +102,7 @@ interface FileOperationEnv {
 function makeFileOperationEnv(options: {
 	fileContent: string;
 	loadTaskById?: (id: string) => Promise<ITask | null>;
+	isParentIdChanged?: (lineTask: ITask, savedTask: ITask) => boolean;
 }): FileOperationEnv {
 	let written = '';
 	const file = makeTFile('TODO/Work.md');
@@ -121,12 +124,14 @@ function makeFileOperationEnv(options: {
 		fileOperation: { readFileContent: async () => options.fileContent },
 		taskParser: {
 			...taskParserStub,
-			convertTaskToLine: async () => TASK_LINE,
+			convertTaskToLine: async (task: ITask) =>
+				`- [ ] ${task.title} #ticktick %%[ticktick_id:: ${task.id}]%%`,
 			isProjectIdChanged: async () => false,
-			isParentIdChanged: () => false,
+			isParentIdChanged: options.isParentIdChanged ?? (() => false),
 			getNoteString: () => '',
 			getLineHash: async () => 'hash',
 			getLinkLocation: () => ({ taskURL: null, noteURL: null }),
+			stripOBSUrl: (title: string | undefined) => title ?? '',
 		},
 		dateMan: { addDateHolderToTask: () => {} },
 		taskRepository: {
@@ -210,6 +215,62 @@ describe('persistToFile: a task marked for update but missing from the file', ()
 		const [taskArg, pathArg] = upsertTask.mock.calls[0];
 		expect(taskArg.id).toBe('task-1');
 		expect(pathArg).toBeUndefined();
+	});
+});
+
+describe('persistToFile: parent changes pulled from TickTick', () => {
+	beforeEach(() => {
+		notices.length = 0;
+	});
+
+	const PARENT_LINE = '- [ ] Parent List #ticktick %%[ticktick_id:: parent-1]%%';
+	const parentTask = { id: 'parent-1', projectId: 'proj-a', title: 'Parent List' } as ITask;
+
+	it('shows one notice naming the new parent', async () => {
+		const childTask = { id: 'task-1', projectId: 'proj-a', title: 'child', parentId: 'parent-1' } as ITask;
+		const { fileOperation } = makeFileOperationEnv({
+			fileContent: `${STUB}\n${PARENT_LINE}\n${TASK_LINE}`,
+			loadTaskById: async (id) => id === 'parent-1' ? parentTask : aTask,
+			isParentIdChanged: () => true,
+		});
+
+		await fileOperation.synchronizeToVault('TODO/Work.md', [childTask], true);
+
+		const parentNotices = notices.filter(n => n.includes('Parent changed in TickTick'));
+		expect(parentNotices).toHaveLength(1);
+		expect(parentNotices[0]).toContain('Parent List (parent-1)');
+	});
+
+	it('consolidates multiple parent changes in the same file into one notice', async () => {
+		const childOne = { id: 'task-1', projectId: 'proj-a', title: 'child one', parentId: 'parent-1' } as ITask;
+		const childTwo = { id: 'task-2', projectId: 'proj-a', title: 'child two', parentId: 'parent-1' } as ITask;
+		const { fileOperation } = makeFileOperationEnv({
+			fileContent: `${STUB}\n${PARENT_LINE}\n${TASK_LINE}\n- [ ] child two #ticktick %%[ticktick_id:: task-2]%%`,
+			loadTaskById: async (id) => {
+				if (id === 'parent-1') return parentTask;
+				return id === 'task-2' ? childTwo : aTask;
+			},
+			isParentIdChanged: () => true,
+		});
+
+		await fileOperation.synchronizeToVault('TODO/Work.md', [childOne, childTwo], true);
+
+		const parentNotices = notices.filter(n => n.includes('parent changes from TickTick'));
+		expect(parentNotices).toHaveLength(1);
+		expect(parentNotices[0]).toContain('2 parent changes from TickTick');
+	});
+
+	it('stays silent when the parent did not change', async () => {
+		const childTask = { id: 'task-1', projectId: 'proj-a', title: 'child' } as ITask;
+		const { fileOperation } = makeFileOperationEnv({
+			fileContent: `${STUB}\n${TASK_LINE}`,
+			loadTaskById: async () => aTask,
+			isParentIdChanged: () => false,
+		});
+
+		await fileOperation.synchronizeToVault('TODO/Work.md', [childTask], true);
+
+		expect(notices.filter(n => n.includes('Parent changed in TickTick'))).toHaveLength(0);
 	});
 });
 
