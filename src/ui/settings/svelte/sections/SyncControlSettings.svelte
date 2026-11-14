@@ -4,6 +4,7 @@
 	import LimitSyncSection from './LimitSyncSection.svelte';
 	import AutoSyncIntervalSection from './AutoSyncIntervalSection.svelte';
 	import FullVaultSyncSection from './FullVaultSyncSection.svelte';
+	import ListLifecycleSection from './ListLifecycleSection.svelte';
 	export let plugin;
 
 	const sections = [
@@ -11,7 +12,8 @@
 		{ key: 'defaults', component: DefaultsSection },
 		{ key: 'limit', component: LimitSyncSection },
 		{ key: 'auto', component: AutoSyncIntervalSection },
-		{ key: 'full', component: FullVaultSyncSection }
+		{ key: 'full', component: FullVaultSyncSection },
+		{ key: 'lifecycle', component: ListLifecycleSection }
 	];
 
 	let openSection: string = 'defaults';

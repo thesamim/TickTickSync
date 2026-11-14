@@ -9,6 +9,7 @@
 	import { NewFileMap } from '@/services/NewFileMap';
 	import { db } from '@/db/dexie';
 	import type TickTickSync from '@/main';
+	import { buildProjectOptions, loadCachedProjectOptions, loadFreshProjectOptions } from '@/ui/settings/projectOptions';
 
 	export let open = false;
 	export let plugin: TickTickSync;
@@ -27,6 +28,17 @@
 
 	let projects: Array<{ id: string; name: string }> = [];
 	let myProjectsOptions: Record<string, string> = {};
+	let defaultProjectName = '';
+	let wasOpen = open;
+
+	// Refresh whenever the section is expanded so lists added in TickTick while
+	// the settings tab is open show up without a reload.
+	$: if (open !== wasOpen) {
+		wasOpen = open;
+		if (open) {
+			void refreshProjectOptions();
+		}
+	}
 
 	async function ensureCorrectDefaultPaths() {
 		const settings = getSettings();
@@ -103,29 +115,42 @@
 			});
 	}
 
-	function getMyProjectsOptions() {
-		return projects.reduce((obj, item) => {
-			obj[item.id] = item.name;
-			return obj;
-		}, {});
+	async function refreshProjectOptions() {
+		projects = await loadCachedProjectOptions(plugin);
+		myProjectsOptions = buildProjectOptions(projects);
+
+		// Lists created in TickTick since the last sync are not in the local
+		// cache yet. Ask TickTick directly so a brand-new (even task-less) list
+		// can be selected without waiting for the next synchronization.
+		const fresh = await loadFreshProjectOptions(plugin);
+		if (fresh) {
+			projects = fresh;
+			myProjectsOptions = buildProjectOptions(projects);
+		}
 	}
 
 	async function handleDefaultProjectChange(value: string) {
+		const settings = getSettings();
 		if (!value || value == '') {
-			value = getSettings().inboxID;
+			value = settings.inboxID;
 		}
 		if (value && value !== '') {
-			updateSettings({ defaultProjectName: (await db.projects.get(value))?.project?.name ?? 'Unknown' });
-			updateSettings({ defaultProjectId: value });
+			const name = value === settings.inboxID
+				? (settings.inboxName || 'Inbox')
+				: myProjectsOptions[value]
+					?? (await db.projects.get(value))?.project?.name
+					?? 'Unknown';
+			updateSettings({ defaultProjectName: name, defaultProjectId: value });
+			defaultProjectName = name;
 			await ensureCorrectDefaultPaths();
 			await plugin.saveSettings();
 		}
 	}
 
 	onMount(async () => {
-		projects = await plugin.service.getProjects?.() ?? [];
-		myProjectsOptions = getMyProjectsOptions();
+		await refreshProjectOptions();
 		defaultProjectId = getSettings().defaultProjectId ?? '';
+		defaultProjectName = getSettings().defaultProjectName ?? '';
 		currentDefault = getDefaultFolder() + '/' + getSettings().defaultProjectName;
 	});
 
@@ -276,7 +301,7 @@
 					<div>If tasks are added to a file with no default project association
 					</div>
 					<div>they will be added to the <span
-						class="setting-item-name"> {getSettings().defaultProjectName}</span> project.
+						class="setting-item-name"> {defaultProjectName}</span> project.
 					</div>
 				</div>
 			</div>

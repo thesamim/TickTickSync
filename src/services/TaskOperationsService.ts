@@ -245,6 +245,11 @@ export class TaskOperationsService {
 	 */
 	async moveTaskToProject(task: ITask, newProjectId: string, foundInAnotherFile: string|null = null): Promise<void> {
 		try {
+			const { getPausedProjectIds } = await import('@/db/projects');
+			const paused = await getPausedProjectIds();
+			if (paused.has(task.projectId) || paused.has(newProjectId)) {
+				throw new Error('Cannot move tasks in or out of a paused list');
+			}
 			const oldProjectId = task.projectId;
 			await this.plugin.tickTickRestAPI?.moveTaskProject(task, oldProjectId, newProjectId);
 

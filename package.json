@@ -1,6 +1,6 @@
 {
 	"name": "tickticksync",
-	"version": "2.0.15",
+	"version": "2.0.16",
 	"description": "Sync tasks and notes bidirectionally with TickTick.",
 	"main": "main.js",
 	"scripts": {
@@ -33,7 +33,6 @@
 		"@types/lowdb": "^1.0.15",
 		"bson-objectid": "^2.0.4",
 		"crypto-hash": "^3.1.0",
-		"dependency-tree": "^11.0.1",
 		"dexie": "^4.2.1",
 		"eventemitter2": "^6.4.9",
 		"loglevel": "^1.9.2",
@@ -72,7 +71,7 @@
 		"moment": "2.31.0"
 	},
 	"allowScripts": {
-		"esbuild@0.28.1": true,
+		"esbuild@0.28.2": true,
 		"svelte-preprocess@6.0.5": true
 	}
 }

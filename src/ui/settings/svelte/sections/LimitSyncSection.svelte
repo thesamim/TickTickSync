@@ -5,6 +5,7 @@
 	import { Notice } from 'obsidian';
 	import { TAGS_BEHAVIOR } from '@/ui/settings/svelte/constants.svelte.js';
 	import { settingsStore } from '@/ui/settings/settingsstore';
+	import { buildProjectOptions, loadCachedProjectOptions, loadFreshProjectOptions } from '@/ui/settings/projectOptions';
 
 	export let open = false;
 	export let plugin;
@@ -73,10 +74,7 @@
 	$: updateSyncExplanationData(myProjectsOptions);
 
 	function getMyProjectsOptions() {
-		return projects.reduce((obj, item) => {
-			obj[item.id] = item.name;
-			return obj;
-		}, {});
+		return buildProjectOptions(projects);
 	}
 	function handleSyncTagChange(value: string) {
 		syncTag = value;
@@ -86,14 +84,37 @@
 			await plugin.saveSettings();
 		}, 800);
 	}
-	onMount(async () => {
-		projects = await plugin.service.getProjects?.() ?? [];
+	async function refreshProjectOptions() {
+		projects = await loadCachedProjectOptions(plugin);
 		myProjectsOptions = getMyProjectsOptions();
+		updateSyncExplanationData(myProjectsOptions);
+
+		// Pick up lists created in TickTick since the last sync (even with no
+		// tasks yet) without waiting for a synchronization.
+		const fresh = await loadFreshProjectOptions(plugin);
+		if (fresh) {
+			projects = fresh;
+			myProjectsOptions = getMyProjectsOptions();
+			updateSyncExplanationData(myProjectsOptions);
+		}
+	}
+
+	let wasOpen = open;
+	// Refresh whenever the section is expanded so lists added in TickTick while
+	// the settings tab is open show up without a reload.
+	$: if (open !== wasOpen) {
+		wasOpen = open;
+		if (open) {
+			void refreshProjectOptions();
+		}
+	}
+
+	onMount(async () => {
+		await refreshProjectOptions();
 		selectedSyncProject = $settingsStore.SyncProject ?? '';
 		defaultProjectId = $settingsStore.defaultProjectId ?? '';
 		tagAndOr = $settingsStore.tagAndOr ?? 1;
 		syncTag = $settingsStore.SyncTag ?? '';
-		updateSyncExplanationData(myProjectsOptions);
 	});
 </script>
 

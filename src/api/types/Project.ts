@@ -9,7 +9,9 @@ export interface IProject {
 	userCount: number;
 	etag: string;
 	modifiedTime: string;
-	closed: number;
+	// Archive status. TickTick reports this as 0/1, true/false or null
+	// depending on the API version, so it has to be treated loosely.
+	closed?: number | boolean | null;
 	muted: boolean;
 	transferred: number;
 	groupId: string;
@@ -19,6 +21,8 @@ export interface IProject {
 	permission: unknown;
 	kind: string;
 	timeline: unknown;
+	// Some endpoints flag a removed project instead of dropping it.
+	deleted?: number | boolean;
 }
 
 export interface ISections {

@@ -36,6 +36,13 @@ export interface ITickTickSyncSettings {
 	// tasks so it gets cleaned up there too.
 	stripTickTickTagOnReset: boolean;
 
+	// Opt-in: ask what to do with lists that were archived in TickTick.
+	handleArchivedLists: boolean;
+	// Opt-in: ask what to do with lists that were deleted in TickTick.
+	handleDeletedLists: boolean;
+	// Folder that archived list files are moved into.
+	archivedListsFolder: string;
+
 
 	debugMode: boolean;
 	logLevel: string;
@@ -82,6 +89,9 @@ export const DEFAULT_SETTINGS: ITickTickSyncSettings = {
 	bkupFolder: '/',
 	stopInjectingTickTickTag: false,
 	stripTickTickTagOnReset: false,
+	handleArchivedLists: false,
+	handleDeletedLists: false,
+	archivedListsFolder: 'Archived',
 
 	inboxID: '',
 	inboxName: 'Inbox',

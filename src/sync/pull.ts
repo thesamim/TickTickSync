@@ -5,6 +5,7 @@ import type { TickTickRestAPI } from '@/services/TicktickRestAPI';
 import type { LocalTask, SyncMeta } from "@/db/schema";
 import { updateSettings } from '@/settings';
 import log from '@/utils/logger';
+import { getPausedProjectIds } from '@/db/projects';
 
 /** Resolve a task identifier that may appear as `id` or `taskId`. */
 function resolveTaskId(task: { id?: string; taskId?: string }): string | undefined {
@@ -28,6 +29,7 @@ export async function pullFromTickTick(
 	);
 
 	let applied = 0;
+	const pausedProjectIds = await getPausedProjectIds();
 
 	// 1️⃣ Bulk fetch local tasks for all updates
 	const remoteIds = update.map(rt => resolveTaskId(rt as { id?: string; taskId?: string })).filter((id): id is string => !!id);
@@ -37,6 +39,9 @@ export async function pullFromTickTick(
 	const toPut: LocalTask[] = [];
 
 	for (const rt of update) {
+		if (pausedProjectIds.has((rt as any).projectId)) {
+			continue;
+		}
 		const remoteId = resolveTaskId(rt);
 		if (!remoteId) {
 			log.warn("[TickTickSync] Invalid task in update", rt);
