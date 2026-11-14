@@ -85,7 +85,7 @@ export class FileOperation {
 		for (let i = 0; i < lines.length; i++) {
 			const line = lines[i];
 			if (line.includes(taskId) && this.plugin.taskParser?.hasTickTickTag(line)) {
-				lines[i] = line.replace(/- \[([xX])]/g, '- [ ]');
+				lines[i] = line.replace(/- \[([xX-])]/g, '- [ ]');
 				modified = true;
 				break;
 			}

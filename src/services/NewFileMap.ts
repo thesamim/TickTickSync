@@ -288,7 +288,7 @@ export class NewFileMap {
 			if (this.plugin.taskParser.isNoteLevel(line, parentTabs)) {
 				continue;
 			}
-			const isTwoSpaceChecklist = /^\s{2}- \[([xX ])]/.test(line);
+			const isTwoSpaceChecklist = /^\s{2}- \[([xX -])]/.test(line);
 			const hasItemId = !!this.plugin.taskParser?.getLineItemId(line);
 			const hasTickId = this.plugin.taskParser?.hasTickTickId(line);
 			const hasTag = this.plugin.taskParser?.hasTickTickTag(line);

@@ -60,7 +60,7 @@ const completion_date_strip_regex = `${keywords.TASK_COMPLETE}\\s\\d{4}-\\d{2}-\
 * Will ask for forgiveness in the fullness of time.
 *
 * */
-const status_regex = '^\\s*(-|\\*)\\s+\\[(x| )\\]\\s';
+const status_regex = '^\\s*(-|\\*)\\s+\\[(x|X| |-)\\]\\s';
 
 const indentationRegex = /^([\s\t>]*)/;
 
@@ -85,7 +85,7 @@ const taskRegex = new RegExp(
 
 export const REGEX = {
 	//hopefully tighter find.
-	TickTick_TAG: new RegExp(`^[\\s]*[-] \\[[x ]\\] [\\s\\S]*${keywords.TickTick_TAG}[\\s\\S]*$`, 'i'),
+	TickTick_TAG: new RegExp(`^[\\s]*[-] \\[[x \\-]\\] [\\s\\S]*${keywords.TickTick_TAG}[\\s\\S]*$`, 'i'),
 
 	TickTick_ID: /\[ticktick_id::\s*[\d\S]+\]/,
 	TickTick_ID_NUM: /\[ticktick_id::\s*(.*?)\s*\]/,
@@ -105,13 +105,15 @@ export const REGEX = {
 		REMOVE_INLINE_METADATA: /%%\[\w+::\s*\w+\]%%/g,
 		REMOVE_RECURRENCE: /🔁\s+[^🔁➕⏳🛫📅✅❌⏰\n]+/gu,
 		REMOVE_REMINDER: /⏰\s+[^⏰➕⏳🛫📅✅❌🔁🔺⏫🔼🔽⏬\n]+/gu,
-		REMOVE_CHECKBOX: /^(-|\*)\s+\[(x|X| )\]\s/,
-		REMOVE_CHECKBOX_WITH_INDENTATION: /^([ \t]*)?(-|\*)\s+\[(x|X| )\]\s/,
+		REMOVE_CHECKBOX: /^(-|\*)\s+\[(x|X| |-)\]\s/,
+		REMOVE_CHECKBOX_WITH_INDENTATION: /^([ \t]*)?(-|\*)\s+\[(x|X| |-)\]\s/,
 		REMOVE_TickTick_LINK: /\[link\]\(.*?\)/
 	}, //todo: this and remove_tags are redundant. Probably some of the other stuff to. Rationalize this lot.
 	ALL_TAGS: tag_regex,
 	TASK_CHECKBOX_CHECKED: /- \[(x|X)\] /,
-	TASK_INDENTATION: /^(\s{2,}|\t)(-|\*)\s+\[(x|X| )\]/,
+	// Obsidian Tasks "cancelled" status; maps to TickTick "Won't do" (status -1).
+	TASK_CHECKBOX_CANCELLED: /- \[-\] /,
+	TASK_INDENTATION: /^(\s{2,}|\t)(-|\*)\s+\[(x|X| |-)\]/,
 	TAB_INDENTATION: /^(\t+)/, // TASK_PRIORITY: /\s!!([1-4])\s/,
 	TASK_PRIORITY: new RegExp(keywords.priority, 'u'),
 	priorityRegex: /^.*([🔺⏫🔼🔽⏬]).*$/u,
@@ -122,6 +124,21 @@ export const REGEX = {
 	ITEM_LINE: /\[(.*?)\]\s*(.*?)\s*%%(.*?)%%/,
 	LINE_ITEM_ID: /%%(?!\[ticktick_id::\s)[a-f0-9]{24}%%/g
 };
+
+// TickTick task status values.
+export const TASK_STATUS = {
+	WONT_DO: -1,
+	OPEN: 0,
+	COMPLETED: 2
+};
+
+//Checkbox character for a TickTick task status: '-' for won't do, 'x' for completed, ' ' for open.
+export function checkboxForStatus(status: number | undefined): string {
+	if (status === TASK_STATUS.WONT_DO) {
+		return '-';
+	}
+	return (status ?? 0) > 0 ? 'x' : ' ';
+}
 
 export class TaskParser {
 	app: App;
@@ -141,7 +158,7 @@ export class TaskParser {
 
 		task.title = this.stripOBSUrl(task.title);
 
-		resultLine += `- [${task.status > 0 ? 'x' : ' '}] ${task.title}`;
+		resultLine += `- [${checkboxForStatus(task.status)}] ${task.title}`;
 
 
 		//add Tags
@@ -618,7 +635,7 @@ export class TaskParser {
 			log.error('Converting line to Object, could not find project Id: ', title);
 		}
 
-		const isCompleted = this.isTaskCheckboxChecked(textWithoutIndentation);
+		const status = this.getTaskStatusFromLineText(textWithoutIndentation);
 
 		const priority = this.getTaskPriority(textWithoutIndentation);
 
@@ -650,7 +667,7 @@ export class TaskParser {
 			tags: tags || [],
 			priority: Number(priority),
 			modifiedTime: this.plugin.dateMan?.formatDateToISO(new Date()) || '',
-			status: isCompleted ? 2 : 0, //Status: 0 is no completed. Anything else is completed.
+			status: status, //0: open, 2: completed, -1: won't do. Anything other than 0 is closed.
 			timeZone: timeZone,
 			repeatFlag: recurrenceResult?.repeatFlag || '',
 			repeatFrom: recurrenceResult?.repeatFrom,
@@ -835,7 +852,7 @@ export class TaskParser {
 	isTaskOpen(line: string) {
 		let result = new RegExp(status_regex, 'gmi').exec(line);
 		if (result) {
-			return (result[2].search(/[xX]/) < 0);
+			return (result[2].search(/[xX-]/) < 0);
 		} else {
 			throw new Error(`Status not found in line: ${line}`);
 		}
@@ -851,6 +868,21 @@ export class TaskParser {
 	//get checkbox status
 	isTaskCheckboxChecked(lineText: string) {
 		return (REGEX.TASK_CHECKBOX_CHECKED.test(lineText));
+	}
+
+	isTaskCheckboxCancelled(lineText: string) {
+		return (REGEX.TASK_CHECKBOX_CANCELLED.test(lineText));
+	}
+
+	//TickTick status for a task line: 2 for [x], -1 for [-] (won't do), 0 otherwise.
+	getTaskStatusFromLineText(lineText: string): number {
+		if (this.isTaskCheckboxChecked(lineText)) {
+			return TASK_STATUS.COMPLETED;
+		}
+		if (this.isTaskCheckboxCancelled(lineText)) {
+			return TASK_STATUS.WONT_DO;
+		}
+		return TASK_STATUS.OPEN;
 	}
 
 	//task content compare
@@ -1014,7 +1046,7 @@ export class TaskParser {
 
 	//remove task indentation
 	removeTaskIndentation(text: string): string {
-		const regex = /^([ \t]*)?- \[(x| )\] /;
+		const regex = /^([ \t]*)?- \[(x|X| |-)\] /;
 		return text.replace(regex, '- [$2] ');
 	}
 
@@ -1087,9 +1119,10 @@ export class TaskParser {
 
 		let checkBox = matches[3] || '';
 
-		//Anything other than 'x' is a not done state. Deal with it accordingly.
+		//'x' (done) and '-' (cancelled) are closed states. Anything else is not done.
+		//Checklist items have no won't do state in TickTick, so '-' closes the item.
 		//https://publish.obsidian.md/tasks/Getting+Started/Statuses
-		const status = checkBox.toLowerCase() == 'x';
+		const status = checkBox.toLowerCase() == 'x' || checkBox == '-';
 		let description = matches[4] || '';
 		description = description.replace(taskIDRegex, '');
 		let indent = matches[1] ? matches[1].length : 0;
@@ -1272,7 +1305,7 @@ export class TaskParser {
 			const text = matches[2] ?? '';
 			const id = matches[3] ?? '';
 
-			const itemStatus = status === 'x' ? 2 : 0;
+			const itemStatus = (status.toLowerCase() === 'x' || status === '-') ? 2 : 0;
 
 			item = {
 				id, title: text, status: itemStatus
